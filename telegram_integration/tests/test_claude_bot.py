@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import threading
 import time
 
-from telegram.claude_telegram_bot import ClaudeTelegramBot
+from telegram_integration.claude_telegram_bot import ClaudeTelegramBot
 
 
 def test_claude_bot():

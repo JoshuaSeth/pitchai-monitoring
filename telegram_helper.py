@@ -105,7 +105,7 @@ async def send_telegram_message(message: str, parse_mode: str = None, auto_conve
         bool: True if successful, False otherwise
     """
     try:
-        from telegram.telegram_notifier import TelegramNotifier
+        from telegram_integration.telegram_notifier import TelegramNotifier
 
         bot_token, chat_id = get_telegram_config()
 

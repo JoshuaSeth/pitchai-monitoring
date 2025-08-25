@@ -24,4 +24,4 @@ PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PARENT_DIR"
 
 # Start the bot
-python3 telegram/claude_telegram_bot.py "$@"
+python3 telegram_integration/claude_telegram_bot.py "$@"
