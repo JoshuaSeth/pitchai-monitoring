@@ -43,8 +43,14 @@ RUN apt-get update && apt-get install -y \
 
 RUN uv run playwright install chromium
 
-# Install Claude Code CLI
-RUN curl -fsSL https://claude.ai/cli/install.sh | sh
+# Install Claude Code CLI dependencies and create wrapper
+RUN pip install anthropic requests python-dotenv
+
+# Copy and install Claude CLI wrapper
+COPY claude_cli_wrapper.py /usr/local/bin/claude_cli_wrapper.py
+RUN chmod +x /usr/local/bin/claude_cli_wrapper.py && \
+    ln -s /usr/local/bin/claude_cli_wrapper.py /usr/local/bin/claude
+
 ENV PATH="/root/.local/bin:$PATH"
 
 # Create necessary directories
