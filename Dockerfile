@@ -43,13 +43,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN uv run playwright install chromium
 
-# Install Claude Code CLI dependencies via uv
-RUN uv add anthropic
-
-# Copy and install Claude CLI wrapper
-COPY claude_cli_wrapper.py /app/claude_cli_wrapper.py
-COPY claude_wrapper.sh /usr/local/bin/claude
-RUN chmod +x /usr/local/bin/claude
+# Install Claude Code CLI (already installed via install.sh)
 
 ENV PATH="/root/.local/bin:$PATH"
 
