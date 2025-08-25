@@ -24,8 +24,24 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Copy application code
 COPY . .
 
-# Install Playwright browsers (needed for UI testing)
-RUN uv run playwright install --with-deps chromium
+# Install Playwright browsers (needed for UI testing) - install dependencies first
+RUN apt-get update && apt-get install -y \
+    libnss3 \
+    libnspr4 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libxss1 \
+    libasound2 \
+    libatspi2.0-0 \
+    libgtk-3-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN uv run playwright install chromium
 
 # Create necessary directories
 RUN mkdir -p logs reports incidents
