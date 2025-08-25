@@ -6,11 +6,14 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     docker.io \
+    ca-certificates \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:$PATH"
+# Install uv - using the official Python method
+ADD --chmod=755 https://astral.sh/uv/install.sh /install.sh
+RUN /install.sh && rm /install.sh
+ENV PATH="/root/.local/bin:$PATH"
 
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
