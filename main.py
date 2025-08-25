@@ -55,6 +55,45 @@ async def root():
     return {"status": "healthy", "service": "monitoring"}
 
 
+@app.get("/endpoints")
+async def list_endpoints():
+    """List all available API endpoints for testing."""
+    return {
+        "service": "PitchAI Claude Monitoring System",
+        "endpoints": {
+            "health": {
+                "GET /": "Health check",
+                "GET /status": "System status",
+                "GET /health/docker": "Docker accessibility check"
+            },
+            "monitoring": {
+                "POST /run/claude-monitoring": "🤖 Trigger Claude AI monitoring (main feature)",
+                "POST /run/ai-monitoring": "Legacy AI monitoring workflow",
+                "POST /run/ui-tests": "Run UI test suite",
+                "POST /run/log-collection": "Collect container logs",
+                "POST /run/daily-report": "Generate daily report",
+                "POST /run/ai-workflow": "Run AI workflow",
+                "POST /run/ai-report": "Generate AI report"
+            },
+            "reports": {
+                "GET /reports/latest-ai-summary": "Get latest AI summary"
+            },
+            "tasks": {
+                "GET /tasks/{task_id}": "Get task status"
+            }
+        },
+        "examples": {
+            "trigger_claude_monitoring": "POST /run/claude-monitoring?hours=2",
+            "health_check": "GET /",
+            "system_status": "GET /status"
+        },
+        "cron_schedule": {
+            "morning": "03:00 UTC (5:00 AM CET)",
+            "afternoon": "10:15 UTC (12:15 PM CET)"
+        }
+    }
+
+
 @app.get("/status")
 async def get_status():
     """Get system status."""
@@ -190,6 +229,81 @@ async def trigger_ai_monitoring(background_tasks: BackgroundTasks):
         "message": "AI monitoring workflow started",
         "task_id": task_id,
         "status": "started"
+    }
+
+
+@app.post("/run/claude-monitoring")
+async def trigger_claude_monitoring(background_tasks: BackgroundTasks, hours: int = 2):
+    """Trigger Claude-powered monitoring agent with comprehensive analysis."""
+    if not coordinator:
+        return JSONResponse(content={"error": "System not initialized"}, status_code=503)
+    
+    import subprocess
+    import tempfile
+    from datetime import datetime
+    
+    task_id = f"claude_monitoring_{int(asyncio.get_event_loop().time())}"
+    
+    async def run_claude_monitoring():
+        """Execute the Claude monitoring agent."""
+        try:
+            logger.info(f"🤖 Starting Claude monitoring analysis (last {hours} hours)")
+            
+            # Run the claude monitoring agent
+            result = subprocess.run([
+                'python', 'claude_monitoring_agent.py', 
+                '--hours', str(hours)
+            ], 
+            capture_output=True, 
+            text=True, 
+            timeout=7200  # 2 hour timeout
+            )
+            
+            if result.returncode == 0:
+                logger.info("✅ Claude monitoring completed successfully")
+                # Parse the output to extract status
+                output_lines = result.stdout.strip().split('\n')
+                status_line = next((line for line in output_lines if 'Status Determined:' in line), 'Status: COMPLETED')
+                telegram_line = next((line for line in output_lines if 'Telegram' in line and 'sent' in line), 'Notification: Sent')
+                
+                return {
+                    "status": "completed",
+                    "claude_analysis": status_line,
+                    "telegram_notification": telegram_line,
+                    "hours_analyzed": hours,
+                    "execution_time": "Completed within timeout"
+                }
+            else:
+                logger.error(f"❌ Claude monitoring failed: {result.stderr}")
+                return {
+                    "status": "failed", 
+                    "error": result.stderr,
+                    "hours_analyzed": hours
+                }
+                
+        except subprocess.TimeoutExpired:
+            logger.warning("⏱️ Claude monitoring timed out after 2 hours")
+            return {
+                "status": "timeout",
+                "message": "Claude analysis took longer than 2 hours - this may be normal for comprehensive analysis",
+                "hours_analyzed": hours
+            }
+        except Exception as e:
+            logger.error(f"💥 Claude monitoring error: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "hours_analyzed": hours
+            }
+    
+    background_tasks.add_task(run_claude_monitoring)
+    
+    return {
+        "message": f"Claude monitoring started - analyzing last {hours} hours",
+        "task_id": task_id,
+        "status": "started",
+        "expected_duration": "Up to 2 hours",
+        "telegram_notification": "Will be sent upon completion"
     }
 
 
