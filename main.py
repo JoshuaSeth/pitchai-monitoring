@@ -63,8 +63,9 @@ async def list_endpoints():
         "endpoints": {
             "health": {
                 "GET /": "Health check",
-                "GET /status": "System status",
-                "GET /health/docker": "Docker accessibility check"
+                "GET /status": "System status", 
+                "GET /health/docker": "Docker accessibility check",
+                "GET /debug/env": "Environment debug info"
             },
             "monitoring": {
                 "POST /run/claude-monitoring": "🤖 Trigger Claude AI monitoring (main feature)",
@@ -92,6 +93,23 @@ async def list_endpoints():
             "afternoon": "10:15 UTC (12:15 PM CET)"
         }
     }
+
+
+@app.get("/debug/env")
+async def debug_environment():
+    """Debug environment variables (for troubleshooting only)."""
+    import os
+    
+    env_info = {
+        "claude_token_configured": bool(os.getenv('CLAUDE_CODE_OAUTH_TOKEN')),
+        "claude_token_prefix": os.getenv('CLAUDE_CODE_OAUTH_TOKEN', '')[:20] + '...' if os.getenv('CLAUDE_CODE_OAUTH_TOKEN') else 'Not set',
+        "telegram_token_configured": bool(os.getenv('TELEGRAM_BOT_TOKEN')),
+        "telegram_chat_configured": bool(os.getenv('TELEGRAM_CHAT_ID')),
+        "monitoring_env": os.getenv('MONITORING_ENV', 'not set'),
+        "path_env": os.getenv('PATH', '').split(':')[:5]  # First 5 PATH entries
+    }
+    
+    return env_info
 
 
 @app.get("/status")
