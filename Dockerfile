@@ -43,7 +43,8 @@ RUN apt-get update && apt-get install -y \
 
 RUN uv run playwright install chromium
 
-# Install Claude Code CLI (already installed via install.sh)
+# Install Claude Code CLI
+RUN curl -fsSL https://claude.ai/cli/install.sh | sh
 
 ENV PATH="/root/.local/bin:$PATH"
 
