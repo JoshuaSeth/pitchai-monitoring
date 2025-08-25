@@ -1,0 +1,68 @@
+# Production Monitoring Configuration for PitchAI
+# Configured for same-server Docker deployment and daily AI agent monitoring
+
+# Environment settings
+environment: "production"
+log_level: "INFO"
+
+# UI Testing settings
+ui_test_timeout: 60  # Increased for production stability
+browser_headless: true
+screenshot_on_failure: true
+
+# Docker settings - same-server deployment
+# Using local Docker socket - no remote connection needed
+docker_host: null  # Use local Docker socket via /var/run/docker.sock
+docker_containers: []  # Auto-discover all running containers
+auto_discover_containers: true
+
+# AI Agent Monitoring Schedule
+test_schedule_cron: "0 6 * * *"  # Daily at 6 AM for AI agent lead
+log_collection_interval: 3600  # 1 hour (suitable for daily monitoring)
+daily_report_time: "06:30"  # Generate report 30 minutes after tests
+
+# Output settings - structured for AI agent consumption
+reports_directory: "reports"
+logs_directory: "logs"
+incidents_directory: "incidents"
+structured_output: true  # Enable JSON output for AI agent
+
+# Production URLs for PitchAI
+production_urls:
+  - "https://monitoring.pitchai.net"
+  - "https://monitoring.pitchai.net/status"
+  - "https://monitoring.pitchai.net/api/health"
+
+# Container monitoring configuration
+container_monitoring:
+  log_retention_hours: 24  # Keep 24 hours of logs for daily analysis
+  error_keywords:
+    - "ERROR"
+    - "FATAL"
+    - "Exception"
+    - "failed"
+    - "timeout"
+    - "connection refused"
+    - "500"
+    - "502"
+    - "503"
+    - "504"
+  
+# AI Agent integration settings
+ai_agent:
+  enable_structured_output: true
+  daily_summary_format: "json"
+  telegram_ready: true  # Prepare for future Telegram integration
+  
+# Authentication tokens (use environment variables in production)
+auth_tokens:
+  api_key: ""
+  auth_token: ""
+
+# Telegram notification settings
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN}"  # Set via environment variable
+  chat_id: "${TELEGRAM_CHAT_ID}"      # Set via environment variable
+  enabled: true
+  daily_report_time: "06:30"
+  critical_alerts: true

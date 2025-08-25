@@ -1,0 +1,43 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment and secrets
+.env
+.env.local
+.env.production
+*.key
+*.pem
+
+# Logs and reports
+logs/
+reports/
+incidents/
+*.log
+
+# Test results and sessions
+test-results/
+sessions/
+playwright-report/
+screenshots/
+
+# Node modules
+node_modules/
+
+# IDE and temporary files
+.vscode/
+.DS_Store
+*.tmp
+*.swp
+*.swo
+
+# Docker volumes and data
+data/
+volumes/

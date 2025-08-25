@@ -1,0 +1,23 @@
+{
+  "name": "monitoring",
+  "version": "1.0.0",
+  "description": "A comprehensive monitoring infrastructure for running UI tests and collecting logs from production systems. This system provides automated monitoring capabilities with structured reporting for team leads and operations engineers.",
+  "main": "playwright.config.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:afasask": "npx playwright test tests/afasask_critical_journey_test.js",
+    "test:headed": "npx playwright test --headed",
+    "report": "npx playwright show-report"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@playwright/test": "^1.54.2"
+  }
+}

@@ -1,0 +1,64 @@
+# Production Docker Compose for PitchAI Monitoring System
+# Configured for same-server deployment with Docker socket access
+
+version: '3.8'
+
+services:
+  monitoring:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: pitchai-monitoring
+    restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "8000:8000"
+    
+    # Environment variables for production
+    environment:
+      - MONITORING_ENV=production
+      - LOG_LEVEL=INFO
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - BROWSER_HEADLESS=true
+    
+    # Mount Docker socket for container access
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+      - ./incidents:/app/incidents
+    
+    # Network configuration
+    networks:
+      - monitoring-network
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+networks:
+  monitoring-network:
+    driver: bridge
+    name: pitchai-monitoring
+
+# Production deployment notes:
+# 1. Run with: docker-compose up -d
+# 2. Access monitoring at: https://monitoring.pitchai.net
+# 3. Configure reverse proxy (nginx/traefik) to route monitoring.pitchai.net to port 8000
+# 4. Ensure Docker socket permissions allow container access
+# 5. Set up automated backups for reports, logs, and incidents directories

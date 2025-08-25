@@ -1,0 +1,64 @@
+# Docker Compose for PitchAI Monitoring System
+# Designed for same-server deployment with other services
+
+version: '3.8'
+
+services:
+  monitoring:
+    build: 
+      context: .
+      dockerfile: Dockerfile.monitoring
+    container_name: pitchai-monitoring
+    restart: unless-stopped
+    
+    ports:
+      - "8000:8000"  # Web API port
+    
+    volumes:
+      # Mount Docker socket for log collection
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      
+      # Persistent storage for monitoring data
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+      - ./incidents:/app/incidents
+      
+      # Configuration (can be overridden)
+      - ./config:/app/config:ro
+    
+    environment:
+      # Production settings
+      - ENVIRONMENT=production
+      - PRODUCTION_URL=https://monitoring.pitchai.net
+      
+      # Telegram configuration (set these in your deployment)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      
+      # Optional authentication
+      - API_KEY=${API_KEY:-}
+      - AUTH_TOKEN=${AUTH_TOKEN:-}
+      
+      # Logging
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    labels:
+      - "com.pitchai.service=monitoring"
+      - "com.pitchai.type=ai-agent"
+      - "com.pitchai.description=Daily monitoring and alerting system"
+    
+    networks:
+      - pitchai-network
+
+networks:
+  pitchai-network:
+    driver: bridge
+    name: pitchai-monitoring-network

@@ -1,0 +1,63 @@
+# API Endpoint Test Configuration
+# Verify API endpoints are functional on monitoring.pitchai.net
+
+flow_name: "API Endpoints — Monitoring System Tests"
+description: "Verify all monitoring system API endpoints are working correctly"
+target_url: "https://monitoring.pitchai.net"
+target_env: "production"
+owner: "AI Monitoring Agent"
+last_verified: "2025-08-16"
+
+metadata:
+  priority: "high"
+  feature: "api-monitoring"
+  estimated_duration: 20
+
+steps:
+  - action: "navigate"
+    value: "https://monitoring.pitchai.net/"
+    
+  - action: "wait_for"
+    selector: "body"
+    timeout: 10
+    
+  - action: "assert_response_ok"
+    description: "Health check should return 200"
+    
+  - action: "api_call"
+    method: "GET"
+    url: "https://monitoring.pitchai.net/status"
+    expect_status: 200
+    description: "System status endpoint"
+    
+  - action: "api_call"
+    method: "POST"
+    url: "https://monitoring.pitchai.net/run/ui-tests"
+    expect_status: 200
+    description: "Trigger UI tests endpoint"
+    
+  - action: "api_call"
+    method: "POST"
+    url: "https://monitoring.pitchai.net/run/log-collection"
+    expect_status: 200
+    description: "Trigger log collection endpoint"
+    
+  - action: "api_call"
+    method: "POST"
+    url: "https://monitoring.pitchai.net/run/daily-report"
+    expect_status: 200
+    description: "Generate daily report endpoint"
+    
+  - action: "wait"
+    seconds: 5
+    description: "Allow time for background tasks to initialize"
+    
+  - action: "navigate"
+    value: "https://monitoring.pitchai.net/status"
+    
+  - action: "wait_for"
+    selector: "body"
+    timeout: 10
+    
+  - action: "assert_response_ok"
+    description: "Final status check after triggering tasks"
