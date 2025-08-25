@@ -8,11 +8,12 @@ This demonstrates what the master log aggregator will look like when fully worki
 import os
 from datetime import datetime
 
+
 def create_section(title: str, content: str, level: int = 1) -> str:
     """Create a formatted section"""
     separators = {1: "=", 2: "-", 3: "."}
     sep = separators.get(level, "=")
-    
+
     return f"""
 {sep*80}
 {title.upper() if level == 1 else title}
@@ -22,14 +23,14 @@ def create_section(title: str, content: str, level: int = 1) -> str:
 
 def main():
     """Generate a demo master log report with sample data"""
-    
+
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
+
     print("🎭 Generating Demo Master Log Report...")
     print("=" * 50)
-    
+
     sections = []
-    
+
     # Header
     header = f"""PITCHAI PRODUCTION MONITORING - MASTER LOG REPORT
 Generated: {timestamp}
@@ -46,22 +47,22 @@ This report aggregates data from:
 Report sections:
 1. Production Container Status & Health
 2. Container Logs (annotated by container)
-3. Error Analysis & Critical Issues  
+3. Error Analysis & Critical Issues
 4. System Resource Utilization
 5. Network & Connectivity Status
 6. Summary & Recommendations"""
-    
+
     sections.append(create_section("Master Report Overview", header))
-    
+
     # Production Container Status
     container_status = """PRODUCTION SERVER: 37.27.67.52 (Hetzner)
 SSH Connection: ✅ Active
-Docker Daemon: ✅ Running  
+Docker Daemon: ✅ Running
 Total Containers: 17
 
 CONTAINER STATUS SUMMARY:
 📦 afasask                          | Status: Up 2 days (unhealthy)    | Ports: 3102
-📦 afasask-staging                   | Status: Up 2 days (unhealthy)    | Ports: 3105  
+📦 afasask-staging                   | Status: Up 2 days (unhealthy)    | Ports: 3105
 📦 autopar-staging                   | Status: Up 4 days                | Ports: 3103
 📦 autopar                          | Status: Up 10 days               | Ports: 3101
 📦 metabase                         | Status: Up 2 weeks               | Ports: 3200
@@ -82,9 +83,9 @@ CONTAINER STATUS SUMMARY:
 • 4 containers showing unhealthy status
 • 1 container in restart loop (ai-price-crawler-crawler-1)
 • No critical port conflicts detected"""
-    
+
     sections.append(create_section("Production Container Status", container_status))
-    
+
     # Container Logs (annotated)
     container_logs = """LOG COLLECTION PERIOD: Last 4 hours
 TOTAL LOG ENTRIES: 1,247 across 17 containers
@@ -131,7 +132,7 @@ Recent activity:
 Log entries: 0
 Status: No recent logs (potentially concerning)
 
->>> CONTAINER: AFASASK-STAGING <<<  
+>>> CONTAINER: AFASASK-STAGING <<<
 Log entries: 0
 Status: No recent logs
 
@@ -148,9 +149,9 @@ Recent activity:
 >>> 11 OTHER CONTAINERS <<<
 Combined entries: 0
 Status: Silent (normal for background services)"""
-    
+
     sections.append(create_section("Production Container Logs (Annotated)", container_logs))
-    
+
     # Error Analysis
     error_analysis = """ERROR ANALYSIS SUMMARY:
 Analysis period: 4 hours
@@ -162,19 +163,19 @@ Critical issues: 1
 🔥 CRITICAL ISSUES:
 • [ai-price-crawler-crawler-1] Connection refused: target host unreachable
   - Impact: Web crawling operations failing
-  - Duration: Ongoing for 45 minutes  
+  - Duration: Ongoing for 45 minutes
   - Recommended action: Check network connectivity and target endpoints
 
 📊 ERROR BREAKDOWN BY CONTAINER:
 • ai-price-crawler-crawler-1: 23 errors
   - Rate limiting: 12 occurrences
-  - Connection timeouts: 8 occurrences  
+  - Connection timeouts: 8 occurrences
   - HTTP 429 errors: 3 occurrences
   Latest: "Retry attempt 3/5 failed"
 
 ⚠️  HEALTH WARNINGS:
 • afasask: No logs in 4 hours (unusual silence)
-• afasask-staging: No logs in 4 hours  
+• afasask-staging: No logs in 4 hours
 • afasask-quick-chat: No logs in 4 hours
 • 4 containers showing 'unhealthy' status in Docker
 
@@ -183,10 +184,10 @@ Critical issues: 1
 • postgres-container: Database operations stable
 • registry: Light activity, no errors
 • portainer: Administrative access logged"""
-    
+
     sections.append(create_section("Error Analysis & Critical Issues", error_analysis))
-    
-    # System Metrics  
+
+    # System Metrics
     system_metrics = """PRODUCTION SERVER METRICS:
 
 💾 DISK SPACE:
@@ -216,9 +217,9 @@ Last reboot: 2025-07-23 08:15
 • Temperature: Normal
 • Network: All interfaces up
 • Services: All critical services running"""
-    
+
     sections.append(create_section("System Resource Utilization", system_metrics))
-    
+
     # Network Status
     network_status = """NETWORK & CONNECTIVITY STATUS:
 
@@ -231,7 +232,7 @@ Last reboot: 2025-07-23 08:15
 🔌 LISTENING SERVICES:
 Port    Service              Status
 22      SSH                  ✅ Active
-80      HTTP (nginx)         ✅ Active  
+80      HTTP (nginx)         ✅ Active
 443     HTTPS (nginx)        ✅ Active
 3101    autopar              ✅ Active
 3102    afasask              ⚠️  Unhealthy
@@ -251,28 +252,28 @@ Port    Service              Status
 • 3 services responding as unhealthy
 • ai-price-crawler experiencing external connectivity issues
 • May be related to upstream API rate limiting"""
-    
+
     sections.append(create_section("Network & Connectivity Status", network_status))
-    
+
     # Summary & Recommendations
     summary = f"""SYSTEM HEALTH SCORE: 78/100 (Good with concerns)
 
 ✅ STRENGTHS:
 • Core infrastructure stable (database, web services)
 • No critical security issues detected
-• System resources within acceptable limits  
+• System resources within acceptable limits
 • Monitoring and logging functioning correctly
 • 13/17 containers operating normally
 
 ⚠️  AREAS OF CONCERN:
 • 4 containers showing unhealthy status
-• 1 container in restart loop (crawler)  
+• 1 container in restart loop (crawler)
 • 3 application containers silent for 4+ hours
 • Disk usage trending upward (59% on root)
 
 🎯 IMMEDIATE ACTIONS REQUIRED:
 1. Investigate ai-price-crawler-crawler-1 connectivity issues
-2. Check afasask containers for application-level problems  
+2. Check afasask containers for application-level problems
 3. Review unhealthy container configurations
 4. Monitor disk usage trend
 
@@ -287,30 +288,30 @@ Port    Service              Status
 Generated: {timestamp}
 Report ID: MASTER-{datetime.now().strftime('%Y%m%d%H%M')}
 Monitoring System: PitchAI Production Monitoring v2.0"""
-    
+
     sections.append(create_section("Executive Summary & Recommendations", summary))
-    
+
     # Generate final report
     full_report = "\\n".join(sections)
-    
+
     # Save to file
     timestamp_file = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"reports/demo_master_report_{timestamp_file}.txt"
-    
+
     os.makedirs("reports", exist_ok=True)
-    
+
     try:
         with open(filename, 'w') as f:
             f.write(full_report)
-        
-        print(f"✅ Demo Master Report Generated!")
+
+        print("✅ Demo Master Report Generated!")
         print(f"📁 File: {filename}")
         print(f"📏 Size: {len(full_report):,} characters")
         print(f"📊 Sections: {len(sections)}")
         print()
         print("🎯 This demonstrates the comprehensive monitoring capabilities:")
         print("   • Production container status with health indicators")
-        print("   • Annotated logs organized by container") 
+        print("   • Annotated logs organized by container")
         print("   • Error analysis with actionable insights")
         print("   • System metrics and resource utilization")
         print("   • Network connectivity assessment")
@@ -320,7 +321,7 @@ Monitoring System: PitchAI Production Monitoring v2.0"""
         print("   • Your 17 production containers via SSH")
         print("   • System metrics from the production server")
         print("   • Live application logs and error detection")
-        
+
     except Exception as e:
         print(f"❌ Error saving demo report: {e}")
 

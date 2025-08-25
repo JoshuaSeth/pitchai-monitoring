@@ -1,8 +1,7 @@
 """Configuration management for the monitoring system."""
 
 import os
-from pathlib import Path
-from typing import Dict, Any, Optional
+
 import yaml
 from pydantic import BaseModel, Field
 
@@ -22,55 +21,55 @@ class AIAgentConfig(BaseModel):
 
 class MonitoringConfig(BaseModel):
     """Main configuration for the monitoring system."""
-    
+
     # Environment settings
     environment: str = Field(default="production", description="Environment to monitor")
     log_level: str = Field(default="INFO", description="Logging level")
-    
+
     # UI Testing settings
     ui_test_timeout: int = Field(default=30, description="UI test timeout in seconds")
     browser_headless: bool = Field(default=True, description="Run browser in headless mode")
     screenshot_on_failure: bool = Field(default=True, description="Take screenshots on test failures")
-    
+
     # Docker settings
-    docker_host: Optional[str] = Field(default=None, description="Docker host URL")
+    docker_host: str | None = Field(default=None, description="Docker host URL")
     docker_containers: list[str] = Field(default_factory=list, description="Container names to monitor")
     auto_discover_containers: bool = Field(default=True, description="Auto-discover running containers")
-    
+
     # Scheduling settings
     test_schedule_cron: str = Field(default="0 */1 * * *", description="Cron expression for test scheduling")
     log_collection_interval: int = Field(default=300, description="Log collection interval in seconds")
     daily_report_time: str = Field(default="06:30", description="Time to generate daily reports")
-    
+
     # Output settings
     reports_directory: str = Field(default="reports", description="Directory for output reports")
     logs_directory: str = Field(default="logs", description="Directory for collected logs")
     incidents_directory: str = Field(default="incidents", description="Directory for incident reports")
     structured_output: bool = Field(default=True, description="Enable structured output for AI agents")
-    
+
     # Security settings
     production_urls: list[str] = Field(default_factory=list, description="Production URLs to test")
-    auth_tokens: Dict[str, str] = Field(default_factory=dict, description="Authentication tokens")
-    
+    auth_tokens: dict[str, str] = Field(default_factory=dict, description="Authentication tokens")
+
     # Container monitoring
     container_monitoring: ContainerMonitoringConfig = Field(default_factory=ContainerMonitoringConfig)
-    
+
     # AI Agent settings
     ai_agent: AIAgentConfig = Field(default_factory=AIAgentConfig)
 
 
-def load_config(config_path: Optional[str] = None) -> MonitoringConfig:
+def load_config(config_path: str | None = None) -> MonitoringConfig:
     """Load configuration from file or environment variables."""
     if config_path is None:
         config_path = os.getenv("MONITORING_CONFIG", "config/monitoring.yaml")
-    
+
     config_data = {}
-    
+
     # Load from file if exists
     if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             config_data = yaml.safe_load(f) or {}
-    
+
     # Override with environment variables
     env_overrides = {
         "environment": os.getenv("MONITORING_ENV"),
@@ -79,7 +78,7 @@ def load_config(config_path: Optional[str] = None) -> MonitoringConfig:
         "ui_test_timeout": os.getenv("UI_TEST_TIMEOUT"),
         "browser_headless": os.getenv("BROWSER_HEADLESS"),
     }
-    
+
     # Filter out None values and convert types
     for key, value in env_overrides.items():
         if value is not None:
@@ -88,7 +87,7 @@ def load_config(config_path: Optional[str] = None) -> MonitoringConfig:
             elif key in ["browser_headless"]:
                 value = value.lower() in ("true", "1", "yes")
             config_data[key] = value
-    
+
     return MonitoringConfig(**config_data)
 
 

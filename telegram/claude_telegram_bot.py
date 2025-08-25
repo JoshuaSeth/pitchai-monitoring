@@ -3,15 +3,14 @@
 Telegram Bot that executes Claude CLI commands based on user messages
 """
 
-import subprocess
-import requests
-import json
-import time
 import os
+import subprocess
 import sys
-from datetime import datetime
 import threading
-import re
+import time
+from datetime import datetime
+
+import requests
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,52 +29,52 @@ class ClaudeTelegramBot:
         self.project_path = project_path or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.commands_executed = 0
         self.active_process = None
-        
+
     def send_message(self, chat_id, text, parse_mode="Markdown"):
         """Send a message to a chat"""
         url = f"{BASE_URL}/sendMessage"
-        
+
         # Escape markdown if needed
         if parse_mode == "Markdown":
             # Basic markdown escaping for special characters
             text = text.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[")
-        
+
         data = {
             "chat_id": chat_id,
             "text": text[:4096],  # Telegram message limit
             "parse_mode": parse_mode
         }
-        
+
         try:
             response = requests.post(url, json=data)
             return response.json()
         except:
             return {"ok": False}
-    
+
     def get_updates(self, offset=None, timeout=30):
         """Get updates using long polling"""
         url = f"{BASE_URL}/getUpdates"
         params = {"timeout": timeout}
         if offset:
             params["offset"] = offset
-        
+
         try:
             response = requests.get(url, params=params, timeout=timeout+5)
             return response.json()
         except:
             return {"ok": True, "result": []}
-    
+
     def is_authorized(self, chat_id):
         """Check if user is authorized"""
         return chat_id in AUTHORIZED_USERS
-    
+
     def execute_claude_command(self, prompt, chat_id):
         """Execute a Claude CLI command"""
         self.commands_executed += 1
-        
+
         # Send starting message
         self.send_message(chat_id, f"🚀 Executing Claude command #{self.commands_executed}...")
-        
+
         # Build the command
         cmd = [
             "claude",
@@ -83,12 +82,12 @@ class ClaudeTelegramBot:
             "-p",
             prompt
         ]
-        
+
         try:
             # Change to project directory
             original_dir = os.getcwd()
             os.chdir(self.project_path)
-            
+
             # Execute the command
             self.active_process = subprocess.Popen(
                 cmd,
@@ -96,34 +95,34 @@ class ClaudeTelegramBot:
                 stderr=subprocess.PIPE,
                 text=True
             )
-            
+
             # Start a timer to kill long-running processes
             def timeout_handler():
                 time.sleep(120)  # 2 minute timeout
                 if self.active_process and self.active_process.poll() is None:
                     self.active_process.kill()
                     self.send_message(chat_id, "⏱️ Command timed out after 2 minutes")
-            
+
             timeout_thread = threading.Thread(target=timeout_handler)
             timeout_thread.daemon = True
             timeout_thread.start()
-            
+
             # Get output
             stdout, stderr = self.active_process.communicate()
-            
+
             # Return to original directory
             os.chdir(original_dir)
-            
+
             if self.active_process.returncode == 0:
                 # Success - send output in chunks if needed
                 output = stdout[:2000] if stdout else "Command completed with no output"
-                
-                response = f"✅ **Command Executed Successfully**\n\n"
+
+                response = "✅ **Command Executed Successfully**\n\n"
                 response += f"**Output:**\n```\n{output}\n```"
-                
+
                 if len(stdout) > 2000:
                     response += f"\n\n_(Output truncated, showing first 2000 chars of {len(stdout)})_"
-                
+
                 self.send_message(chat_id, response)
                 return True
             else:
@@ -132,7 +131,7 @@ class ClaudeTelegramBot:
                 response = f"❌ **Command Failed**\n\n**Error:**\n```\n{error}\n```"
                 self.send_message(chat_id, response)
                 return False
-                
+
         except subprocess.TimeoutExpired:
             self.send_message(chat_id, "⏱️ Command timed out")
             return False
@@ -141,7 +140,7 @@ class ClaudeTelegramBot:
             return False
         finally:
             self.active_process = None
-    
+
     def process_message(self, message):
         """Process an incoming message"""
         chat_id = message["chat"]["id"]
@@ -149,14 +148,14 @@ class ClaudeTelegramBot:
         from_user = message["from"]
         username = from_user.get("username", "Unknown")
         first_name = from_user.get("first_name", "")
-        
+
         print(f"\n📨 Message from {first_name} (@{username}): {text}")
-        
+
         # Check authorization
         if not self.is_authorized(chat_id):
             self.send_message(chat_id, "❌ Unauthorized. This bot is restricted.")
             return
-        
+
         # Process commands
         if text.startswith("/"):
             self.handle_command(text, chat_id)
@@ -177,11 +176,11 @@ class ClaudeTelegramBot:
                 self.execute_claude_command(text, chat_id)
             else:
                 self.send_message(chat_id, "💡 Send a longer message or use:\n• `claude: <prompt>`\n• `run: <task>`\n• `/help` for more info")
-    
+
     def handle_command(self, command, chat_id):
         """Handle bot commands"""
         cmd = command.lower().strip()
-        
+
         if cmd == "/start":
             welcome = """🤖 **Claude Telegram Bot**
 
@@ -199,7 +198,7 @@ I can execute Claude CLI commands for you!
 /stop - Stop current command
 /stats - Show statistics"""
             self.send_message(chat_id, welcome)
-            
+
         elif cmd == "/help":
             help_text = """📚 **Help**
 
@@ -215,7 +214,7 @@ I can execute Claude CLI commands for you!
 /stats - Show statistics
 /project - Show project path"""
             self.send_message(chat_id, help_text)
-            
+
         elif cmd == "/status":
             status = f"""✅ **Bot Status**
 
@@ -225,7 +224,7 @@ I can execute Claude CLI commands for you!
 • **Process running:** {'Yes' if self.active_process else 'No'}
 • **Time:** {datetime.now().strftime('%H:%M:%S')}"""
             self.send_message(chat_id, status)
-            
+
         elif cmd == "/tasks":
             tasks = """📋 **Available Tasks**
 
@@ -236,14 +235,14 @@ I can execute Claude CLI commands for you!
 
 Or send any custom prompt!"""
             self.send_message(chat_id, tasks)
-            
+
         elif cmd == "/stop":
             if self.active_process:
                 self.active_process.kill()
                 self.send_message(chat_id, "🛑 Current command stopped")
             else:
                 self.send_message(chat_id, "No command is currently running")
-                
+
         elif cmd == "/stats":
             stats = f"""📊 **Statistics**
 
@@ -251,13 +250,13 @@ Or send any custom prompt!"""
 • Bot uptime: Active
 • Authorized users: {len(AUTHORIZED_USERS)}"""
             self.send_message(chat_id, stats)
-            
+
         elif cmd == "/project":
             self.send_message(chat_id, f"📁 Project path: `{self.project_path}`")
-            
+
         else:
             self.send_message(chat_id, f"❓ Unknown command: {command}")
-    
+
     def run_task(self, task, chat_id):
         """Run predefined tasks"""
         tasks = {
@@ -266,44 +265,44 @@ Or send any custom prompt!"""
             "check status": "Check the status of the backlog processing system",
             "create test": "Create a simple test file called telegram_test.txt with current timestamp"
         }
-        
+
         task_lower = task.lower()
-        
+
         if task_lower in tasks:
             prompt = tasks[task_lower]
             self.execute_claude_command(prompt, chat_id)
         else:
             available = "\n• ".join(tasks.keys())
             self.send_message(chat_id, f"❓ Unknown task: {task}\n\nAvailable tasks:\n• {available}")
-    
+
     def run(self):
         """Main bot loop"""
         print("🤖 Claude Telegram Bot Starting...")
         print(f"Project path: {self.project_path}")
         print("="*60)
-        
+
         # Send startup notification
         self.send_message(CHAT_ID, "🤖 Claude Telegram Bot is now active!\n\nSend me a message or command to execute through Claude CLI.")
-        
+
         print("📡 Listening for messages...")
         print("Send a message to @pitchai_dev_bot")
         print("Press Ctrl+C to stop")
         print("="*60)
-        
+
         while self.running:
             try:
                 updates = self.get_updates(offset=self.last_update_id, timeout=30)
-                
+
                 if updates.get("ok"):
                     for update in updates["result"]:
                         update_id = update["update_id"]
-                        
+
                         if self.last_update_id is None or update_id > self.last_update_id:
                             self.last_update_id = update_id + 1
-                        
+
                         if "message" in update:
                             self.process_message(update["message"])
-                
+
             except KeyboardInterrupt:
                 print("\n🛑 Stopping bot...")
                 self.running = False
@@ -311,27 +310,27 @@ Or send any custom prompt!"""
             except Exception as e:
                 print(f"❌ Error: {e}")
                 time.sleep(5)
-        
+
         # Send shutdown notification
         self.send_message(CHAT_ID, "👋 Claude Telegram Bot has stopped")
         print("✅ Bot stopped")
 
 def main():
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Claude Telegram Bot")
     parser.add_argument("--project", help="Project path", default=None)
     args = parser.parse_args()
-    
+
     # Check if Claude CLI is available
     try:
         subprocess.run(["claude", "--version"], capture_output=True, check=True)
     except:
         print("❌ Claude CLI not found. Please install it first.")
         sys.exit(1)
-    
+
     bot = ClaudeTelegramBot(project_path=args.project)
-    
+
     try:
         bot.run()
     except Exception as e:

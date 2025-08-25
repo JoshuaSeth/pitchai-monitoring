@@ -10,14 +10,16 @@ import asyncio
 import subprocess
 import tempfile
 from datetime import datetime
+
 from telegram_helper import send_telegram_message
+
 
 async def test_claude_monitoring():
     """Test the complete Claude monitoring workflow."""
-    
+
     print("🎯 Testing Claude Monitoring Workflow")
     print("=" * 50)
-    
+
     # Step 1: Create simplified monitoring data
     monitoring_data = """
 ================================================================================
@@ -77,11 +79,11 @@ Based on the data, what is your assessment? Start your response with the appropr
 
     # Step 3: Get Claude's analysis
     print("\n📋 Sending data to Claude for analysis...")
-    
+
     with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
         f.write(claude_prompt)
         prompt_file = f.name
-    
+
     try:
         result = subprocess.run(
             ['claude', '--dangerously-skip-permissions', '-p', prompt_file],
@@ -89,10 +91,10 @@ Based on the data, what is your assessment? Start your response with the appropr
             text=True,
             timeout=30
         )
-        
+
         claude_response = result.stdout.strip()
         print(f"\n🤖 Claude's Response:\n{claude_response[:200]}...")
-        
+
         # Step 4: Parse Claude's response
         if "STATUS: ALL_GOOD" in claude_response:
             status = "ALL_GOOD"
@@ -110,9 +112,9 @@ Based on the data, what is your assessment? Start your response with the appropr
             status = "UNKNOWN"
             emoji = "❓"
             message_type = "Unknown Status"
-        
+
         print(f"\n✅ Status Determined: {status}")
-        
+
         # Step 5: Send Telegram notification
         telegram_message = f"""{emoji} **CLAUDE MONITORING TEST**
 
@@ -133,16 +135,16 @@ _This is a test of the Claude monitoring system_"""
 
         print("\n📨 Sending Telegram notification...")
         success = await send_telegram_message(telegram_message)
-        
+
         if success:
             print("✅ Telegram notification sent successfully!")
         else:
             print("❌ Failed to send Telegram notification")
-            
+
     finally:
         import os
         os.unlink(prompt_file)
-    
+
     print("\n" + "=" * 50)
     print("🎉 Test Complete!")
     print(f"• Claude Status: {status}")

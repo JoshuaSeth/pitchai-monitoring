@@ -7,8 +7,8 @@ This version uses the working CLI commands to collect data and formats it nicely
 
 import os
 import subprocess
-import time
 from datetime import datetime
+
 
 def run_command(command: str, shell: bool = False) -> tuple[str, bool]:
     """Run a command and return output and success status"""
@@ -32,15 +32,15 @@ def create_section(title: str, content: str) -> str:
 
 def main():
     """Generate master log report using CLI commands"""
-    
+
     print("🚀 Simplified Master Log Aggregator")
     print("=" * 50)
-    
+
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     hours = 2  # Collect 2 hours of data
-    
+
     sections = []
-    
+
     # Header
     header = f"""PITCHAI PRODUCTION MONITORING - MASTER LOG REPORT
 Generated: {timestamp}
@@ -49,13 +49,13 @@ Data Sources: Production containers + Local system
 
 This comprehensive report includes:
 • Production Docker container status (17 containers)
-• Container logs with error analysis  
+• Container logs with error analysis
 • Local system metrics
 • Network information
 • Overall system health"""
-    
+
     sections.append(create_section("Master Report Header", header))
-    
+
     print("📦 Collecting production container status...")
     # Production container status
     container_status, success = run_command("python3 -m monitoring.production_logs.cli status")
@@ -63,7 +63,7 @@ This comprehensive report includes:
         sections.append(create_section("Production Container Status", container_status))
     else:
         sections.append(create_section("Production Container Status", f"Error collecting data: {container_status}"))
-    
+
     print("🏥 Checking production system health...")
     # Production health check
     health_check, success = run_command("python3 -m monitoring.production_logs.cli health")
@@ -71,7 +71,7 @@ This comprehensive report includes:
         sections.append(create_section("Production Health Check", health_check))
     else:
         sections.append(create_section("Production Health Check", f"Error: {health_check}"))
-    
+
     print("🚨 Collecting production error analysis...")
     # Production errors
     error_check, success = run_command(f"python3 -m monitoring.production_logs.cli errors {hours}")
@@ -79,7 +79,7 @@ This comprehensive report includes:
         sections.append(create_section("Production Error Analysis", error_check))
     else:
         sections.append(create_section("Production Error Analysis", f"Error: {error_check}"))
-    
+
     print("📋 Collecting recent production logs...")
     # Production logs (recent)
     recent_logs, success = run_command(f"python3 -m monitoring.production_logs.cli logs {hours}")
@@ -87,7 +87,7 @@ This comprehensive report includes:
         sections.append(create_section("Recent Production Logs", recent_logs))
     else:
         sections.append(create_section("Recent Production Logs", f"Error: {recent_logs}"))
-    
+
     print("💾 Saving comprehensive logs to file...")
     # Save production logs to file
     save_result, success = run_command(f"python3 -m monitoring.production_logs.cli save {hours}")
@@ -95,21 +95,21 @@ This comprehensive report includes:
         sections.append(create_section("Log File Generation", save_result))
     else:
         sections.append(create_section("Log File Generation", f"Error: {save_result}"))
-    
+
     print("📊 Collecting local system metrics...")
     # Local system info
     local_metrics = []
-    
+
     # Disk space
     df_out, success = run_command("df -h")
     if success:
         local_metrics.append(f"DISK SPACE:\\n{df_out}")
-    
-    # System load  
+
+    # System load
     uptime_out, success = run_command("uptime")
     if success:
         local_metrics.append(f"\\nSYSTEM LOAD:\\n{uptime_out}")
-    
+
     # Memory (try multiple commands for cross-platform)
     vm_stat_out, success = run_command("vm_stat")
     if success:
@@ -118,33 +118,33 @@ This comprehensive report includes:
         free_out, success = run_command("free -h")
         if success:
             local_metrics.append(f"\\nMEMORY USAGE:\\n{free_out}")
-    
+
     # Top processes
     top_out, success = run_command("ps aux | head -20", shell=True)
     if success:
         local_metrics.append(f"\\nTOP PROCESSES:\\n{top_out}")
-    
+
     sections.append(create_section("Local System Metrics", "\\n".join(local_metrics)))
-    
+
     print("🌐 Collecting network information...")
     # Network info
     network_info = []
-    
+
     # Network interfaces
     ifconfig_out, success = run_command("ifconfig")
     if success:
         network_info.append(f"NETWORK INTERFACES:\\n{ifconfig_out}")
-    
+
     # Active connections
     netstat_out, success = run_command("netstat -an | head -30", shell=True)
     if success:
         network_info.append(f"\\nACTIVE CONNECTIONS:\\n{netstat_out}")
-    
+
     sections.append(create_section("Network Information", "\\n".join(network_info)))
-    
+
     # Generate final report
     full_report = "\\n".join(sections)
-    
+
     # Add summary footer
     summary = f"""
 {'='*80}
@@ -157,7 +157,7 @@ Collection time: Complete
 
 This master report provides comprehensive visibility into:
 ✅ Production Docker containers (remote via SSH)
-✅ Application logs and error analysis  
+✅ Application logs and error analysis
 ✅ System health and metrics
 ✅ Network connectivity status
 ✅ Overall infrastructure status
@@ -165,29 +165,29 @@ This master report provides comprehensive visibility into:
 For detailed analysis, review each section above.
 Next steps: Archive this report and set up automated collection.
 """
-    
+
     full_report += summary
-    
+
     # Save to file
     timestamp_file = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"reports/master_log_simple_{timestamp_file}.txt"
-    
+
     os.makedirs("reports", exist_ok=True)
-    
+
     try:
         with open(filename, 'w') as f:
             f.write(full_report)
-        
-        print(f"\\n✅ Master report generated successfully!")
+
+        print("\\n✅ Master report generated successfully!")
         print(f"📁 Saved to: {filename}")
         print(f"📏 Size: {len(full_report):,} characters")
         print(f"📊 Sections: {len(sections)}")
-        
+
         # Show preview
-        print(f"\\n📋 Report Preview (first 1500 chars):")
+        print("\\n📋 Report Preview (first 1500 chars):")
         print("=" * 50)
         print(full_report[:1500] + "\\n...(truncated)")
-        
+
     except Exception as e:
         print(f"❌ Error saving report: {e}")
         print("\\n📄 Report content:")

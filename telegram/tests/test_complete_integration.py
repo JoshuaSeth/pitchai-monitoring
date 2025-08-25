@@ -5,7 +5,7 @@ Test the complete integration with a simple backlog item
 
 import json
 import subprocess
-import time
+
 
 def create_test_backlog():
     """Create a simple test backlog"""
@@ -16,18 +16,18 @@ def create_test_backlog():
             "status": "pending"
         }
     ]
-    
+
     # Save as test backlog
     with open("test_backlog.json", "w") as f:
         json.dump(test_items, f, indent=2)
-    
+
     print("✅ Test backlog created")
 
 def run_test_with_telegram():
     """Run the backlog processor with Telegram enabled"""
     print("\n🚀 Running backlog processor with Telegram notifications...")
     print("-" * 50)
-    
+
     # Create a simple Python script that will be executed
     test_script = '''
 import json
@@ -54,7 +54,7 @@ This is a live test of the AutoPAR backlog processing system with Telegram notif
 success = notifier.send_formatted_message(chat_id, message)
 if success:
     print("✅ Telegram notification sent successfully!")
-    
+
     # Create the test file
     with open("telegram_test.txt", "w") as f:
         f.write(f"Telegram integration verified at {datetime.now()}")
@@ -62,31 +62,31 @@ if success:
 else:
     print("❌ Failed to send Telegram notification")
 '''
-    
+
     with open("run_integration_test.py", "w") as f:
         f.write(test_script)
-    
+
     # Execute the test
     result = subprocess.run(["python3", "run_integration_test.py"], capture_output=True, text=True)
     print(result.stdout)
     if result.stderr:
         print("Errors:", result.stderr)
-    
+
     return result.returncode == 0
 
 def main():
     print("=" * 50)
     print("🧪 COMPLETE INTEGRATION TEST")
     print("=" * 50)
-    
+
     # Load current config
-    with open("telegram_config.json", "r") as f:
+    with open("telegram_config.json") as f:
         config = json.load(f)
-    
+
     print(f"✅ Telegram enabled: {config['enabled']}")
     print(f"✅ Chat ID configured: {config['chat_id']}")
     print()
-    
+
     # Run the test
     if run_test_with_telegram():
         print("\n" + "=" * 50)

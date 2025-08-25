@@ -7,7 +7,7 @@ affecting running containers.
 All operations are strictly READ-ONLY and non-destructive.
 """
 
-from .production_log_collector import ProductionLogCollector
 from .log_interface import LogInterface
+from .production_log_collector import ProductionLogCollector
 
 __all__ = ['ProductionLogCollector', 'LogInterface']

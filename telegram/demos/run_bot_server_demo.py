@@ -3,10 +3,11 @@
 Run the Telegram bot server for a demo period
 """
 
-import requests
-import time
 import threading
+import time
 from datetime import datetime
+
+import requests
 from telegram_bot_server import TelegramBotServer
 
 BOT_TOKEN = "8268321313:AAH6a-i0A0fxmt7jtXoQ5_PtucT0YwTk8BI"
@@ -24,7 +25,7 @@ def run_demo(duration=15):
     print("="*60)
     print("🤖 TELEGRAM BOT SERVER DEMO")
     print("="*60)
-    
+
     # Send start notification
     start_msg = f"""🚀 Bot Server is NOW ACTIVE!
 
@@ -38,24 +39,24 @@ Try sending these commands to @pitchai_dev_bot:
 • Or just type any message!
 
 Server will run for {duration} seconds..."""
-    
+
     result = send_message(start_msg)
     if result.get("ok"):
-        print(f"✅ Start notification sent to Telegram")
-    
+        print("✅ Start notification sent to Telegram")
+
     # Create bot server
     bot = TelegramBotServer()
-    
+
     # Create a thread to stop the bot after duration
     def stop_after_timeout():
         time.sleep(duration)
         bot.stop()
         print(f"\n⏰ Demo time ({duration}s) expired, stopping server...")
-    
+
     timeout_thread = threading.Thread(target=stop_after_timeout)
     timeout_thread.daemon = True
     timeout_thread.start()
-    
+
     # Run the bot
     try:
         bot.run()
@@ -72,7 +73,7 @@ Stats:
 
 The bot server has stopped listening.
 To run again: python run_bot_server_demo.py"""
-        
+
         send_message(end_msg)
         print("\n✅ Demo completed successfully!")
 

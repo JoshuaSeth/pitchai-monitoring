@@ -4,8 +4,8 @@ Simple script to get Telegram chat ID without external dependencies
 """
 
 import json
-import urllib.request
 import urllib.parse
+import urllib.request
 
 BOT_TOKEN = "8268321313:AAH6a-i0A0fxmt7jtXoQ5_PtucT0YwTk8BI"
 
@@ -37,13 +37,13 @@ def send_test_message(chat_id):
     """Send a test message to verify the chat ID"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     message = "✅ Test successful! Your chat ID is configured correctly."
-    
+
     params = {
         'chat_id': chat_id,
         'text': message,
         'parse_mode': 'HTML'
     }
-    
+
     try:
         data = urllib.parse.urlencode(params).encode()
         req = urllib.request.Request(url, data=data)
@@ -58,7 +58,7 @@ def main():
     print("🤖 Telegram Chat ID Finder")
     print("=" * 50)
     print()
-    
+
     # Get bot info
     bot_info = get_bot_info()
     if bot_info:
@@ -68,18 +68,18 @@ def main():
     else:
         print("⚠️ Could not connect to bot")
         bot_username = "pitchai_dev_bot"
-    
+
     print("📋 Instructions:")
     print(f"1. Open Telegram and search for @{bot_username}")
     print("2. Start a chat with the bot")
     print("3. Send any message to the bot (e.g., 'Hello')")
     print("4. Press Enter here after sending the message...")
     input()
-    
+
     # Get updates
     print("\n🔍 Checking for messages...")
     updates = get_updates()
-    
+
     if updates:
         # Extract unique chat IDs
         chat_ids = {}
@@ -88,7 +88,7 @@ def main():
                 msg = update['message']
                 chat = msg.get('chat', {})
                 chat_id = chat.get('id')
-                
+
                 if chat_id and chat_id not in chat_ids:
                     chat_ids[chat_id] = {
                         'type': chat.get('type', 'private'),
@@ -98,7 +98,7 @@ def main():
                         'last_message': msg.get('text', ''),
                         'from_user': msg.get('from', {}).get('username')
                     }
-        
+
         if chat_ids:
             print("\n✅ Found chat IDs:")
             for chat_id, info in chat_ids.items():
@@ -118,19 +118,19 @@ def main():
                     if len(info['last_message']) > 50:
                         msg_preview += "..."
                     print(f"     Last message: {msg_preview}")
-            
+
             print("\n" + "=" * 50)
-            
+
             # If only one chat ID found, offer to test and update config
             if len(chat_ids) == 1:
                 chat_id = list(chat_ids.keys())[0]
                 print(f"\n🎯 Your chat ID is: {chat_id}")
-                
+
                 # Test message
-                print(f"\n🧪 Sending test message to verify...")
+                print("\n🧪 Sending test message to verify...")
                 if send_test_message(chat_id):
                     print("✅ Test message sent successfully!")
-                    
+
                     # Update config file
                     print("\n📝 Updating config file...")
                     config_path = "config/telegram_config.json"
@@ -141,10 +141,10 @@ def main():
                             "enabled": True,
                             "_note": "Auto-configured with correct chat ID"
                         }
-                        
+
                         with open(config_path, 'w') as f:
                             json.dump(config, f, indent=2)
-                        
+
                         print(f"✅ Config updated: {config_path}")
                         print(f"   Chat ID set to: {chat_id}")
                         print("\n🎉 Telegram notifications are now configured!")

@@ -11,8 +11,8 @@ to execute the complete monitoring workflow:
 5. Send Telegram notifications with daily report
 """
 
-import sys
 import os
+import sys
 
 # Add the monitoring package to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,12 +26,12 @@ def main():
     print(f"⏰ Execution time: {__import__('datetime').datetime.utcnow().isoformat()}")
     print("📍 Production environment: monitoring.pitchai.net")
     print("")
-    
+
     try:
         # Execute daily monitoring
         DailyOrchestrator.run()
         print("✅ Daily monitoring completed successfully!")
-        
+
     except Exception as e:
         print(f"❌ Daily monitoring failed: {e}")
         sys.exit(1)

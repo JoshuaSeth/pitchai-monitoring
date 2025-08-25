@@ -3,9 +3,9 @@
 Final demonstration of Telegram integration with backlog processing
 """
 
-import requests
-import json
 from datetime import datetime
+
+import requests
 
 BOT_TOKEN = "8268321313:AAH6a-i0A0fxmt7jtXoQ5_PtucT0YwTk8BI"
 CHAT_ID = "5246077032"
@@ -13,7 +13,7 @@ CHAT_ID = "5246077032"
 def send_demo_messages():
     """Send a series of messages demonstrating the integration"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    
+
     messages = [
         {
             "text": "🚀 Starting AutoPAR Backlog Processing",
@@ -36,31 +36,31 @@ def send_demo_messages():
             "delay": 1
         }
     ]
-    
+
     print("=" * 60)
     print("📱 TELEGRAM INTEGRATION DEMONSTRATION")
     print("=" * 60)
     print(f"Sending messages to chat ID: {CHAT_ID}")
     print()
-    
+
     for i, msg in enumerate(messages, 1):
         data = {
             "chat_id": CHAT_ID,
             "text": msg["text"]
         }
-        
+
         response = requests.post(url, json=data)
         result = response.json()
-        
+
         if result.get("ok"):
             print(f"✅ Message {i}/5 sent (ID: {result['result']['message_id']})")
         else:
             print(f"❌ Failed to send message {i}: {result}")
-        
+
         import time
         if i < len(messages):
             time.sleep(msg["delay"])
-    
+
     print()
     print("=" * 60)
     print("✅ DEMONSTRATION COMPLETE!")
