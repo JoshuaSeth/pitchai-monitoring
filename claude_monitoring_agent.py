@@ -137,13 +137,14 @@ CRITICAL RESPONSE FORMATS - You MUST respond with ONE of these three statuses:
 
 INVESTIGATION REQUIREMENTS:
 When you determine investigation is needed (SUSPICIOUS_INVESTIGATE or ERRORS_INVESTIGATE):
-- You MUST ACTUALLY USE the deployment-infra-engineer agent to perform the investigation
-- DO NOT just suggest investigation - YOU must launch the infra-agent and get results
-- The infra-agent MUST operate in READ-ONLY mode - NO changes, deployments, or modifications
-- CRITICALLY IMPORTANT: Tell the infra-agent explicitly: "READ-ONLY investigation only, make NO changes"
-- You may use the infra-agent MULTIPLE TIMES for comprehensive investigation
-- Each infra-agent call should investigate specific areas based on your findings
-- COLLECT all investigation results from the infra-agent
+- You MUST ACTUALLY USE the monitoring-infra-engineer agent to perform the investigation
+- DO NOT just suggest investigation - YOU must launch the monitoring-infra-engineer and get results
+- The monitoring-infra-engineer MUST operate in READ-ONLY mode - NO changes, deployments, or modifications
+- CRITICALLY IMPORTANT: Tell the monitoring-infra-engineer explicitly: "READ-ONLY investigation only, make NO changes"
+- You may use the monitoring-infra-engineer MULTIPLE TIMES for comprehensive investigation
+- So after a report you ask for a more specific follow-up research in a certain direction
+- Each monitoring-infra-engineer call should investigate specific areas based on your findings
+- COLLECT all investigation results from the monitoring-infra-engineer
 - INCLUDE the complete investigation findings in your response
 
 WHAT TO ANALYZE:
