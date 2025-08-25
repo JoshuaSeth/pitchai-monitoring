@@ -3,7 +3,7 @@ name = "monitoring"
 version = "0.1.0"
 description = "Application monitoring and observability tools"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.104.0",
     "uvicorn>=0.24.0",
