@@ -110,46 +110,12 @@ jobs:
   #     - name: Run E2E tests
   #       run: python -m pytest tests/e2e
 
-  build-and-push:
+  deploy-direct:
     runs-on: ubuntu-latest
     needs: unit-tests
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log in to private registry
-        uses: docker/login-action@v2
-        with:
-          registry: registry.pitchai.net:5000
-          username: dev
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      - name: Build Docker image
-        run: |
-          IMAGE_NAME=registry.pitchai.net:5000/monitoring-system
-          if [[ $GITHUB_REF == refs/heads/main ]]; then
-            TAG=latest
-          elif [[ $GITHUB_REF == refs/heads/release/* ]]; then
-            TAG=${GITHUB_REF#refs/heads/release/}
-          else
-            TAG=${GITHUB_SHA::7}
-          fi
-          docker build -t $IMAGE_NAME:$TAG .
-          echo "IMAGE_NAME=$IMAGE_NAME:$TAG" >> $GITHUB_ENV
-
-      - name: Push Docker image
-        run: docker push ${{ env.IMAGE_NAME }}
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Deploy to Hetzner
+      - name: Deploy directly to production server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -157,44 +123,67 @@ jobs:
           key: ${{ secrets.HETZNER_SSH_KEY }}
           port: 22
           script: |
-            echo "Logging in to private registry..."
-            docker login registry.pitchai.net:5000 -u dev -p ${{ secrets.REGISTRY_PASSWORD }}
+            echo "🚀 Starting direct deployment to production server..."
             
-            echo "Pulling latest Docker image..."
-            docker pull registry.pitchai.net:5000/monitoring-system:latest
+            # Create temporary directory for deployment
+            DEPLOY_DIR="/tmp/monitoring-deploy-$(date +%s)"
+            mkdir -p $DEPLOY_DIR
+            cd $DEPLOY_DIR
             
-            echo "Stopping existing container..."
-            docker stop monitoring || true
+            # Clone the repository
+            echo "📥 Cloning repository..."
+            git clone https://github.com/JoshuaSeth/pitchai-monitoring.git .
             
-            echo "Removing existing container..."
-            docker rm monitoring || true
+            # Stop and remove existing container
+            echo "🛑 Stopping existing monitoring container..."
+            docker stop monitoring || echo "No existing container to stop"
+            docker rm monitoring || echo "No existing container to remove"
             
-            echo "Starting new container..."
+            # Remove old image if exists
+            echo "🗑️ Removing old monitoring image..."
+            docker rmi monitoring-system:latest || echo "No existing image to remove"
+            
+            # Build new Docker image
+            echo "🔨 Building new Docker image..."
+            docker build -t monitoring-system:latest .
+            
+            # Start new container with all environment variables
+            echo "🚀 Starting new monitoring container..."
             docker run -d \
               --name monitoring \
               -p 8000:8000 \
               --restart unless-stopped \
-              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v /var/run/docker.sock:/var/run/docker.sock:ro \
               -v /var/log:/var/log:ro \
               -e HETZNER_HOST=${{ secrets.HETZNER_HOST }} \
               -e HETZNER_USER=${{ secrets.HETZNER_USER }} \
-              -e DOCKER_PASSWORD=${{ secrets.DOCKER_PASSWORD }} \
-              -e REGISTRY_PASSWORD=${{ secrets.REGISTRY_PASSWORD }} \
-              -e WEBSITE_URL=${{ secrets.WEBSITE_URL }} \
-              -e POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }} \
-              -e GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
-              registry.pitchai.net:5000/monitoring-system:latest
+              -e DOCKER_PASSWORD="${{ secrets.DOCKER_PASSWORD }}" \
+              -e REGISTRY_PASSWORD="${{ secrets.REGISTRY_PASSWORD }}" \
+              -e WEBSITE_URL="${{ secrets.WEBSITE_URL }}" \
+              -e POSTHOG_API_KEY="${{ secrets.POSTHOG_API_KEY }}" \
+              -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+              -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+              -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
+              monitoring-system:latest
             
-            echo "Checking container status..."
-            docker ps | grep monitoring
+            echo "⏳ Waiting for container to start..."
+            sleep 20
             
-            echo "Waiting for container to stabilize..."
-            sleep 15
+            # Check container status
+            echo "📊 Checking container status..."
+            docker ps | grep monitoring || echo "❌ Container not found in running state"
             
-            echo "Checking container health..."
-            curl -f http://localhost:8000/ || echo "Health check failed"
+            # Check container logs
+            echo "📋 Container startup logs:"
+            docker logs monitoring --tail 20 || echo "❌ Could not fetch logs"
             
-            echo "Checking container logs..."
-            docker logs monitoring --tail 50
+            # Test health endpoint
+            echo "🏥 Testing health endpoint..."
+            curl -f http://localhost:8000/ || echo "⚠️ Health check endpoint not responding yet"
             
-            echo "Deployment complete!"
+            # Clean up temporary directory
+            cd /
+            rm -rf $DEPLOY_DIR
+            
+            echo "✅ Direct deployment completed!"
+
