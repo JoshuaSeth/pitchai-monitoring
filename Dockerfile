@@ -43,16 +43,13 @@ RUN apt-get update && apt-get install -y \
 
 RUN uv run playwright install chromium
 
-# Install Claude Code CLI manually with correct paths
+# Install Claude Code CLI (optional - fallback to API if not available)
 RUN curl -fsSL https://claude.ai/cli/install.sh > /tmp/claude_install.sh && \
     chmod +x /tmp/claude_install.sh && \
-    /tmp/claude_install.sh && \
-    rm /tmp/claude_install.sh
+    /tmp/claude_install.sh || echo "Claude CLI installation failed - will use fallback method" && \
+    rm -f /tmp/claude_install.sh
 
-# Ensure Claude CLI is in PATH and available
 ENV PATH="/root/.local/bin:$PATH"
-RUN which claude || echo "Claude CLI not found - checking installation locations:" && \
-    find /root -name "claude" -type f 2>/dev/null || echo "No claude binary found"
 
 # Create necessary directories
 RUN mkdir -p logs reports incidents

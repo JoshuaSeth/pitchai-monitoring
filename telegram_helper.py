@@ -125,6 +125,49 @@ async def send_telegram_message(message: str, parse_mode: str = None, auto_conve
         return False
 
 
+async def get_recent_telegram_messages(limit: int = 10) -> list:
+    """
+    Get recent messages from the Telegram chat to verify system status.
+    
+    Args:
+        limit (int): Number of recent messages to retrieve
+        
+    Returns:
+        list: Recent messages from the chat
+    """
+    try:
+        import requests
+        bot_token, chat_id = get_telegram_config()
+        
+        # Get updates from Telegram
+        url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
+        params = {
+            "limit": limit,
+            "offset": -limit
+        }
+        
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('ok'):
+                messages = []
+                for update in data.get('result', []):
+                    if 'message' in update:
+                        msg = update['message']
+                        if str(msg.get('chat', {}).get('id')) == str(chat_id):
+                            messages.append({
+                                'date': msg.get('date'),
+                                'text': msg.get('text', ''),
+                                'message_id': msg.get('message_id')
+                            })
+                return messages
+        return []
+        
+    except Exception as e:
+        print(f"  ❌ Failed to get Telegram messages: {e}")
+        return []
+
+
 async def send_monitoring_alert(title: str, details: str, severity: str = "INFO") -> bool:
     """
     Send a formatted monitoring alert via Telegram.
