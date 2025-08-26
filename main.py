@@ -68,7 +68,7 @@ async def list_endpoints():
                 "GET /debug/env": "Environment debug info"
             },
             "monitoring": {
-                "POST /run/claude-monitoring": "🤖 Trigger Claude AI monitoring (main feature)",
+                "GET|POST /run/claude-monitoring": "🤖 Trigger Claude AI monitoring (main feature)",
                 "POST /run/ai-monitoring": "Legacy AI monitoring workflow",
                 "POST /run/ui-tests": "Run UI test suite",
                 "POST /run/log-collection": "Collect container logs",
@@ -84,7 +84,7 @@ async def list_endpoints():
             }
         },
         "examples": {
-            "trigger_claude_monitoring": "POST /run/claude-monitoring?hours=2",
+            "trigger_claude_monitoring": "GET|POST /run/claude-monitoring?hours=2",
             "health_check": "GET /",
             "system_status": "GET /status"
         },
@@ -251,6 +251,7 @@ async def trigger_ai_monitoring(background_tasks: BackgroundTasks):
 
 
 @app.post("/run/claude-monitoring")
+@app.get("/run/claude-monitoring")
 async def trigger_claude_monitoring(background_tasks: BackgroundTasks, hours: int = 2):
     """Trigger Claude-powered monitoring agent with comprehensive analysis."""
     if not coordinator:
