@@ -217,9 +217,9 @@ CRITICAL: You must USE the infra-agent and include its actual findings, not just
                         continue
                 
                 if not claude_cmd:
-                    # Final fallback to /usr/local/bin/claude (our wrapper)
-                    claude_cmd = "/usr/local/bin/claude"
-                    print(f"  • Using Claude wrapper at: {claude_cmd}")
+                    # Fallback to pattern analysis until real Claude CLI is installed
+                    print("  ⚠️  Claude CLI not found - using pattern analysis fallback")
+                    return self._claude_api_fallback(formatted_prompt)
                 
                 # Execute Claude command with found path
                 cmd = [claude_cmd, '--dangerously-skip-permissions', '-p', temp_file_path]
