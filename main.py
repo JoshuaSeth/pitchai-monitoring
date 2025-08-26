@@ -52,7 +52,7 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"status": "healthy", "service": "monitoring", "restart_time": "2025-08-26T05:30:00Z"}
+    return {"status": "healthy", "service": "monitoring", "restart_time": "2025-08-26T05:35:00Z"}
 
 
 @app.get("/endpoints")
