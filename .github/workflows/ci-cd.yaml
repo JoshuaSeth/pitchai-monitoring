@@ -157,6 +157,7 @@ jobs:
               -v /var/log:/var/log:ro \
               -e HETZNER_HOST=${{ secrets.HETZNER_HOST }} \
               -e HETZNER_USER=${{ secrets.HETZNER_USER }} \
+              -e HETZNER_SSH_KEY="${{ secrets.HETZNER_SSH_KEY }}" \
               -e DOCKER_PASSWORD="${{ secrets.DOCKER_PASSWORD }}" \
               -e REGISTRY_PASSWORD="${{ secrets.REGISTRY_PASSWORD }}" \
               -e WEBSITE_URL="${{ secrets.WEBSITE_URL }}" \

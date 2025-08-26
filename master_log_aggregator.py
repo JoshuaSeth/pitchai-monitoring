@@ -132,7 +132,7 @@ class MasterLogAggregator:
             status_info.append(f"\\nDOCKER VERSION:\n{docker_version_out}")
 
         # Running containers summary
-        docker_ps_out, docker_ps_err, docker_ps_code = run_command("docker ps --format table {{.Names}}\\t{{.Status}}\\t{{.Image}}")
+        docker_ps_out, docker_ps_err, docker_ps_code = run_command("docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'")
         if docker_ps_code == 0:
             status_info.append(f"\\nRUNNING CONTAINERS:\n{docker_ps_out}")
         else:
