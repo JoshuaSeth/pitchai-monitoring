@@ -43,11 +43,11 @@ RUN apt-get update && apt-get install -y \
 
 RUN uv run playwright install chromium
 
-# Install Claude Code CLI (optional - fallback to API if not available)
-RUN curl -fsSL https://claude.ai/cli/install.sh > /tmp/claude_install.sh && \
-    chmod +x /tmp/claude_install.sh && \
-    /tmp/claude_install.sh || echo "Claude CLI installation failed - will use fallback method" && \
-    rm -f /tmp/claude_install.sh
+# Install working Claude API wrapper as claude command
+COPY claude_api_wrapper.py /app/claude_api_wrapper.py
+COPY claude_wrapper.sh /usr/local/bin/claude
+RUN chmod +x /usr/local/bin/claude
+RUN uv add requests
 
 ENV PATH="/root/.local/bin:$PATH"
 
