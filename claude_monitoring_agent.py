@@ -201,8 +201,8 @@ CRITICAL: You must USE the infra-agent and include its actual findings, not just
                 temp_file_path = temp_file.name
 
             try:
-                # Try different Claude CLI locations
-                claude_paths = ['claude', '/root/.local/bin/claude', '/usr/local/bin/claude', '/opt/homebrew/bin/claude']
+                # Try different Claude CLI locations (npm global install first)
+                claude_paths = ['/usr/local/bin/claude', 'claude', '/root/.local/bin/claude', '/opt/homebrew/bin/claude']
                 claude_cmd = None
                 
                 for path in claude_paths:

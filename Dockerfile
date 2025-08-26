@@ -43,13 +43,12 @@ RUN apt-get update && apt-get install -y \
 
 RUN uv run playwright install chromium
 
-# Install working Claude API wrapper as claude command
-COPY claude_api_wrapper.py /app/claude_api_wrapper.py
-COPY claude_wrapper.sh /usr/local/bin/claude
-RUN chmod +x /usr/local/bin/claude
-RUN uv add requests
+# Install Node.js and Claude CLI via npm
+RUN apt-get update && apt-get install -y nodejs npm && \
+    npm install -g @anthropic-ai/claude-code && \
+    rm -rf /var/lib/apt/lists/*
 
-ENV PATH="/root/.local/bin:$PATH"
+ENV PATH="/usr/local/bin:/root/.local/bin:$PATH"
 
 # Create necessary directories
 RUN mkdir -p logs reports incidents
