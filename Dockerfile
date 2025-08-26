@@ -43,9 +43,15 @@ RUN apt-get update && apt-get install -y \
 
 RUN uv run playwright install chromium
 
-# Install Node.js and Claude CLI via npm
-RUN apt-get update && apt-get install -y nodejs npm && \
+# Install Node.js, Docker, and additional monitoring tools
+RUN apt-get update && apt-get install -y \
+    nodejs npm \
+    docker.io \
+    iproute2 \
+    net-tools \
+    openssh-client && \
     npm install -g @anthropic-ai/claude-code && \
+    npm install && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/usr/local/bin:/root/.local/bin:$PATH"
