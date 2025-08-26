@@ -195,10 +195,11 @@ CRITICAL: You must USE the infra-agent and include its actual findings, not just
         print("🤖 Executing Claude analysis...")
 
         try:
-            # Create temporary file for the prompt
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as temp_file:
+            # Create temporary file for the prompt in project directory  
+            import uuid
+            temp_file_path = f"claude_prompt_{uuid.uuid4().hex[:8]}.txt"
+            with open(temp_file_path, 'w') as temp_file:
                 temp_file.write(formatted_prompt)
-                temp_file_path = temp_file.name
 
             try:
                 # Try different Claude CLI locations (npm global install first)
