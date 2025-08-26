@@ -222,9 +222,9 @@ CRITICAL: You must USE the infra-agent and include its actual findings, not just
                     return self._claude_api_fallback(formatted_prompt)
                 
                 # Execute Claude command with found path
-                cmd = [claude_cmd, '--dangerously-skip-permissions', '-p', temp_file_path]
+                cmd = [claude_cmd, '-p', temp_file_path]
 
-                print(f"  • Running: {cmd[0]} --dangerously-skip-permissions -p <prompt_file>")
+                print(f"  • Running: {cmd[0]} -p <prompt_file>")
 
                 if self.dry_run:
                     print("  • DRY RUN: Would execute Claude command")
