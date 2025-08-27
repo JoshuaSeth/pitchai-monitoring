@@ -38,6 +38,14 @@ async def startup_event():
     coordinator = TaskCoordinator()
     await coordinator.start()
     logger.info("Monitoring system started")
+    
+    # Start Python scheduler as alternative to cron
+    try:
+        from python_scheduler import start_scheduler
+        start_scheduler()
+        logger.info("Python scheduler started as cron alternative")
+    except Exception as e:
+        logger.warning(f"Could not start Python scheduler: {e}")
 
 
 @app.on_event("shutdown")
