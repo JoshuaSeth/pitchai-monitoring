@@ -11,23 +11,6 @@ from telegram_sync_helper import send_telegram_message_sync
 import subprocess
 import os
 
-def send_scheduler_test():
-    """Send test message every 2 minutes"""
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
-    message = f"🐍 <b>PYTHON SCHEDULER TEST</b>\n\n"
-    message += f"📅 Time: {timestamp}\n"
-    message += f"✅ Python scheduler is working!\n"
-    message += f"🔄 Running every 2 minutes\n"
-    message += f"🔧 PID: {os.getpid()}\n"
-    
-    print(f"[{timestamp}] Python scheduler sending test message")
-    
-    try:
-        success = send_telegram_message_sync(message)
-        print(f"[{timestamp}] {'✅ Sent' if success else '❌ Failed'}")
-    except Exception as e:
-        print(f"[{timestamp}] ❌ Error: {e}")
-
 def run_morning_monitoring():
     """Run morning monitoring at 03:00 UTC"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -50,9 +33,6 @@ def scheduler_thread():
     """Run scheduler in background thread"""
     print("🐍 Starting Python scheduler thread")
     
-    # Schedule test job every 2 minutes
-    schedule.every(2).minutes.do(send_scheduler_test)
-    
     # Schedule monitoring jobs
     schedule.every().day.at("03:00").do(run_morning_monitoring)
     schedule.every().day.at("10:15").do(run_afternoon_monitoring)
@@ -62,7 +42,6 @@ def scheduler_thread():
     message += f"📅 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
     message += f"✅ Scheduler initialized\n"
     message += f"📋 Scheduled jobs:\n"
-    message += f"  • Test message: Every 2 minutes\n"
     message += f"  • Morning report: 03:00 UTC\n"
     message += f"  • Afternoon report: 10:15 UTC\n"
     

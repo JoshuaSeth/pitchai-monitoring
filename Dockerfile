@@ -62,10 +62,8 @@ RUN mkdir -p logs reports incidents
 # Set up cron jobs for Claude monitoring agent
 # 5:00 AM CET (4:00 UTC in winter, 3:00 UTC in summer - using 3:00 UTC to cover both)
 # 12:15 PM CET (11:15 UTC in winter, 10:15 UTC in summer - using 10:15 UTC to cover both)
-# TEST: Every 2 minutes for testing cron functionality
 RUN echo "0 3 * * * cd /app && /root/.local/bin/uv run python claude_monitoring_agent.py >> /var/log/claude-monitoring-morning.log 2>&1" > /tmp/cron-claude-monitoring
 RUN echo "15 10 * * * cd /app && /root/.local/bin/uv run python claude_monitoring_agent.py >> /var/log/claude-monitoring-afternoon.log 2>&1" >> /tmp/cron-claude-monitoring
-RUN echo "*/2 * * * * cd /app && /root/.local/bin/uv run python cron_test.py >> /var/log/cron-test.log 2>&1" >> /tmp/cron-claude-monitoring
 RUN crontab /tmp/cron-claude-monitoring
 RUN rm /tmp/cron-claude-monitoring
 
