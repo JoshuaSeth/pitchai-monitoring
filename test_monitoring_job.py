@@ -6,7 +6,7 @@ import json
 import os
 import requests
 from datetime import datetime
-from telegram_helper import send_telegram_message
+from telegram_sync_helper import send_telegram_message_sync
 
 def run_test_monitoring():
     """Simple test monitoring job that collects basic info and sends to Telegram"""
@@ -120,7 +120,7 @@ def run_test_monitoring():
     
     # Send to Telegram
     try:
-        success = send_telegram_message(message)
+        success = send_telegram_message_sync(message)
         if success:
             print(f"[{datetime.now()}] ✅ Test monitoring completed and sent to Telegram")
         else:

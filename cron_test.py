@@ -4,7 +4,7 @@ Simple cron test that sends a Telegram message
 """
 import os
 from datetime import datetime
-from telegram_helper import send_telegram_message
+from telegram_sync_helper import send_telegram_message_sync
 
 def send_test_message():
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
@@ -17,7 +17,7 @@ def send_test_message():
     print(f"[{timestamp}] Sending cron test message to Telegram")
     
     try:
-        success = send_telegram_message(message)
+        success = send_telegram_message_sync(message)
         if success:
             print(f"[{timestamp}] ✅ Cron test message sent successfully")
         else:

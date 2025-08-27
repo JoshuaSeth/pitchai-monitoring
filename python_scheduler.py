@@ -7,7 +7,7 @@ import threading
 import time
 import schedule
 from datetime import datetime
-from telegram_helper import send_telegram_message
+from telegram_sync_helper import send_telegram_message_sync
 import subprocess
 import os
 
@@ -23,7 +23,7 @@ def send_scheduler_test():
     print(f"[{timestamp}] Python scheduler sending test message")
     
     try:
-        success = send_telegram_message(message)
+        success = send_telegram_message_sync(message)
         print(f"[{timestamp}] {'✅ Sent' if success else '❌ Failed'}")
     except Exception as e:
         print(f"[{timestamp}] ❌ Error: {e}")
@@ -67,7 +67,7 @@ def scheduler_thread():
     message += f"  • Afternoon report: 10:15 UTC\n"
     
     try:
-        send_telegram_message(message)
+        send_telegram_message_sync(message)
     except Exception as e:
         print(f"Failed to send startup message: {e}")
     
