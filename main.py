@@ -191,6 +191,39 @@ async def get_latest_ai_summary():
         return JSONResponse(content={"error": f"Failed to load AI summary: {str(e)}"}, status_code=500)
 
 
+@app.get("/run/test-monitoring")
+async def run_test_monitoring(background_tasks: BackgroundTasks):
+    """Run a simple test monitoring job that actually works."""
+    import subprocess
+    import uuid
+    
+    task_id = f"test_monitoring_{str(uuid.uuid4())[:8]}"
+    
+    def run_test_job():
+        try:
+            result = subprocess.run(
+                ["python", "test_monitoring_job.py"],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            print(f"Test monitoring job completed: {result.returncode}")
+            print(f"Output: {result.stdout}")
+            if result.stderr:
+                print(f"Errors: {result.stderr}")
+            return result.returncode == 0
+        except Exception as e:
+            print(f"Test monitoring job failed: {e}")
+            return False
+    
+    background_tasks.add_task(run_test_job)
+    return {
+        "message": "Test monitoring job started",
+        "task_id": task_id,
+        "description": "Simple monitoring test with Telegram notification"
+    }
+
+
 @app.get("/health/docker")
 async def check_docker_health():
     """Check if Docker is accessible for container monitoring."""
