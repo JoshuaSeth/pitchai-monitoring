@@ -29,6 +29,24 @@ def run_afternoon_monitoring():
     except Exception as e:
         print(f"[{timestamp}] Afternoon monitoring error: {e}")
 
+def run_autopar_morning_monitoring():
+    """Run autopar staging monitoring at 03:15 UTC (15 minutes after main monitoring)"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[{timestamp}] Running autopar staging monitoring via Python scheduler")
+    try:
+        subprocess.run(["python", "autopar_monitoring_agent.py"], timeout=3600)
+    except Exception as e:
+        print(f"[{timestamp}] Autopar monitoring error: {e}")
+
+def run_autopar_afternoon_monitoring():
+    """Run autopar staging monitoring at 10:30 UTC (15 minutes after main monitoring)"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[{timestamp}] Running autopar afternoon monitoring via Python scheduler")
+    try:
+        subprocess.run(["python", "autopar_monitoring_agent.py"], timeout=3600)
+    except Exception as e:
+        print(f"[{timestamp}] Autopar afternoon monitoring error: {e}")
+
 def scheduler_thread():
     """Run scheduler in background thread"""
     print("🐍 Starting Python scheduler thread")
@@ -37,13 +55,19 @@ def scheduler_thread():
     schedule.every().day.at("03:00").do(run_morning_monitoring)
     schedule.every().day.at("10:15").do(run_afternoon_monitoring)
     
+    # Schedule autopar-specific monitoring jobs (offset by 15 minutes)
+    schedule.every().day.at("03:15").do(run_autopar_morning_monitoring)
+    schedule.every().day.at("10:30").do(run_autopar_afternoon_monitoring)
+    
     # Send initial message
     message = f"🚀 <b>PYTHON SCHEDULER STARTED</b>\n\n"
     message += f"📅 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
     message += f"✅ Scheduler initialized\n"
     message += f"📋 Scheduled jobs:\n"
-    message += f"  • Morning report: 03:00 UTC\n"
-    message += f"  • Afternoon report: 10:15 UTC\n"
+    message += f"  • Main monitoring: 03:00 UTC\n"
+    message += f"  • Main monitoring: 10:15 UTC\n"
+    message += f"  • Autopar monitoring: 03:15 UTC\n"
+    message += f"  • Autopar monitoring: 10:30 UTC\n"
     
     try:
         send_telegram_message_sync(message)

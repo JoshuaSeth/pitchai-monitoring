@@ -77,6 +77,7 @@ async def list_endpoints():
             },
             "monitoring": {
                 "GET|POST /run/claude-monitoring": "🤖 Trigger Claude AI monitoring (main feature)",
+                "GET|POST /run/autopar-monitoring": "🎯 Trigger Autopar staging monitoring",
                 "POST /run/ai-monitoring": "Legacy AI monitoring workflow",
                 "POST /run/ui-tests": "Run UI test suite",
                 "POST /run/log-collection": "Collect container logs",
@@ -93,12 +94,19 @@ async def list_endpoints():
         },
         "examples": {
             "trigger_claude_monitoring": "GET|POST /run/claude-monitoring?hours=2",
+            "trigger_autopar_monitoring": "GET|POST /run/autopar-monitoring?hours=4",
             "health_check": "GET /",
             "system_status": "GET /status"
         },
         "cron_schedule": {
-            "morning": "03:00 UTC (5:00 AM CET)",
-            "afternoon": "10:15 UTC (12:15 PM CET)"
+            "main_monitoring": {
+                "morning": "03:00 UTC (5:00 AM CET)",
+                "afternoon": "10:15 UTC (12:15 PM CET)"
+            },
+            "autopar_monitoring": {
+                "morning": "03:15 UTC (5:15 AM CET)",
+                "afternoon": "10:30 UTC (12:30 PM CET)"
+            }
         }
     }
 
@@ -288,6 +296,89 @@ async def trigger_ai_monitoring(background_tasks: BackgroundTasks):
         "message": "AI monitoring workflow started",
         "task_id": task_id,
         "status": "started"
+    }
+
+
+@app.post("/run/autopar-monitoring")
+@app.get("/run/autopar-monitoring")
+async def trigger_autopar_monitoring(background_tasks: BackgroundTasks, hours: int = 4):
+    """Trigger Autopar staging monitoring agent with comprehensive analysis."""
+    if not coordinator:
+        return JSONResponse(content={"error": "System not initialized"}, status_code=503)
+    
+    import subprocess
+    import tempfile
+    from datetime import datetime
+    
+    task_id = f"autopar_monitoring_{int(asyncio.get_event_loop().time())}"
+    
+    async def run_autopar_monitoring():
+        """Execute the Autopar monitoring agent."""
+        try:
+            logger.info(f"🎯 Starting Autopar staging monitoring analysis (last {hours} hours)")
+            
+            # Run the autopar monitoring agent
+            result = subprocess.run([
+                'python', 'autopar_monitoring_agent.py', 
+                '--hours', str(hours)
+            ], 
+            capture_output=True, 
+            text=True, 
+            timeout=7200  # 2 hour timeout
+            )
+            
+            if result.returncode == 0:
+                logger.info("✅ Autopar monitoring completed successfully")
+                # Parse the output to extract status
+                output_lines = result.stdout.strip().split('\n')
+                status_line = next((line for line in output_lines if 'Status Determined:' in line), 'Status: COMPLETED')
+                telegram_line = next((line for line in output_lines if 'Telegram' in line and 'sent' in line), 'Notification: Sent')
+                
+                return {
+                    "status": "completed",
+                    "autopar_analysis": status_line,
+                    "telegram_notification": telegram_line,
+                    "hours_analyzed": hours,
+                    "environment": "autopar_staging",
+                    "execution_time": "Completed within timeout"
+                }
+            else:
+                logger.error(f"❌ Autopar monitoring failed: {result.stderr}")
+                return {
+                    "status": "failed", 
+                    "error": result.stderr,
+                    "hours_analyzed": hours,
+                    "environment": "autopar_staging"
+                }
+                
+        except subprocess.TimeoutExpired:
+            logger.warning("⏱️ Autopar monitoring timed out after 2 hours")
+            return {
+                "status": "timeout",
+                "message": "Autopar analysis took longer than 2 hours - this may be normal for comprehensive analysis",
+                "hours_analyzed": hours,
+                "environment": "autopar_staging"
+            }
+        except Exception as e:
+            logger.error(f"💥 Autopar monitoring error: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "hours_analyzed": hours,
+                "environment": "autopar_staging"
+            }
+    
+    background_tasks.add_task(run_autopar_monitoring)
+    
+    return {
+        "message": f"Autopar staging monitoring started - analyzing last {hours} hours",
+        "task_id": task_id,
+        "status": "started",
+        "environment": "autopar_staging",
+        "website": "staging.autopar.pitchai.net",
+        "containers": ["autopar-redis", "autopar-rabbitmq"],
+        "expected_duration": "Up to 2 hours",
+        "telegram_notification": "Will be sent upon completion"
     }
 
 
