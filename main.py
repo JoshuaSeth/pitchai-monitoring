@@ -78,6 +78,7 @@ async def list_endpoints():
             "monitoring": {
                 "GET|POST /run/claude-monitoring": "🤖 Trigger Claude AI monitoring (main feature)",
                 "GET|POST /run/autopar-monitoring": "🎯 Trigger Autopar staging monitoring",
+                "GET|POST /run/quickchat-monitoring": "💬 Trigger Quickchat system monitoring",
                 "POST /run/ai-monitoring": "Legacy AI monitoring workflow",
                 "POST /run/ui-tests": "Run UI test suite",
                 "POST /run/log-collection": "Collect container logs",
@@ -95,17 +96,22 @@ async def list_endpoints():
         "examples": {
             "trigger_claude_monitoring": "GET|POST /run/claude-monitoring?hours=2",
             "trigger_autopar_monitoring": "GET|POST /run/autopar-monitoring?hours=4",
+            "trigger_quickchat_monitoring": "GET|POST /run/quickchat-monitoring?hours=4",
             "health_check": "GET /",
             "system_status": "GET /status"
         },
-        "cron_schedule": {
+        "python_schedule": {
             "main_monitoring": {
-                "morning": "03:00 UTC (5:00 AM CET)",
-                "afternoon": "10:15 UTC (12:15 PM CET)"
+                "morning": "04:00 UTC (05:00 Amsterdam)",
+                "afternoon": "11:00 UTC (12:00 Amsterdam)"
             },
             "autopar_monitoring": {
-                "morning": "03:15 UTC (5:15 AM CET)",
-                "afternoon": "10:30 UTC (12:30 PM CET)"
+                "morning": "04:15 UTC (05:15 Amsterdam)",
+                "afternoon": "11:15 UTC (12:15 Amsterdam)"
+            },
+            "quickchat_monitoring": {
+                "morning": "04:30 UTC (05:30 Amsterdam)",
+                "afternoon": "11:30 UTC (12:30 Amsterdam)"
             }
         }
     }
@@ -453,6 +459,90 @@ async def trigger_claude_monitoring(background_tasks: BackgroundTasks, hours: in
         "message": f"Claude monitoring started - analyzing last {hours} hours",
         "task_id": task_id,
         "status": "started",
+        "expected_duration": "Up to 2 hours",
+        "telegram_notification": "Will be sent upon completion"
+    }
+
+
+@app.post("/run/quickchat-monitoring")
+@app.get("/run/quickchat-monitoring")
+async def trigger_quickchat_monitoring(background_tasks: BackgroundTasks, hours: int = 4):
+    """Trigger Quickchat system monitoring agent with comprehensive analysis."""
+    if not coordinator:
+        return JSONResponse(content={"error": "System not initialized"}, status_code=503)
+    
+    import subprocess
+    import tempfile
+    from datetime import datetime
+    
+    task_id = f"quickchat_monitoring_{int(asyncio.get_event_loop().time())}"
+    
+    async def run_quickchat_monitoring():
+        """Execute the Quickchat monitoring agent."""
+        try:
+            logger.info(f"💬 Starting Quickchat system monitoring analysis (last {hours} hours)")
+            
+            # Run the quickchat monitoring agent
+            result = subprocess.run([
+                'python', 'quickchat_monitoring_agent.py', 
+                '--hours', str(hours)
+            ], 
+            capture_output=True, 
+            text=True, 
+            timeout=7200  # 2 hour timeout
+            )
+            
+            if result.returncode == 0:
+                logger.info("✅ Quickchat monitoring completed successfully")
+                # Parse the output to extract status
+                output_lines = result.stdout.strip().split('\n')
+                status_line = next((line for line in output_lines if 'Status Determined:' in line), 'Status: COMPLETED')
+                telegram_line = next((line for line in output_lines if 'Telegram' in line and 'sent' in line), 'Notification: Sent')
+                
+                return {
+                    "status": "completed",
+                    "quickchat_analysis": status_line,
+                    "telegram_notification": telegram_line,
+                    "hours_analyzed": hours,
+                    "environment": "quickchat_system",
+                    "execution_time": "Completed within timeout"
+                }
+            else:
+                logger.error(f"❌ Quickchat monitoring failed: {result.stderr}")
+                return {
+                    "status": "failed", 
+                    "error": result.stderr,
+                    "hours_analyzed": hours,
+                    "environment": "quickchat_system"
+                }
+                
+        except subprocess.TimeoutExpired:
+            logger.warning("⏱️ Quickchat monitoring timed out after 2 hours")
+            return {
+                "status": "timeout",
+                "message": "Quickchat analysis took longer than 2 hours - this may be normal for comprehensive analysis",
+                "hours_analyzed": hours,
+                "environment": "quickchat_system"
+            }
+        except Exception as e:
+            logger.error(f"💥 Quickchat monitoring error: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "hours_analyzed": hours,
+                "environment": "quickchat_system"
+            }
+    
+    background_tasks.add_task(run_quickchat_monitoring)
+    
+    return {
+        "message": f"Quickchat system monitoring started - analyzing last {hours} hours",
+        "task_id": task_id,
+        "status": "started",
+        "environment": "quickchat_system",
+        "website": "chat.pitchai.net",
+        "ui_tests": "Chat interaction functionality",
+        "containers": ["chat-app", "chat-redis", "chat-postgres", "chat-nginx"],
         "expected_duration": "Up to 2 hours",
         "telegram_notification": "Will be sent upon completion"
     }
