@@ -19,6 +19,9 @@ DEFAULT_MAINTENANCE_TEXT = [
     "gateway timeout",
 ]
 
+_SCRIPT_AND_STYLE_RE = re.compile(r"(?is)<(script|style)[^>]*>.*?</\1>")
+_HTML_TAG_RE = re.compile(r"(?is)<[^>]+>")
+
 
 @dataclass(frozen=True)
 class SelectorCheck:
@@ -51,6 +54,12 @@ def _normalize_text(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip().lower()
 
 
+def _html_to_visible_text(html: str) -> str:
+    without_scripts = _SCRIPT_AND_STYLE_RE.sub(" ", html)
+    without_tags = _HTML_TAG_RE.sub(" ", without_scripts)
+    return _normalize_text(without_tags)
+
+
 async def http_get_check(spec: DomainCheckSpec, client: httpx.AsyncClient) -> tuple[bool, dict[str, Any]]:
     try:
         resp = await client.get(spec.url, follow_redirects=True, timeout=spec.http_timeout_seconds)
@@ -58,7 +67,7 @@ async def http_get_check(spec: DomainCheckSpec, client: httpx.AsyncClient) -> tu
         return False, {"error": f"http_error: {type(e).__name__}: {e}"}
 
     body = resp.text or ""
-    body_norm = _normalize_text(body)
+    body_norm = _html_to_visible_text(body)
 
     forbidden_hits = [kw for kw in spec.forbidden_text_any if kw and kw.lower() in body_norm]
 

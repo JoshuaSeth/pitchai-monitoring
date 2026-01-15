@@ -1,0 +1,311 @@
+from __future__ import annotations
+
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+import httpx
+import pytest
+from playwright.async_api import async_playwright
+
+from domain_checks.common_check import DomainCheckSpec, SelectorCheck, find_chromium_executable, http_get_check, browser_check
+
+
+class _Handler(BaseHTTPRequestHandler):
+    def log_message(self, format: str, *args) -> None:  # noqa: A002
+        return
+
+    def do_GET(self) -> None:  # noqa: N802
+        routes: dict[str, tuple[int, dict[str, str], str]] = {
+            "/ok": (
+                200,
+                {"Content-Type": "text/html; charset=utf-8"},
+                (
+                    "<!doctype html><html><head><title>OK Page</title></head>"
+                    "<body><nav>nav</nav><h1>Everything is fine</h1></body></html>"
+                ),
+            ),
+            "/maintenance": (
+                200,
+                {"Content-Type": "text/html; charset=utf-8"},
+                (
+                    "<!doctype html><html><head><title>Maintenance</title></head>"
+                    "<body><h1>Maintenance</h1><p>We'll be back soon.</p></body></html>"
+                ),
+            ),
+            "/script_contains_forbidden": (
+                200,
+                {"Content-Type": "text/html; charset=utf-8"},
+                (
+                    "<!doctype html><html><head><title>OK Page</title></head>"
+                    "<body><nav>nav</nav><h1>Everything is fine</h1>"
+                    "<script>var maintenanceMode = false;</script></body></html>"
+                ),
+            ),
+            "/missing_nav": (
+                200,
+                {"Content-Type": "text/html; charset=utf-8"},
+                "<!doctype html><html><head><title>OK Page</title></head><body><h1>No nav</h1></body></html>",
+            ),
+            "/bad_gateway": (
+                502,
+                {"Content-Type": "text/plain; charset=utf-8"},
+                "Bad Gateway",
+            ),
+        }
+
+        if self.path == "/redirect":
+            self.send_response(302)
+            self.send_header("Location", "/ok")
+            self.end_headers()
+            return
+
+        status, headers, body = routes.get(
+            self.path,
+            (404, {"Content-Type": "text/plain; charset=utf-8"}, "Not Found"),
+        )
+        body_bytes = body.encode("utf-8")
+        self.send_response(status)
+        for k, v in headers.items():
+            self.send_header(k, v)
+        self.send_header("Content-Length", str(len(body_bytes)))
+        self.end_headers()
+        self.wfile.write(body_bytes)
+
+
+@pytest.fixture(scope="module")
+def local_server_base_url() -> str:
+    httpd = HTTPServer(("127.0.0.1", 0), _Handler)
+    host, port = httpd.server_address
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        yield f"http://{host}:{port}"
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=5)
+        httpd.server_close()
+
+
+@pytest.mark.asyncio
+async def test_http_get_ok(local_server_base_url: str) -> None:
+    spec = DomainCheckSpec(domain="local", url=f"{local_server_base_url}/ok", http_timeout_seconds=5.0)
+    async with httpx.AsyncClient() as client:
+        ok, details = await http_get_check(spec, client)
+    assert ok is True
+    assert details["status_code"] == 200
+    assert details["forbidden_hits"] == []
+
+
+@pytest.mark.asyncio
+async def test_http_get_redirect_is_ok(local_server_base_url: str) -> None:
+    spec = DomainCheckSpec(domain="local", url=f"{local_server_base_url}/redirect", http_timeout_seconds=5.0)
+    async with httpx.AsyncClient() as client:
+        ok, details = await http_get_check(spec, client)
+    assert ok is True
+    assert details["status_code"] == 200
+    assert str(details["final_url"]).endswith("/ok")
+
+
+@pytest.mark.asyncio
+async def test_http_get_maintenance_detected(local_server_base_url: str) -> None:
+    spec = DomainCheckSpec(domain="local", url=f"{local_server_base_url}/maintenance", http_timeout_seconds=5.0)
+    async with httpx.AsyncClient() as client:
+        ok, details = await http_get_check(spec, client)
+    assert ok is False
+    assert details["status_code"] == 200
+    assert any("maintenance" in h for h in details["forbidden_hits"])
+
+
+@pytest.mark.asyncio
+async def test_http_get_ignores_script_text(local_server_base_url: str) -> None:
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/script_contains_forbidden",
+        http_timeout_seconds=5.0,
+    )
+    async with httpx.AsyncClient() as client:
+        ok, details = await http_get_check(spec, client)
+    assert ok is True
+    assert details["status_code"] == 200
+    assert details["forbidden_hits"] == []
+
+
+@pytest.mark.asyncio
+async def test_http_get_bad_gateway_fails(local_server_base_url: str) -> None:
+    spec = DomainCheckSpec(domain="local", url=f"{local_server_base_url}/bad_gateway", http_timeout_seconds=5.0)
+    async with httpx.AsyncClient() as client:
+        ok, details = await http_get_check(spec, client)
+    assert ok is False
+    assert details["status_code"] == 502
+
+
+@pytest.mark.asyncio
+async def test_browser_check_ok(local_server_base_url: str) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/ok",
+        expected_title_contains="OK Page",
+        required_selectors_all=[SelectorCheck(selector="nav", state="visible")],
+        browser_timeout_seconds=5.0,
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        try:
+            ok, details = await browser_check(spec, browser)
+        finally:
+            await browser.close()
+
+    assert ok is True
+    assert details["title_ok"] is True
+    assert details["missing_selectors_all"] == []
+
+
+@pytest.mark.asyncio
+async def test_browser_check_title_mismatch_fails(local_server_base_url: str) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/ok",
+        expected_title_contains="Some Other Title",
+        browser_timeout_seconds=5.0,
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        try:
+            ok, details = await browser_check(spec, browser)
+        finally:
+            await browser.close()
+
+    assert ok is False
+    assert details["title_ok"] is False
+
+
+@pytest.mark.asyncio
+async def test_browser_check_required_any_selector(local_server_base_url: str) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/ok",
+        required_selectors_any=[
+            SelectorCheck(selector="#does-not-exist", state="attached"),
+            SelectorCheck(selector="nav", state="visible"),
+        ],
+        browser_timeout_seconds=5.0,
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        try:
+            ok, details = await browser_check(spec, browser)
+        finally:
+            await browser.close()
+
+    assert ok is True
+    assert details["required_any_ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_browser_check_required_any_missing_fails(local_server_base_url: str) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/ok",
+        required_selectors_any=[
+            SelectorCheck(selector="#does-not-exist", state="attached"),
+            SelectorCheck(selector="#also-missing", state="attached"),
+        ],
+        browser_timeout_seconds=5.0,
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        try:
+            ok, details = await browser_check(spec, browser)
+        finally:
+            await browser.close()
+
+    assert ok is False
+    assert details["required_any_ok"] is False
+
+
+@pytest.mark.asyncio
+async def test_browser_check_maintenance_fails(local_server_base_url: str) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec = DomainCheckSpec(domain="local", url=f"{local_server_base_url}/maintenance", browser_timeout_seconds=5.0)
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        try:
+            ok, details = await browser_check(spec, browser)
+        finally:
+            await browser.close()
+
+    assert ok is False
+    assert any("maintenance" in h for h in details["forbidden_hits"])
+
+
+@pytest.mark.asyncio
+async def test_browser_check_missing_selector_fails(local_server_base_url: str) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/missing_nav",
+        required_selectors_all=[SelectorCheck(selector="nav", state="visible")],
+        browser_timeout_seconds=5.0,
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        try:
+            ok, details = await browser_check(spec, browser)
+        finally:
+            await browser.close()
+
+    assert ok is False
+    assert "nav" in details["missing_selectors_all"]
