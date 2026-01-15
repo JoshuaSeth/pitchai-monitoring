@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit, urlunsplit
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +61,19 @@ def _html_to_visible_text(html: str) -> str:
     without_tags = _HTML_TAG_RE.sub(" ", without_scripts)
     return _normalize_text(without_tags)
 
+def _safe_url(url: str) -> str:
+    """
+    Prevent huge/sensitive querystrings from bloating logs + dispatch prompts.
+    """
+    s = (url or "").strip()
+    if not s:
+        return s
+    try:
+        parts = urlsplit(s)
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+    except Exception:
+        return s[:500]
+
 
 async def http_get_check(spec: DomainCheckSpec, client: httpx.AsyncClient) -> tuple[bool, dict[str, Any]]:
     try:
@@ -74,7 +89,7 @@ async def http_get_check(spec: DomainCheckSpec, client: httpx.AsyncClient) -> tu
     ok = (200 <= resp.status_code < 400) and not forbidden_hits
     return ok, {
         "status_code": resp.status_code,
-        "final_url": str(resp.url),
+        "final_url": _safe_url(str(resp.url)),
         "forbidden_hits": forbidden_hits,
     }
 
@@ -163,13 +178,42 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
         any_candidates = [c.selector for c in spec.required_selectors_any]
         if spec.required_selectors_any:
             any_ok = False
-            for check in spec.required_selectors_any:
-                try:
-                    await page.wait_for_selector(check.selector, state=check.state, timeout=timeout_ms)
-                    any_ok = True
-                    break
-                except PlaywrightTimeoutError:
-                    continue
+            tasks = [
+                asyncio.create_task(
+                    page.wait_for_selector(check.selector, state=check.state, timeout=timeout_ms)
+                )
+                for check in spec.required_selectors_any
+            ]
+            pending: set[asyncio.Task[Any]] = set(tasks)
+            deadline = asyncio.get_running_loop().time() + (timeout_ms / 1000.0)
+            try:
+                while pending and not any_ok:
+                    remaining = max(0.0, deadline - asyncio.get_running_loop().time())
+                    if remaining <= 0:
+                        break
+                    done, pending = await asyncio.wait(pending, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
+                    if not done:
+                        break
+                    for task in done:
+                        try:
+                            await task
+                        except PlaywrightTimeoutError:
+                            continue
+                        except Exception:
+                            continue
+                        else:
+                            any_ok = True
+                            break
+            finally:
+                for task in pending:
+                    task.cancel()
+                for task in pending:
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception:
+                        pass
 
         missing_text: list[str] = []
         for t in spec.required_text_all:
@@ -186,7 +230,7 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
         )
 
         return ok, {
-            "final_url": page.url,
+            "final_url": _safe_url(page.url),
             "http_status": status,
             "title": title,
             "title_ok": title_ok,

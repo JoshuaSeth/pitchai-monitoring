@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import httpx
@@ -258,6 +259,41 @@ async def test_browser_check_required_any_missing_fails(local_server_base_url: s
 
     assert ok is False
     assert details["required_any_ok"] is False
+
+
+@pytest.mark.asyncio
+async def test_browser_check_required_any_timeout_not_multiplied(local_server_base_url: str) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/ok",
+        required_selectors_any=[
+            SelectorCheck(selector="#missing-1", state="attached"),
+            SelectorCheck(selector="#missing-2", state="attached"),
+            SelectorCheck(selector="#missing-3", state="attached"),
+        ],
+        browser_timeout_seconds=1.0,
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        try:
+            started = time.monotonic()
+            ok, details = await browser_check(spec, browser)
+            elapsed = time.monotonic() - started
+        finally:
+            await browser.close()
+
+    assert ok is False
+    assert details["required_any_ok"] is False
+    assert elapsed < 2.5
 
 
 @pytest.mark.asyncio
