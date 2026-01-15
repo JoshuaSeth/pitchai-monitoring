@@ -1,2 +1,0 @@
-# Monitoring Deployment Trigger - Mon Aug 25 16:52:15 CEST 2025
-# Fixed SSH key formatting in GitHub secrets - converted \\n to actual newlines

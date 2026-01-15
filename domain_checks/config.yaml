@@ -1,0 +1,10 @@
+interval_seconds: 60
+
+# Domains to check every minute.
+# For each domain, add `domain_checks/<domain>/check.py` defining the element checks.
+domains:
+  - domain: afasask.pitchai.net
+  - domain: autopar.pitchai.net
+  - domain: afasask.gzb.nl
+  - domain: skybuyfly.pitchai.net
+  - domain: quickchat.pitchai.net

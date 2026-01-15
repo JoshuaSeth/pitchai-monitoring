@@ -1,121 +1,19 @@
-name: GitFlow CI/CD
+name: Service Monitoring Deploy
 
 on:
   push:
-    branches:
-      - main
-      - 'release/*'
-      - 'dev/*'
-  pull_request:
-    branches:
-      - main
-      - 'release/*'
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: service-monitoring-prod
+  cancel-in-progress: false
 
 jobs:
-  validate-branch-name:
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+  deploy-prod:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate branch name for main
-        run: |
-          echo "Validating branch name for PR into 'main'..."
-          if [[ ! ${{ github.head_ref }} =~ ^release\/ ]]; then
-            echo "Error: Only release branches can be merged into main.";
-            exit 1;
-          fi
-
-  unit-tests:
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || github.base_ref != 'main'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies
-        run: |
-          uv sync --frozen --all-extras --dev
-
-      - name: Run linting
-        run: |
-          echo "Skipping strict linting for initial deployment"
-          # uv run ruff check .
-          # uv run black --check .
-
-      - name: Run type checking
-        run: |
-          echo "Skipping mypy for initial deployment"
-          # uv run mypy .
-
-      - name: Run unit tests
-        run: |
-          echo "Skipping pytest for initial deployment"
-          # uv run pytest tests/ -v --tb=short
-
-  # integration-tests:
-  #   runs-on: ubuntu-latest
-  #   needs: unit-tests
-  #   if: (github.event_name == 'push' || github.event_name == 'pull_request') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v3
-
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v4
-  #       with:
-  #         python-version: 3.11
-
-  #     - name: Install dependencies
-  #       run: pip install -r requirements.txt
-
-  #     - name: Run integration tests
-  #       run: python -m pytest tests/integration
-
-  # e2e-tests:
-  #   runs-on: ubuntu-latest
-  #   needs: integration-tests
-  #   if: (github.event_name == 'push' || github.event_name == 'pull_request') && github.ref == 'refs/heads/main'
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v3
-
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v4
-  #       with:
-  #         python-version: 3.11
-
-  #     - name: Cache Playwright browsers
-  #       uses: actions/cache@v3
-  #       with:
-  #         path: ~/.cache/ms-playwright
-  #         key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}
-  #         restore-keys: |
-  #           ${{ runner.os }}-playwright-
-
-  #     - name: Install dependencies
-  #       run: pip install -r requirements.txt
-
-  #     - name: Install Playwright
-  #       run: playwright install
-
-  #     - name: Run E2E tests
-  #       run: python -m pytest tests/e2e
-
-  deploy-direct:
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Deploy directly to production server
+      - name: Deploy to production (SSH + Docker)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HETZNER_HOST }}
@@ -123,69 +21,65 @@ jobs:
           key: ${{ secrets.HETZNER_SSH_KEY }}
           port: 22
           script: |
-            echo "🚀 Starting direct deployment to production server..."
-            
-            # Create temporary directory for deployment
-            DEPLOY_DIR="/tmp/monitoring-deploy-$(date +%s)"
-            mkdir -p $DEPLOY_DIR
-            cd $DEPLOY_DIR
-            
-            # Clone the repository
-            echo "📥 Cloning repository..."
+            set -euo pipefail
+
+            APP_NAME="service-monitoring"
+            OLD_NAME="monitoring"
+            IMAGE_SHA="service-monitoring:${{ github.sha }}"
+            IMAGE_LATEST="service-monitoring:latest"
+
+            echo "🚀 Deploying ${APP_NAME} @ ${{ github.sha }}"
+
+            DEPLOY_DIR="/tmp/${APP_NAME}-deploy-${{ github.run_id }}-${{ github.run_attempt }}"
+            mkdir -p "$DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
+
+            echo "📥 Cloning repo..."
             git clone https://github.com/JoshuaSeth/pitchai-monitoring.git .
-            
-            # Stop and remove existing container
-            echo "🛑 Stopping existing monitoring container..."
-            docker stop monitoring || echo "No existing container to stop"
-            docker rm monitoring || echo "No existing container to remove"
-            
-            # Remove old image if exists
-            echo "🗑️ Removing old monitoring image..."
-            docker rmi monitoring-system:latest || echo "No existing image to remove"
-            
-            # Build new Docker image
-            echo "🔨 Building new Docker image..."
-            docker build -t monitoring-system:latest .
-            
-            # Start new container with all environment variables
-            echo "🚀 Starting new monitoring container..."
+            git checkout ${{ github.sha }}
+
+            if docker ps -a --format '{{.Names}}' | grep -qx "$OLD_NAME"; then
+              old_image="$(docker inspect "$OLD_NAME" --format '{{.Config.Image}}' || true)"
+              echo "Found legacy container '$OLD_NAME' image=$old_image"
+              if [[ "$old_image" == monitoring-system:* || "$old_image" == monitoring-system || "$old_image" == service-monitoring:* || "$old_image" == service-monitoring ]]; then
+                echo "🛑 Stopping legacy container: $OLD_NAME"
+                docker stop "$OLD_NAME" || true
+                docker rm "$OLD_NAME" || true
+              else
+                echo "⚠️ Refusing to stop '$OLD_NAME' (unexpected image: $old_image)"
+              fi
+            fi
+
+            if docker ps -a --format '{{.Names}}' | grep -qx "$APP_NAME"; then
+              echo "🛑 Stopping existing container: $APP_NAME"
+              docker stop "$APP_NAME" || true
+              docker rm "$APP_NAME" || true
+            fi
+
+            echo "🔨 Building image..."
+            docker build -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
+
+            echo "🚀 Starting container..."
             docker run -d \
-              --name monitoring \
-              -p 8000:8000 \
+              --name "$APP_NAME" \
               --restart unless-stopped \
-              -v /var/run/docker.sock:/var/run/docker.sock:ro \
-              -v /var/log:/var/log:ro \
-              -e HETZNER_HOST=${{ secrets.HETZNER_HOST }} \
-              -e HETZNER_USER=${{ secrets.HETZNER_USER }} \
-              -e HETZNER_SSH_KEY="${{ secrets.HETZNER_SSH_KEY }}" \
-              -e DOCKER_PASSWORD="${{ secrets.DOCKER_PASSWORD }}" \
-              -e REGISTRY_PASSWORD="${{ secrets.REGISTRY_PASSWORD }}" \
-              -e WEBSITE_URL="${{ secrets.WEBSITE_URL }}" \
-              -e POSTHOG_API_KEY="${{ secrets.POSTHOG_API_KEY }}" \
-              -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              -e CLAUDE_CODE_OAUTH_TOKEN="${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" \
-              monitoring-system:latest
-            
-            echo "⏳ Waiting for container to start..."
-            sleep 20
-            
-            # Check container status
-            echo "📊 Checking container status..."
-            docker ps | grep monitoring || echo "❌ Container not found in running state"
-            
-            # Check container logs
-            echo "📋 Container startup logs:"
-            docker logs monitoring --tail 20 || echo "❌ Could not fetch logs"
-            
-            # Test health endpoint
-            echo "🏥 Testing health endpoint..."
-            curl -f http://localhost:8000/ || echo "⚠️ Health check endpoint not responding yet"
-            
-            # Clean up temporary directory
-            cd /
-            rm -rf $DEPLOY_DIR
-            
-            echo "✅ Direct deployment completed!"
+              "$IMAGE_SHA"
 
+            echo "⏳ Waiting for startup..."
+            sleep 10
+
+            running="$(docker inspect "$APP_NAME" --format '{{.State.Running}}')"
+            if [[ "$running" != "true" ]]; then
+              echo "❌ Container is not running"
+              docker logs "$APP_NAME" --tail 200 || true
+              exit 1
+            fi
+
+            echo "✅ Container running"
+            docker ps --filter "name=${APP_NAME}"
+            docker logs "$APP_NAME" --tail 80 || true
+
+            cd /
+            rm -rf "$DEPLOY_DIR"
