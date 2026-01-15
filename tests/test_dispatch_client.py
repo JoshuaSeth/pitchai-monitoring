@@ -148,3 +148,45 @@ async def test_dispatch_end_to_end(fake_dispatcher_base_url: str) -> None:
         msg = await get_last_agent_message(client, cfg, bundle=bundle)
         assert msg == "Investigated. Root cause: test."
 
+
+class _FlakyDispatchHandler(_FakeDispatchHandler):
+    status_calls = 0
+
+    def do_GET(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        if parsed.path == f"/runs/{self.bundle}/status":
+            type(self).status_calls += 1
+            if type(self).status_calls == 1:
+                self.send_error(502)
+                return
+        super().do_GET()
+
+
+@pytest.fixture(scope="module")
+def flaky_dispatcher_base_url() -> str:
+    _FlakyDispatchHandler.status_calls = 0
+    httpd = HTTPServer(("127.0.0.1", 0), _FlakyDispatchHandler)
+    host, port = httpd.server_address
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://{host}:{port}"
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=5)
+        httpd.server_close()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_polling_tolerates_transient_502(flaky_dispatcher_base_url: str) -> None:
+    cfg = DispatchConfig(
+        base_url=flaky_dispatcher_base_url,
+        token="token",
+        poll_interval_seconds=0.01,
+        max_wait_seconds=2.0,
+        log_tail_bytes=50_000,
+    )
+    async with httpx.AsyncClient() as client:
+        bundle, _runner = await dispatch_job(client, cfg, prompt="hi", config_toml="approval_policy='never'")
+        status = await wait_for_terminal_status(client, cfg, bundle=bundle)
+        assert status["queue_state"] == "processed"

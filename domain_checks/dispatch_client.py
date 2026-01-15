@@ -128,20 +128,37 @@ def is_terminal_queue_state(queue_state: Any) -> bool:
     return str(queue_state or "") in {"processed", "failed", "runner_error"}
 
 
+def _is_transient_dispatch_error(exc: Exception) -> bool:
+    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError)):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = getattr(getattr(exc, "response", None), "status_code", None)
+        return code in {429, 500, 502, 503, 504}
+    return False
+
+
+async def _get_status_or_record(client: httpx.AsyncClient, cfg: DispatchConfig, *, bundle: str) -> dict[str, Any]:
+    try:
+        return await get_run_status(client, cfg, bundle=bundle)
+    except httpx.HTTPStatusError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            record = await get_run_record(client, cfg, bundle=bundle)
+            return {"queue_state": record.get("status"), "record": record}
+        raise
+
+
 async def wait_for_terminal_status(client: httpx.AsyncClient, cfg: DispatchConfig, *, bundle: str) -> dict[str, Any]:
     deadline = time.monotonic() + max(1.0, cfg.max_wait_seconds)
     last: dict[str, Any] = {}
 
     while True:
         try:
-            last = await get_run_status(client, cfg, bundle=bundle)
-        except httpx.HTTPStatusError as exc:
-            if exc.response is not None and exc.response.status_code == 404:
-                # Older dispatcher versions may not expose `/runs/<bundle>/status`. Fall back to `/record`.
-                record = await get_run_record(client, cfg, bundle=bundle)
-                last = {"queue_state": record.get("status"), "record": record}
-            else:
-                raise
+            last = await _get_status_or_record(client, cfg, bundle=bundle)
+        except Exception as exc:
+            if _is_transient_dispatch_error(exc) and time.monotonic() < deadline:
+                await asyncio.sleep(max(0.5, cfg.poll_interval_seconds))
+                continue
+            raise
         if is_terminal_queue_state(last.get("queue_state")):
             return last
         if time.monotonic() >= deadline:
