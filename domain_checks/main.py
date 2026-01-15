@@ -113,12 +113,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
         raise RuntimeError("Could not find a Chromium/Chrome executable (set CHROMIUM_PATH)")
 
     LOGGER.info(
-        "Starting service monitor",
-        extra={
-            "domains": [s.domain for s in specs],
-            "interval_seconds": interval_seconds,
-            "chromium_path": chromium_path,
-        },
+        "Starting service monitor domains=%s interval_seconds=%s chromium_path=%s",
+        [s.domain for s in specs],
+        interval_seconds,
+        chromium_path,
     )
 
     # Track state in-memory to avoid spamming alerts every minute.
@@ -151,26 +149,22 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             msg = f"{result.domain} is DOWN"
                             ok, resp = await send_telegram_message(http_client, telegram_cfg, msg)
                             LOGGER.warning(
-                                "Alert attempt",
-                                extra={
-                                    "domain": result.domain,
-                                    "sent_ok": ok,
-                                    "telegram": redact_telegram_response(resp),
-                                    "reason": result.reason,
-                                    "details": result.details,
-                                },
+                                "Alert attempt domain=%s sent_ok=%s reason=%s telegram=%s details=%s",
+                                result.domain,
+                                ok,
+                                result.reason,
+                                redact_telegram_response(resp),
+                                result.details,
                             )
                         else:
                             level = logging.INFO if result.ok else logging.WARNING
                             LOGGER.log(
                                 level,
-                                "Domain result",
-                                extra={
-                                    "domain": result.domain,
-                                    "ok": result.ok,
-                                    "reason": result.reason,
-                                    "details": result.details,
-                                },
+                                "Domain result domain=%s ok=%s reason=%s details=%s",
+                                result.domain,
+                                result.ok,
+                                result.reason,
+                                result.details,
                             )
 
                     if once:
@@ -179,11 +173,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     elapsed = time.time() - cycle_started
                     sleep_for = max(0.0, interval_seconds - elapsed)
                     LOGGER.info(
-                        "Cycle complete",
-                        extra={
-                            "elapsed_seconds": round(elapsed, 3),
-                            "sleep_seconds": round(sleep_for, 3),
-                        },
+                        "Cycle complete elapsed_seconds=%s sleep_seconds=%s",
+                        round(elapsed, 3),
+                        round(sleep_for, 3),
                     )
                     await asyncio.sleep(sleep_for)
             finally:
@@ -209,6 +201,10 @@ def main() -> int:
         level=getattr(logging, str(args.log_level).upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+
+    # Avoid leaking secrets (Telegram token is embedded in the Telegram API URL).
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     return asyncio.run(run_loop(Path(args.config), once=bool(args.once)))
 

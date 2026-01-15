@@ -22,7 +22,10 @@ async def send_telegram_message(
         data = resp.json()
         return bool(data.get("ok")), data
     except Exception as e:
-        return False, {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        msg = f"{type(e).__name__}: {e}"
+        if config.bot_token:
+            msg = msg.replace(config.bot_token, "<redacted>")
+        return False, {"ok": False, "error": msg}
 
 
 def redact_telegram_response(data: dict) -> str:
