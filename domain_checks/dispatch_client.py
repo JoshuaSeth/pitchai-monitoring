@@ -110,8 +110,22 @@ async def get_run_status(client: httpx.AsyncClient, cfg: DispatchConfig, *, bund
     return data
 
 
+async def get_run_record(client: httpx.AsyncClient, cfg: DispatchConfig, *, bundle: str) -> dict[str, Any]:
+    url = f"{cfg.base_url.rstrip('/')}/runs/{bundle}/record"
+    resp = await client.get(
+        url,
+        headers={"X-PitchAI-Dispatch-Token": cfg.token},
+        timeout=20.0,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if not isinstance(data, dict):
+        raise ValueError("Unexpected dispatcher record response (not a JSON object)")
+    return data
+
+
 def is_terminal_queue_state(queue_state: Any) -> bool:
-    return str(queue_state or "") in {"processed", "failed"}
+    return str(queue_state or "") in {"processed", "failed", "runner_error"}
 
 
 async def wait_for_terminal_status(client: httpx.AsyncClient, cfg: DispatchConfig, *, bundle: str) -> dict[str, Any]:
@@ -119,7 +133,15 @@ async def wait_for_terminal_status(client: httpx.AsyncClient, cfg: DispatchConfi
     last: dict[str, Any] = {}
 
     while True:
-        last = await get_run_status(client, cfg, bundle=bundle)
+        try:
+            last = await get_run_status(client, cfg, bundle=bundle)
+        except httpx.HTTPStatusError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                # Older dispatcher versions may not expose `/runs/<bundle>/status`. Fall back to `/record`.
+                record = await get_run_record(client, cfg, bundle=bundle)
+                last = {"queue_state": record.get("status"), "record": record}
+            else:
+                raise
         if is_terminal_queue_state(last.get("queue_state")):
             return last
         if time.monotonic() >= deadline:
@@ -162,4 +184,3 @@ async def _get_log_tail(
 async def get_last_agent_message(client: httpx.AsyncClient, cfg: DispatchConfig, *, bundle: str) -> str | None:
     tail = await _get_log_tail(client, cfg, bundle=bundle, max_bytes=cfg.log_tail_bytes)
     return extract_last_agent_message_from_exec_log(tail)
-
