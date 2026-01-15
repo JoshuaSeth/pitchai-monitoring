@@ -83,6 +83,8 @@ jobs:
               --restart unless-stopped \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
+              -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
+              -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
               "$IMAGE_SHA"
 
             echo "⏳ Waiting for startup..."

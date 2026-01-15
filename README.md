@@ -9,6 +9,8 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
   - Browser: Playwright renders the page and verifies expected title/selectors/text
 - When a domain transitions UP → DOWN (or is DOWN at startup), sends Telegram:
   - `{domain} is DOWN`
+- When a domain transitions UP → DOWN, also queues a Codex investigation via PitchAI Dispatcher:
+  - Polls until completion and forwards the agent’s final report to Telegram.
 
 ## Configuration
 
@@ -19,6 +21,9 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
+- `PITCHAI_DISPATCH_TOKEN`
+- Optional: `PITCHAI_DISPATCH_BASE_URL` (default `https://dispatch.pitchai.net`)
+- Optional: `PITCHAI_DISPATCH_MODEL` (e.g. `gpt-5.2-medium`, `gpt-5.2-high`)
 - Optional: `CHROMIUM_PATH` (inside Docker: `/usr/bin/chromium`)
 
 ## Run locally
@@ -30,6 +35,7 @@ pip install -r requirements.txt
 
 export TELEGRAM_BOT_TOKEN=...
 export TELEGRAM_CHAT_ID=...
+export PITCHAI_DISPATCH_TOKEN=...
 python -m domain_checks.main --once
 ```
 
@@ -40,6 +46,7 @@ docker build -t service-monitoring:latest .
 docker run --rm \
   -e TELEGRAM_BOT_TOKEN=... \
   -e TELEGRAM_CHAT_ID=... \
+  -e PITCHAI_DISPATCH_TOKEN=... \
   service-monitoring:latest
 ```
 

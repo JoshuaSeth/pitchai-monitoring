@@ -197,8 +197,10 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
             "missing_text": missing_text,
         }
     finally:
-        await page.close()
-        await context.close()
+        try:
+            await page.close()
+        finally:
+            await context.close()
 
 
 def find_chromium_executable() -> str | None:
