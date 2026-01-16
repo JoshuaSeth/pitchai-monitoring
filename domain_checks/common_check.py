@@ -35,6 +35,7 @@ class SelectorCheck:
 class DomainCheckSpec:
     domain: str
     url: str
+    allowed_status_codes: list[int] | None = None
     expected_title_contains: str | None = None
     required_selectors_all: list[SelectorCheck] = field(default_factory=list)
     required_selectors_any: list[SelectorCheck] = field(default_factory=list)
@@ -86,7 +87,12 @@ async def http_get_check(spec: DomainCheckSpec, client: httpx.AsyncClient) -> tu
 
     forbidden_hits = [kw for kw in spec.forbidden_text_any if kw and kw.lower() in body_norm]
 
-    ok = (200 <= resp.status_code < 400) and not forbidden_hits
+    if spec.allowed_status_codes is not None:
+        status_ok = resp.status_code in spec.allowed_status_codes
+    else:
+        status_ok = 200 <= resp.status_code < 300
+
+    ok = status_ok and not forbidden_hits
     return ok, {
         "status_code": resp.status_code,
         "final_url": _safe_url(str(resp.url)),
@@ -133,9 +139,19 @@ def load_domain_spec_from_module_dict(module_vars: dict[str, Any]) -> DomainChec
     if forbidden is None:
         forbidden = list(DEFAULT_MAINTENANCE_TEXT)
 
+    allowed_status_codes_raw = cfg.get("allowed_status_codes", None)
+    allowed_status_codes: list[int] | None
+    if allowed_status_codes_raw is None:
+        allowed_status_codes = None
+    else:
+        if not isinstance(allowed_status_codes_raw, list) or not allowed_status_codes_raw:
+            raise ValueError("allowed_status_codes must be a non-empty list of ints")
+        allowed_status_codes = [int(x) for x in allowed_status_codes_raw]
+
     return DomainCheckSpec(
         domain=str(cfg["domain"]),
         url=str(cfg["url"]),
+        allowed_status_codes=allowed_status_codes,
         expected_title_contains=cfg.get("expected_title_contains"),
         required_selectors_all=required_all,
         required_selectors_any=required_any,
@@ -220,8 +236,15 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
             if _normalize_text(t) not in body_text:
                 missing_text.append(t)
 
+        if status is None:
+            status_ok = False
+        elif spec.allowed_status_codes is not None:
+            status_ok = status in spec.allowed_status_codes
+        else:
+            status_ok = 200 <= status < 300
+
         ok = (
-            (status is None or (200 <= status < 400))
+            status_ok
             and title_ok
             and not forbidden_hits
             and not missing_all

@@ -142,6 +142,21 @@ async def test_http_get_bad_gateway_fails(local_server_base_url: str) -> None:
 
 
 @pytest.mark.asyncio
+async def test_http_get_allows_explicit_status_codes(local_server_base_url: str) -> None:
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/bad_gateway",
+        http_timeout_seconds=5.0,
+        allowed_status_codes=[502],
+        forbidden_text_any=[],
+    )
+    async with httpx.AsyncClient() as client:
+        ok, details = await http_get_check(spec, client)
+    assert ok is True
+    assert details["status_code"] == 502
+
+
+@pytest.mark.asyncio
 async def test_browser_check_ok(local_server_base_url: str) -> None:
     chromium_path = find_chromium_executable()
     if not chromium_path:
