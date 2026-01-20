@@ -24,6 +24,7 @@ EXPECTED_UP = {
     "cms.deplanbook.com",
     "deplanbook.com",
     "dpb.pitchai.net",
+    "hetcis.nl",
     "skybuyfly.pitchai.net",
 }
 
