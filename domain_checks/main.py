@@ -7,12 +7,14 @@ import logging
 import os
 import runpy
 import time
+from datetime import datetime, timedelta, time as dt_time, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
 import yaml
 from playwright.async_api import async_playwright
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from domain_checks.common_check import (
     DomainCheckResult,
@@ -72,6 +74,94 @@ def load_config(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("Config YAML must be a mapping")
     return data
+
+
+def _parse_hhmm(value: Any) -> dt_time:
+    s = str(value or "").strip()
+    if not s or ":" not in s:
+        raise ValueError(f"Invalid time (expected HH:MM): {value!r}")
+    hh_str, mm_str = s.split(":", 1)
+    hour = int(hh_str)
+    minute = int(mm_str)
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError(f"Invalid time (expected HH:MM): {value!r}")
+    return dt_time(hour=hour, minute=minute)
+
+
+def _get_heartbeat_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("heartbeat") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _load_timezone(name: str):
+    cleaned = (name or "").strip()
+    if not cleaned or cleaned.upper() == "UTC":
+        return timezone.utc
+    try:
+        return ZoneInfo(cleaned)
+    except ZoneInfoNotFoundError:
+        LOGGER.warning("Timezone not found; falling back to UTC tz=%s", cleaned)
+        return timezone.utc
+
+
+def _format_ms(value: Any) -> str:
+    try:
+        if value is None:
+            return "n/a"
+        return f"{int(round(float(value)))}ms"
+    except Exception:
+        return "n/a"
+
+
+def _format_uptime(delta: timedelta) -> str:
+    seconds = max(0, int(delta.total_seconds()))
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, rem = divmod(rem, 60)
+    if days:
+        return f"{days}d {hours:02}h {minutes:02}m"
+    if hours:
+        return f"{hours}h {minutes:02}m"
+    return f"{minutes}m {rem:02}s"
+
+
+def _build_heartbeat_message(
+    *,
+    now: datetime,
+    scheduled_label: str,
+    started_at: datetime,
+    results: dict[str, DomainCheckResult],
+) -> str:
+    lines = [
+        "Heartbeat: service-monitoring is running ✅",
+        f"Scheduled: {scheduled_label}",
+        f"Now: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}",
+        f"Uptime: {_format_uptime(now - started_at)}",
+        "",
+        "Domains (HTTP / Browser):",
+    ]
+
+    for domain in sorted(results.keys()):
+        result = results[domain]
+        details = result.details or {}
+        http_status = details.get("status_code")
+        http_ms = _format_ms(details.get("http_elapsed_ms"))
+        browser_ms = _format_ms(details.get("browser_elapsed_ms"))
+
+        if result.ok:
+            status_part = f"UP ({http_status})" if http_status is not None else "UP"
+            lines.append(f"- {domain}: {status_part} {http_ms} / {browser_ms}")
+            continue
+
+        reason = result.reason or "down"
+        if isinstance(details.get("error"), str) and details["error"].strip():
+            reason = f"{reason}: {details['error']}"
+        status_part = f"DOWN ({reason})"
+        if http_status is not None:
+            status_part = f"DOWN ({http_status}, {reason})"
+        lines.append(f"- {domain}: {status_part} {http_ms} / {browser_ms}")
+
+    return "\n".join(lines).strip() + "\n"
 
 
 def _domain_plugin_path(domain: str) -> Path:
@@ -216,6 +306,7 @@ async def check_one_domain(
 async def run_loop(config_path: Path, once: bool) -> int:
     config = load_config(config_path)
     interval_seconds = int(config.get("interval_seconds", 60))
+    tolerance_seconds = max(120, interval_seconds * 2)
 
     domains_cfg = config.get("domains", [])
     if not isinstance(domains_cfg, list) or not domains_cfg:
@@ -240,6 +331,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
     )
 
     specs: list[DomainCheckSpec] = [load_domain_spec(entry) for entry in domains_cfg]
+
+    heartbeat_cfg = _get_heartbeat_config(config)
+    heartbeat_enabled = bool(heartbeat_cfg.get("enabled", False))
+    heartbeat_timezone = str(heartbeat_cfg.get("timezone") or "UTC")
+    heartbeat_times_raw = heartbeat_cfg.get("times") or []
+    heartbeat_times: list[dt_time] = []
+    if heartbeat_enabled:
+        if not isinstance(heartbeat_times_raw, list) or not heartbeat_times_raw:
+            raise ValueError("heartbeat.times must be a non-empty list of HH:MM strings when heartbeat.enabled=true")
+        heartbeat_times = [_parse_hhmm(t) for t in heartbeat_times_raw]
+    tz = _load_timezone(heartbeat_timezone)
+    started_at = datetime.now(tz)
+    last_heartbeat_sent: dict[str, str] = {}  # HH:MM -> YYYY-MM-DD
 
     chromium_path = find_chromium_executable()
     if not chromium_path:
@@ -266,6 +370,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
             try:
                 while True:
                     cycle_started = time.time()
+                    cycle_results: dict[str, DomainCheckResult] = {}
                     LOGGER.info("Running check cycle")
 
                     tasks = [
@@ -275,6 +380,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                     for fut in asyncio.as_completed(tasks):
                         result = await fut
+                        cycle_results[result.domain] = result
                         prev = last_ok.get(result.domain)
                         last_ok[result.domain] = result.ok
 
@@ -322,6 +428,38 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         except Exception:
                             LOGGER.exception("Dispatch task crashed domain=%s", domain)
                         del active_dispatch_tasks[domain]
+
+                    if heartbeat_enabled and cycle_results:
+                        now = datetime.now(tz)
+                        today = now.date().isoformat()
+                        for t in heartbeat_times:
+                            hhmm = t.strftime("%H:%M")
+                            if last_heartbeat_sent.get(hhmm) == today:
+                                continue
+                            scheduled_dt = datetime(
+                                year=now.year,
+                                month=now.month,
+                                day=now.day,
+                                hour=t.hour,
+                                minute=t.minute,
+                                tzinfo=tz,
+                            )
+                            if scheduled_dt <= now < (scheduled_dt + timedelta(seconds=tolerance_seconds)):
+                                msg = _build_heartbeat_message(
+                                    now=now,
+                                    scheduled_label=f"{hhmm} {heartbeat_timezone}",
+                                    started_at=started_at,
+                                    results=cycle_results,
+                                )
+                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                                last_heartbeat_sent[hhmm] = today
+                                LOGGER.info(
+                                    "Heartbeat sent scheduled=%s ok=%s telegram_last=%s",
+                                    hhmm,
+                                    ok_all,
+                                    redact_telegram_response(resps[-1] if resps else {}),
+                                )
+                                break
 
                     if once:
                         return 0

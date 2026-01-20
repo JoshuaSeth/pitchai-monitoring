@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit, urlunsplit
 from pathlib import Path
@@ -37,6 +38,7 @@ class DomainCheckSpec:
     url: str
     allowed_status_codes: list[int] | None = None
     expected_title_contains: str | None = None
+    expected_final_host_suffix: str | None = None
     required_selectors_all: list[SelectorCheck] = field(default_factory=list)
     required_selectors_any: list[SelectorCheck] = field(default_factory=list)
     required_text_all: list[str] = field(default_factory=list)
@@ -77,26 +79,42 @@ def _safe_url(url: str) -> str:
 
 
 async def http_get_check(spec: DomainCheckSpec, client: httpx.AsyncClient) -> tuple[bool, dict[str, Any]]:
+    started = time.perf_counter()
     try:
         resp = await client.get(spec.url, follow_redirects=True, timeout=spec.http_timeout_seconds)
     except httpx.RequestError as e:
-        return False, {"error": f"http_error: {type(e).__name__}: {e}"}
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        return False, {
+            "error": f"http_error: {type(e).__name__}: {e}",
+            "http_elapsed_ms": round(elapsed_ms, 3),
+        }
 
+    elapsed_ms = (time.perf_counter() - started) * 1000.0
     body = resp.text or ""
     body_norm = _html_to_visible_text(body)
 
     forbidden_hits = [kw for kw in spec.forbidden_text_any if kw and kw.lower() in body_norm]
+
+    final_host = (urlsplit(str(resp.url)).hostname or "").lower()
+    expected_suffix = (spec.expected_final_host_suffix or "").strip().lower()
+    final_host_ok = True
+    if expected_suffix:
+        final_host_ok = bool(final_host) and final_host.endswith(expected_suffix)
 
     if spec.allowed_status_codes is not None:
         status_ok = resp.status_code in spec.allowed_status_codes
     else:
         status_ok = 200 <= resp.status_code < 300
 
-    ok = status_ok and not forbidden_hits
+    ok = status_ok and not forbidden_hits and final_host_ok
     return ok, {
         "status_code": resp.status_code,
         "final_url": _safe_url(str(resp.url)),
+        "final_host": final_host,
+        "expected_final_host_suffix": expected_suffix or None,
+        "final_host_ok": final_host_ok,
         "forbidden_hits": forbidden_hits,
+        "http_elapsed_ms": round(elapsed_ms, 3),
     }
 
 
@@ -153,6 +171,7 @@ def load_domain_spec_from_module_dict(module_vars: dict[str, Any]) -> DomainChec
         url=str(cfg["url"]),
         allowed_status_codes=allowed_status_codes,
         expected_title_contains=cfg.get("expected_title_contains"),
+        expected_final_host_suffix=cfg.get("expected_final_host_suffix"),
         required_selectors_all=required_all,
         required_selectors_any=required_any,
         required_text_all=[str(t) for t in cfg.get("required_text_all", [])],
@@ -163,6 +182,7 @@ def load_domain_spec_from_module_dict(module_vars: dict[str, Any]) -> DomainChec
 
 
 async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, dict[str, Any]]:
+    started = time.perf_counter()
     timeout_ms = int(spec.browser_timeout_seconds * 1000)
 
     context = await browser.new_context(viewport={"width": 1280, "height": 720})
@@ -171,7 +191,11 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
         try:
             response = await page.goto(spec.url, wait_until="domcontentloaded", timeout=timeout_ms)
         except PlaywrightError as e:
-            return False, {"error": f"browser_goto_error: {type(e).__name__}: {e}"}
+            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            return False, {
+                "error": f"browser_goto_error: {type(e).__name__}: {e}",
+                "browser_elapsed_ms": round(elapsed_ms, 3),
+            }
 
         status = response.status if response else None
 
@@ -179,6 +203,12 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
         title_ok = True
         if spec.expected_title_contains:
             title_ok = spec.expected_title_contains.lower() in (title or "").lower()
+
+        final_host = (urlsplit(page.url).hostname or "").lower()
+        expected_suffix = (spec.expected_final_host_suffix or "").strip().lower()
+        final_host_ok = True
+        if expected_suffix:
+            final_host_ok = bool(final_host) and final_host.endswith(expected_suffix)
 
         body_text = _normalize_text(await page.evaluate("() => document.body?.innerText || ''"))
         forbidden_hits = [kw for kw in spec.forbidden_text_any if kw and kw.lower() in body_text]
@@ -246,14 +276,19 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
         ok = (
             status_ok
             and title_ok
+            and final_host_ok
             and not forbidden_hits
             and not missing_all
             and any_ok
             and not missing_text
         )
 
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
         return ok, {
             "final_url": _safe_url(page.url),
+            "final_host": final_host,
+            "expected_final_host_suffix": expected_suffix or None,
+            "final_host_ok": final_host_ok,
             "http_status": status,
             "title": title,
             "title_ok": title_ok,
@@ -262,6 +297,7 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
             "required_any_selectors": any_candidates,
             "required_any_ok": any_ok,
             "missing_text": missing_text,
+            "browser_elapsed_ms": round(elapsed_ms, 3),
         }
     finally:
         try:

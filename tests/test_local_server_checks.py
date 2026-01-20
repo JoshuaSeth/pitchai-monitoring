@@ -96,6 +96,8 @@ async def test_http_get_ok(local_server_base_url: str) -> None:
     assert ok is True
     assert details["status_code"] == 200
     assert details["forbidden_hits"] == []
+    assert isinstance(details.get("http_elapsed_ms"), (int, float))
+    assert float(details["http_elapsed_ms"]) >= 0
 
 
 @pytest.mark.asyncio
@@ -106,6 +108,34 @@ async def test_http_get_redirect_is_ok(local_server_base_url: str) -> None:
     assert ok is True
     assert details["status_code"] == 200
     assert str(details["final_url"]).endswith("/ok")
+    assert isinstance(details.get("http_elapsed_ms"), (int, float))
+    assert float(details["http_elapsed_ms"]) >= 0
+
+
+@pytest.mark.asyncio
+async def test_http_get_expected_final_host_suffix_enforced(local_server_base_url: str) -> None:
+    async with httpx.AsyncClient() as client:
+        spec_ok = DomainCheckSpec(
+            domain="local",
+            url=f"{local_server_base_url}/ok",
+            http_timeout_seconds=5.0,
+            expected_final_host_suffix="127.0.0.1",
+        )
+        ok, details = await http_get_check(spec_ok, client)
+        assert ok is True
+        assert details["final_host"] == "127.0.0.1"
+        assert details["final_host_ok"] is True
+
+        spec_bad = DomainCheckSpec(
+            domain="local",
+            url=f"{local_server_base_url}/ok",
+            http_timeout_seconds=5.0,
+            expected_final_host_suffix="example.com",
+        )
+        ok, details = await http_get_check(spec_bad, client)
+        assert ok is False
+        assert details["final_host"] == "127.0.0.1"
+        assert details["final_host_ok"] is False
 
 
 @pytest.mark.asyncio
@@ -116,6 +146,8 @@ async def test_http_get_maintenance_detected(local_server_base_url: str) -> None
     assert ok is False
     assert details["status_code"] == 200
     assert any("maintenance" in h for h in details["forbidden_hits"])
+    assert isinstance(details.get("http_elapsed_ms"), (int, float))
+    assert float(details["http_elapsed_ms"]) >= 0
 
 
 @pytest.mark.asyncio
@@ -130,6 +162,8 @@ async def test_http_get_ignores_script_text(local_server_base_url: str) -> None:
     assert ok is True
     assert details["status_code"] == 200
     assert details["forbidden_hits"] == []
+    assert isinstance(details.get("http_elapsed_ms"), (int, float))
+    assert float(details["http_elapsed_ms"]) >= 0
 
 
 @pytest.mark.asyncio
@@ -139,6 +173,8 @@ async def test_http_get_bad_gateway_fails(local_server_base_url: str) -> None:
         ok, details = await http_get_check(spec, client)
     assert ok is False
     assert details["status_code"] == 502
+    assert isinstance(details.get("http_elapsed_ms"), (int, float))
+    assert float(details["http_elapsed_ms"]) >= 0
 
 
 @pytest.mark.asyncio
@@ -154,6 +190,8 @@ async def test_http_get_allows_explicit_status_codes(local_server_base_url: str)
         ok, details = await http_get_check(spec, client)
     assert ok is True
     assert details["status_code"] == 502
+    assert isinstance(details.get("http_elapsed_ms"), (int, float))
+    assert float(details["http_elapsed_ms"]) >= 0
 
 
 @pytest.mark.asyncio
@@ -184,6 +222,48 @@ async def test_browser_check_ok(local_server_base_url: str) -> None:
     assert ok is True
     assert details["title_ok"] is True
     assert details["missing_selectors_all"] == []
+    assert isinstance(details.get("browser_elapsed_ms"), (int, float))
+    assert float(details["browser_elapsed_ms"]) >= 0
+
+
+@pytest.mark.asyncio
+async def test_browser_check_expected_final_host_suffix_enforced(local_server_base_url: str) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec_ok = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/ok",
+        expected_final_host_suffix="127.0.0.1",
+        browser_timeout_seconds=5.0,
+    )
+
+    spec_bad = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/ok",
+        expected_final_host_suffix="example.com",
+        browser_timeout_seconds=5.0,
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        try:
+            ok, details = await browser_check(spec_ok, browser)
+            assert ok is True
+            assert details["final_host"] == "127.0.0.1"
+            assert details["final_host_ok"] is True
+
+            ok, details = await browser_check(spec_bad, browser)
+            assert ok is False
+            assert details["final_host"] == "127.0.0.1"
+            assert details["final_host_ok"] is False
+        finally:
+            await browser.close()
 
 
 @pytest.mark.asyncio
@@ -332,6 +412,8 @@ async def test_browser_check_maintenance_fails(local_server_base_url: str) -> No
 
     assert ok is False
     assert any("maintenance" in h for h in details["forbidden_hits"])
+    assert isinstance(details.get("browser_elapsed_ms"), (int, float))
+    assert float(details["browser_elapsed_ms"]) >= 0
 
 
 @pytest.mark.asyncio

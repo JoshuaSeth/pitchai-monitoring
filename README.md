@@ -11,11 +11,16 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
   - `{domain} is DOWN`
 - When a domain transitions UP → DOWN, also queues a Codex investigation via PitchAI Dispatcher:
   - Polls until completion and forwards the agent’s final report to Telegram.
+- Optional: on a schedule (e.g. `07:30` and `12:00`), sends a heartbeat message that includes per-domain response times.
 
 ## Configuration
 
 - `domain_checks/config.yaml`
 - Per-domain checks: `domain_checks/<domain>/check.py` (must define `CHECK = {...}`)
+  - Heartbeats:
+    - `heartbeat.enabled`: enable/disable scheduled heartbeats
+    - `heartbeat.timezone`: timezone name (e.g. `Europe/Amsterdam`, `UTC`)
+    - `heartbeat.times`: list of `HH:MM` times (in `heartbeat.timezone`)
 
 ## Environment
 

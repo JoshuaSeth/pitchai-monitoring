@@ -1,5 +1,14 @@
 interval_seconds: 60
 
+# Twice-daily heartbeat messages to confirm the monitor is alive and to report
+# per-domain response times from that check cycle.
+heartbeat:
+  enabled: true
+  timezone: "Europe/Amsterdam"
+  times:
+    - "07:30"
+    - "12:00"
+
 # Domains to check every minute.
 # For each domain, add `domain_checks/<domain>/check.py` defining the element checks.
 domains:
@@ -7,3 +16,6 @@ domains:
   - domain: autopar.pitchai.net
   - domain: afasask.gzb.nl
   - domain: skybuyfly.pitchai.net
+  - domain: deplanbook.com
+  - domain: cms.deplanbook.com
+  - domain: dpb.pitchai.net
