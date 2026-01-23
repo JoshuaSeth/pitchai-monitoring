@@ -4,10 +4,11 @@ CHECK = {
     "expected_title_contains": "Deplanbook",
     "required_selectors_all": [
         {"selector": "#main", "state": "visible"},
-        {"selector": 'a[href="https://cms.deplanbook.com"]', "state": "attached"},
+        {"selector": 'a[href="/diary"]', "state": "visible"},
+        {"selector": 'a[href="/account"]', "state": "visible"},
+        {"selector": "text=Rondleiding", "state": "visible"},
     ],
     "required_selectors_any": [
-        {"selector": 'a[href="/login-page?next=/diary"]', "state": "attached"},
         {"selector": 'a[href="/diary"]', "state": "attached"},
     ],
     "forbidden_text_any": [
@@ -18,4 +19,3 @@ CHECK = {
         "not found",
     ],
 }
-

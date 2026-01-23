@@ -5,6 +5,7 @@ CHECK = {
     # an upstream 502 page) without triggering alerts.
     "allowed_status_codes": [200, 502, 503],
     "required_selectors_any": [
+        {"selector": "text=/afas online/i", "state": "visible"},
         {"selector": "text=/maintenance|temporarily unavailable|we'?ll be back/i", "state": "visible"},
         {"selector": "text=/bad gateway|service unavailable|gateway timeout/i", "state": "visible"},
         {"selector": "#token", "state": "visible"},

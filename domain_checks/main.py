@@ -125,6 +125,119 @@ def _format_uptime(delta: timedelta) -> str:
     return f"{minutes}m {rem:02}s"
 
 
+def _build_down_alert_message(result: DomainCheckResult) -> str:
+    d = result.details or {}
+    lines = [f"{result.domain} is DOWN ❌", f"Reason: {result.reason}"]
+
+    status_code = d.get("status_code")
+    http_ms = d.get("http_elapsed_ms")
+    if status_code is not None:
+        lines.append(f"HTTP: {status_code} ({_format_ms(http_ms)})")
+
+    browser_status = d.get("http_status")
+    browser_ms = d.get("browser_elapsed_ms")
+    if browser_status is not None:
+        lines.append(f"Browser: {browser_status} ({_format_ms(browser_ms)})")
+
+    final_url = d.get("final_url")
+    if isinstance(final_url, str) and final_url:
+        lines.append(f"Final URL: {final_url}")
+
+    if d.get("final_host_ok") is False:
+        final_host = d.get("final_host")
+        expected_suffix = d.get("expected_final_host_suffix")
+        lines.append(f"Final host mismatch: got={final_host} expected_suffix={expected_suffix}")
+
+    if d.get("title_ok") is False:
+        title = d.get("title")
+        lines.append(f"Title mismatch: {title!r}")
+
+    error = d.get("error")
+    if isinstance(error, str) and error.strip():
+        lines.append(f"Error: {error.strip()[:500]}")
+
+    forbidden_hits = d.get("forbidden_hits") or []
+    if isinstance(forbidden_hits, list) and forbidden_hits:
+        hits = ", ".join(str(x) for x in forbidden_hits[:8])
+        lines.append(f"Forbidden text hit: {hits}")
+
+    missing_all = d.get("missing_selectors_all") or []
+    if isinstance(missing_all, list) and missing_all:
+        missing = ", ".join(str(x) for x in missing_all[:5])
+        lines.append(f"Missing selectors: {missing}")
+
+    missing_text = d.get("missing_text") or []
+    if isinstance(missing_text, list) and missing_text:
+        missing = ", ".join(str(x) for x in missing_text[:5])
+        lines.append(f"Missing text: {missing}")
+
+    return "\n".join(lines).strip()
+
+
+def _dispatch_state_reenable_if_due(dispatch_state: dict[str, Any]) -> None:
+    if dispatch_state.get("enabled") is True:
+        return
+    disabled_until = dispatch_state.get("disabled_until_monotonic")
+    if disabled_until is None:
+        return  # permanently disabled
+    if time.monotonic() >= float(disabled_until):
+        dispatch_state["enabled"] = True
+        dispatch_state["disabled_until_monotonic"] = None
+        dispatch_state["disabled_reason"] = None
+
+
+def _dispatch_is_enabled(dispatch_cfg: DispatchConfig | None, dispatch_state: dict[str, Any]) -> bool:
+    if not dispatch_cfg:
+        return False
+    _dispatch_state_reenable_if_due(dispatch_state)
+    return bool(dispatch_state.get("enabled", True))
+
+
+def _dispatch_disable(
+    dispatch_state: dict[str, Any],
+    *,
+    reason: str,
+    cooldown_seconds: float | None = None,
+) -> None:
+    dispatch_state["enabled"] = False
+    dispatch_state["disabled_reason"] = reason
+    if cooldown_seconds is None:
+        dispatch_state["disabled_until_monotonic"] = None
+    else:
+        dispatch_state["disabled_until_monotonic"] = time.monotonic() + max(1.0, float(cooldown_seconds))
+
+
+def _dispatch_should_notify(dispatch_state: dict[str, Any], *, min_interval_seconds: float = 3600.0) -> bool:
+    last = float(dispatch_state.get("last_notify_monotonic") or 0.0)
+    now = time.monotonic()
+    if (now - last) >= float(min_interval_seconds):
+        dispatch_state["last_notify_monotonic"] = now
+        return True
+    return False
+
+
+async def _notify_dispatch_disabled(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_state: dict[str, Any],
+    details: str,
+) -> None:
+    reason = dispatch_state.get("disabled_reason") or "unknown"
+    until = dispatch_state.get("disabled_until_monotonic")
+    if until is None and dispatch_state.get("enabled") is False:
+        until_txt = "until token is fixed/restarted"
+    else:
+        until_txt = "temporarily"
+    msg = (
+        "Dispatcher escalation is disabled.\n"
+        f"Reason: {reason}\n"
+        f"Status: {until_txt}\n"
+        f"Details: {details}"
+    )
+    await send_telegram_message(http_client, telegram_cfg, msg)
+
+
 def _build_heartbeat_message(
     *,
     now: datetime,
@@ -219,7 +332,12 @@ async def _dispatch_and_forward(
     telegram_cfg: TelegramConfig,
     dispatch_cfg: DispatchConfig,
     result: DomainCheckResult,
+    dispatch_state: dict[str, Any],
 ) -> None:
+    if not _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+        LOGGER.info("Dispatch disabled; skipping dispatch for domain=%s", result.domain)
+        return
+
     prompt = _build_dispatch_prompt(result)
     state_key = f"service-monitoring.{result.domain}"
     pre_commands = [_docker_cli_install_pre_command()]
@@ -262,6 +380,40 @@ async def _dispatch_and_forward(
             ok_all,
             redact_telegram_response(resps[-1] if resps else {}),
         )
+    except httpx.HTTPStatusError as exc:
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        err = f"HTTPStatusError: {exc}"
+        suppress_domain_notice = False
+
+        # Disable dispatch on auth/quota issues to avoid spamming and wasting cycles.
+        if status_code in {401, 403}:
+            _dispatch_disable(dispatch_state, reason=f"auth_error_{status_code}", cooldown_seconds=None)
+            suppress_domain_notice = True
+            if _dispatch_should_notify(dispatch_state, min_interval_seconds=3600.0):
+                await _notify_dispatch_disabled(
+                    http_client=http_client,
+                    telegram_cfg=telegram_cfg,
+                    dispatch_state=dispatch_state,
+                    details=f"Dispatcher returned {status_code}. Update PITCHAI_DISPATCH_TOKEN secret and redeploy.",
+                )
+        elif status_code == 429:
+            _dispatch_disable(dispatch_state, reason="rate_limited_429", cooldown_seconds=30 * 60)
+            suppress_domain_notice = True
+            if _dispatch_should_notify(dispatch_state, min_interval_seconds=1800.0):
+                await _notify_dispatch_disabled(
+                    http_client=http_client,
+                    telegram_cfg=telegram_cfg,
+                    dispatch_state=dispatch_state,
+                    details="Dispatcher rate-limited (429). Will retry automatically after cooldown.",
+                )
+
+        LOGGER.exception("Dispatch failed domain=%s status_code=%s error=%s", result.domain, status_code, err)
+        if not suppress_domain_notice:
+            await send_telegram_message(
+                http_client,
+                telegram_cfg,
+                f"{result.domain} dispatch escalation FAILED: {err}",
+            )
     except Exception as exc:
         err = f"{type(exc).__name__}: {exc}"
         LOGGER.exception("Dispatch failed domain=%s error=%s", result.domain, err)
@@ -322,13 +474,23 @@ async def run_loop(config_path: Path, once: bool) -> int:
     dispatch_base_url = os.getenv("PITCHAI_DISPATCH_BASE_URL", "https://dispatch.pitchai.net").strip()
     dispatch_token = os.getenv("PITCHAI_DISPATCH_TOKEN")
     dispatch_model = os.getenv("PITCHAI_DISPATCH_MODEL")
-    if not dispatch_token:
-        raise RuntimeError("Missing PITCHAI_DISPATCH_TOKEN env var")
-    dispatch_cfg = DispatchConfig(
-        base_url=dispatch_base_url,
-        token=dispatch_token,
-        model=(dispatch_model.strip() if dispatch_model and dispatch_model.strip() else None),
-    )
+    dispatch_cfg: DispatchConfig | None = None
+    dispatch_state: dict[str, Any] = {
+        "enabled": True,
+        "disabled_reason": None,
+        "disabled_until_monotonic": None,
+        "last_notify_monotonic": 0.0,
+    }
+    if dispatch_token and dispatch_token.strip():
+        dispatch_cfg = DispatchConfig(
+            base_url=dispatch_base_url,
+            token=dispatch_token,
+            model=(dispatch_model.strip() if dispatch_model and dispatch_model.strip() else None),
+        )
+    else:
+        LOGGER.warning("Missing PITCHAI_DISPATCH_TOKEN; dispatcher escalation disabled")
+        dispatch_state["enabled"] = False
+        dispatch_state["disabled_reason"] = "missing_token"
 
     specs: list[DomainCheckSpec] = [load_domain_spec(entry) for entry in domains_cfg]
 
@@ -386,27 +548,37 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                         if (prev is True or prev is None) and result.ok is False:
                             # Transition UP -> DOWN, or startup DOWN.
-                            msg = f"{result.domain} is DOWN"
-                            ok, resp = await send_telegram_message(http_client, telegram_cfg, msg)
+                            msg = _build_down_alert_message(result)
+                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                            resp = resps[-1] if resps else {}
                             LOGGER.warning(
                                 "Alert attempt domain=%s sent_ok=%s reason=%s telegram=%s details=%s",
                                 result.domain,
-                                ok,
+                                ok_all,
                                 result.reason,
                                 redact_telegram_response(resp),
                                 result.details,
                             )
 
-                            if result.domain in active_dispatch_tasks and not active_dispatch_tasks[result.domain].done():
-                                LOGGER.info("Dispatch already running for domain=%s; skipping new dispatch", result.domain)
-                            else:
-                                active_dispatch_tasks[result.domain] = asyncio.create_task(
-                                    _dispatch_and_forward(
-                                        http_client=http_client,
-                                        telegram_cfg=telegram_cfg,
-                                        dispatch_cfg=dispatch_cfg,
-                                        result=result,
+                            if dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                if result.domain in active_dispatch_tasks and not active_dispatch_tasks[result.domain].done():
+                                    LOGGER.info("Dispatch already running for domain=%s; skipping new dispatch", result.domain)
+                                else:
+                                    active_dispatch_tasks[result.domain] = asyncio.create_task(
+                                        _dispatch_and_forward(
+                                            http_client=http_client,
+                                            telegram_cfg=telegram_cfg,
+                                            dispatch_cfg=dispatch_cfg,
+                                            dispatch_state=dispatch_state,
+                                            result=result,
+                                        )
                                     )
+                            else:
+                                LOGGER.info(
+                                    "Dispatch not scheduled domain=%s enabled=%s reason=%s",
+                                    result.domain,
+                                    bool(dispatch_cfg and dispatch_state.get("enabled")),
+                                    dispatch_state.get("disabled_reason"),
                                 )
                         else:
                             level = logging.INFO if result.ok else logging.WARNING
