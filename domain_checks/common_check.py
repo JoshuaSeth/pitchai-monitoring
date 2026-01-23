@@ -204,21 +204,70 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
         try:
             context = await browser.new_context(viewport={"width": 1280, "height": 720})
             page = await context.new_page()
+            try:
+                async def _route_filter(route):
+                    try:
+                        if route.request.resource_type in {'image', 'media', 'font'}:
+                            await route.abort()
+                            return
+                    except Exception:
+                        pass
+                    await route.continue_()
+            
+                await context.route('**/*', _route_filter)
+            except Exception:
+                pass
         except PlaywrightError as e:
+            connected = None
+            try:
+                connected = browser.is_connected()
+            except Exception:
+                pass
+            infra = _is_browser_infra_error(e) or (connected is False)
+            if not infra:
+                msg = str(e).lower()
+                if 'net::err_aborted' in msg or 'frame was detached' in msg:
+                    try:
+                        await asyncio.sleep(0.05)
+                        connected2 = browser.is_connected()
+                    except Exception:
+                        connected2 = connected
+                    if connected2 is False:
+                        connected = connected2
+                        infra = True
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             return False, {
                 "error": f"browser_context_error: {type(e).__name__}: {e}",
-                "browser_infra_error": _is_browser_infra_error(e),
+                "browser_connected": connected,
+                "browser_infra_error": infra,
                 "browser_elapsed_ms": round(elapsed_ms, 3),
             }
 
         try:
             response = await page.goto(spec.url, wait_until="domcontentloaded", timeout=timeout_ms)
         except PlaywrightError as e:
+            connected = None
+            try:
+                connected = browser.is_connected()
+            except Exception:
+                pass
+            infra = _is_browser_infra_error(e) or (connected is False)
+            if not infra:
+                msg = str(e).lower()
+                if 'net::err_aborted' in msg or 'frame was detached' in msg:
+                    try:
+                        await asyncio.sleep(0.05)
+                        connected2 = browser.is_connected()
+                    except Exception:
+                        connected2 = connected
+                    if connected2 is False:
+                        connected = connected2
+                        infra = True
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             return False, {
                 "error": f"browser_goto_error: {type(e).__name__}: {e}",
-                "browser_infra_error": _is_browser_infra_error(e),
+                "browser_connected": connected,
+                "browser_infra_error": infra,
                 "browser_elapsed_ms": round(elapsed_ms, 3),
             }
 
@@ -325,10 +374,28 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
             "browser_elapsed_ms": round(elapsed_ms, 3),
         }
     except PlaywrightError as e:
+        connected = None
+        try:
+            connected = browser.is_connected()
+        except Exception:
+            pass
+        infra = _is_browser_infra_error(e) or (connected is False)
+        if not infra:
+            msg = str(e).lower()
+            if 'net::err_aborted' in msg or 'frame was detached' in msg:
+                try:
+                    await asyncio.sleep(0.05)
+                    connected2 = browser.is_connected()
+                except Exception:
+                    connected2 = connected
+                if connected2 is False:
+                    connected = connected2
+                    infra = True
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         return False, {
             "error": f"browser_error: {type(e).__name__}: {e}",
-            "browser_infra_error": _is_browser_infra_error(e),
+            "browser_connected": connected,
+            "browser_infra_error": infra,
             "browser_elapsed_ms": round(elapsed_ms, 3),
         }
     finally:

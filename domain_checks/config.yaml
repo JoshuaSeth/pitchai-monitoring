@@ -1,5 +1,5 @@
 interval_seconds: 60
-browser_concurrency: 3
+browser_concurrency: 1
 
 # Reduce noise from transient network/browser hiccups:
 # - Mark a domain DOWN only after N consecutive failing cycles.

@@ -312,13 +312,28 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return {"last_ok": {}, "fail_streak": {}, "success_streak": {}}
+        return {
+            "last_ok": {},
+            "fail_streak": {},
+            "success_streak": {},
+            "browser_degraded_last_notice_ts": 0.0,
+        }
     except Exception as exc:
         LOGGER.warning("Failed to read state file path=%s error=%s", path, exc)
-        return {"last_ok": {}, "fail_streak": {}, "success_streak": {}}
+        return {
+            "last_ok": {},
+            "fail_streak": {},
+            "success_streak": {},
+            "browser_degraded_last_notice_ts": 0.0,
+        }
 
     if not isinstance(raw, dict):
-        return {"last_ok": {}, "fail_streak": {}, "success_streak": {}}
+        return {
+            "last_ok": {},
+            "fail_streak": {},
+            "success_streak": {},
+            "browser_degraded_last_notice_ts": 0.0,
+        }
 
     # Back-compat: previously stored only {"last_ok": {...}} or raw mapping.
     if isinstance(raw.get("last_ok"), dict) and not any(k in raw for k in ("fail_streak", "success_streak")):
@@ -326,6 +341,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
             "last_ok": _coerce_bool_dict(raw.get("last_ok")),
             "fail_streak": {},
             "success_streak": {},
+            "browser_degraded_last_notice_ts": 0.0,
         }
 
     if all(isinstance(v, bool) for v in raw.values()):
@@ -333,12 +349,20 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
             "last_ok": _coerce_bool_dict(raw),
             "fail_streak": {},
             "success_streak": {},
+            "browser_degraded_last_notice_ts": 0.0,
         }
+
+    last_notice_ts = 0.0
+    try:
+        last_notice_ts = float(raw.get("browser_degraded_last_notice_ts") or 0.0)
+    except Exception:
+        last_notice_ts = 0.0
 
     return {
         "last_ok": _coerce_bool_dict(raw.get("last_ok")),
         "fail_streak": _coerce_int_dict(raw.get("fail_streak")),
         "success_streak": _coerce_int_dict(raw.get("success_streak")),
+        "browser_degraded_last_notice_ts": last_notice_ts,
     }
 
 
@@ -645,6 +669,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     last_ok: dict[str, bool] = {}
     fail_streak: dict[str, int] = {}
     success_streak: dict[str, int] = {}
+    disk_state: dict[str, Any] = {}
     if state_path is not None:
         disk_state = _load_monitor_state(state_path)
         last_ok.update(disk_state.get("last_ok") or {})
@@ -652,7 +677,14 @@ async def run_loop(config_path: Path, once: bool) -> int:
         success_streak.update(disk_state.get("success_streak") or {})
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
     browser_semaphore = asyncio.Semaphore(browser_concurrency)
-    monitor_state: dict[str, Any] = {"last_browser_degraded_notify_monotonic": 0.0}
+    monitor_state: dict[str, Any] = {
+        "browser_degraded_active": False,
+        "browser_degraded_first_seen_ts": 0.0,
+        "browser_degraded_last_notice_ts": float(disk_state.get("browser_degraded_last_notice_ts") or 0.0),
+        "browser_degraded_recover_streak": 0,
+        "browser_degraded_notice_min_interval_seconds": 6 * 3600,
+    }
+
 
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI Service Monitoring Bot"}) as http_client:
         async with async_playwright() as p:
@@ -660,7 +692,21 @@ async def run_loop(config_path: Path, once: bool) -> int:
                 return await p.chromium.launch(
                     headless=True,
                     executable_path=chromium_path,
-                    args=["--no-sandbox", "--disable-dev-shm-usage"],
+                    args=[
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                        "--disable-extensions",
+                        "--disable-background-networking",
+                        "--disable-background-timer-throttling",
+                        "--disable-backgrounding-occluded-windows",
+                        "--disable-renderer-backgrounding",
+                        "--disable-sync",
+                        "--metrics-recording-only",
+                        "--no-first-run",
+                        "--no-default-browser-check",
+                        "--disable-features=site-per-process",
+                    ],
                 )
 
             browser = await _launch_browser()
@@ -781,15 +827,26 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 )
 
                     if browser_degraded:
-                        now_mono = time.monotonic()
-                        last_notice = float(monitor_state.get("last_browser_degraded_notify_monotonic") or 0.0)
-                        if (now_mono - last_notice) >= 600.0:
-                            monitor_state["last_browser_degraded_notify_monotonic"] = now_mono
+                        now_ts = time.time()
+                        if not monitor_state.get("browser_degraded_active", False):
+                            monitor_state["browser_degraded_active"] = True
+                            monitor_state["browser_degraded_first_seen_ts"] = now_ts
+                            monitor_state["browser_degraded_recover_streak"] = 0
+
+                        monitor_state["browser_degraded_recover_streak"] = 0
+                        last_notice = float(monitor_state.get("browser_degraded_last_notice_ts") or 0.0)
+                        min_interval = float(
+                            monitor_state.get("browser_degraded_notice_min_interval_seconds") or (6 * 3600)
+                        )
+                        should_notify = last_notice <= 0.0 or (now_ts - last_notice) >= min_interval
+                        if should_notify:
+                            monitor_state["browser_degraded_last_notice_ts"] = now_ts
+                            LOGGER.warning("Playwright browser checks degraded; restarting browser process")
                             await send_telegram_message(
                                 http_client,
                                 telegram_cfg,
                                 "Monitor warning: Playwright browser checks are degraded (browser crash/close detected). "
-                                "Continuing with HTTP-only results and restarting the browser process.",
+                                "Auto-restarting the browser process. If this keeps repeating, the host may be under OOM/memory pressure.",
                             )
 
                         try:
@@ -797,6 +854,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         except Exception:
                             pass
                         browser = await _launch_browser()
+                    else:
+                        if monitor_state.get("browser_degraded_active"):
+                            streak = int(monitor_state.get("browser_degraded_recover_streak") or 0) + 1
+                            monitor_state["browser_degraded_recover_streak"] = streak
+                            if streak >= 5:
+                                monitor_state["browser_degraded_active"] = False
+                                monitor_state["browser_degraded_first_seen_ts"] = 0.0
+                                monitor_state["browser_degraded_recover_streak"] = 0
+                                LOGGER.info("Playwright browser checks recovered")
 
                     # Prune completed dispatch tasks to avoid unbounded growth.
                     for domain, task in list(active_dispatch_tasks.items()):
@@ -850,6 +916,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     "last_ok": last_ok,
                                     "fail_streak": fail_streak,
                                     "success_streak": success_streak,
+                                    "browser_degraded_last_notice_ts": float(
+                                        monitor_state.get("browser_degraded_last_notice_ts") or 0.0
+                                    ),
                                 },
                             )
                         except Exception as exc:
