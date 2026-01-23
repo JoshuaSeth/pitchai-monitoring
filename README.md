@@ -22,6 +22,9 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
     - `heartbeat.timezone`: timezone name (e.g. `Europe/Amsterdam`, `UTC`)
     - `heartbeat.times`: list of `HH:MM` times (in `heartbeat.timezone`)
   - `browser_concurrency`: max concurrent Playwright page checks (lower if Chromium is unstable)
+  - Alerting debounce (reduces transient false positives):
+    - `alerting.down_after_failures`: consecutive failing cycles required before a DOWN alert is sent
+    - `alerting.up_after_successes`: consecutive successful cycles required to mark the domain UP again
 
 ## Environment
 

@@ -129,6 +129,11 @@ def _build_down_alert_message(result: DomainCheckResult) -> str:
     d = result.details or {}
     lines = [f"{result.domain} is DOWN ❌", f"Reason: {result.reason}"]
 
+    fail_streak = d.get("fail_streak")
+    down_after = d.get("down_after_failures")
+    if isinstance(fail_streak, int) and isinstance(down_after, int) and down_after > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after}")
+
     status_code = d.get("status_code")
     http_ms = d.get("http_elapsed_ms")
     if status_code is not None:
@@ -277,28 +282,96 @@ def _build_heartbeat_message(
     return "\n".join(lines).strip() + "\n"
 
 
-def _load_last_ok_state(path: Path) -> dict[str, bool]:
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+def _coerce_bool_dict(value: Any) -> dict[str, bool]:
+    if not isinstance(value, dict):
         return {}
-    except Exception as exc:
-        LOGGER.warning("Failed to read state file path=%s error=%s", path, exc)
-        return {}
-
-    if isinstance(raw, dict) and isinstance(raw.get("last_ok"), dict):
-        raw = raw["last_ok"]
-
-    if not isinstance(raw, dict):
-        return {}
-
     state: dict[str, bool] = {}
-    for k, v in raw.items():
+    for k, v in value.items():
         if not isinstance(k, str):
             continue
         if isinstance(v, bool):
             state[k] = v
     return state
+
+
+def _coerce_int_dict(value: Any) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    state: dict[str, int] = {}
+    for k, v in value.items():
+        if not isinstance(k, str):
+            continue
+        try:
+            state[k] = int(v)
+        except Exception:
+            continue
+    return state
+
+
+def _load_monitor_state(path: Path) -> dict[str, Any]:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {"last_ok": {}, "fail_streak": {}, "success_streak": {}}
+    except Exception as exc:
+        LOGGER.warning("Failed to read state file path=%s error=%s", path, exc)
+        return {"last_ok": {}, "fail_streak": {}, "success_streak": {}}
+
+    if not isinstance(raw, dict):
+        return {"last_ok": {}, "fail_streak": {}, "success_streak": {}}
+
+    # Back-compat: previously stored only {"last_ok": {...}} or raw mapping.
+    if isinstance(raw.get("last_ok"), dict) and not any(k in raw for k in ("fail_streak", "success_streak")):
+        return {
+            "last_ok": _coerce_bool_dict(raw.get("last_ok")),
+            "fail_streak": {},
+            "success_streak": {},
+        }
+
+    if all(isinstance(v, bool) for v in raw.values()):
+        return {
+            "last_ok": _coerce_bool_dict(raw),
+            "fail_streak": {},
+            "success_streak": {},
+        }
+
+    return {
+        "last_ok": _coerce_bool_dict(raw.get("last_ok")),
+        "fail_streak": _coerce_int_dict(raw.get("fail_streak")),
+        "success_streak": _coerce_int_dict(raw.get("success_streak")),
+    }
+
+
+def _load_last_ok_state(path: Path) -> dict[str, bool]:
+    return dict(_load_monitor_state(path).get("last_ok") or {})
+
+
+def _update_effective_ok(
+    *,
+    prev_effective_ok: bool,
+    observed_ok: bool,
+    fail_streak: int,
+    success_streak: int,
+    down_after_failures: int,
+    up_after_successes: int,
+) -> tuple[bool, int, int, bool]:
+    down_after_failures = max(1, int(down_after_failures))
+    up_after_successes = max(1, int(up_after_successes))
+
+    if observed_ok:
+        success_streak = int(success_streak) + 1
+        fail_streak = 0
+    else:
+        fail_streak = int(fail_streak) + 1
+        success_streak = 0
+
+    if prev_effective_ok:
+        next_effective_ok = not (fail_streak >= down_after_failures)
+    else:
+        next_effective_ok = bool(success_streak >= up_after_successes)
+
+    alerted_down = bool(prev_effective_ok and not next_effective_ok)
+    return next_effective_ok, fail_streak, success_streak, alerted_down
 
 
 def _write_state_atomic(path: Path, payload: dict[str, Any]) -> None:
@@ -501,6 +574,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
     interval_seconds = int(config.get("interval_seconds", 60))
     tolerance_seconds = max(120, interval_seconds * 2)
     browser_concurrency = max(1, int(config.get("browser_concurrency", 3)))
+    alerting_cfg = config.get("alerting") or {}
+    if not isinstance(alerting_cfg, dict):
+        alerting_cfg = {}
+    down_after_failures = max(1, int(alerting_cfg.get("down_after_failures", 1)))
+    up_after_successes = max(1, int(alerting_cfg.get("up_after_successes", 1)))
 
     domains_cfg = config.get("domains", [])
     if not isinstance(domains_cfg, list) or not domains_cfg:
@@ -565,8 +643,13 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
     # Track state (persisted if STATE_PATH is mounted) to avoid spamming alerts every minute.
     last_ok: dict[str, bool] = {}
+    fail_streak: dict[str, int] = {}
+    success_streak: dict[str, int] = {}
     if state_path is not None:
-        last_ok.update(_load_last_ok_state(state_path))
+        disk_state = _load_monitor_state(state_path)
+        last_ok.update(disk_state.get("last_ok") or {})
+        fail_streak.update(disk_state.get("fail_streak") or {})
+        success_streak.update(disk_state.get("success_streak") or {})
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
     browser_semaphore = asyncio.Semaphore(browser_concurrency)
     monitor_state: dict[str, Any] = {"last_browser_degraded_notify_monotonic": 0.0}
@@ -614,53 +697,88 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         cycle_results[result.domain] = result
                         if bool((result.details or {}).get("browser_infra_error")):
                             browser_degraded = True
-                        prev = last_ok.get(result.domain)
-                        last_ok[result.domain] = result.ok
 
-                        if (prev is True or prev is None) and result.ok is False:
-                            # Transition UP -> DOWN, or startup DOWN.
-                            msg = _build_down_alert_message(result)
+                        domain = result.domain
+                        prev_effective = last_ok.get(domain)
+                        if prev_effective is None:
+                            prev_effective = True
+
+                        next_effective, next_fail, next_success, alerted_down = _update_effective_ok(
+                            prev_effective_ok=prev_effective,
+                            observed_ok=bool(result.ok),
+                            fail_streak=int(fail_streak.get(domain, 0)),
+                            success_streak=int(success_streak.get(domain, 0)),
+                            down_after_failures=down_after_failures,
+                            up_after_successes=up_after_successes,
+                        )
+                        last_ok[domain] = next_effective
+                        fail_streak[domain] = next_fail
+                        success_streak[domain] = next_success
+
+                        if alerted_down:
+                            # Transition UP -> DOWN (debounced), or startup DOWN after threshold.
+                            enriched = DomainCheckResult(
+                                domain=result.domain,
+                                ok=result.ok,
+                                reason=result.reason,
+                                details={
+                                    **(result.details or {}),
+                                    "fail_streak": next_fail,
+                                    "down_after_failures": down_after_failures,
+                                },
+                            )
+                            msg = _build_down_alert_message(enriched)
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                             resp = resps[-1] if resps else {}
                             LOGGER.warning(
                                 "Alert attempt domain=%s sent_ok=%s reason=%s telegram=%s details=%s",
-                                result.domain,
+                                domain,
                                 ok_all,
                                 result.reason,
                                 redact_telegram_response(resp),
-                                result.details,
+                                enriched.details,
                             )
 
                             if dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                                if result.domain in active_dispatch_tasks and not active_dispatch_tasks[result.domain].done():
-                                    LOGGER.info("Dispatch already running for domain=%s; skipping new dispatch", result.domain)
+                                if domain in active_dispatch_tasks and not active_dispatch_tasks[domain].done():
+                                    LOGGER.info("Dispatch already running for domain=%s; skipping new dispatch", domain)
                                 else:
-                                    active_dispatch_tasks[result.domain] = asyncio.create_task(
+                                    active_dispatch_tasks[domain] = asyncio.create_task(
                                         _dispatch_and_forward(
                                             http_client=http_client,
                                             telegram_cfg=telegram_cfg,
                                             dispatch_cfg=dispatch_cfg,
                                             dispatch_state=dispatch_state,
-                                            result=result,
+                                            result=enriched,
                                         )
                                     )
                             else:
                                 LOGGER.info(
                                     "Dispatch not scheduled domain=%s enabled=%s reason=%s",
-                                    result.domain,
+                                    domain,
                                     bool(dispatch_cfg and dispatch_state.get("enabled")),
                                     dispatch_state.get("disabled_reason"),
                                 )
                         else:
-                            level = logging.INFO if result.ok else logging.WARNING
-                            LOGGER.log(
-                                level,
-                                "Domain result domain=%s ok=%s reason=%s details=%s",
-                                result.domain,
-                                result.ok,
-                                result.reason,
-                                result.details,
-                            )
+                            if result.ok is False and prev_effective is True and next_effective is True:
+                                LOGGER.warning(
+                                    "Domain failing (alert suppressed) domain=%s fail_streak=%s/%s reason=%s details=%s",
+                                    domain,
+                                    next_fail,
+                                    down_after_failures,
+                                    result.reason,
+                                    result.details,
+                                )
+                            else:
+                                level = logging.INFO if result.ok else logging.WARNING
+                                LOGGER.log(
+                                    level,
+                                    "Domain result domain=%s ok=%s reason=%s details=%s",
+                                    domain,
+                                    result.ok,
+                                    result.reason,
+                                    result.details,
+                                )
 
                     if browser_degraded:
                         now_mono = time.monotonic()
@@ -727,9 +845,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             _write_state_atomic(
                                 state_path,
                                 {
-                                    "version": 1,
+                                    "version": 2,
                                     "updated_at": datetime.now(timezone.utc).isoformat(),
                                     "last_ok": last_ok,
+                                    "fail_streak": fail_streak,
+                                    "success_streak": success_streak,
                                 },
                             )
                         except Exception as exc:

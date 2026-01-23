@@ -1,6 +1,13 @@
 interval_seconds: 60
 browser_concurrency: 3
 
+# Reduce noise from transient network/browser hiccups:
+# - Mark a domain DOWN only after N consecutive failing cycles.
+# - Mark it back UP only after M consecutive successful cycles (prevents flap spam).
+alerting:
+  down_after_failures: 2
+  up_after_successes: 2
+
 # Twice-daily heartbeat messages to confirm the monitor is alive and to report
 # per-domain response times from that check cycle.
 heartbeat:
