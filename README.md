@@ -21,6 +21,10 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
     - `heartbeat.enabled`: enable/disable scheduled heartbeats
     - `heartbeat.timezone`: timezone name (e.g. `Europe/Amsterdam`, `UTC`)
     - `heartbeat.times`: list of `HH:MM` times (in `heartbeat.timezone`)
+  - Temporarily disable a domain (skip checks + alerts):
+    - `disabled: true` (or `enabled: false`)
+    - `disabled_until`: unix timestamp or ISO-8601 datetime/date (optional)
+    - `disabled_reason`: shown in heartbeats/logs (optional)
   - `browser_concurrency`: max concurrent Playwright page checks (lower if Chromium is unstable)
   - Alerting debounce (reduces transient false positives):
     - `alerting.down_after_failures`: consecutive failing cycles required before a DOWN alert is sent

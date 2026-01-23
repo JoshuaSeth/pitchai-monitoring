@@ -7,7 +7,8 @@ import logging
 import os
 import runpy
 import time
-from datetime import datetime, timedelta, time as dt_time, timezone
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, time as dt_time, timezone
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,111 @@ def load_config(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("Config YAML must be a mapping")
     return data
+
+
+@dataclass(frozen=True)
+class DomainEntryConfig:
+    domain: str
+    raw_entry: Any
+    disabled: bool = False
+    disabled_reason: str | None = None
+    disabled_until_ts: float | None = None
+
+    def is_disabled(self, now_ts: float) -> bool:
+        if self.disabled:
+            return True
+        if self.disabled_until_ts is not None and now_ts < float(self.disabled_until_ts):
+            return True
+        return False
+
+
+def _parse_disabled_until_ts(value: Any) -> float | None:
+    if value is None:
+        return None
+
+    if isinstance(value, (int, float)):
+        ts = float(value)
+        return ts if ts > 0 else None
+
+    s = str(value or "").strip()
+    if not s:
+        return None
+
+    try:
+        ts = float(s)
+        return ts if ts > 0 else None
+    except Exception:
+        pass
+
+    s_iso = s
+    if s_iso.endswith("Z"):
+        s_iso = s_iso[:-1] + "+00:00"
+
+    try:
+        dt = datetime.fromisoformat(s_iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+    except ValueError:
+        try:
+            d = date.fromisoformat(s)
+        except Exception as exc:
+            raise ValueError(
+                f"Invalid disabled_until value {value!r}; expected unix timestamp or ISO-8601 datetime/date"
+            ) from exc
+        dt = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+        return dt.timestamp()
+
+
+def _normalize_domain_entries(domains_cfg: list[Any]) -> list[DomainEntryConfig]:
+    entries: list[DomainEntryConfig] = []
+
+    for idx, entry in enumerate(domains_cfg):
+        if isinstance(entry, str):
+            domain = entry.strip()
+            if not domain:
+                raise ValueError(f"domains[{idx}] is empty")
+            entries.append(DomainEntryConfig(domain=domain, raw_entry=domain))
+            continue
+
+        if not isinstance(entry, dict):
+            raise ValueError(f"domains[{idx}] must be a string or mapping, got {type(entry).__name__}")
+
+        domain = str(entry.get("domain") or "").strip()
+        if not domain:
+            raise ValueError(f"domains[{idx}].domain is required")
+
+        disabled = bool(entry.get("disabled")) or (entry.get("enabled") is False)
+        disabled_reason = str(entry.get("disabled_reason") or "").strip() or None
+        disabled_until_ts = _parse_disabled_until_ts(entry.get("disabled_until"))
+
+        entries.append(
+            DomainEntryConfig(
+                domain=domain,
+                raw_entry=entry,
+                disabled=disabled,
+                disabled_reason=disabled_reason,
+                disabled_until_ts=disabled_until_ts,
+            )
+        )
+
+    seen: set[str] = set()
+    for entry in entries:
+        if entry.domain in seen:
+            raise ValueError(f"Duplicate domain entry: {entry.domain}")
+        seen.add(entry.domain)
+
+    return entries
+
+
+def _format_disabled_domain_line(entry: DomainEntryConfig, tz) -> str:
+    parts = ["DISABLED"]
+    if entry.disabled_until_ts is not None and float(entry.disabled_until_ts) > 0:
+        until = datetime.fromtimestamp(float(entry.disabled_until_ts), tz=tz)
+        parts.append(f"until {until.strftime('%Y-%m-%d %H:%M %Z')}")
+    if entry.disabled_reason:
+        parts.append(f"({entry.disabled_reason})")
+    return f"- {entry.domain}: {' '.join(parts)}"
 
 
 def _parse_hhmm(value: Any) -> dt_time:
@@ -249,6 +355,7 @@ def _build_heartbeat_message(
     scheduled_label: str,
     started_at: datetime,
     results: dict[str, DomainCheckResult],
+    disabled_lines: list[str] | None = None,
 ) -> str:
     lines = [
         "Heartbeat: service-monitoring is running ✅",
@@ -278,6 +385,11 @@ def _build_heartbeat_message(
         if http_status is not None:
             status_part = f"DOWN ({http_status}, {reason})"
         lines.append(f"- {domain}: {status_part} {http_ms} / {browser_ms}")
+
+    if disabled_lines:
+        lines.append("")
+        lines.append("Disabled (skipped):")
+        lines.extend(disabled_lines)
 
     return "\n".join(lines).strip() + "\n"
 
@@ -636,7 +748,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
         dispatch_state["enabled"] = False
         dispatch_state["disabled_reason"] = "missing_token"
 
-    specs: list[DomainCheckSpec] = [load_domain_spec(entry) for entry in domains_cfg]
+    domain_entries = _normalize_domain_entries(domains_cfg)
+    specs_by_domain: dict[str, DomainCheckSpec] = {
+        entry.domain: load_domain_spec(entry.raw_entry) for entry in domain_entries
+    }
+    all_domains = [entry.domain for entry in domain_entries]
 
     heartbeat_cfg = _get_heartbeat_config(config)
     heartbeat_enabled = bool(heartbeat_cfg.get("enabled", False))
@@ -655,9 +771,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
     if not chromium_path:
         raise RuntimeError("Could not find a Chromium/Chrome executable (set CHROMIUM_PATH)")
 
+    now_ts = time.time()
+    disabled_domains = [entry.domain for entry in domain_entries if entry.is_disabled(now_ts)]
     LOGGER.info(
-        "Starting service monitor domains=%s interval_seconds=%s chromium_path=%s",
-        [s.domain for s in specs],
+        "Starting service monitor domains=%s disabled_domains=%s interval_seconds=%s chromium_path=%s",
+        all_domains,
+        disabled_domains,
         interval_seconds,
         chromium_path,
     )
@@ -736,7 +855,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 details={"error": err},
                             )
 
-                    tasks = [asyncio.create_task(_safe_check(spec)) for spec in specs]
+                    now_ts = time.time()
+                    disabled_entries = [entry for entry in domain_entries if entry.is_disabled(now_ts)]
+                    disabled_set = {entry.domain for entry in disabled_entries}
+                    for domain in disabled_set:
+                        last_ok.pop(domain, None)
+                        fail_streak.pop(domain, None)
+                        success_streak.pop(domain, None)
+                    disabled_lines = sorted(_format_disabled_domain_line(entry, tz) for entry in disabled_entries)
+                    enabled_specs = [
+                        specs_by_domain[entry.domain] for entry in domain_entries if entry.domain not in disabled_set
+                    ]
+
+                    tasks = [asyncio.create_task(_safe_check(spec)) for spec in enabled_specs]
 
                     for fut in asyncio.as_completed(tasks):
                         result = await fut
@@ -874,7 +1005,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             LOGGER.exception("Dispatch task crashed domain=%s", domain)
                         del active_dispatch_tasks[domain]
 
-                    if heartbeat_enabled and cycle_results:
+                    if heartbeat_enabled and (cycle_results or disabled_lines):
                         now = datetime.now(tz)
                         today = now.date().isoformat()
                         for t in heartbeat_times:
@@ -895,6 +1026,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     scheduled_label=f"{hhmm} {heartbeat_timezone}",
                                     started_at=started_at,
                                     results=cycle_results,
+                                    disabled_lines=disabled_lines,
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                                 last_heartbeat_sent[hhmm] = today

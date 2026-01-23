@@ -23,6 +23,8 @@ domains:
   - domain: afasask.pitchai.net
   - domain: autopar.pitchai.net
   - domain: afasask.gzb.nl
+    disabled: true
+    disabled_reason: 'temporary disable (flapping/unstable)'
   - domain: skybuyfly.pitchai.net
   - domain: deplanbook.com
   - domain: cms.deplanbook.com
