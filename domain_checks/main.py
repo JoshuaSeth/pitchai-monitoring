@@ -277,6 +277,37 @@ def _build_heartbeat_message(
     return "\n".join(lines).strip() + "\n"
 
 
+def _load_last_ok_state(path: Path) -> dict[str, bool]:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except Exception as exc:
+        LOGGER.warning("Failed to read state file path=%s error=%s", path, exc)
+        return {}
+
+    if isinstance(raw, dict) and isinstance(raw.get("last_ok"), dict):
+        raw = raw["last_ok"]
+
+    if not isinstance(raw, dict):
+        return {}
+
+    state: dict[str, bool] = {}
+    for k, v in raw.items():
+        if not isinstance(k, str):
+            continue
+        if isinstance(v, bool):
+            state[k] = v
+    return state
+
+
+def _write_state_atomic(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+    tmp.replace(path)
+
+
 def _domain_plugin_path(domain: str) -> Path:
     return Path(__file__).parent / domain / "check.py"
 
@@ -428,6 +459,8 @@ async def check_one_domain(
     spec: DomainCheckSpec,
     http_client: httpx.AsyncClient,
     browser,
+    *,
+    browser_semaphore: asyncio.Semaphore,
 ) -> DomainCheckResult:
     http_ok, http_details = await http_get_check(spec, http_client)
     if not http_ok:
@@ -438,8 +471,16 @@ async def check_one_domain(
             details=http_details,
         )
 
-    browser_ok, browser_details = await browser_check(spec, browser)
+    async with browser_semaphore:
+        browser_ok, browser_details = await browser_check(spec, browser)
     if not browser_ok:
+        if bool(browser_details.get("browser_infra_error")):
+            return DomainCheckResult(
+                domain=spec.domain,
+                ok=True,
+                reason="browser_degraded",
+                details={**http_details, **browser_details},
+            )
         return DomainCheckResult(
             domain=spec.domain,
             ok=False,
@@ -459,6 +500,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     config = load_config(config_path)
     interval_seconds = int(config.get("interval_seconds", 60))
     tolerance_seconds = max(120, interval_seconds * 2)
+    browser_concurrency = max(1, int(config.get("browser_concurrency", 3)))
 
     domains_cfg = config.get("domains", [])
     if not isinstance(domains_cfg, list) or not domains_cfg:
@@ -518,31 +560,60 @@ async def run_loop(config_path: Path, once: bool) -> int:
         chromium_path,
     )
 
-    # Track state in-memory to avoid spamming alerts every minute.
+    state_path_raw = str(os.getenv("STATE_PATH", "/data/state.json") or "").strip()
+    state_path = Path(state_path_raw) if state_path_raw else None
+
+    # Track state (persisted if STATE_PATH is mounted) to avoid spamming alerts every minute.
     last_ok: dict[str, bool] = {}
+    if state_path is not None:
+        last_ok.update(_load_last_ok_state(state_path))
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
+    browser_semaphore = asyncio.Semaphore(browser_concurrency)
+    monitor_state: dict[str, Any] = {"last_browser_degraded_notify_monotonic": 0.0}
 
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI Service Monitoring Bot"}) as http_client:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                executable_path=chromium_path,
-                args=["--no-sandbox", "--disable-dev-shm-usage"],
-            )
+            async def _launch_browser():
+                return await p.chromium.launch(
+                    headless=True,
+                    executable_path=chromium_path,
+                    args=["--no-sandbox", "--disable-dev-shm-usage"],
+                )
+
+            browser = await _launch_browser()
             try:
                 while True:
                     cycle_started = time.time()
                     cycle_results: dict[str, DomainCheckResult] = {}
                     LOGGER.info("Running check cycle")
 
-                    tasks = [
-                        check_one_domain(spec, http_client, browser)
-                        for spec in specs
-                    ]
+                    browser_degraded = False
+
+                    async def _safe_check(spec: DomainCheckSpec) -> DomainCheckResult:
+                        try:
+                            return await check_one_domain(
+                                spec,
+                                http_client,
+                                browser,
+                                browser_semaphore=browser_semaphore,
+                            )
+                        except Exception as exc:
+                            err = f"{type(exc).__name__}: {exc}"
+                            LOGGER.exception("Domain check crashed domain=%s error=%s", spec.domain, err)
+                            return DomainCheckResult(
+                                domain=spec.domain,
+                                ok=False,
+                                reason="check_crashed",
+                                details={"error": err},
+                            )
+
+                    tasks = [asyncio.create_task(_safe_check(spec)) for spec in specs]
 
                     for fut in asyncio.as_completed(tasks):
                         result = await fut
                         cycle_results[result.domain] = result
+                        if bool((result.details or {}).get("browser_infra_error")):
+                            browser_degraded = True
                         prev = last_ok.get(result.domain)
                         last_ok[result.domain] = result.ok
 
@@ -591,6 +662,24 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 result.details,
                             )
 
+                    if browser_degraded:
+                        now_mono = time.monotonic()
+                        last_notice = float(monitor_state.get("last_browser_degraded_notify_monotonic") or 0.0)
+                        if (now_mono - last_notice) >= 600.0:
+                            monitor_state["last_browser_degraded_notify_monotonic"] = now_mono
+                            await send_telegram_message(
+                                http_client,
+                                telegram_cfg,
+                                "Monitor warning: Playwright browser checks are degraded (browser crash/close detected). "
+                                "Continuing with HTTP-only results and restarting the browser process.",
+                            )
+
+                        try:
+                            await browser.close()
+                        except Exception:
+                            pass
+                        browser = await _launch_browser()
+
                     # Prune completed dispatch tasks to avoid unbounded growth.
                     for domain, task in list(active_dispatch_tasks.items()):
                         if not task.done():
@@ -632,6 +721,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     redact_telegram_response(resps[-1] if resps else {}),
                                 )
                                 break
+
+                    if state_path is not None:
+                        try:
+                            _write_state_atomic(
+                                state_path,
+                                {
+                                    "version": 1,
+                                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                                    "last_ok": last_ok,
+                                },
+                            )
+                        except Exception as exc:
+                            LOGGER.warning("Failed to write state file path=%s error=%s", state_path, exc)
 
                     if once:
                         return 0

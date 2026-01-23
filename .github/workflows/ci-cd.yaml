@@ -78,13 +78,16 @@ jobs:
             docker build -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
 
             echo "🚀 Starting container..."
+            docker volume create service-monitoring-state >/dev/null
             docker run -d \
               --name "$APP_NAME" \
               --restart unless-stopped \
+              -v service-monitoring-state:/data \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
               -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
               -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
+              -e STATE_PATH="/data/state.json" \
               "$IMAGE_SHA"
 
             echo "⏳ Waiting for startup..."

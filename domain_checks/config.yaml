@@ -1,4 +1,5 @@
 interval_seconds: 60
+browser_concurrency: 3
 
 # Twice-daily heartbeat messages to confirm the monitor is alive and to report
 # per-domain response times from that check cycle.

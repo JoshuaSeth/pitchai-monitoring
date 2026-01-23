@@ -21,6 +21,7 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
     - `heartbeat.enabled`: enable/disable scheduled heartbeats
     - `heartbeat.timezone`: timezone name (e.g. `Europe/Amsterdam`, `UTC`)
     - `heartbeat.times`: list of `HH:MM` times (in `heartbeat.timezone`)
+  - `browser_concurrency`: max concurrent Playwright page checks (lower if Chromium is unstable)
 
 ## Environment
 
@@ -30,6 +31,7 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
 - Optional: `PITCHAI_DISPATCH_BASE_URL` (default `https://dispatch.pitchai.net`)
 - Optional: `PITCHAI_DISPATCH_MODEL` (e.g. `gpt-5.2-medium`, `gpt-5.2-high`)
 - Optional: `CHROMIUM_PATH` (inside Docker: `/usr/bin/chromium`)
+- Optional: `STATE_PATH` (default `/data/state.json`) to persist UP/DOWN state across restarts
 
 ## Run locally
 
@@ -49,9 +51,11 @@ python -m domain_checks.main --once
 ```bash
 docker build -t service-monitoring:latest .
 docker run --rm \
+  -v service-monitoring-state:/data \
   -e TELEGRAM_BOT_TOKEN=... \
   -e TELEGRAM_CHAT_ID=... \
   -e PITCHAI_DISPATCH_TOKEN=... \
+  -e STATE_PATH="/data/state.json" \
   service-monitoring:latest
 ```
 

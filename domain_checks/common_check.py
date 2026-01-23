@@ -64,6 +64,19 @@ def _html_to_visible_text(html: str) -> str:
     without_tags = _HTML_TAG_RE.sub(" ", without_scripts)
     return _normalize_text(without_tags)
 
+
+def _is_browser_infra_error(exc: Exception) -> bool:
+    name = type(exc).__name__
+    msg = str(exc or "").lower()
+    if name == "TargetClosedError":
+        return True
+    if "target page, context or browser has been closed" in msg:
+        return True
+    if "browser has been closed" in msg:
+        return True
+    return False
+
+
 def _safe_url(url: str) -> str:
     """
     Prevent huge/sensitive querystrings from bloating logs + dispatch prompts.
@@ -185,15 +198,27 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
     started = time.perf_counter()
     timeout_ms = int(spec.browser_timeout_seconds * 1000)
 
-    context = await browser.new_context(viewport={"width": 1280, "height": 720})
-    page = await context.new_page()
+    context = None
+    page = None
     try:
+        try:
+            context = await browser.new_context(viewport={"width": 1280, "height": 720})
+            page = await context.new_page()
+        except PlaywrightError as e:
+            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            return False, {
+                "error": f"browser_context_error: {type(e).__name__}: {e}",
+                "browser_infra_error": _is_browser_infra_error(e),
+                "browser_elapsed_ms": round(elapsed_ms, 3),
+            }
+
         try:
             response = await page.goto(spec.url, wait_until="domcontentloaded", timeout=timeout_ms)
         except PlaywrightError as e:
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             return False, {
                 "error": f"browser_goto_error: {type(e).__name__}: {e}",
+                "browser_infra_error": _is_browser_infra_error(e),
                 "browser_elapsed_ms": round(elapsed_ms, 3),
             }
 
@@ -299,11 +324,24 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
             "missing_text": missing_text,
             "browser_elapsed_ms": round(elapsed_ms, 3),
         }
+    except PlaywrightError as e:
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        return False, {
+            "error": f"browser_error: {type(e).__name__}: {e}",
+            "browser_infra_error": _is_browser_infra_error(e),
+            "browser_elapsed_ms": round(elapsed_ms, 3),
+        }
     finally:
-        try:
-            await page.close()
-        finally:
-            await context.close()
+        if page is not None:
+            try:
+                await page.close()
+            except Exception:
+                pass
+        if context is not None:
+            try:
+                await context.close()
+            except Exception:
+                pass
 
 
 def find_chromium_executable() -> str | None:

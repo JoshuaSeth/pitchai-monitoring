@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -442,3 +443,34 @@ async def test_browser_check_missing_selector_fails(local_server_base_url: str) 
 
     assert ok is False
     assert "nav" in details["missing_selectors_all"]
+
+
+@pytest.mark.asyncio
+async def test_browser_check_does_not_raise_if_browser_closes_mid_check(local_server_base_url: str) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/ok",
+        required_selectors_all=[SelectorCheck(selector="#definitely-missing", state="attached")],
+        browser_timeout_seconds=10.0,
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        task = asyncio.create_task(browser_check(spec, browser))
+        await asyncio.sleep(0.2)
+        try:
+            await browser.close()
+        except Exception:
+            pass
+        ok, details = await task
+
+    assert ok is False
+    assert details.get("browser_infra_error") is True
