@@ -55,6 +55,8 @@ heartbeat:
 # For each domain, add `domain_checks/<domain>/check.py` defining the element checks.
 domains:
   - domain: afasask.pitchai.net
+    disabled: true
+    disabled_reason: 'temporary disable (requested)'
   - domain: autopar.pitchai.net
   - domain: afasask.gzb.nl
     disabled: true
