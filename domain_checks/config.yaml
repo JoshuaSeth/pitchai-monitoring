@@ -1,4 +1,6 @@
 interval_seconds: 60
+# Limits overall parallelism across domains (HTTP + browser). Helps avoid false positives during load spikes.
+check_concurrency: 25
 browser_concurrency: 1
 
 # Reduce noise from transient network/browser hiccups:
@@ -7,6 +9,38 @@ browser_concurrency: 1
 alerting:
   down_after_failures: 2
   up_after_successes: 2
+
+# Proactive host health checks (runs on the same host as the monitor container).
+# These do NOT mark any domain down; they produce separate warnings + optional dispatcher triage.
+host_health:
+  enabled: true
+  # Debounce host health warnings to avoid spam.
+  down_after_failures: 3
+  up_after_successes: 2
+  # Thresholds (>= triggers "degraded").
+  disk_used_percent_max: 80
+  mem_used_percent_max: 80
+  swap_used_percent_max: 80
+  cpu_used_percent_max: 80
+  # Optional: warn when load1 per CPU exceeds this value (set null to disable).
+  load1_per_cpu_max: 2.0
+  # Paths to evaluate disk usage on (first existing path wins for reporting).
+  disk_paths:
+    - /
+    - /data
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# Proactive performance checks: alert if response times are consistently slow.
+# These do NOT mark any domain down; they produce separate warnings + optional dispatcher triage.
+performance:
+  enabled: true
+  down_after_failures: 3
+  up_after_successes: 2
+  http_elapsed_ms_max: 1500
+  browser_elapsed_ms_max: 4000
+  dispatch_on_degraded: true
+  notify_on_recovery: false
 
 # Twice-daily heartbeat messages to confirm the monitor is alive and to report
 # per-domain response times from that check cycle.

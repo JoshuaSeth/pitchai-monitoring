@@ -12,6 +12,10 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
 - When a domain transitions UP → DOWN, also queues a Codex investigation via PitchAI Dispatcher:
   - Polls until completion and forwards the agent’s final report to Telegram.
 - Optional: on a schedule (e.g. `07:30` and `12:00`), sends a heartbeat message that includes per-domain response times.
+- Optional: proactive warnings (separate from domain UP/DOWN):
+  - Host health thresholds (disk/mem/swap/cpu/load)
+  - Per-domain performance thresholds (HTTP ms / Browser ms)
+  - These produce separate Telegram warnings and can queue a read-only Dispatcher triage.
 
 ## Configuration
 
@@ -25,10 +29,23 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
     - `disabled: true` (or `enabled: false`)
     - `disabled_until`: unix timestamp or ISO-8601 datetime/date (optional)
     - `disabled_reason`: shown in heartbeats/logs (optional)
+  - `check_concurrency`: max concurrent domain checks (HTTP + browser) to reduce load spikes / false positives
   - `browser_concurrency`: max concurrent Playwright page checks (lower if Chromium is unstable)
   - Alerting debounce (reduces transient false positives):
     - `alerting.down_after_failures`: consecutive failing cycles required before a DOWN alert is sent
     - `alerting.up_after_successes`: consecutive successful cycles required to mark the domain UP again
+  - Host health warnings (do NOT mark any domain down):
+    - `host_health.enabled`
+    - `host_health.disk_used_percent_max`, `mem_used_percent_max`, `swap_used_percent_max`, `cpu_used_percent_max`
+    - `host_health.load1_per_cpu_max` (set `null` to disable)
+    - `host_health.down_after_failures` / `up_after_successes` (debounce)
+    - `host_health.dispatch_on_degraded` (queue Dispatcher triage)
+  - Performance warnings (do NOT mark any domain down):
+    - `performance.enabled`
+    - `performance.http_elapsed_ms_max`, `performance.browser_elapsed_ms_max`
+    - `performance.per_domain_overrides` (optional map: domain → threshold overrides)
+    - `performance.down_after_failures` / `up_after_successes` (debounce)
+    - `performance.dispatch_on_degraded` (queue Dispatcher triage)
 
 ## Environment
 

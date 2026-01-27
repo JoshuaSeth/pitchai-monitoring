@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import runpy
+import shutil
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, time as dt_time, timezone
@@ -202,6 +203,16 @@ def _get_heartbeat_config(config: dict[str, Any]) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def _get_host_health_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("host_health") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_performance_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("performance") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
 def _load_timezone(name: str):
     cleaned = (name or "").strip()
     if not cleaned or cleaned.upper() == "UTC":
@@ -352,6 +363,156 @@ async def _notify_dispatch_disabled(
     await send_telegram_message(http_client, telegram_cfg, msg)
 
 
+def _collect_performance_violations(
+    results: dict[str, DomainCheckResult],
+    *,
+    http_elapsed_ms_max: float,
+    browser_elapsed_ms_max: float,
+    per_domain_overrides: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Returns a list of slow-domain entries (non-empty => observed performance degraded).
+
+    Each entry includes:
+    - domain
+    - http_ms / http_max_ms
+    - browser_ms / browser_max_ms (if present)
+    - reasons: list[str]
+    """
+    overrides = per_domain_overrides if isinstance(per_domain_overrides, dict) else {}
+    slow: list[dict[str, Any]] = []
+
+    for domain in sorted(results.keys()):
+        result = results[domain]
+        if not result.ok:
+            continue  # DOWN alerts handle this path; don't mix with perf warnings.
+        details = result.details or {}
+
+        override = overrides.get(domain) if isinstance(overrides.get(domain), dict) else {}
+        http_max = float(override.get("http_elapsed_ms_max", http_elapsed_ms_max))
+        browser_max = float(override.get("browser_elapsed_ms_max", browser_elapsed_ms_max))
+
+        http_ms = details.get("http_elapsed_ms")
+        browser_ms = details.get("browser_elapsed_ms")
+
+        reasons: list[str] = []
+        http_ms_f = None
+        try:
+            if http_ms is not None:
+                http_ms_f = float(http_ms)
+                if http_ms_f > http_max:
+                    reasons.append(f"http>{int(round(http_max))}ms")
+        except Exception:
+            http_ms_f = None
+
+        browser_ms_f = None
+        try:
+            if browser_ms is not None:
+                browser_ms_f = float(browser_ms)
+                if browser_ms_f > browser_max:
+                    reasons.append(f"browser>{int(round(browser_max))}ms")
+        except Exception:
+            browser_ms_f = None
+
+        if reasons:
+            slow.append(
+                {
+                    "domain": domain,
+                    "http_ms": http_ms_f,
+                    "http_max_ms": http_max,
+                    "browser_ms": browser_ms_f,
+                    "browser_max_ms": browser_max,
+                    "reasons": reasons,
+                }
+            )
+
+    return slow
+
+
+def _build_host_health_alert_message(
+    *,
+    violations: list[str],
+    snap: dict[str, Any],
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: host health thresholds exceeded ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append("")
+    lines.extend(f"- {v}" for v in violations[:10])
+
+    extra: list[str] = []
+    disk = snap.get("disk") if isinstance(snap.get("disk"), dict) else {}
+    if disk:
+        # Include the worst path in a stable order (already computed in violations, but this is for heartbeat context).
+        worst_path = None
+        worst_pct = None
+        for path, info in disk.items():
+            if not isinstance(info, dict):
+                continue
+            pct = info.get("used_percent")
+            try:
+                pct_f = float(pct)
+            except Exception:
+                continue
+            if worst_pct is None or pct_f > worst_pct:
+                worst_pct = pct_f
+                worst_path = str(path)
+        if worst_path and worst_pct is not None:
+            extra.append(f"Disk worst: {worst_path} {_format_percent(worst_pct)}")
+
+    mem_used = snap.get("mem_used_percent")
+    if mem_used is not None:
+        extra.append(f"Mem used: {_format_percent(mem_used)}")
+
+    swap_used = snap.get("swap_used_percent")
+    if swap_used is not None:
+        extra.append(f"Swap used: {_format_percent(swap_used)}")
+
+    cpu_used = snap.get("cpu_used_percent")
+    if cpu_used is not None:
+        extra.append(f"CPU used: {_format_percent(cpu_used)}")
+
+    load1 = snap.get("load1")
+    load1pc = snap.get("load1_per_cpu")
+    try:
+        if load1 is not None:
+            if load1pc is not None:
+                extra.append(f"Load: {float(load1):.1f} (per_cpu={float(load1pc):.2f})")
+            else:
+                extra.append(f"Load: {float(load1):.1f}")
+    except Exception:
+        pass
+
+    if extra:
+        lines.append("")
+        lines.extend(extra[:6])
+
+    return "\n".join(lines).strip()
+
+
+def _build_performance_alert_message(
+    *,
+    slow: list[dict[str, Any]],
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: website performance is degraded ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append("")
+    lines.append("Slow domains (HTTP / Browser):")
+    for entry in slow[:12]:
+        domain = entry.get("domain")
+        http_ms = _format_ms(entry.get("http_ms"))
+        browser_ms = _format_ms(entry.get("browser_ms"))
+        reasons = entry.get("reasons") or []
+        reason_txt = ",".join(str(x) for x in reasons[:3]) if reasons else "slow"
+        lines.append(f"- {domain}: {http_ms} / {browser_ms} ({reason_txt})")
+    return "\n".join(lines).strip()
+
+
 def _build_heartbeat_message(
     *,
     now: datetime,
@@ -359,15 +520,77 @@ def _build_heartbeat_message(
     started_at: datetime,
     results: dict[str, DomainCheckResult],
     disabled_lines: list[str] | None = None,
+    host_snap: dict[str, Any] | None = None,
+    host_violations: list[str] | None = None,
+    perf_slow: list[dict[str, Any]] | None = None,
 ) -> str:
     lines = [
         "Heartbeat: service-monitoring is running ✅",
         f"Scheduled: {scheduled_label}",
         f"Now: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}",
         f"Uptime: {_format_uptime(now - started_at)}",
-        "",
-        "Domains (HTTP / Browser):",
     ]
+
+    if isinstance(host_snap, dict) and host_snap:
+        lines.append("")
+        lines.append("Host health:")
+        if host_violations:
+            lines.append(f"- Status: DEGRADED ({len(host_violations)} issue(s))")
+        else:
+            lines.append("- Status: OK")
+
+        disk = host_snap.get("disk") if isinstance(host_snap.get("disk"), dict) else {}
+        if disk:
+            worst_path = None
+            worst_pct = None
+            for path, info in disk.items():
+                if not isinstance(info, dict):
+                    continue
+                pct = info.get("used_percent")
+                try:
+                    pct_f = float(pct)
+                except Exception:
+                    continue
+                if worst_pct is None or pct_f > worst_pct:
+                    worst_pct = pct_f
+                    worst_path = str(path)
+            if worst_path and worst_pct is not None:
+                lines.append(f"- Disk: {worst_path} {_format_percent(worst_pct)}")
+        if host_snap.get("mem_used_percent") is not None:
+            lines.append(f"- Mem used: {_format_percent(host_snap.get('mem_used_percent'))}")
+        if host_snap.get("swap_used_percent") is not None:
+            lines.append(f"- Swap used: {_format_percent(host_snap.get('swap_used_percent'))}")
+        if host_snap.get("cpu_used_percent") is not None:
+            lines.append(f"- CPU used: {_format_percent(host_snap.get('cpu_used_percent'))}")
+        if host_snap.get("load1") is not None:
+            try:
+                l1 = float(host_snap.get("load1"))
+                lpc = host_snap.get("load1_per_cpu")
+                if lpc is not None:
+                    lines.append(f"- Load: {l1:.1f} (per_cpu={float(lpc):.2f})")
+                else:
+                    lines.append(f"- Load: {l1:.1f}")
+            except Exception:
+                pass
+
+        if host_violations:
+            lines.append("- Violations:")
+            lines.extend(f"  - {v}" for v in host_violations[:5])
+
+    if perf_slow is not None:
+        lines.append("")
+        if perf_slow:
+            lines.append(f"Performance: DEGRADED (slow_domains={len(perf_slow)})")
+            for entry in perf_slow[:5]:
+                domain = entry.get("domain")
+                http_ms = _format_ms(entry.get("http_ms"))
+                browser_ms = _format_ms(entry.get("browser_ms"))
+                lines.append(f"- {domain}: {http_ms} / {browser_ms}")
+        else:
+            lines.append("Performance: OK")
+
+    lines.append("")
+    lines.append("Domains (HTTP / Browser):")
 
     for domain in sorted(results.keys()):
         result = results[domain]
@@ -423,49 +646,73 @@ def _coerce_int_dict(value: Any) -> dict[str, int]:
     return state
 
 
+def _coerce_bool(value: Any, *, default: bool) -> bool:
+    return value if isinstance(value, bool) else bool(default)
+
+
+def _coerce_int(value: Any, *, default: int = 0) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return int(default)
+
+
+def _coerce_float(value: Any, *, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _coerce_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
 def _load_monitor_state(path: Path) -> dict[str, Any]:
+    default_state = {
+        "last_ok": {},
+        "fail_streak": {},
+        "success_streak": {},
+        "browser_degraded_last_notice_ts": 0.0,
+        "host_health": {
+            "last_ok": True,
+            "fail_streak": 0,
+            "success_streak": 0,
+            "cpu_prev_total": 0,
+            "cpu_prev_idle": 0,
+        },
+        "performance": {
+            "last_ok": True,
+            "fail_streak": 0,
+            "success_streak": 0,
+        },
+    }
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return {
-            "last_ok": {},
-            "fail_streak": {},
-            "success_streak": {},
-            "browser_degraded_last_notice_ts": 0.0,
-        }
+        return default_state
     except Exception as exc:
         LOGGER.warning("Failed to read state file path=%s error=%s", path, exc)
-        return {
-            "last_ok": {},
-            "fail_streak": {},
-            "success_streak": {},
-            "browser_degraded_last_notice_ts": 0.0,
-        }
+        return default_state
 
     if not isinstance(raw, dict):
-        return {
-            "last_ok": {},
-            "fail_streak": {},
-            "success_streak": {},
-            "browser_degraded_last_notice_ts": 0.0,
-        }
+        return default_state
 
     # Back-compat: previously stored only {"last_ok": {...}} or raw mapping.
     if isinstance(raw.get("last_ok"), dict) and not any(k in raw for k in ("fail_streak", "success_streak")):
-        return {
-            "last_ok": _coerce_bool_dict(raw.get("last_ok")),
-            "fail_streak": {},
-            "success_streak": {},
-            "browser_degraded_last_notice_ts": 0.0,
-        }
+        state = dict(default_state)
+        state["last_ok"] = _coerce_bool_dict(raw.get("last_ok"))
+        return state
 
     if all(isinstance(v, bool) for v in raw.values()):
-        return {
-            "last_ok": _coerce_bool_dict(raw),
-            "fail_streak": {},
-            "success_streak": {},
-            "browser_degraded_last_notice_ts": 0.0,
-        }
+        state = dict(default_state)
+        state["last_ok"] = _coerce_bool_dict(raw)
+        return state
 
     last_notice_ts = 0.0
     try:
@@ -473,12 +720,31 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     except Exception:
         last_notice_ts = 0.0
 
-    return {
-        "last_ok": _coerce_bool_dict(raw.get("last_ok")),
-        "fail_streak": _coerce_int_dict(raw.get("fail_streak")),
-        "success_streak": _coerce_int_dict(raw.get("success_streak")),
-        "browser_degraded_last_notice_ts": last_notice_ts,
-    }
+    state = dict(default_state)
+    state["last_ok"] = _coerce_bool_dict(raw.get("last_ok"))
+    state["fail_streak"] = _coerce_int_dict(raw.get("fail_streak"))
+    state["success_streak"] = _coerce_int_dict(raw.get("success_streak"))
+    state["browser_degraded_last_notice_ts"] = last_notice_ts
+
+    host = raw.get("host_health")
+    if isinstance(host, dict):
+        state["host_health"] = {
+            "last_ok": _coerce_bool(host.get("last_ok"), default=True),
+            "fail_streak": _coerce_int(host.get("fail_streak"), default=0),
+            "success_streak": _coerce_int(host.get("success_streak"), default=0),
+            "cpu_prev_total": _coerce_int(host.get("cpu_prev_total"), default=0),
+            "cpu_prev_idle": _coerce_int(host.get("cpu_prev_idle"), default=0),
+        }
+
+    perf = raw.get("performance")
+    if isinstance(perf, dict):
+        state["performance"] = {
+            "last_ok": _coerce_bool(perf.get("last_ok"), default=True),
+            "fail_streak": _coerce_int(perf.get("fail_streak"), default=0),
+            "success_streak": _coerce_int(perf.get("success_streak"), default=0),
+        }
+
+    return state
 
 
 def _load_last_ok_state(path: Path) -> dict[str, bool]:
@@ -575,6 +841,207 @@ def _format_browser_health_hint() -> str:
     return f"mem_avail_mb={mem_avail} swap_used_mb={swap_used}/{swap_total} load={load}"
 
 
+def _read_linux_proc_stat_cpu_total_idle() -> tuple[int, int] | None:
+    """
+    Return (total_jiffies, idle_jiffies) from /proc/stat for the aggregate CPU line.
+    Linux-only; returns None on non-Linux or parse failures.
+    """
+    try:
+        raw = Path("/proc/stat").read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+    for line in raw.splitlines():
+        if not line.startswith("cpu "):
+            continue
+        parts = line.split()
+        # cpu user nice system idle iowait irq softirq steal guest guest_nice
+        nums: list[int] = []
+        for p in parts[1:]:
+            try:
+                nums.append(int(p))
+            except Exception:
+                nums.append(0)
+        if len(nums) < 4:
+            return None
+        total = int(sum(nums))
+        idle = int(nums[3] + (nums[4] if len(nums) > 4 else 0))
+        return total, idle
+    return None
+
+
+def _compute_cpu_used_percent(
+    *, prev_total: int, prev_idle: int, cur_total: int, cur_idle: int
+) -> float | None:
+    delta_total = int(cur_total) - int(prev_total)
+    delta_idle = int(cur_idle) - int(prev_idle)
+    if delta_total <= 0:
+        return None
+    used = max(0.0, min(100.0, (1.0 - (delta_idle / float(delta_total))) * 100.0))
+    return round(used, 3)
+
+
+def _disk_usage_percent(path: str) -> float | None:
+    try:
+        total, used, _free = shutil.disk_usage(path)
+    except Exception:
+        return None
+    if total <= 0:
+        return None
+    return round((used / float(total)) * 100.0, 3)
+
+
+def _format_percent(value: Any) -> str:
+    try:
+        if value is None:
+            return "n/a"
+        return f"{float(value):.1f}%"
+    except Exception:
+        return "n/a"
+
+
+def _collect_host_snapshot(*, disk_paths: list[str], cpu_prev_total: int, cpu_prev_idle: int) -> dict[str, Any]:
+    meminfo = _read_linux_meminfo_kb()
+    mem_total_kb = meminfo.get("MemTotal")
+    mem_avail_kb = meminfo.get("MemAvailable")
+    mem_used_pct = None
+    if isinstance(mem_total_kb, int) and mem_total_kb > 0 and isinstance(mem_avail_kb, int):
+        mem_used_pct = round((1.0 - (mem_avail_kb / float(mem_total_kb))) * 100.0, 3)
+
+    swap_total_kb = meminfo.get("SwapTotal")
+    swap_free_kb = meminfo.get("SwapFree")
+    swap_used_pct = None
+    if isinstance(swap_total_kb, int) and swap_total_kb > 0 and isinstance(swap_free_kb, int):
+        swap_used_pct = round((1.0 - (swap_free_kb / float(swap_total_kb))) * 100.0, 3)
+
+    disk: dict[str, Any] = {}
+    for p in disk_paths:
+        pp = str(p or "").strip()
+        if not pp:
+            continue
+        if not Path(pp).exists():
+            continue
+        disk_pct = _disk_usage_percent(pp)
+        if disk_pct is None:
+            continue
+        disk[pp] = {"used_percent": disk_pct}
+
+    cpu_used_pct = None
+    cpu_cur = _read_linux_proc_stat_cpu_total_idle()
+    cpu_prev_total = int(cpu_prev_total) if cpu_prev_total else 0
+    cpu_prev_idle = int(cpu_prev_idle) if cpu_prev_idle else 0
+    cpu_cur_total = None
+    cpu_cur_idle = None
+    if cpu_cur is not None:
+        cpu_cur_total, cpu_cur_idle = cpu_cur
+        if cpu_prev_total > 0 and cpu_prev_idle > 0:
+            cpu_used_pct = _compute_cpu_used_percent(
+                prev_total=cpu_prev_total,
+                prev_idle=cpu_prev_idle,
+                cur_total=cpu_cur_total,
+                cur_idle=cpu_cur_idle,
+            )
+
+    load1 = load5 = load15 = None
+    try:
+        l1, l5, l15 = os.getloadavg()
+        load1, load5, load15 = float(l1), float(l5), float(l15)
+    except Exception:
+        pass
+
+    cpu_count = os.cpu_count() or 0
+    load1_per_cpu = None
+    if load1 is not None and cpu_count > 0:
+        load1_per_cpu = round(load1 / float(cpu_count), 3)
+
+    snap: dict[str, Any] = {
+        "mem_total_kb": mem_total_kb,
+        "mem_available_kb": mem_avail_kb,
+        "mem_used_percent": mem_used_pct,
+        "swap_total_kb": swap_total_kb,
+        "swap_free_kb": swap_free_kb,
+        "swap_used_percent": swap_used_pct,
+        "disk": disk,
+        "cpu_used_percent": cpu_used_pct,
+        "cpu_count": cpu_count,
+        "load1": load1,
+        "load5": load5,
+        "load15": load15,
+        "load1_per_cpu": load1_per_cpu,
+        "cpu_prev_total_next": cpu_cur_total,
+        "cpu_prev_idle_next": cpu_cur_idle,
+    }
+    return snap
+
+
+def _collect_host_health_violations(
+    snap: dict[str, Any],
+    *,
+    disk_used_percent_max: float | None,
+    mem_used_percent_max: float | None,
+    swap_used_percent_max: float | None,
+    cpu_used_percent_max: float | None,
+    load1_per_cpu_max: float | None,
+) -> list[str]:
+    violations: list[str] = []
+
+    if disk_used_percent_max is not None:
+        worst_path = None
+        worst_pct = None
+        disk = snap.get("disk") if isinstance(snap.get("disk"), dict) else {}
+        for path, info in disk.items():
+            if not isinstance(info, dict):
+                continue
+            pct = info.get("used_percent")
+            try:
+                pct_f = float(pct)
+            except Exception:
+                continue
+            if worst_pct is None or pct_f > worst_pct:
+                worst_pct = pct_f
+                worst_path = str(path)
+        if worst_pct is not None and worst_pct >= float(disk_used_percent_max):
+            violations.append(f"Disk {worst_path}: {_format_percent(worst_pct)} >= {_format_percent(disk_used_percent_max)}")
+
+    if mem_used_percent_max is not None:
+        pct = snap.get("mem_used_percent")
+        try:
+            pct_f = float(pct)
+        except Exception:
+            pct_f = None
+        if pct_f is not None and pct_f >= float(mem_used_percent_max):
+            violations.append(f"Memory: {_format_percent(pct_f)} >= {_format_percent(mem_used_percent_max)}")
+
+    if swap_used_percent_max is not None:
+        pct = snap.get("swap_used_percent")
+        try:
+            pct_f = float(pct)
+        except Exception:
+            pct_f = None
+        if pct_f is not None and pct_f >= float(swap_used_percent_max):
+            violations.append(f"Swap: {_format_percent(pct_f)} >= {_format_percent(swap_used_percent_max)}")
+
+    if cpu_used_percent_max is not None:
+        pct = snap.get("cpu_used_percent")
+        try:
+            pct_f = float(pct)
+        except Exception:
+            pct_f = None
+        if pct_f is not None and pct_f >= float(cpu_used_percent_max):
+            violations.append(f"CPU: {_format_percent(pct_f)} >= {_format_percent(cpu_used_percent_max)}")
+
+    if load1_per_cpu_max is not None:
+        v = snap.get("load1_per_cpu")
+        try:
+            v_f = float(v)
+        except Exception:
+            v_f = None
+        if v_f is not None and v_f >= float(load1_per_cpu_max):
+            violations.append(f"Load1/CPU: {v_f:.2f} >= {float(load1_per_cpu_max):.2f}")
+
+    return violations
+
+
 def _domain_plugin_path(domain: str) -> Path:
     return Path(__file__).parent / domain / "check.py"
 
@@ -624,20 +1091,81 @@ def _build_dispatch_prompt(result: DomainCheckResult) -> str:
     )
 
 
-async def _dispatch_and_forward(
+def _dispatch_read_only_rules() -> str:
+    return (
+        "IMPORTANT safety rules:\n"
+        "- Do NOT restart/stop/recreate any containers or services.\n"
+        "- Do NOT deploy, update images, run apt-get, or change configuration files.\n"
+        "- Do NOT prune/remove volumes/images/containers.\n"
+        "- Only run read-only diagnostics (docker ps/inspect/logs/stats, curl, df, free, uptime, etc.).\n"
+        "- If you believe a restart would help, suggest it as a human action but do not execute it.\n"
+    )
+
+
+def _build_host_health_dispatch_prompt(*, violations: list[str], snap: dict[str, Any]) -> str:
+    snap_json = json.dumps(snap, indent=2, ensure_ascii=False, sort_keys=True)
+    violations_txt = "\n".join(f"- {v}" for v in violations[:20]) if violations else "(none)"
+    return (
+        "The production service-monitoring container detected host health threshold violations.\n\n"
+        f"Observed violations:\n{violations_txt}\n\n"
+        "Host snapshot (JSON):\n"
+        f"{snap_json}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Confirm whether disk/memory/swap/cpu/load is actually under pressure on the production host.\n"
+        "2) Identify top resource consumers (especially Docker containers).\n"
+        "3) Gather evidence: docker ps, docker stats --no-stream, docker inspect (limits), df -h, df -i, free -m, uptime.\n"
+        "4) Explain the most likely root cause(s) and the safest remediation steps for a human operator.\n\n"
+        "Return a concise final report with:\n"
+        "- Root cause hypothesis + evidence\n"
+        "- What is consuming resources (container names, sizes, cpu/mem)\n"
+        "- Immediate safe actions (non-disruptive) + next steps\n"
+    )
+
+
+def _build_performance_dispatch_prompt(*, slow: list[dict[str, Any]]) -> str:
+    entries = slow[:20]
+    slow_lines = []
+    for e in entries:
+        domain = e.get("domain")
+        http_ms = _format_ms(e.get("http_ms"))
+        browser_ms = _format_ms(e.get("browser_ms"))
+        reasons = e.get("reasons") or []
+        reason_txt = ", ".join(str(x) for x in reasons[:4]) if reasons else "slow"
+        slow_lines.append(f"- {domain}: HTTP {http_ms}, Browser {browser_ms} ({reason_txt})")
+    slow_txt = "\n".join(slow_lines) if slow_lines else "(none)"
+    return (
+        "The production service-monitoring container detected consistently slow response times for monitored domains.\n\n"
+        "Slow domains:\n"
+        f"{slow_txt}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Reproduce timings from the production host with curl (include DNS/TLS/connect/TTFB/total breakdown).\n"
+        "2) Check whether slowness is isolated to one domain or systemic (DNS, outbound network, CPU pressure).\n"
+        "3) If the slow domain is reverse-proxied on the host, inspect the relevant proxy/container logs and health.\n"
+        "4) Provide a clear triage summary and recommended next actions for a human operator.\n\n"
+        "Return a concise final report with:\n"
+        "- Reproduction results (commands + timings)\n"
+        "- Most likely root cause + evidence\n"
+        "- Impacted domains and whether it's systemic\n"
+        "- Recommended safe remediation steps (no changes executed)\n"
+    )
+
+
+async def _dispatch_prompt_and_forward(
     *,
     http_client: httpx.AsyncClient,
     telegram_cfg: TelegramConfig,
     dispatch_cfg: DispatchConfig,
-    result: DomainCheckResult,
+    prompt: str,
+    state_key: str,
+    telegram_title: str,
     dispatch_state: dict[str, Any],
 ) -> None:
     if not _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-        LOGGER.info("Dispatch disabled; skipping dispatch for domain=%s", result.domain)
+        LOGGER.info("Dispatch disabled; skipping dispatch title=%s", telegram_title)
         return
 
-    prompt = _build_dispatch_prompt(result)
-    state_key = f"service-monitoring.{result.domain}"
     pre_commands = [_docker_cli_install_pre_command()]
 
     try:
@@ -649,7 +1177,7 @@ async def _dispatch_and_forward(
             state_key=state_key,
             pre_commands=pre_commands,
         )
-        LOGGER.info("Dispatch queued domain=%s bundle=%s runner=%s", result.domain, bundle, runner)
+        LOGGER.info("Dispatch queued title=%s bundle=%s runner=%s", telegram_title, bundle, runner)
 
         await wait_for_terminal_status(http_client, dispatch_cfg, bundle=bundle)
         ui = run_ui_url(dispatch_cfg.base_url, bundle)
@@ -673,8 +1201,8 @@ async def _dispatch_and_forward(
                         details=f"Dispatcher runner quota exceeded. Update PITCHAI_DISPATCH_TOKEN secret and redeploy. {ui}",
                     )
                 LOGGER.warning(
-                    "Dispatch disabled due to runner quota domain=%s bundle=%s error=%s",
-                    result.domain,
+                    "Dispatch disabled due to runner quota title=%s bundle=%s error=%s",
+                    telegram_title,
                     bundle,
                     err_txt[:500] if err_txt else None,
                 )
@@ -684,22 +1212,22 @@ async def _dispatch_and_forward(
             ok, resp = await send_telegram_message(
                 http_client,
                 telegram_cfg,
-                f"{result.domain} investigation finished (bundle={bundle}) but no agent message was found.{extra} {ui}",
+                f"{telegram_title} finished (bundle={bundle}) but no agent message was found.{extra} {ui}",
             )
             LOGGER.warning(
-                "Dispatch finished no_message domain=%s bundle=%s sent_ok=%s telegram=%s",
-                result.domain,
+                "Dispatch finished no_message title=%s bundle=%s sent_ok=%s telegram=%s",
+                telegram_title,
                 bundle,
                 ok,
                 redact_telegram_response(resp),
             )
             return
 
-        header = f"{result.domain} investigation (bundle={bundle})\n{ui}\n\n"
+        header = f"{telegram_title} (bundle={bundle})\n{ui}\n\n"
         ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, header + msg)
         LOGGER.info(
-            "Dispatch finished domain=%s bundle=%s telegram_ok=%s telegram_last=%s",
-            result.domain,
+            "Dispatch finished title=%s bundle=%s telegram_ok=%s telegram_last=%s",
+            telegram_title,
             bundle,
             ok_all,
             redact_telegram_response(resps[-1] if resps else {}),
@@ -707,12 +1235,12 @@ async def _dispatch_and_forward(
     except httpx.HTTPStatusError as exc:
         status_code = getattr(getattr(exc, "response", None), "status_code", None)
         err = f"HTTPStatusError: {exc}"
-        suppress_domain_notice = False
+        suppress_notice = False
 
         # Disable dispatch on auth/quota issues to avoid spamming and wasting cycles.
         if status_code in {401, 403}:
             _dispatch_disable(dispatch_state, reason=f"auth_error_{status_code}", cooldown_seconds=None)
-            suppress_domain_notice = True
+            suppress_notice = True
             if _dispatch_should_notify(dispatch_state, min_interval_seconds=3600.0):
                 await _notify_dispatch_disabled(
                     http_client=http_client,
@@ -722,7 +1250,7 @@ async def _dispatch_and_forward(
                 )
         elif status_code == 429:
             _dispatch_disable(dispatch_state, reason="rate_limited_429", cooldown_seconds=30 * 60)
-            suppress_domain_notice = True
+            suppress_notice = True
             if _dispatch_should_notify(dispatch_state, min_interval_seconds=1800.0):
                 await _notify_dispatch_disabled(
                     http_client=http_client,
@@ -731,21 +1259,82 @@ async def _dispatch_and_forward(
                     details="Dispatcher rate-limited (429). Will retry automatically after cooldown.",
                 )
 
-        LOGGER.exception("Dispatch failed domain=%s status_code=%s error=%s", result.domain, status_code, err)
-        if not suppress_domain_notice:
+        LOGGER.exception("Dispatch failed title=%s status_code=%s error=%s", telegram_title, status_code, err)
+        if not suppress_notice:
             await send_telegram_message(
                 http_client,
                 telegram_cfg,
-                f"{result.domain} dispatch escalation FAILED: {err}",
+                f"{telegram_title} dispatch escalation FAILED: {err}",
             )
     except Exception as exc:
         err = f"{type(exc).__name__}: {exc}"
-        LOGGER.exception("Dispatch failed domain=%s error=%s", result.domain, err)
+        LOGGER.exception("Dispatch failed title=%s error=%s", telegram_title, err)
         await send_telegram_message(
             http_client,
             telegram_cfg,
-            f"{result.domain} dispatch escalation FAILED: {err}",
+            f"{telegram_title} dispatch escalation FAILED: {err}",
         )
+
+
+async def _dispatch_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    result: DomainCheckResult,
+    dispatch_state: dict[str, Any],
+) -> None:
+    prompt = _build_dispatch_prompt(result)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key=f"service-monitoring.{result.domain}",
+        telegram_title=f"{result.domain} investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_host_health_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    violations: list[str],
+    snap: dict[str, Any],
+) -> None:
+    prompt = _build_host_health_dispatch_prompt(violations=violations, snap=snap)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.host_health",
+        telegram_title="Host health investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_performance_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    slow: list[dict[str, Any]],
+) -> None:
+    prompt = _build_performance_dispatch_prompt(slow=slow)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.performance",
+        telegram_title="Performance investigation",
+        dispatch_state=dispatch_state,
+    )
 
 
 async def check_one_domain(
@@ -808,6 +1397,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     interval_seconds = int(config.get("interval_seconds", 60))
     tolerance_seconds = max(120, interval_seconds * 2)
     browser_concurrency = max(1, int(config.get("browser_concurrency", 3)))
+    check_concurrency = max(1, int(config.get("check_concurrency", 25)))
     alerting_cfg = config.get("alerting") or {}
     if not isinstance(alerting_cfg, dict):
         alerting_cfg = {}
@@ -865,6 +1455,38 @@ async def run_loop(config_path: Path, once: bool) -> int:
     started_at = datetime.now(tz)
     last_heartbeat_sent: dict[str, str] = {}  # HH:MM -> YYYY-MM-DD
 
+    host_health_cfg = _get_host_health_config(config)
+    host_health_enabled = bool(host_health_cfg.get("enabled", False))
+    host_health_down_after_failures = max(1, int(host_health_cfg.get("down_after_failures", 1)))
+    host_health_up_after_successes = max(1, int(host_health_cfg.get("up_after_successes", 1)))
+    host_disk_used_percent_max = _coerce_optional_float(host_health_cfg.get("disk_used_percent_max"))
+    host_mem_used_percent_max = _coerce_optional_float(host_health_cfg.get("mem_used_percent_max"))
+    host_swap_used_percent_max = _coerce_optional_float(host_health_cfg.get("swap_used_percent_max"))
+    host_cpu_used_percent_max = _coerce_optional_float(host_health_cfg.get("cpu_used_percent_max"))
+    host_load1_per_cpu_max = _coerce_optional_float(host_health_cfg.get("load1_per_cpu_max"))
+    host_dispatch_on_degraded = bool(host_health_cfg.get("dispatch_on_degraded", False))
+    host_notify_on_recovery = bool(host_health_cfg.get("notify_on_recovery", False))
+
+    disk_paths_raw = host_health_cfg.get("disk_paths") or []
+    if not isinstance(disk_paths_raw, list) or not disk_paths_raw:
+        disk_paths_raw = ["/"]
+    host_disk_paths = [str(p).strip() for p in disk_paths_raw if str(p or "").strip()]
+    if not host_disk_paths:
+        host_disk_paths = ["/"]
+
+    perf_cfg = _get_performance_config(config)
+    perf_enabled = bool(perf_cfg.get("enabled", False))
+    perf_down_after_failures = max(1, int(perf_cfg.get("down_after_failures", 1)))
+    perf_up_after_successes = max(1, int(perf_cfg.get("up_after_successes", 1)))
+    perf_http_elapsed_ms_max = _coerce_float(perf_cfg.get("http_elapsed_ms_max", 1500.0), default=1500.0)
+    perf_browser_elapsed_ms_max = _coerce_float(perf_cfg.get("browser_elapsed_ms_max", 4000.0), default=4000.0)
+    perf_dispatch_on_degraded = bool(perf_cfg.get("dispatch_on_degraded", False))
+    perf_notify_on_recovery = bool(perf_cfg.get("notify_on_recovery", False))
+    perf_overrides = None
+    overrides_raw = perf_cfg.get("per_domain_overrides")
+    if isinstance(overrides_raw, dict):
+        perf_overrides = overrides_raw
+
     chromium_path = find_chromium_executable()
     if not chromium_path:
         raise RuntimeError("Could not find a Chromium/Chrome executable (set CHROMIUM_PATH)")
@@ -887,12 +1509,33 @@ async def run_loop(config_path: Path, once: bool) -> int:
     fail_streak: dict[str, int] = {}
     success_streak: dict[str, int] = {}
     disk_state: dict[str, Any] = {}
+    host_health_last_ok = True
+    host_health_fail_streak = 0
+    host_health_success_streak = 0
+    host_cpu_prev_total = 0
+    host_cpu_prev_idle = 0
+    perf_last_ok = True
+    perf_fail_streak = 0
+    perf_success_streak = 0
     if state_path is not None:
         disk_state = _load_monitor_state(state_path)
         last_ok.update(disk_state.get("last_ok") or {})
         fail_streak.update(disk_state.get("fail_streak") or {})
         success_streak.update(disk_state.get("success_streak") or {})
+        host_state = disk_state.get("host_health")
+        if isinstance(host_state, dict):
+            host_health_last_ok = _coerce_bool(host_state.get("last_ok"), default=True)
+            host_health_fail_streak = _coerce_int(host_state.get("fail_streak"), default=0)
+            host_health_success_streak = _coerce_int(host_state.get("success_streak"), default=0)
+            host_cpu_prev_total = _coerce_int(host_state.get("cpu_prev_total"), default=0)
+            host_cpu_prev_idle = _coerce_int(host_state.get("cpu_prev_idle"), default=0)
+        perf_state = disk_state.get("performance")
+        if isinstance(perf_state, dict):
+            perf_last_ok = _coerce_bool(perf_state.get("last_ok"), default=True)
+            perf_fail_streak = _coerce_int(perf_state.get("fail_streak"), default=0)
+            perf_success_streak = _coerce_int(perf_state.get("success_streak"), default=0)
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
+    check_semaphore = asyncio.Semaphore(check_concurrency)
     browser_semaphore = asyncio.Semaphore(browser_concurrency)
     browser_min_mem_available_mb_raw = os.getenv("BROWSER_MIN_MEM_AVAILABLE_MB")
     if browser_min_mem_available_mb_raw is None:
@@ -919,25 +1562,35 @@ async def run_loop(config_path: Path, once: bool) -> int:
             browser: Browser | None = None
 
             async def _launch_browser() -> Browser:
-                return await p.chromium.launch(
-                    headless=True,
-                    executable_path=chromium_path,
-                    args=[
-                        "--no-sandbox",
-                        "--disable-dev-shm-usage",
-                        "--disable-gpu",
-                        "--disable-extensions",
-                        "--disable-background-networking",
-                        "--disable-background-timer-throttling",
-                        "--disable-backgrounding-occluded-windows",
-                        "--disable-renderer-backgrounding",
-                        "--disable-sync",
-                        "--metrics-recording-only",
-                        "--no-first-run",
-                        "--no-default-browser-check",
-                        "--disable-features=site-per-process",
-                    ],
-                )
+                args = [
+                    "--no-sandbox",
+                    "--disable-gpu",
+                    "--disable-extensions",
+                    "--disable-background-networking",
+                    "--disable-background-timer-throttling",
+                    "--disable-backgrounding-occluded-windows",
+                    "--disable-renderer-backgrounding",
+                    "--disable-sync",
+                    "--metrics-recording-only",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-features=site-per-process",
+                ]
+
+                shm_bytes = 0
+                try:
+                    st = os.statvfs("/dev/shm")
+                    shm_bytes = int(st.f_frsize) * int(st.f_blocks)
+                except Exception:
+                    shm_bytes = 0
+                if shm_bytes < (512 * 1024 * 1024):
+                    # CI defaults to a tiny /dev/shm; this avoids renderer crashes when shared memory is constrained.
+                    args.insert(1, "--disable-dev-shm-usage")
+
+                launch_kwargs: dict[str, Any] = {"headless": True, "args": args}
+                if chromium_path:
+                    launch_kwargs["executable_path"] = chromium_path
+                return await p.chromium.launch(**launch_kwargs)
 
             async def _ensure_browser(now_ts: float) -> Browser | None:
                 nonlocal browser
@@ -1005,22 +1658,23 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     await _ensure_browser(time.time())
 
                     async def _safe_check(spec: DomainCheckSpec) -> DomainCheckResult:
-                        try:
-                            return await check_one_domain(
-                                spec,
-                                http_client,
-                                browser,
-                                browser_semaphore=browser_semaphore,
-                            )
-                        except Exception as exc:
-                            err = f"{type(exc).__name__}: {exc}"
-                            LOGGER.exception("Domain check crashed domain=%s error=%s", spec.domain, err)
-                            return DomainCheckResult(
-                                domain=spec.domain,
-                                ok=False,
-                                reason="check_crashed",
-                                details={"error": err},
-                            )
+                        async with check_semaphore:
+                            try:
+                                return await check_one_domain(
+                                    spec,
+                                    http_client,
+                                    browser,
+                                    browser_semaphore=browser_semaphore,
+                                )
+                            except Exception as exc:
+                                err = f"{type(exc).__name__}: {exc}"
+                                LOGGER.exception("Domain check crashed domain=%s error=%s", spec.domain, err)
+                                return DomainCheckResult(
+                                    domain=spec.domain,
+                                    ok=False,
+                                    reason="check_crashed",
+                                    details={"error": err},
+                                )
 
                     now_ts = time.time()
                     disabled_entries = [entry for entry in domain_entries if entry.is_disabled(now_ts)]
@@ -1124,6 +1778,167 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     result.details,
                                 )
 
+                    host_snap: dict[str, Any] | None = None
+                    host_violations: list[str] | None = None
+                    if host_health_enabled:
+                        host_snap = _collect_host_snapshot(
+                            disk_paths=host_disk_paths,
+                            cpu_prev_total=host_cpu_prev_total,
+                            cpu_prev_idle=host_cpu_prev_idle,
+                        )
+                        host_violations = _collect_host_health_violations(
+                            host_snap,
+                            disk_used_percent_max=host_disk_used_percent_max,
+                            mem_used_percent_max=host_mem_used_percent_max,
+                            swap_used_percent_max=host_swap_used_percent_max,
+                            cpu_used_percent_max=host_cpu_used_percent_max,
+                            load1_per_cpu_max=host_load1_per_cpu_max,
+                        )
+
+                        cpu_prev_total_next = host_snap.get("cpu_prev_total_next")
+                        cpu_prev_idle_next = host_snap.get("cpu_prev_idle_next")
+                        if cpu_prev_total_next is not None and cpu_prev_idle_next is not None:
+                            try:
+                                host_cpu_prev_total = int(cpu_prev_total_next)
+                                host_cpu_prev_idle = int(cpu_prev_idle_next)
+                            except Exception:
+                                pass
+
+                        host_observed_ok = not bool(host_violations)
+                        prev_effective = bool(host_health_last_ok)
+                        (
+                            host_health_last_ok,
+                            host_health_fail_streak,
+                            host_health_success_streak,
+                            host_alerted_down,
+                        ) = _update_effective_ok(
+                            prev_effective_ok=prev_effective,
+                            observed_ok=host_observed_ok,
+                            fail_streak=int(host_health_fail_streak),
+                            success_streak=int(host_health_success_streak),
+                            down_after_failures=host_health_down_after_failures,
+                            up_after_successes=host_health_up_after_successes,
+                        )
+
+                        if host_alerted_down and host_violations:
+                            msg = _build_host_health_alert_message(
+                                violations=host_violations,
+                                snap=host_snap,
+                                down_after_failures=host_health_down_after_failures,
+                                fail_streak=int(host_health_fail_streak),
+                            )
+                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                            LOGGER.warning(
+                                "Host health degraded alert sent_ok=%s telegram_last=%s violations=%s",
+                                ok_all,
+                                redact_telegram_response(resps[-1] if resps else {}),
+                                host_violations[:5],
+                            )
+
+                            if (
+                                host_dispatch_on_degraded
+                                and dispatch_cfg
+                                and _dispatch_is_enabled(dispatch_cfg, dispatch_state)
+                            ):
+                                if "host_health" in active_dispatch_tasks and not active_dispatch_tasks[
+                                    "host_health"
+                                ].done():
+                                    LOGGER.info(
+                                        "Dispatch already running for host_health; skipping new dispatch"
+                                    )
+                                else:
+                                    active_dispatch_tasks["host_health"] = asyncio.create_task(
+                                        _dispatch_host_health_and_forward(
+                                            http_client=http_client,
+                                            telegram_cfg=telegram_cfg,
+                                            dispatch_cfg=dispatch_cfg,
+                                            dispatch_state=dispatch_state,
+                                            violations=host_violations,
+                                            snap=host_snap,
+                                        )
+                                    )
+
+                        host_recovered = (not prev_effective) and bool(host_health_last_ok)
+                        if host_recovered and host_notify_on_recovery:
+                            ok, resp = await send_telegram_message(
+                                http_client,
+                                telegram_cfg,
+                                "Host health recovered ✅ (threshold violations cleared).",
+                            )
+                            LOGGER.info(
+                                "Host health recovery notice sent_ok=%s telegram=%s",
+                                ok,
+                                redact_telegram_response(resp),
+                            )
+
+                    perf_slow: list[dict[str, Any]] | None = None
+                    if perf_enabled and cycle_results:
+                        perf_slow = _collect_performance_violations(
+                            cycle_results,
+                            http_elapsed_ms_max=perf_http_elapsed_ms_max,
+                            browser_elapsed_ms_max=perf_browser_elapsed_ms_max,
+                            per_domain_overrides=perf_overrides,
+                        )
+                        perf_observed_ok = not bool(perf_slow)
+                        prev_effective = bool(perf_last_ok)
+                        perf_last_ok, perf_fail_streak, perf_success_streak, perf_alerted_down = _update_effective_ok(
+                            prev_effective_ok=prev_effective,
+                            observed_ok=perf_observed_ok,
+                            fail_streak=int(perf_fail_streak),
+                            success_streak=int(perf_success_streak),
+                            down_after_failures=perf_down_after_failures,
+                            up_after_successes=perf_up_after_successes,
+                        )
+
+                        if perf_alerted_down and perf_slow:
+                            msg = _build_performance_alert_message(
+                                slow=perf_slow,
+                                down_after_failures=perf_down_after_failures,
+                                fail_streak=int(perf_fail_streak),
+                            )
+                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                            LOGGER.warning(
+                                "Performance degraded alert sent_ok=%s telegram_last=%s slow_domains=%s",
+                                ok_all,
+                                redact_telegram_response(resps[-1] if resps else {}),
+                                [e.get("domain") for e in perf_slow[:5]],
+                            )
+
+                            if (
+                                perf_dispatch_on_degraded
+                                and dispatch_cfg
+                                and _dispatch_is_enabled(dispatch_cfg, dispatch_state)
+                            ):
+                                if "performance" in active_dispatch_tasks and not active_dispatch_tasks[
+                                    "performance"
+                                ].done():
+                                    LOGGER.info(
+                                        "Dispatch already running for performance; skipping new dispatch"
+                                    )
+                                else:
+                                    active_dispatch_tasks["performance"] = asyncio.create_task(
+                                        _dispatch_performance_and_forward(
+                                            http_client=http_client,
+                                            telegram_cfg=telegram_cfg,
+                                            dispatch_cfg=dispatch_cfg,
+                                            dispatch_state=dispatch_state,
+                                            slow=perf_slow,
+                                        )
+                                    )
+
+                        perf_recovered = (not prev_effective) and bool(perf_last_ok)
+                        if perf_recovered and perf_notify_on_recovery:
+                            ok, resp = await send_telegram_message(
+                                http_client,
+                                telegram_cfg,
+                                "Performance recovered ✅ (response times back under thresholds).",
+                            )
+                            LOGGER.info(
+                                "Performance recovery notice sent_ok=%s telegram=%s",
+                                ok,
+                                redact_telegram_response(resp),
+                            )
+
                     if browser_degraded:
                         now_ts = time.time()
                         if not monitor_state.get("browser_degraded_active", False):
@@ -1168,7 +1983,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     _write_state_atomic(
                                         state_path,
                                         {
-                                            "version": 2,
+                                            "version": 3,
                                             "updated_at": datetime.now(timezone.utc).isoformat(),
                                             "last_ok": last_ok,
                                             "fail_streak": fail_streak,
@@ -1176,6 +1991,18 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             "browser_degraded_last_notice_ts": float(
                                                 monitor_state.get("browser_degraded_last_notice_ts") or 0.0
                                             ),
+                                            "host_health": {
+                                                "last_ok": bool(host_health_last_ok),
+                                                "fail_streak": int(host_health_fail_streak),
+                                                "success_streak": int(host_health_success_streak),
+                                                "cpu_prev_total": int(host_cpu_prev_total),
+                                                "cpu_prev_idle": int(host_cpu_prev_idle),
+                                            },
+                                            "performance": {
+                                                "last_ok": bool(perf_last_ok),
+                                                "fail_streak": int(perf_fail_streak),
+                                                "success_streak": int(perf_success_streak),
+                                            },
                                         },
                                     )
                                 except Exception as exc:
@@ -1234,6 +2061,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     started_at=started_at,
                                     results=cycle_results,
                                     disabled_lines=disabled_lines,
+                                    host_snap=host_snap,
+                                    host_violations=host_violations,
+                                    perf_slow=perf_slow if perf_enabled else None,
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                                 last_heartbeat_sent[hhmm] = today
@@ -1250,7 +2080,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             _write_state_atomic(
                                 state_path,
                                 {
-                                    "version": 2,
+                                    "version": 3,
                                     "updated_at": datetime.now(timezone.utc).isoformat(),
                                     "last_ok": last_ok,
                                     "fail_streak": fail_streak,
@@ -1258,6 +2088,18 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     "browser_degraded_last_notice_ts": float(
                                         monitor_state.get("browser_degraded_last_notice_ts") or 0.0
                                     ),
+                                    "host_health": {
+                                        "last_ok": bool(host_health_last_ok),
+                                        "fail_streak": int(host_health_fail_streak),
+                                        "success_streak": int(host_health_success_streak),
+                                        "cpu_prev_total": int(host_cpu_prev_total),
+                                        "cpu_prev_idle": int(host_cpu_prev_idle),
+                                    },
+                                    "performance": {
+                                        "last_ok": bool(perf_last_ok),
+                                        "fail_streak": int(perf_fail_streak),
+                                        "success_streak": int(perf_success_streak),
+                                    },
                                 },
                             )
                         except Exception as exc:
