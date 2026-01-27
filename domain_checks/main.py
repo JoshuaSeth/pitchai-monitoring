@@ -1000,6 +1000,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     LOGGER.info("Running check cycle")
 
                     browser_degraded = False
+                    # Ensure the browser is alive at the start of each cycle. This prevents a single
+                    # between-cycle crash/close event from degrading *every* domain in the next cycle.
+                    await _ensure_browser(time.time())
 
                     async def _safe_check(spec: DomainCheckSpec) -> DomainCheckResult:
                         try:

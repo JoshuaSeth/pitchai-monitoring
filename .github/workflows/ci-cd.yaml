@@ -82,6 +82,8 @@ jobs:
             docker run -d \
               --name "$APP_NAME" \
               --restart unless-stopped \
+              --init \
+              --shm-size 1g \
               -v service-monitoring-state:/data \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
