@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 import yaml
-from playwright.async_api import async_playwright
+from playwright.async_api import Browser, async_playwright
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from domain_checks.common_check import (
@@ -517,6 +517,61 @@ def _write_state_atomic(path: Path, payload: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
+def _read_linux_meminfo_kb() -> dict[str, int]:
+    """
+    Best-effort host memory snapshot for diagnostics (Linux only).
+    On macOS/Windows, returns {}.
+    """
+    try:
+        raw = Path("/proc/meminfo").read_text(encoding="utf-8")
+    except Exception:
+        return {}
+
+    values: dict[str, int] = {}
+    for line in raw.splitlines():
+        if ":" not in line:
+            continue
+        key, rest = line.split(":", 1)
+        parts = rest.strip().split()
+        if not parts:
+            continue
+        try:
+            values[key.strip()] = int(parts[0])
+        except Exception:
+            continue
+    return values
+
+
+def _format_browser_health_hint() -> str:
+    info = _read_linux_meminfo_kb()
+    if not info:
+        return ""
+
+    def _mb(key: str) -> str:
+        v = info.get(key)
+        if v is None:
+            return "?"
+        return str(int(v / 1024))
+
+    mem_avail = _mb("MemAvailable")
+    swap_total = _mb("SwapTotal")
+    swap_free = _mb("SwapFree")
+    swap_used = "?"
+    try:
+        if swap_total != "?" and swap_free != "?":
+            swap_used = str(int(swap_total) - int(swap_free))
+    except Exception:
+        swap_used = "?"
+
+    try:
+        load1, load5, load15 = os.getloadavg()
+        load = f"{load1:.1f}/{load5:.1f}/{load15:.1f}"
+    except Exception:
+        load = "?"
+
+    return f"mem_avail_mb={mem_avail} swap_used_mb={swap_used}/{swap_total} load={load}"
+
+
 def _domain_plugin_path(domain: str) -> Path:
     return Path(__file__).parent / domain / "check.py"
 
@@ -667,7 +722,7 @@ async def _dispatch_and_forward(
 async def check_one_domain(
     spec: DomainCheckSpec,
     http_client: httpx.AsyncClient,
-    browser,
+    browser: Browser | None,
     *,
     browser_semaphore: asyncio.Semaphore,
 ) -> DomainCheckResult:
@@ -678,6 +733,20 @@ async def check_one_domain(
             ok=False,
             reason="http_check_failed",
             details=http_details,
+        )
+
+    if browser is None:
+        return DomainCheckResult(
+            domain=spec.domain,
+            ok=True,
+            reason="browser_degraded",
+            details={
+                **http_details,
+                "error": "browser_unavailable",
+                "browser_connected": False,
+                "browser_infra_error": True,
+                "browser_elapsed_ms": None,
+            },
         )
 
     async with browser_semaphore:
@@ -796,18 +865,31 @@ async def run_loop(config_path: Path, once: bool) -> int:
         success_streak.update(disk_state.get("success_streak") or {})
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
     browser_semaphore = asyncio.Semaphore(browser_concurrency)
+    browser_min_mem_available_mb_raw = os.getenv("BROWSER_MIN_MEM_AVAILABLE_MB")
+    if browser_min_mem_available_mb_raw is None:
+        browser_min_mem_available_mb_raw = config.get("browser_min_mem_available_mb", 2048)
+    try:
+        browser_min_mem_available_mb = int(browser_min_mem_available_mb_raw)
+    except Exception:
+        browser_min_mem_available_mb = 2048
     monitor_state: dict[str, Any] = {
         "browser_degraded_active": False,
         "browser_degraded_first_seen_ts": 0.0,
         "browser_degraded_last_notice_ts": float(disk_state.get("browser_degraded_last_notice_ts") or 0.0),
         "browser_degraded_recover_streak": 0,
         "browser_degraded_notice_min_interval_seconds": 6 * 3600,
+        "browser_launch_fail_count": 0,
+        "browser_launch_next_try_ts": 0.0,
+        "browser_launch_last_error": None,
+        "browser_min_mem_available_mb": max(0, browser_min_mem_available_mb),
     }
 
 
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI Service Monitoring Bot"}) as http_client:
         async with async_playwright() as p:
-            async def _launch_browser():
+            browser: Browser | None = None
+
+            async def _launch_browser() -> Browser:
                 return await p.chromium.launch(
                     headless=True,
                     executable_path=chromium_path,
@@ -828,7 +910,60 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     ],
                 )
 
-            browser = await _launch_browser()
+            async def _ensure_browser(now_ts: float) -> Browser | None:
+                nonlocal browser
+
+                if browser is not None:
+                    try:
+                        if browser.is_connected():
+                            return browser
+                    except Exception:
+                        pass
+                    try:
+                        await browser.close()
+                    except Exception:
+                        pass
+                    browser = None
+
+                next_try = float(monitor_state.get("browser_launch_next_try_ts") or 0.0)
+                if next_try > 0.0 and now_ts < next_try:
+                    return None
+
+                min_mem_mb = int(monitor_state.get("browser_min_mem_available_mb") or 0)
+                if min_mem_mb > 0:
+                    meminfo = _read_linux_meminfo_kb()
+                    avail_kb = meminfo.get("MemAvailable")
+                    if isinstance(avail_kb, int):
+                        avail_mb = int(avail_kb / 1024)
+                        if avail_mb < min_mem_mb:
+                            monitor_state["browser_launch_last_error"] = (
+                                f"low_mem_available_mb={avail_mb} < {min_mem_mb}"
+                            )
+                            monitor_state["browser_launch_next_try_ts"] = now_ts + 60.0
+                            browser = None
+                            return None
+
+                try:
+                    browser = await _launch_browser()
+                    monitor_state["browser_launch_fail_count"] = 0
+                    monitor_state["browser_launch_next_try_ts"] = 0.0
+                    monitor_state["browser_launch_last_error"] = None
+                    return browser
+                except Exception as exc:
+                    fail_count = int(monitor_state.get("browser_launch_fail_count") or 0) + 1
+                    monitor_state["browser_launch_fail_count"] = fail_count
+                    backoff = min(300.0, 5.0 * (2 ** min(fail_count, 6)))
+                    monitor_state["browser_launch_next_try_ts"] = now_ts + backoff
+                    monitor_state["browser_launch_last_error"] = f"{type(exc).__name__}: {exc}"
+                    browser = None
+                    LOGGER.warning(
+                        "Playwright launch failed; continuing HTTP-only retry_in=%ss error=%s",
+                        int(round(backoff)),
+                        monitor_state["browser_launch_last_error"],
+                    )
+                    return None
+
+            await _ensure_browser(time.time())
             try:
                 while True:
                     cycle_started = time.time()
@@ -973,18 +1108,58 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         if should_notify:
                             monitor_state["browser_degraded_last_notice_ts"] = now_ts
                             LOGGER.warning("Playwright browser checks degraded; restarting browser process")
-                            await send_telegram_message(
+                            health_hint = _format_browser_health_hint()
+                            last_err = monitor_state.get("browser_launch_last_error")
+                            lines = [
+                                "Monitor warning: Playwright browser checks are degraded (browser crash/close detected).",
+                                "Continuing with HTTP-only results and attempting to restart the browser process.",
+                            ]
+                            if isinstance(last_err, str) and last_err.strip():
+                                lines.append(f"Last browser error: {last_err.strip()[:500]}")
+                            if health_hint:
+                                lines.append(f"Host: {health_hint}")
+                            ok, resp = await send_telegram_message(
                                 http_client,
                                 telegram_cfg,
-                                "Monitor warning: Playwright browser checks are degraded (browser crash/close detected). "
-                                "Auto-restarting the browser process. If this keeps repeating, the host may be under OOM/memory pressure.",
+                                "\n".join(lines).strip(),
+                            )
+                            LOGGER.warning(
+                                "Browser degraded notice sent ok=%s telegram=%s",
+                                ok,
+                                redact_telegram_response(resp),
                             )
 
+                            # Persist the notice timestamp immediately (before any risky restart work) to avoid spam
+                            # if the process crashes and restarts.
+                            if state_path is not None:
+                                try:
+                                    _write_state_atomic(
+                                        state_path,
+                                        {
+                                            "version": 2,
+                                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                                            "last_ok": last_ok,
+                                            "fail_streak": fail_streak,
+                                            "success_streak": success_streak,
+                                            "browser_degraded_last_notice_ts": float(
+                                                monitor_state.get("browser_degraded_last_notice_ts") or 0.0
+                                            ),
+                                        },
+                                    )
+                                except Exception as exc:
+                                    LOGGER.warning(
+                                        "Failed to persist degraded notice timestamp path=%s error=%s",
+                                        state_path,
+                                        exc,
+                                    )
+
                         try:
-                            await browser.close()
+                            if browser is not None:
+                                await browser.close()
                         except Exception:
                             pass
-                        browser = await _launch_browser()
+                        browser = None
+                        await _ensure_browser(now_ts)
                     else:
                         if monitor_state.get("browser_degraded_active"):
                             streak = int(monitor_state.get("browser_degraded_recover_streak") or 0) + 1
@@ -1068,7 +1243,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     )
                     await asyncio.sleep(sleep_for)
             finally:
-                await browser.close()
+                if browser is not None:
+                    await browser.close()
 
 
 def main() -> int:
