@@ -28,7 +28,10 @@ from domain_checks.common_check import (
 from domain_checks.dispatch_client import (
     DispatchConfig,
     dispatch_job,
+    extract_last_agent_message_from_exec_log,
+    extract_last_error_message_from_exec_log,
     get_last_agent_message,
+    get_run_log_tail,
     run_ui_url,
     wait_for_terminal_status,
 )
@@ -649,13 +652,39 @@ async def _dispatch_and_forward(
         LOGGER.info("Dispatch queued domain=%s bundle=%s runner=%s", result.domain, bundle, runner)
 
         await wait_for_terminal_status(http_client, dispatch_cfg, bundle=bundle)
-        msg = await get_last_agent_message(http_client, dispatch_cfg, bundle=bundle)
         ui = run_ui_url(dispatch_cfg.base_url, bundle)
+        tail = await get_run_log_tail(http_client, dispatch_cfg, bundle=bundle)
+        msg = extract_last_agent_message_from_exec_log(tail) or await get_last_agent_message(
+            http_client, dispatch_cfg, bundle=bundle
+        )
         if not msg:
+            err = extract_last_error_message_from_exec_log(tail) or ""
+            err_txt = err.strip()
+            err_l = err_txt.lower()
+
+            # Disable dispatch on runner quota/billing errors to avoid spamming and wasting cycles.
+            if "quota exceeded" in err_l or "billing details" in err_l or "insufficient_quota" in err_l:
+                _dispatch_disable(dispatch_state, reason="runner_quota_exceeded", cooldown_seconds=None)
+                if _dispatch_should_notify(dispatch_state, min_interval_seconds=3600.0):
+                    await _notify_dispatch_disabled(
+                        http_client=http_client,
+                        telegram_cfg=telegram_cfg,
+                        dispatch_state=dispatch_state,
+                        details=f"Dispatcher runner quota exceeded. Update PITCHAI_DISPATCH_TOKEN secret and redeploy. {ui}",
+                    )
+                LOGGER.warning(
+                    "Dispatch disabled due to runner quota domain=%s bundle=%s error=%s",
+                    result.domain,
+                    bundle,
+                    err_txt[:500] if err_txt else None,
+                )
+                return
+
+            extra = f" Last error: {err_txt[:300]}" if err_txt else ""
             ok, resp = await send_telegram_message(
                 http_client,
                 telegram_cfg,
-                f"{result.domain} investigation finished (bundle={bundle}) but no agent message was found. {ui}",
+                f"{result.domain} investigation finished (bundle={bundle}) but no agent message was found.{extra} {ui}",
             )
             LOGGER.warning(
                 "Dispatch finished no_message domain=%s bundle=%s sent_ok=%s telegram=%s",

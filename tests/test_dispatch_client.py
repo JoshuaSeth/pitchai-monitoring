@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from domain_checks.dispatch_client import DispatchConfig, dispatch_job, get_last_agent_message, parse_dispatch_response, wait_for_terminal_status
+from domain_checks.dispatch_client import extract_last_error_message_from_exec_log
 
 
 @pytest.mark.parametrize(
@@ -23,6 +24,18 @@ def test_parse_dispatch_response(text: str, bundle: str, runner: str) -> None:
     got_bundle, got_runner = parse_dispatch_response(text)
     assert got_bundle == bundle
     assert got_runner == runner
+
+
+def test_extract_last_error_message_from_exec_log_prefers_latest() -> None:
+    text = "\n".join(
+        [
+            "not json",
+            '{"type":"error","message":"first"}',
+            '{"type":"turn.failed","error":{"message":"second"}}',
+            "",
+        ]
+    )
+    assert extract_last_error_message_from_exec_log(text) == "second"
 
 
 class _FakeDispatchHandler(BaseHTTPRequestHandler):

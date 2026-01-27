@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 
@@ -55,7 +56,10 @@ async def test_expected_up_domains_are_up() -> None:
                 args=["--no-sandbox", "--disable-dev-shm-usage"],
             )
             try:
-                results = [await check_one_domain(spec, http_client, browser) for spec in specs]
+                sem = asyncio.Semaphore(1)
+                results = [
+                    await check_one_domain(spec, http_client, browser, browser_semaphore=sem) for spec in specs
+                ]
             finally:
                 await browser.close()
 

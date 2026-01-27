@@ -61,6 +61,38 @@ def extract_last_agent_message_from_exec_log(text: str) -> str | None:
     return None
 
 
+def extract_last_error_message_from_exec_log(text: str) -> str | None:
+    """
+    Best-effort extraction of the most recent terminal error from a runner exec log.
+
+    Common patterns:
+    - {"type":"error","message":"..."}
+    - {"type":"turn.failed","error":{"message":"..."}}
+    """
+    for line in reversed((text or "").splitlines()):
+        s = line.strip()
+        if not s.startswith("{"):
+            continue
+        try:
+            obj = json.loads(s)
+        except Exception:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        typ = str(obj.get("type") or "")
+        if typ == "error":
+            msg = obj.get("message")
+            if isinstance(msg, str) and msg.strip():
+                return msg.strip()
+        if typ == "turn.failed":
+            err = obj.get("error")
+            if isinstance(err, dict):
+                msg = err.get("message")
+                if isinstance(msg, str) and msg.strip():
+                    return msg.strip()
+    return None
+
+
 def run_ui_url(base_url: str, bundle: str) -> str:
     return f"{base_url.rstrip('/')}/ui/runs/{bundle}"
 
@@ -198,6 +230,15 @@ async def _get_log_tail(
     return str(tail_data.get("content") or "")
 
 
+async def get_run_log_tail(client: httpx.AsyncClient, cfg: DispatchConfig, *, bundle: str) -> str:
+    return await _get_log_tail(client, cfg, bundle=bundle, max_bytes=cfg.log_tail_bytes)
+
+
 async def get_last_agent_message(client: httpx.AsyncClient, cfg: DispatchConfig, *, bundle: str) -> str | None:
     tail = await _get_log_tail(client, cfg, bundle=bundle, max_bytes=cfg.log_tail_bytes)
     return extract_last_agent_message_from_exec_log(tail)
+
+
+async def get_last_error_message(client: httpx.AsyncClient, cfg: DispatchConfig, *, bundle: str) -> str | None:
+    tail = await _get_log_tail(client, cfg, bundle=bundle, max_bytes=cfg.log_tail_bytes)
+    return extract_last_error_message_from_exec_log(tail)
