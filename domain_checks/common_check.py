@@ -68,12 +68,22 @@ def _html_to_visible_text(html: str) -> str:
 def _is_browser_infra_error(exc: Exception) -> bool:
     name = type(exc).__name__
     msg = str(exc or "").lower()
+
+    # Playwright infra / Chromium instability.
     if name == "TargetClosedError":
         return True
     if "target page, context or browser has been closed" in msg:
         return True
     if "browser has been closed" in msg:
         return True
+
+    # Renderer/page crashes: these are almost always infra/resource pressure on our host,
+    # not the actual website being down.
+    if "page crashed" in msg:
+        return True
+    if "target crashed" in msg:
+        return True
+
     return False
 
 
