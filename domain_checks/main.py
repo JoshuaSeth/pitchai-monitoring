@@ -1083,7 +1083,7 @@ def _build_dispatch_prompt(result: DomainCheckResult) -> str:
         "resource exhaustion, and disk space issues.\n"
         "5) If a fix is safe and targeted (only the relevant service), apply the minimal fix (e.g., restart that "
         "one container) and re-check.\n"
-        "6) If a fix is risky or could disrupt other services, do NOT apply it—just explain clearly.\n\n"
+        "6) If a fix is risky (and not straightforward to instantly revert if it turned out bad) or could disrupt other services, do NOT apply it—just explain clearly.\n\n"
         "Return a concise final report with:\n"
         "- Root cause + evidence\n"
         "- Actions taken (if any) + commands run\n"
@@ -1106,7 +1106,7 @@ def _build_host_health_dispatch_prompt(*, violations: list[str], snap: dict[str,
     snap_json = json.dumps(snap, indent=2, ensure_ascii=False, sort_keys=True)
     violations_txt = "\n".join(f"- {v}" for v in violations[:20]) if violations else "(none)"
     return (
-        "The production service-monitoring container detected host health threshold violations.\n\n"
+        "The production service-monitoring detected host health threshold violations (e.g. high CPU/RAM/disk usage).\n\n"
         f"Observed violations:\n{violations_txt}\n\n"
         "Host snapshot (JSON):\n"
         f"{snap_json}\n\n"
