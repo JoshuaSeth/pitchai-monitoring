@@ -42,6 +42,159 @@ performance:
   dispatch_on_degraded: true
   notify_on_recovery: false
 
+# Rolling history retained on disk for SLO/RED calculations.
+history:
+  retention_days: 7
+
+# SLO + error budget burn-rate monitoring (based on monitor observations).
+slo:
+  enabled: true
+  target_percent: 99.9
+  down_after_failures: 3
+  up_after_successes: 2
+  # Multi-window burn-rate rules (burn rate is normalized by the error budget).
+  burn_rate_rules:
+    - name: page_fast_burn
+      short_window_minutes: 5
+      long_window_minutes: 60
+      short_burn_rate: 14.4
+      long_burn_rate: 6.0
+    - name: ticket_slow_burn
+      short_window_minutes: 360
+      long_window_minutes: 4320  # 3 days
+      short_burn_rate: 6.0
+      long_burn_rate: 1.0
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# TLS certificate monitoring (expiry / handshake failures).
+tls:
+  enabled: true
+  interval_minutes: 60
+  min_days_valid: 14
+  timeout_seconds: 8
+  down_after_failures: 2
+  up_after_successes: 1
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# DNS monitoring (A/AAAA resolution + optional drift detection).
+dns:
+  enabled: true
+  interval_minutes: 15
+  timeout_seconds: 4
+  resolvers:
+    - "1.1.1.1"
+    - "8.8.8.8"
+  require_ipv4: true
+  require_ipv6: false
+  alert_on_drift: false
+  down_after_failures: 2
+  up_after_successes: 1
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# RED / golden signals (error-rate + latency percentiles over a rolling window).
+red:
+  enabled: true
+  window_minutes: 30
+  min_samples: 10
+  error_rate_max_percent: 5.0
+  http_p95_ms_max: 2000
+  browser_p95_ms_max: 7000
+  down_after_failures: 3
+  up_after_successes: 2
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# API contract checks (per-domain definitions live in each domain's check.py).
+api_contract:
+  enabled: true
+  interval_minutes: 10
+  timeout_seconds: 10
+  down_after_failures: 2
+  up_after_successes: 2
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# End-to-end synthetic transactions (per-domain definitions live in each domain's check.py).
+synthetic:
+  enabled: true
+  interval_minutes: 15
+  max_domains_per_cycle: 1
+  timeout_seconds: 35
+  down_after_failures: 2
+  up_after_successes: 2
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# Core Web Vitals (LCP/CLS/INP approximation) via Playwright.
+web_vitals:
+  enabled: true
+  interval_minutes: 60
+  max_domains_per_cycle: 1
+  timeout_seconds: 45
+  post_load_wait_ms: 4500
+  lcp_ms_max: 4500
+  cls_max: 0.25
+  inp_ms_max: 500
+  down_after_failures: 2
+  up_after_successes: 2
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# Docker container health monitoring (requires mounting /var/run/docker.sock into the monitor container).
+container_health:
+  enabled: true
+  interval_minutes: 1
+  docker_socket_path: /var/run/docker.sock
+  monitor_all: false
+  include_name_patterns:
+    - "^service-monitoring$"
+    - "^pitchai-codex-dispatcher$"
+    - "^autopar$"
+    - "^autopar-auth$"
+    - "^afasask$"
+    - "^afasask-quick-chat$"
+    - "^aipc$"
+    - "^aipc-stable$"
+    - "^skybuyfly-quick-chat$"
+    - "^deplanbook-play$"
+    - "^deplanbook-cms$"
+  exclude_name_patterns: []
+  timeout_seconds: 3
+  down_after_failures: 2
+  up_after_successes: 1
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# Reverse proxy / failover monitoring (uses upstream headers + optional Nginx logs).
+proxy:
+  enabled: true
+  access_log_path: /var/log/nginx/access.log
+  error_log_path: /var/log/nginx/error.log
+  timezone: "Europe/Amsterdam"
+  window_seconds: 300
+  access_log_max_bytes: 1000000
+  error_log_max_bytes: 1000000
+  min_total_requests: 50
+  max_502_504_percent: 1.0
+  max_upstream_errors_per_domain: 5
+  down_after_failures: 2
+  up_after_successes: 2
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
+# Meta-monitoring: alert when the monitor itself can't keep up or can't persist state.
+meta_monitoring:
+  enabled: true
+  cycle_overrun_factor: 1.25
+  state_write_failures_max: 3
+  down_after_failures: 2
+  up_after_successes: 2
+  dispatch_on_degraded: true
+  notify_on_recovery: false
+
 # Twice-daily heartbeat messages to confirm the monitor is alive and to report
 # per-domain response times from that check cycle.
 heartbeat:

@@ -15,6 +15,15 @@ CHECK = {
         {"selector": "#chat-input", "state": "visible"},
         {"selector": "text=Login with Token", "state": "attached"},
     ],
+    "synthetic_transactions": [
+        {
+            "name": "landing_or_maintenance",
+            "steps": [
+                {"type": "goto"},
+                {"type": "wait_for_selector", "selector": "body", "state": "visible"},
+            ],
+        }
+    ],
     # Allow maintenance text for this domain.
     "forbidden_text_any": [],
 }

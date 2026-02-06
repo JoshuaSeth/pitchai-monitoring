@@ -43,6 +43,13 @@ class DomainCheckSpec:
     required_selectors_any: list[SelectorCheck] = field(default_factory=list)
     required_text_all: list[str] = field(default_factory=list)
     forbidden_text_any: list[str] = field(default_factory=lambda: list(DEFAULT_MAINTENANCE_TEXT))
+    # Capture a small allow-listed set of response headers for downstream checks (e.g. upstream/failover markers).
+    capture_headers: list[str] = field(default_factory=list)
+    # Optional extended checks (used by additional monitoring "metrics" modules).
+    api_contract_checks: list[dict[str, Any]] = field(default_factory=list)
+    synthetic_transactions: list[dict[str, Any]] = field(default_factory=list)
+    web_vitals: dict[str, Any] = field(default_factory=dict)
+    proxy: dict[str, Any] = field(default_factory=dict)
     http_timeout_seconds: float = 15.0
     browser_timeout_seconds: float = 25.0
 
@@ -118,6 +125,26 @@ async def http_get_check(spec: DomainCheckSpec, client: httpx.AsyncClient) -> tu
 
     forbidden_hits = [kw for kw in spec.forbidden_text_any if kw and kw.lower() in body_norm]
 
+    captured_headers: dict[str, str] = {}
+    if spec.capture_headers:
+        deny = {"authorization", "cookie", "set-cookie"}
+        for raw_name in spec.capture_headers[:30]:
+            name = str(raw_name or "").strip()
+            if not name:
+                continue
+            key = name.lower()
+            if key in deny:
+                continue
+            if not re.fullmatch(r"[a-z0-9-]{1,80}", key):
+                continue
+            try:
+                val = resp.headers.get(name) or resp.headers.get(key)
+            except Exception:
+                val = None
+            if val is None:
+                continue
+            captured_headers[key] = str(val)[:300]
+
     final_host = (urlsplit(str(resp.url)).hostname or "").lower()
     expected_suffix = (spec.expected_final_host_suffix or "").strip().lower()
     final_host_ok = True
@@ -137,6 +164,7 @@ async def http_get_check(spec: DomainCheckSpec, client: httpx.AsyncClient) -> tu
         "expected_final_host_suffix": expected_suffix or None,
         "final_host_ok": final_host_ok,
         "forbidden_hits": forbidden_hits,
+        "captured_headers": captured_headers,
         "http_elapsed_ms": round(elapsed_ms, 3),
     }
 
@@ -199,6 +227,11 @@ def load_domain_spec_from_module_dict(module_vars: dict[str, Any]) -> DomainChec
         required_selectors_any=required_any,
         required_text_all=[str(t) for t in cfg.get("required_text_all", [])],
         forbidden_text_any=[str(t) for t in forbidden],
+        capture_headers=[str(h) for h in (cfg.get("capture_headers") or [])],
+        api_contract_checks=cfg.get("api_contract_checks") if isinstance(cfg.get("api_contract_checks"), list) else [],
+        synthetic_transactions=cfg.get("synthetic_transactions") if isinstance(cfg.get("synthetic_transactions"), list) else [],
+        web_vitals=cfg.get("web_vitals") if isinstance(cfg.get("web_vitals"), dict) else {},
+        proxy=cfg.get("proxy") if isinstance(cfg.get("proxy"), dict) else {},
         http_timeout_seconds=float(cfg.get("http_timeout_seconds", 15.0)),
         browser_timeout_seconds=float(cfg.get("browser_timeout_seconds", 25.0)),
     )

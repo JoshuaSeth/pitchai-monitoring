@@ -16,6 +16,17 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
   - Host health thresholds (disk/mem/swap/cpu/load)
   - Per-domain performance thresholds (HTTP ms / Browser ms)
   - These produce separate Telegram warnings and can queue a read-only Dispatcher triage.
+- Optional: additional reliability/uptime signals (separate from domain UP/DOWN):
+  - SLO error-budget burn rate (multi-window burn rules)
+  - TLS certificate expiry / handshake failures
+  - DNS resolution + optional drift detection
+  - RED / golden signals over rolling windows (error-rate + latency percentiles)
+  - API contract checks (per-domain JSON endpoint assertions)
+  - Synthetic transactions (Playwright step flows)
+  - Core Web Vitals (LCP/CLS/INP approximation)
+  - Docker container health (unhealthy/not running/restarting/OOM)
+  - Reverse proxy upstream/failover signals (upstream headers + optional Nginx logs)
+  - Meta-monitoring (cycle overruns/state write failures)
 
 ## Configuration
 
@@ -46,6 +57,28 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
     - `performance.per_domain_overrides` (optional map: domain → threshold overrides)
     - `performance.down_after_failures` / `up_after_successes` (debounce)
     - `performance.dispatch_on_degraded` (queue Dispatcher triage)
+  - Rolling history:
+    - `history.retention_days`
+  - SLO burn rate:
+    - `slo.enabled`, `slo.target_percent`, `slo.burn_rate_rules`
+  - TLS:
+    - `tls.enabled`, `tls.min_days_valid`, `tls.interval_minutes`
+  - DNS:
+    - `dns.enabled`, `dns.resolvers`, `dns.alert_on_drift`
+  - RED/golden signals:
+    - `red.enabled`, `red.window_minutes`, `red.error_rate_max_percent`, `red.http_p95_ms_max`, `red.browser_p95_ms_max`
+  - API contract checks (per-domain):
+    - `api_contract.enabled` and per-domain `CHECK.api_contract_checks`
+  - Synthetic transactions (per-domain):
+    - `synthetic.enabled` and per-domain `CHECK.synthetic_transactions`
+  - Web vitals:
+    - `web_vitals.enabled` and per-domain `CHECK.web_vitals` (optional overrides)
+  - Container health:
+    - `container_health.enabled` (requires mounting `/var/run/docker.sock`)
+  - Proxy/upstream signals:
+    - `proxy.enabled` and per-domain `CHECK.proxy` (optional)
+  - Meta-monitoring:
+    - `meta_monitoring.enabled`
 
 ## Environment
 
@@ -76,6 +109,8 @@ python -m domain_checks.main --once
 docker build -t service-monitoring:latest .
 docker run --rm \
   -v service-monitoring-state:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /var/log/nginx:/var/log/nginx:ro \
   -e TELEGRAM_BOT_TOKEN=... \
   -e TELEGRAM_CHAT_ID=... \
   -e PITCHAI_DISPATCH_TOKEN=... \
