@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -9,7 +10,7 @@ import pytest
 from playwright.async_api import async_playwright
 
 from domain_checks.common_check import find_chromium_executable
-from domain_checks.main import check_one_domain, load_config, load_domain_spec
+from domain_checks.main import _normalize_domain_entries, check_one_domain, load_config, load_domain_spec
 
 
 pytestmark = pytest.mark.live
@@ -37,8 +38,13 @@ async def test_expected_up_domains_are_up() -> None:
     domains = config.get("domains") or []
 
     specs = []
-    for entry in domains:
-        spec = load_domain_spec(entry)
+    now_ts = time.time()
+    for entry in _normalize_domain_entries(domains):
+        # Keep the live test aligned with production: don't assert on domains
+        # explicitly disabled in config.
+        if entry.is_disabled(now_ts):
+            continue
+        spec = load_domain_spec(entry.raw_entry)
         if spec.domain in EXPECTED_UP:
             specs.append(spec)
 

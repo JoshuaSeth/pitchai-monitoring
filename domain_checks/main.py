@@ -26,6 +26,23 @@ from domain_checks.common_check import (
     http_get_check,
     load_domain_spec_from_module_dict,
 )
+from domain_checks.history import append_sample, coerce_history, prune_history
+from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
+from domain_checks.metrics_container_health import ContainerHealthIssue, check_container_health
+from domain_checks.metrics_dns import DnsCheckResult, check_dns
+from domain_checks.metrics_nginx import (
+    NginxAccessWindowStats,
+    NginxUpstreamErrorEvent,
+    compute_access_window_stats,
+    parse_recent_upstream_errors,
+    summarize_upstream_errors,
+)
+from domain_checks.metrics_proxy import ProxyIssue, check_upstream_header_expectations
+from domain_checks.metrics_red import RedViolation, compute_red_violations
+from domain_checks.metrics_slo import SloBurnViolation, compute_slo_burn_violations
+from domain_checks.metrics_synthetic import SyntheticTransactionResult, run_synthetic_transactions
+from domain_checks.metrics_tls import TlsCertCheckResult, check_tls_certs
+from domain_checks.metrics_web_vitals import WebVitalsResult, measure_web_vitals
 from domain_checks.dispatch_client import (
     DispatchConfig,
     dispatch_job,
@@ -210,6 +227,61 @@ def _get_host_health_config(config: dict[str, Any]) -> dict[str, Any]:
 
 def _get_performance_config(config: dict[str, Any]) -> dict[str, Any]:
     raw = config.get("performance") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_history_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("history") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_slo_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("slo") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_tls_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("tls") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_dns_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("dns") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_red_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("red") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_synthetic_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("synthetic") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_web_vitals_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("web_vitals") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_api_contract_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("api_contract") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_container_health_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("container_health") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_proxy_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("proxy") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _get_meta_monitoring_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("meta_monitoring") or {}
     return raw if isinstance(raw, dict) else {}
 
 
@@ -646,6 +718,38 @@ def _coerce_int_dict(value: Any) -> dict[str, int]:
     return state
 
 
+def _coerce_float_dict(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    state: dict[str, float] = {}
+    for k, v in value.items():
+        if not isinstance(k, str):
+            continue
+        try:
+            state[k] = float(v)
+        except Exception:
+            continue
+    return state
+
+
+def _coerce_str_list_dict(value: Any) -> dict[str, list[str]]:
+    if not isinstance(value, dict):
+        return {}
+    out: dict[str, list[str]] = {}
+    for k, v in value.items():
+        if not isinstance(k, str):
+            continue
+        if not isinstance(v, list):
+            continue
+        items: list[str] = []
+        for x in v:
+            s = str(x or "").strip()
+            if s:
+                items.append(s)
+        out[k] = items
+    return out
+
+
 def _coerce_bool(value: Any, *, default: bool) -> bool:
     return value if isinstance(value, bool) else bool(default)
 
@@ -678,6 +782,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
         "last_ok": {},
         "fail_streak": {},
         "success_streak": {},
+        "history": {},
         "browser_degraded_last_notice_ts": 0.0,
         "host_health": {
             "last_ok": True,
@@ -690,6 +795,65 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
             "last_ok": True,
             "fail_streak": 0,
             "success_streak": 0,
+        },
+        "slo": {
+            "last_ok": True,
+            "fail_streak": 0,
+            "success_streak": 0,
+        },
+        "tls": {
+            "last_ok": True,
+            "fail_streak": 0,
+            "success_streak": 0,
+            "last_run_ts": 0.0,
+        },
+        "dns": {
+            "last_ok": True,
+            "fail_streak": 0,
+            "success_streak": 0,
+            "last_run_ts": 0.0,
+            "last_ips": {},
+        },
+        "red": {
+            "last_ok": True,
+            "fail_streak": 0,
+            "success_streak": 0,
+        },
+        "synthetic": {
+            "last_ok": {},
+            "fail_streak": {},
+            "success_streak": {},
+            "last_run_ts": {},
+        },
+        "web_vitals": {
+            "last_ok": {},
+            "fail_streak": {},
+            "success_streak": {},
+            "last_run_ts": {},
+        },
+        "api_contract": {
+            "last_ok": {},
+            "fail_streak": {},
+            "success_streak": {},
+            "last_run_ts": {},
+        },
+        "container_health": {
+            "last_ok": True,
+            "fail_streak": 0,
+            "success_streak": 0,
+            "last_run_ts": 0.0,
+            "restart_counts": {},
+        },
+        "proxy": {
+            "last_ok": True,
+            "fail_streak": 0,
+            "success_streak": 0,
+        },
+        "meta": {
+            "last_ok": True,
+            "fail_streak": 0,
+            "success_streak": 0,
+            "state_write_fail_streak": 0,
         },
     }
     try:
@@ -724,6 +888,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     state["last_ok"] = _coerce_bool_dict(raw.get("last_ok"))
     state["fail_streak"] = _coerce_int_dict(raw.get("fail_streak"))
     state["success_streak"] = _coerce_int_dict(raw.get("success_streak"))
+    state["history"] = coerce_history(raw.get("history"))
     state["browser_degraded_last_notice_ts"] = last_notice_ts
 
     host = raw.get("host_health")
@@ -742,6 +907,95 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
             "last_ok": _coerce_bool(perf.get("last_ok"), default=True),
             "fail_streak": _coerce_int(perf.get("fail_streak"), default=0),
             "success_streak": _coerce_int(perf.get("success_streak"), default=0),
+        }
+
+    slo = raw.get("slo")
+    if isinstance(slo, dict):
+        state["slo"] = {
+            "last_ok": _coerce_bool(slo.get("last_ok"), default=True),
+            "fail_streak": _coerce_int(slo.get("fail_streak"), default=0),
+            "success_streak": _coerce_int(slo.get("success_streak"), default=0),
+        }
+
+    tls = raw.get("tls")
+    if isinstance(tls, dict):
+        state["tls"] = {
+            "last_ok": _coerce_bool(tls.get("last_ok"), default=True),
+            "fail_streak": _coerce_int(tls.get("fail_streak"), default=0),
+            "success_streak": _coerce_int(tls.get("success_streak"), default=0),
+            "last_run_ts": _coerce_float(tls.get("last_run_ts"), default=0.0),
+        }
+
+    dns = raw.get("dns")
+    if isinstance(dns, dict):
+        state["dns"] = {
+            "last_ok": _coerce_bool(dns.get("last_ok"), default=True),
+            "fail_streak": _coerce_int(dns.get("fail_streak"), default=0),
+            "success_streak": _coerce_int(dns.get("success_streak"), default=0),
+            "last_run_ts": _coerce_float(dns.get("last_run_ts"), default=0.0),
+            "last_ips": _coerce_str_list_dict(dns.get("last_ips")),
+        }
+
+    red = raw.get("red")
+    if isinstance(red, dict):
+        state["red"] = {
+            "last_ok": _coerce_bool(red.get("last_ok"), default=True),
+            "fail_streak": _coerce_int(red.get("fail_streak"), default=0),
+            "success_streak": _coerce_int(red.get("success_streak"), default=0),
+        }
+
+    synthetic = raw.get("synthetic")
+    if isinstance(synthetic, dict):
+        state["synthetic"] = {
+            "last_ok": _coerce_bool_dict(synthetic.get("last_ok")),
+            "fail_streak": _coerce_int_dict(synthetic.get("fail_streak")),
+            "success_streak": _coerce_int_dict(synthetic.get("success_streak")),
+            "last_run_ts": _coerce_float_dict(synthetic.get("last_run_ts")),
+        }
+
+    web_vitals = raw.get("web_vitals")
+    if isinstance(web_vitals, dict):
+        state["web_vitals"] = {
+            "last_ok": _coerce_bool_dict(web_vitals.get("last_ok")),
+            "fail_streak": _coerce_int_dict(web_vitals.get("fail_streak")),
+            "success_streak": _coerce_int_dict(web_vitals.get("success_streak")),
+            "last_run_ts": _coerce_float_dict(web_vitals.get("last_run_ts")),
+        }
+
+    api_contract = raw.get("api_contract")
+    if isinstance(api_contract, dict):
+        state["api_contract"] = {
+            "last_ok": _coerce_bool_dict(api_contract.get("last_ok")),
+            "fail_streak": _coerce_int_dict(api_contract.get("fail_streak")),
+            "success_streak": _coerce_int_dict(api_contract.get("success_streak")),
+            "last_run_ts": _coerce_float_dict(api_contract.get("last_run_ts")),
+        }
+
+    container_health = raw.get("container_health")
+    if isinstance(container_health, dict):
+        state["container_health"] = {
+            "last_ok": _coerce_bool(container_health.get("last_ok"), default=True),
+            "fail_streak": _coerce_int(container_health.get("fail_streak"), default=0),
+            "success_streak": _coerce_int(container_health.get("success_streak"), default=0),
+            "last_run_ts": _coerce_float(container_health.get("last_run_ts"), default=0.0),
+            "restart_counts": _coerce_int_dict(container_health.get("restart_counts")),
+        }
+
+    proxy = raw.get("proxy")
+    if isinstance(proxy, dict):
+        state["proxy"] = {
+            "last_ok": _coerce_bool(proxy.get("last_ok"), default=True),
+            "fail_streak": _coerce_int(proxy.get("fail_streak"), default=0),
+            "success_streak": _coerce_int(proxy.get("success_streak"), default=0),
+        }
+
+    meta = raw.get("meta")
+    if isinstance(meta, dict):
+        state["meta"] = {
+            "last_ok": _coerce_bool(meta.get("last_ok"), default=True),
+            "fail_streak": _coerce_int(meta.get("fail_streak"), default=0),
+            "success_streak": _coerce_int(meta.get("success_streak"), default=0),
+            "state_write_fail_streak": _coerce_int(meta.get("state_write_fail_streak"), default=0),
         }
 
     return state
@@ -1075,18 +1329,17 @@ def _build_dispatch_prompt(result: DomainCheckResult) -> str:
         f"Monitor reason: {result.reason}\n"
         "Monitor details (JSON):\n"
         f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
         "Task:\n"
         f"1) Investigate why {result.domain} is not functioning properly on the production host.\n"
         "2) Use Docker to identify the relevant service container(s) and reverse proxy (by name/image/labels/ports).\n"
         "3) Inspect container status, recent restarts, health checks, and logs.\n"
         "4) Check for common root causes: upstream crash-loop, bad deploy, DNS, cert expiry, proxy config, "
         "resource exhaustion, and disk space issues.\n"
-        "5) If a fix is safe and targeted (only the relevant service), apply the minimal fix (e.g., restart that "
-        "one container) and re-check.\n"
-        "6) If a fix is risky (and not straightforward to instantly revert if it turned out bad) or could disrupt other services, do NOT apply it—just explain clearly.\n\n"
+        "5) If you believe a restart or configuration change would help, suggest it as a human action but do not execute it.\n\n"
         "Return a concise final report with:\n"
         "- Root cause + evidence\n"
-        "- Actions taken (if any) + commands run\n"
+        "- Commands run (read-only diagnostics)\n"
         "- Current status + what to monitor next\n"
     )
 
@@ -1149,6 +1402,575 @@ def _build_performance_dispatch_prompt(*, slow: list[dict[str, Any]]) -> str:
         "- Most likely root cause + evidence\n"
         "- Impacted domains and whether it's systemic\n"
         "- Recommended safe remediation steps (no changes executed)\n"
+    )
+
+
+def _build_tls_alert_message(
+    *,
+    results: list[TlsCertCheckResult],
+    min_days_valid: float,
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    bad = [r for r in results if not r.ok]
+    lines = ["Monitor warning: TLS certificate checks are degraded ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append(f"Threshold: min_days_valid={float(min_days_valid):.1f}d")
+    lines.append("")
+    for r in bad[:15]:
+        host = r.host or "?"
+        port = r.port or 443
+        days = "n/a" if r.days_remaining is None else f"{r.days_remaining:.2f}d"
+        err = (r.error or "unknown").strip()
+        lines.append(f"- {r.domain}: {err} host={host}:{port} days_remaining={days} not_after={r.not_after_iso}")
+    return "\n".join(lines).strip()
+
+
+def _build_tls_dispatch_prompt(*, results: list[TlsCertCheckResult], min_days_valid: float) -> str:
+    bad = [r for r in results if not r.ok]
+    payload = [
+        {
+            "domain": r.domain,
+            "host": r.host,
+            "port": r.port,
+            "not_after_iso": r.not_after_iso,
+            "days_remaining": r.days_remaining,
+            "error": r.error,
+            "details": r.details,
+        }
+        for r in bad[:20]
+    ]
+    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected TLS certificate problems (expiry soon / handshake failures).\n\n"
+        f"Threshold: min_days_valid={float(min_days_valid):.1f} days\n\n"
+        "Failing TLS checks (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Confirm certificate status from the production host with openssl s_client / curl -Iv.\n"
+        "2) If expiry is near, check certbot/Let's Encrypt renewal status and Nginx config for the affected domain.\n"
+        "3) Identify whether the issue is DNS/SNI mismatch, expired cert, wrong cert installed, or renewal failure.\n"
+        "4) Provide a clear remediation plan for a human operator (avoid making changes).\n\n"
+        "Return a concise final report with:\n"
+        "- Root cause + evidence\n"
+        "- Affected domains + expiry dates\n"
+        "- Recommended safe remediation steps\n"
+    )
+
+
+def _build_dns_alert_message(
+    *,
+    results: list[DnsCheckResult],
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    bad = [r for r in results if not r.ok]
+    lines = ["Monitor warning: DNS checks are degraded ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append("")
+    for r in bad[:15]:
+        a = ",".join(r.a_records[:4]) if r.a_records else "-"
+        aaaa = ",".join(r.aaaa_records[:4]) if r.aaaa_records else "-"
+        drift = " drift" if r.drift_detected else ""
+        exp = ",".join((r.expected_ips or [])[:4]) if r.expected_ips else "-"
+        err = (r.error or "").strip()
+        extra = f" error={err}" if err else ""
+        lines.append(f"- {r.domain}:{drift} A=[{a}] AAAA=[{aaaa}] expected=[{exp}]{extra}")
+    return "\n".join(lines).strip()
+
+
+def _build_dns_dispatch_prompt(*, results: list[DnsCheckResult]) -> str:
+    bad = [r for r in results if not r.ok]
+    payload = [
+        {
+            "domain": r.domain,
+            "a_records": r.a_records,
+            "aaaa_records": r.aaaa_records,
+            "drift_detected": r.drift_detected,
+            "expected_ips": r.expected_ips,
+            "error": r.error,
+        }
+        for r in bad[:25]
+    ]
+    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected DNS resolution problems (NXDOMAIN/timeout/no A/AAAA or drift).\n\n"
+        "Failing DNS checks (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Confirm DNS resolution from the production host using dig/host/nslookup against multiple resolvers.\n"
+        "2) Determine whether the issue is authoritative DNS, resolver, DNSSEC, or transient network.\n"
+        "3) If drift is flagged, assess whether the change is expected (deploy/failover) or suspicious.\n"
+        "4) Provide a human-safe remediation plan (no changes executed).\n\n"
+        "Return a concise final report with:\n"
+        "- Root cause + evidence\n"
+        "- Affected domains + observed records\n"
+        "- Recommended safe remediation steps\n"
+    )
+
+
+def _build_slo_alert_message(
+    *,
+    violations: list[SloBurnViolation],
+    slo_target_percent: float,
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: SLO error budget burn rate is high ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append(f"SLO target: {float(slo_target_percent):.3f}%")
+    lines.append("")
+    for v in violations[:15]:
+        s_av = "n/a" if v.short_availability_percent is None else f"{v.short_availability_percent:.3f}%"
+        l_av = "n/a" if v.long_availability_percent is None else f"{v.long_availability_percent:.3f}%"
+        lines.append(
+            f"- {v.domain}: rule={v.rule} burn={v.short_burn_rate:.2f}/{v.long_burn_rate:.2f} "
+            f"avail={s_av}/{l_av} samples={v.short_total}/{v.long_total} "
+            f"windows={v.short_window_minutes}m/{v.long_window_minutes}m"
+        )
+    return "\n".join(lines).strip()
+
+
+def _build_slo_dispatch_prompt(*, violations: list[SloBurnViolation], slo_target_percent: float) -> str:
+    payload = [
+        {
+            "domain": v.domain,
+            "rule": v.rule,
+            "short_window_minutes": v.short_window_minutes,
+            "long_window_minutes": v.long_window_minutes,
+            "short_burn_rate": v.short_burn_rate,
+            "long_burn_rate": v.long_burn_rate,
+            "short_availability_percent": v.short_availability_percent,
+            "long_availability_percent": v.long_availability_percent,
+            "short_total": v.short_total,
+            "long_total": v.long_total,
+        }
+        for v in violations[:30]
+    ]
+    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected high error-budget burn rate (SLO at risk).\n\n"
+        f"SLO target: {float(slo_target_percent):.3f}%\n\n"
+        "Triggered burn-rate violations (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Identify which domains/services are causing burn-rate violations and whether issues are ongoing.\n"
+        "2) Correlate with recent deploys, container restarts/OOMs, Nginx upstream errors, and host resource pressure.\n"
+        "3) Provide a clear summary of likely root cause(s) and recommended next steps for a human operator.\n\n"
+        "Return a concise final report with:\n"
+        "- What is burning budget + since when\n"
+        "- Root cause hypothesis + evidence\n"
+        "- Recommended safe remediation steps\n"
+    )
+
+
+def _build_red_alert_message(
+    *,
+    violations: list[RedViolation],
+    window_minutes: int,
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: RED / golden-signal checks are degraded ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append(f"Window: {int(window_minutes)}m")
+    lines.append("")
+    for v in violations[:15]:
+        err = "n/a" if v.error_rate_percent is None else f"{v.error_rate_percent:.2f}%"
+        http_p95 = "n/a" if v.http_p95_ms is None else f"{int(round(v.http_p95_ms))}ms"
+        br_p95 = "n/a" if v.browser_p95_ms is None else f"{int(round(v.browser_p95_ms))}ms"
+        reasons = ",".join(v.reasons[:4]) if v.reasons else "degraded"
+        lines.append(f"- {v.domain}: {reasons} err={err} http_p95={http_p95} browser_p95={br_p95} samples={v.total_samples}")
+    return "\n".join(lines).strip()
+
+
+def _build_red_dispatch_prompt(*, violations: list[RedViolation], window_minutes: int) -> str:
+    payload = [
+        {
+            "domain": v.domain,
+            "reasons": v.reasons,
+            "total_samples": v.total_samples,
+            "error_rate_percent": v.error_rate_percent,
+            "http_p95_ms": v.http_p95_ms,
+            "browser_p95_ms": v.browser_p95_ms,
+        }
+        for v in violations[:30]
+    ]
+    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected degraded RED/golden signals (error-rate and/or latency percentiles).\n\n"
+        f"Window: {int(window_minutes)} minutes\n\n"
+        "Violations (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Reproduce latency and errors from the production host (curl timings; check DNS/TLS/connect/TTFB/total).\n"
+        "2) Determine whether the issue is isolated to one service or systemic (host load, network, DNS).\n"
+        "3) Check container status/restarts and relevant logs for the impacted services.\n"
+        "4) Provide a triage summary and recommended next steps for a human operator.\n\n"
+        "Return a concise final report with:\n"
+        "- Reproduction results\n"
+        "- Root cause hypothesis + evidence\n"
+        "- Recommended safe remediation steps\n"
+    )
+
+
+def _build_api_contract_alert_message(
+    *,
+    failures: list[ApiContractCheckResult],
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: API contract checks are failing ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append("")
+    for r in failures[:15]:
+        sc = "n/a" if r.status_code is None else str(r.status_code)
+        ms = "n/a" if r.elapsed_ms is None else f"{int(round(float(r.elapsed_ms)))}ms"
+        err = (r.error or "contract_failed").strip()[:260]
+        lines.append(f"- {r.domain} [{r.name}]: {err} status={sc} ({ms}) url={r.url}")
+    return "\n".join(lines).strip()
+
+
+def _build_api_contract_dispatch_prompt(*, failures: list[ApiContractCheckResult]) -> str:
+    payload = [
+        {
+            "domain": r.domain,
+            "name": r.name,
+            "url": r.url,
+            "status_code": r.status_code,
+            "elapsed_ms": r.elapsed_ms,
+            "error": r.error,
+            "details": r.details,
+        }
+        for r in failures[:30]
+    ]
+    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected API contract failures (JSON endpoints returning unexpected status/shape/latency).\n\n"
+        "Failing checks (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Reproduce the failing API calls from the production host (curl -i).\n"
+        "2) Determine whether the issue is backend crash, reverse proxy routing, deploy regression, or auth/config.\n"
+        "3) Identify the relevant container(s) and inspect logs/health/restarts.\n"
+        "4) Provide a clear remediation plan for a human operator (no changes executed).\n\n"
+        "Return a concise final report with:\n"
+        "- Root cause + evidence\n"
+        "- Impacted endpoints\n"
+        "- Recommended safe remediation steps\n"
+    )
+
+
+def _build_synthetic_alert_message(
+    *,
+    failures: list[SyntheticTransactionResult],
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: Synthetic transactions are failing ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append("")
+    for r in failures[:15]:
+        ms = "n/a" if r.elapsed_ms is None else f"{int(round(float(r.elapsed_ms)))}ms"
+        err = (r.error or "transaction_failed").strip()[:260]
+        url = (r.details or {}).get("final_url")
+        lines.append(f"- {r.domain} [{r.name}]: {err} ({ms}) url={url}")
+    return "\n".join(lines).strip()
+
+
+def _build_synthetic_dispatch_prompt(*, failures: list[SyntheticTransactionResult]) -> str:
+    payload = [
+        {
+            "domain": r.domain,
+            "name": r.name,
+            "elapsed_ms": r.elapsed_ms,
+            "error": r.error,
+            "details": r.details,
+            "browser_infra_error": r.browser_infra_error,
+        }
+        for r in failures[:25]
+    ]
+    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected synthetic end-to-end transaction failures (Playwright step flows).\n\n"
+        "Failures (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Reproduce the failing transaction(s) from the production host (Playwright or curl where possible).\n"
+        "2) Determine whether the failure is frontend regression, backend/API failure, reverse proxy issue, or auth flow change.\n"
+        "3) Inspect relevant containers and logs.\n"
+        "4) Provide a remediation plan for a human operator (no changes executed).\n\n"
+        "Return a concise final report with:\n"
+        "- Root cause + evidence\n"
+        "- Impacted domains/transactions\n"
+        "- Recommended safe remediation steps\n"
+    )
+
+
+def _build_web_vitals_alert_message(
+    *,
+    failures: list[WebVitalsResult],
+    thresholds: dict[str, float | None],
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: Core Web Vitals are degraded ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    th = ", ".join(f"{k}={v}" for k, v in thresholds.items() if v is not None)
+    if th:
+        lines.append(f"Thresholds: {th}")
+    lines.append("")
+    for r in failures[:15]:
+        m = r.metrics or {}
+        lcp = m.get("lcp_ms")
+        cls = m.get("cls")
+        inp = m.get("inp_ms")
+        err = (r.error or "").strip()[:260]
+        parts = []
+        if lcp is not None:
+            parts.append(f"LCP={int(round(float(lcp)))}ms")
+        if cls is not None:
+            parts.append(f"CLS={float(cls):.3f}")
+        if inp is not None:
+            parts.append(f"INP~={int(round(float(inp)))}ms")
+        vit = " ".join(parts) if parts else "metrics=n/a"
+        extra = f" error={err}" if err else ""
+        lines.append(f"- {r.domain}: {vit}{extra}")
+    return "\n".join(lines).strip()
+
+
+def _build_web_vitals_dispatch_prompt(*, failures: list[WebVitalsResult]) -> str:
+    payload = [
+        {
+            "domain": r.domain,
+            "metrics": r.metrics,
+            "error": r.error,
+            "elapsed_ms": r.elapsed_ms,
+            "browser_infra_error": r.browser_infra_error,
+        }
+        for r in failures[:25]
+    ]
+    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected degraded Core Web Vitals (LCP/CLS/INP approximation).\n\n"
+        "Failures (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Confirm the vitals with Lighthouse / Chrome DevTools (from the production host) for affected domains.\n"
+        "2) Identify likely causes (slow backend/TTFB, oversized assets, render-blocking JS/CSS, layout shifts).\n"
+        "3) Provide a remediation plan for a human operator (no changes executed).\n\n"
+        "Return a concise final report with:\n"
+        "- Most likely cause + evidence\n"
+        "- Impacted domains\n"
+        "- Recommended safe remediation steps\n"
+    )
+
+
+def _build_container_health_alert_message(
+    *,
+    issues: list[ContainerHealthIssue],
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: Docker container health is degraded ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append("")
+    for it in issues[:15]:
+        parts = []
+        if it.running is False:
+            parts.append("NOT_RUNNING")
+        if it.health_status and it.health_status != "healthy":
+            parts.append(f"health={it.health_status}")
+        if it.oom_killed:
+            parts.append("OOMKilled")
+        if it.restart_increase is not None and it.restart_increase > 0:
+            parts.append(f"restarted(+{it.restart_increase})")
+        if it.exit_code is not None and it.exit_code != 0:
+            parts.append(f"exit={it.exit_code}")
+        if it.error:
+            parts.append(f"error={it.error}")
+        flags = ",".join(parts) if parts else "issue"
+        lines.append(f"- {it.name} ({it.container_id}): {flags} status={it.status}")
+    return "\n".join(lines).strip()
+
+
+def _build_container_health_dispatch_prompt(*, issues: list[ContainerHealthIssue]) -> str:
+    payload = [
+        {
+            "name": it.name,
+            "container_id": it.container_id,
+            "running": it.running,
+            "status": it.status,
+            "restart_count": it.restart_count,
+            "restart_increase": it.restart_increase,
+            "oom_killed": it.oom_killed,
+            "health_status": it.health_status,
+            "exit_code": it.exit_code,
+            "error": it.error,
+        }
+        for it in issues[:25]
+    ]
+    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected Docker container health issues (unhealthy/not running/restarting/OOM).\n\n"
+        "Issues (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Confirm container states with docker ps/inspect, and check recent restarts/OOMKilled.\n"
+        "2) Gather logs for the affected containers (docker logs --tail 200).\n"
+        "3) Correlate with host resource pressure (df/free/uptime) and recent deploys.\n"
+        "4) Provide a remediation plan for a human operator (no changes executed).\n\n"
+        "Return a concise final report with:\n"
+        "- Root cause + evidence\n"
+        "- Affected containers + status\n"
+        "- Recommended safe remediation steps\n"
+    )
+
+
+def _build_proxy_alert_message(
+    *,
+    upstream_issues: list[ProxyIssue],
+    access_stats: NginxAccessWindowStats | None,
+    upstream_errors_summary: dict[str, Any] | None,
+    window_seconds: int,
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: Reverse proxy / upstream signals are degraded ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append(f"Window: {int(window_seconds)}s")
+    lines.append("")
+
+    if upstream_issues:
+        lines.append("Upstream header issues:")
+        for it in upstream_issues[:12]:
+            lines.append(f"- {it.domain}: {it.reason} {it.header}={it.value}")
+        lines.append("")
+
+    if access_stats is not None:
+        total = int(access_stats.total)
+        rate_502 = 0.0
+        if total > 0:
+            rate_502 = (int(access_stats.status_502_504) / float(total)) * 100.0
+        lines.append(
+            f"Nginx access: total={total} 5xx={access_stats.status_5xx} 502/504={access_stats.status_502_504} ({rate_502:.2f}%)"
+        )
+        if access_stats.sample_lines:
+            lines.append("Sample 502/504 lines:")
+            lines.extend(f"- {ln}" for ln in access_stats.sample_lines[:6])
+        lines.append("")
+
+    if upstream_errors_summary and isinstance(upstream_errors_summary.get("counts_by_server"), dict):
+        lines.append("Nginx upstream errors (error.log):")
+        counts = upstream_errors_summary.get("counts_by_server") or {}
+        for server, count in sorted(counts.items(), key=lambda kv: int(kv[1]), reverse=True)[:10]:
+            lines.append(f"- {server}: {int(count)}")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def _build_proxy_dispatch_prompt(
+    *,
+    upstream_issues: list[ProxyIssue],
+    access_stats: NginxAccessWindowStats | None,
+    upstream_error_events: list[NginxUpstreamErrorEvent],
+    window_seconds: int,
+) -> str:
+    payload = {
+        "window_seconds": int(window_seconds),
+        "upstream_header_issues": [
+            {
+                "domain": it.domain,
+                "reason": it.reason,
+                "header": it.header,
+                "value": it.value,
+                "details": it.details,
+            }
+            for it in upstream_issues[:25]
+        ],
+        "nginx_access": (
+            {
+                "total": access_stats.total,
+                "status_5xx": access_stats.status_5xx,
+                "status_502_504": access_stats.status_502_504,
+                "status_4xx": access_stats.status_4xx,
+                "sample_lines": access_stats.sample_lines[:8],
+            }
+            if access_stats is not None
+            else None
+        ),
+        "nginx_upstream_errors": [
+            {"ts": e.ts, "level": e.level, "server": e.server, "upstream": e.upstream, "message": e.message}
+            for e in upstream_error_events[:60]
+        ],
+    }
+    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected reverse proxy upstream/failover issues (backup upstream, 502/504 spike, or upstream errors).\n\n"
+        "Details (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Confirm Nginx upstream status on the production host (curl -i to affected domains; inspect upstream headers).\n"
+        "2) Check Nginx error.log for upstream failures and correlate to service containers/ports.\n"
+        "3) Identify which upstream (primary/backup) is serving and why failover occurred.\n"
+        "4) Provide a remediation plan for a human operator (no changes executed).\n\n"
+        "Return a concise final report with:\n"
+        "- Root cause + evidence\n"
+        "- Impacted domains/upstreams\n"
+        "- Recommended safe remediation steps\n"
+    )
+
+
+def _build_meta_alert_message(
+    *,
+    reasons: list[str],
+    down_after_failures: int,
+    fail_streak: int,
+) -> str:
+    lines = ["Monitor warning: monitoring pipeline is degraded ⚠️"]
+    if down_after_failures > 1:
+        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
+    lines.append("")
+    for r in reasons[:12]:
+        lines.append(f"- {r}")
+    return "\n".join(lines).strip()
+
+
+def _build_meta_dispatch_prompt(*, reasons: list[str], context: dict[str, Any]) -> str:
+    details = json.dumps({"reasons": reasons[:25], "context": context}, indent=2, ensure_ascii=False, sort_keys=True)
+    return (
+        "The service-monitoring detected that the monitoring pipeline itself is degraded (cycle overruns/state write failures/etc.).\n\n"
+        "Details (JSON):\n"
+        f"{details}\n\n"
+        f"{_dispatch_read_only_rules()}\n"
+        "Task:\n"
+        "1) Confirm whether the service-monitoring container is overloaded (CPU/mem), or stuck (slow cycles).\n"
+        "2) Check host resource pressure and docker stats.\n"
+        "3) Check monitor container logs for repeated errors (state write, Telegram, Playwright launch).\n"
+        "4) Provide a safe remediation plan for a human operator (no changes executed).\n\n"
+        "Return a concise final report with:\n"
+        "- Root cause hypothesis + evidence\n"
+        "- Impact (are we missing checks/alerts?)\n"
+        "- Recommended safe remediation steps\n"
     )
 
 
@@ -1337,6 +2159,218 @@ async def _dispatch_performance_and_forward(
     )
 
 
+async def _dispatch_tls_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    results: list[TlsCertCheckResult],
+    min_days_valid: float,
+) -> None:
+    prompt = _build_tls_dispatch_prompt(results=results, min_days_valid=min_days_valid)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.tls",
+        telegram_title="TLS investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_dns_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    results: list[DnsCheckResult],
+) -> None:
+    prompt = _build_dns_dispatch_prompt(results=results)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.dns",
+        telegram_title="DNS investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_slo_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    violations: list[SloBurnViolation],
+    slo_target_percent: float,
+) -> None:
+    prompt = _build_slo_dispatch_prompt(violations=violations, slo_target_percent=slo_target_percent)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.slo",
+        telegram_title="SLO burn investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_red_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    violations: list[RedViolation],
+    window_minutes: int,
+) -> None:
+    prompt = _build_red_dispatch_prompt(violations=violations, window_minutes=window_minutes)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.red",
+        telegram_title="RED signals investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_api_contract_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    failures: list[ApiContractCheckResult],
+) -> None:
+    prompt = _build_api_contract_dispatch_prompt(failures=failures)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.api_contract",
+        telegram_title="API contract investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_synthetic_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    failures: list[SyntheticTransactionResult],
+) -> None:
+    prompt = _build_synthetic_dispatch_prompt(failures=failures)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.synthetic",
+        telegram_title="Synthetic transactions investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_web_vitals_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    failures: list[WebVitalsResult],
+) -> None:
+    prompt = _build_web_vitals_dispatch_prompt(failures=failures)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.web_vitals",
+        telegram_title="Web vitals investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_container_health_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    issues: list[ContainerHealthIssue],
+) -> None:
+    prompt = _build_container_health_dispatch_prompt(issues=issues)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.container_health",
+        telegram_title="Container health investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_proxy_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    upstream_issues: list[ProxyIssue],
+    access_stats: NginxAccessWindowStats | None,
+    upstream_error_events: list[NginxUpstreamErrorEvent],
+    window_seconds: int,
+) -> None:
+    prompt = _build_proxy_dispatch_prompt(
+        upstream_issues=upstream_issues,
+        access_stats=access_stats,
+        upstream_error_events=upstream_error_events,
+        window_seconds=window_seconds,
+    )
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.proxy",
+        telegram_title="Proxy/upstream investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
+async def _dispatch_meta_and_forward(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    dispatch_cfg: DispatchConfig,
+    dispatch_state: dict[str, Any],
+    reasons: list[str],
+    context: dict[str, Any],
+) -> None:
+    prompt = _build_meta_dispatch_prompt(reasons=reasons, context=context)
+    await _dispatch_prompt_and_forward(
+        http_client=http_client,
+        telegram_cfg=telegram_cfg,
+        dispatch_cfg=dispatch_cfg,
+        prompt=prompt,
+        state_key="service-monitoring.meta",
+        telegram_title="Monitoring pipeline investigation",
+        dispatch_state=dispatch_state,
+    )
+
+
 async def check_one_domain(
     spec: DomainCheckSpec,
     http_client: httpx.AsyncClient,
@@ -1487,6 +2521,151 @@ async def run_loop(config_path: Path, once: bool) -> int:
     if isinstance(overrides_raw, dict):
         perf_overrides = overrides_raw
 
+    history_cfg = _get_history_config(config)
+    history_retention_days = _coerce_float(history_cfg.get("retention_days", 7.0), default=7.0)
+    history_retention_days = max(1.0, float(history_retention_days))
+    history_retention_seconds = history_retention_days * 86400.0
+
+    slo_cfg = _get_slo_config(config)
+    slo_enabled = bool(slo_cfg.get("enabled", False))
+    slo_target_percent = _coerce_float(slo_cfg.get("target_percent", 99.9), default=99.9)
+    slo_down_after_failures = max(1, int(slo_cfg.get("down_after_failures", 3)))
+    slo_up_after_successes = max(1, int(slo_cfg.get("up_after_successes", 2)))
+    slo_dispatch_on_degraded = bool(slo_cfg.get("dispatch_on_degraded", False))
+    slo_notify_on_recovery = bool(slo_cfg.get("notify_on_recovery", False))
+    slo_min_total_samples = max(1, int(slo_cfg.get("min_total_samples", 5)))
+    slo_rules = slo_cfg.get("burn_rate_rules")
+    if not isinstance(slo_rules, list) or not slo_rules:
+        slo_rules = [
+            {
+                "name": "page_fast_burn",
+                "short_window_minutes": 5,
+                "long_window_minutes": 60,
+                "short_burn_rate": 14.4,
+                "long_burn_rate": 6.0,
+            },
+            {
+                "name": "ticket_slow_burn",
+                "short_window_minutes": 360,
+                "long_window_minutes": 4320,  # 3 days
+                "short_burn_rate": 6.0,
+                "long_burn_rate": 1.0,
+            },
+        ]
+
+    tls_cfg = _get_tls_config(config)
+    tls_enabled = bool(tls_cfg.get("enabled", False))
+    tls_interval_minutes = max(1, int(tls_cfg.get("interval_minutes", 60)))
+    tls_min_days_valid = _coerce_float(tls_cfg.get("min_days_valid", 14.0), default=14.0)
+    tls_timeout_seconds = _coerce_float(tls_cfg.get("timeout_seconds", 8.0), default=8.0)
+    tls_down_after_failures = max(1, int(tls_cfg.get("down_after_failures", 2)))
+    tls_up_after_successes = max(1, int(tls_cfg.get("up_after_successes", 1)))
+    tls_dispatch_on_degraded = bool(tls_cfg.get("dispatch_on_degraded", False))
+    tls_notify_on_recovery = bool(tls_cfg.get("notify_on_recovery", False))
+
+    dns_cfg = _get_dns_config(config)
+    dns_enabled = bool(dns_cfg.get("enabled", False))
+    dns_interval_minutes = max(1, int(dns_cfg.get("interval_minutes", 15)))
+    dns_timeout_seconds = _coerce_float(dns_cfg.get("timeout_seconds", 4.0), default=4.0)
+    dns_resolvers_raw = dns_cfg.get("resolvers")
+    dns_resolvers = [str(x).strip() for x in dns_resolvers_raw] if isinstance(dns_resolvers_raw, list) else None
+    if dns_resolvers is not None:
+        dns_resolvers = [x for x in dns_resolvers if x]
+        if not dns_resolvers:
+            dns_resolvers = None
+    dns_require_ipv4 = bool(dns_cfg.get("require_ipv4", True))
+    dns_require_ipv6 = bool(dns_cfg.get("require_ipv6", False))
+    dns_alert_on_drift_default = bool(dns_cfg.get("alert_on_drift", False))
+    dns_expected_ips_by_domain = dns_cfg.get("expected_ips_by_domain") if isinstance(dns_cfg.get("expected_ips_by_domain"), dict) else {}
+    dns_alert_on_drift_by_domain = dns_cfg.get("alert_on_drift_by_domain") if isinstance(dns_cfg.get("alert_on_drift_by_domain"), dict) else {}
+    dns_down_after_failures = max(1, int(dns_cfg.get("down_after_failures", 2)))
+    dns_up_after_successes = max(1, int(dns_cfg.get("up_after_successes", 1)))
+    dns_dispatch_on_degraded = bool(dns_cfg.get("dispatch_on_degraded", False))
+    dns_notify_on_recovery = bool(dns_cfg.get("notify_on_recovery", False))
+
+    red_cfg = _get_red_config(config)
+    red_enabled = bool(red_cfg.get("enabled", False))
+    red_window_minutes = max(1, int(red_cfg.get("window_minutes", 30)))
+    red_min_samples = max(1, int(red_cfg.get("min_samples", 10)))
+    red_error_rate_max_percent = _coerce_optional_float(red_cfg.get("error_rate_max_percent"))
+    red_http_p95_ms_max = _coerce_optional_float(red_cfg.get("http_p95_ms_max"))
+    red_browser_p95_ms_max = _coerce_optional_float(red_cfg.get("browser_p95_ms_max"))
+    red_down_after_failures = max(1, int(red_cfg.get("down_after_failures", 3)))
+    red_up_after_successes = max(1, int(red_cfg.get("up_after_successes", 2)))
+    red_dispatch_on_degraded = bool(red_cfg.get("dispatch_on_degraded", False))
+    red_notify_on_recovery = bool(red_cfg.get("notify_on_recovery", False))
+
+    syn_cfg = _get_synthetic_config(config)
+    syn_enabled = bool(syn_cfg.get("enabled", False))
+    syn_interval_minutes = max(1, int(syn_cfg.get("interval_minutes", 15)))
+    syn_max_domains_per_cycle = max(1, int(syn_cfg.get("max_domains_per_cycle", 1)))
+    syn_timeout_seconds = _coerce_float(syn_cfg.get("timeout_seconds", 35.0), default=35.0)
+    syn_down_after_failures = max(1, int(syn_cfg.get("down_after_failures", 2)))
+    syn_up_after_successes = max(1, int(syn_cfg.get("up_after_successes", 2)))
+    syn_dispatch_on_degraded = bool(syn_cfg.get("dispatch_on_degraded", False))
+    syn_notify_on_recovery = bool(syn_cfg.get("notify_on_recovery", False))
+
+    wv_cfg = _get_web_vitals_config(config)
+    wv_enabled = bool(wv_cfg.get("enabled", False))
+    wv_interval_minutes = max(1, int(wv_cfg.get("interval_minutes", 60)))
+    wv_max_domains_per_cycle = max(1, int(wv_cfg.get("max_domains_per_cycle", 1)))
+    wv_timeout_seconds = _coerce_float(wv_cfg.get("timeout_seconds", 45.0), default=45.0)
+    wv_post_load_wait_ms = _coerce_int(wv_cfg.get("post_load_wait_ms", 4500), default=4500)
+    wv_lcp_ms_max = _coerce_optional_float(wv_cfg.get("lcp_ms_max"))
+    wv_cls_max = _coerce_optional_float(wv_cfg.get("cls_max"))
+    wv_inp_ms_max = _coerce_optional_float(wv_cfg.get("inp_ms_max"))
+    wv_down_after_failures = max(1, int(wv_cfg.get("down_after_failures", 2)))
+    wv_up_after_successes = max(1, int(wv_cfg.get("up_after_successes", 2)))
+    wv_dispatch_on_degraded = bool(wv_cfg.get("dispatch_on_degraded", False))
+    wv_notify_on_recovery = bool(wv_cfg.get("notify_on_recovery", False))
+
+    api_cfg = _get_api_contract_config(config)
+    api_enabled = bool(api_cfg.get("enabled", False))
+    api_interval_minutes = max(1, int(api_cfg.get("interval_minutes", 10)))
+    api_timeout_seconds = _coerce_float(api_cfg.get("timeout_seconds", 10.0), default=10.0)
+    api_down_after_failures = max(1, int(api_cfg.get("down_after_failures", 2)))
+    api_up_after_successes = max(1, int(api_cfg.get("up_after_successes", 2)))
+    api_dispatch_on_degraded = bool(api_cfg.get("dispatch_on_degraded", False))
+    api_notify_on_recovery = bool(api_cfg.get("notify_on_recovery", False))
+
+    container_cfg = _get_container_health_config(config)
+    container_enabled = bool(container_cfg.get("enabled", False))
+    container_interval_minutes = max(1, int(container_cfg.get("interval_minutes", 1)))
+    docker_socket_path = str(container_cfg.get("docker_socket_path") or "/var/run/docker.sock").strip()
+    container_monitor_all = bool(container_cfg.get("monitor_all", False))
+    container_include_patterns = container_cfg.get("include_name_patterns") if isinstance(container_cfg.get("include_name_patterns"), list) else []
+    container_exclude_patterns = container_cfg.get("exclude_name_patterns") if isinstance(container_cfg.get("exclude_name_patterns"), list) else []
+    container_timeout_seconds = _coerce_float(container_cfg.get("timeout_seconds", 3.0), default=3.0)
+    container_down_after_failures = max(1, int(container_cfg.get("down_after_failures", 2)))
+    container_up_after_successes = max(1, int(container_cfg.get("up_after_successes", 1)))
+    container_dispatch_on_degraded = bool(container_cfg.get("dispatch_on_degraded", False))
+    container_notify_on_recovery = bool(container_cfg.get("notify_on_recovery", False))
+
+    proxy_cfg = _get_proxy_config(config)
+    proxy_enabled = bool(proxy_cfg.get("enabled", False))
+    proxy_access_log_path = str(proxy_cfg.get("access_log_path") or "/var/log/nginx/access.log").strip()
+    proxy_error_log_path = str(proxy_cfg.get("error_log_path") or "/var/log/nginx/error.log").strip()
+    proxy_timezone_name = str(proxy_cfg.get("timezone") or "Europe/Amsterdam").strip() or "Europe/Amsterdam"
+    proxy_window_seconds = max(60, int(proxy_cfg.get("window_seconds", 300)))
+    proxy_access_max_bytes = max(10_000, int(proxy_cfg.get("access_log_max_bytes", 1_000_000)))
+    proxy_error_max_bytes = max(10_000, int(proxy_cfg.get("error_log_max_bytes", 1_000_000)))
+    proxy_min_total_requests = max(0, int(proxy_cfg.get("min_total_requests", 50)))
+    proxy_max_502_504_percent = _coerce_optional_float(proxy_cfg.get("max_502_504_percent"))
+    proxy_max_upstream_errors_per_domain = max(0, int(proxy_cfg.get("max_upstream_errors_per_domain", 5)))
+    proxy_down_after_failures = max(1, int(proxy_cfg.get("down_after_failures", 2)))
+    proxy_up_after_successes = max(1, int(proxy_cfg.get("up_after_successes", 2)))
+    proxy_dispatch_on_degraded = bool(proxy_cfg.get("dispatch_on_degraded", False))
+    proxy_notify_on_recovery = bool(proxy_cfg.get("notify_on_recovery", False))
+
+    meta_cfg = _get_meta_monitoring_config(config)
+    meta_enabled = bool(meta_cfg.get("enabled", False))
+    meta_cycle_overrun_factor = _coerce_float(meta_cfg.get("cycle_overrun_factor", 1.25), default=1.25)
+    meta_state_write_failures_max = max(1, int(meta_cfg.get("state_write_failures_max", 3)))
+    meta_down_after_failures = max(1, int(meta_cfg.get("down_after_failures", 2)))
+    meta_up_after_successes = max(1, int(meta_cfg.get("up_after_successes", 2)))
+    meta_dispatch_on_degraded = bool(meta_cfg.get("dispatch_on_degraded", False))
+    meta_notify_on_recovery = bool(meta_cfg.get("notify_on_recovery", False))
+
     chromium_path = find_chromium_executable()
     if not chromium_path:
         raise RuntimeError("Could not find a Chromium/Chrome executable (set CHROMIUM_PATH)")
@@ -1508,6 +2687,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     last_ok: dict[str, bool] = {}
     fail_streak: dict[str, int] = {}
     success_streak: dict[str, int] = {}
+    history_by_domain: dict[str, list[list[Any]]] = {}
     disk_state: dict[str, Any] = {}
     host_health_last_ok = True
     host_health_fail_streak = 0
@@ -1517,11 +2697,51 @@ async def run_loop(config_path: Path, once: bool) -> int:
     perf_last_ok = True
     perf_fail_streak = 0
     perf_success_streak = 0
+    slo_last_ok = True
+    slo_fail_streak = 0
+    slo_success_streak = 0
+    tls_last_ok = True
+    tls_fail_streak = 0
+    tls_success_streak = 0
+    tls_last_run_ts = 0.0
+    dns_last_ok = True
+    dns_fail_streak = 0
+    dns_success_streak = 0
+    dns_last_run_ts = 0.0
+    dns_last_ips: dict[str, list[str]] = {}
+    red_last_ok = True
+    red_fail_streak = 0
+    red_success_streak = 0
+    synthetic_last_ok: dict[str, bool] = {}
+    synthetic_fail_streak: dict[str, int] = {}
+    synthetic_success_streak: dict[str, int] = {}
+    synthetic_last_run_ts: dict[str, float] = {}
+    web_vitals_last_ok: dict[str, bool] = {}
+    web_vitals_fail_streak: dict[str, int] = {}
+    web_vitals_success_streak: dict[str, int] = {}
+    web_vitals_last_run_ts: dict[str, float] = {}
+    api_contract_last_ok: dict[str, bool] = {}
+    api_contract_fail_streak: dict[str, int] = {}
+    api_contract_success_streak: dict[str, int] = {}
+    api_contract_last_run_ts: dict[str, float] = {}
+    container_last_ok = True
+    container_fail_streak = 0
+    container_success_streak = 0
+    container_last_run_ts = 0.0
+    container_restart_counts: dict[str, int] = {}
+    proxy_last_ok = True
+    proxy_fail_streak = 0
+    proxy_success_streak = 0
+    meta_last_ok = True
+    meta_fail_streak = 0
+    meta_success_streak = 0
+    state_write_fail_streak = 0
     if state_path is not None:
         disk_state = _load_monitor_state(state_path)
         last_ok.update(disk_state.get("last_ok") or {})
         fail_streak.update(disk_state.get("fail_streak") or {})
         success_streak.update(disk_state.get("success_streak") or {})
+        history_by_domain = disk_state.get("history") or {}
         host_state = disk_state.get("host_health")
         if isinstance(host_state, dict):
             host_health_last_ok = _coerce_bool(host_state.get("last_ok"), default=True)
@@ -1534,6 +2754,74 @@ async def run_loop(config_path: Path, once: bool) -> int:
             perf_last_ok = _coerce_bool(perf_state.get("last_ok"), default=True)
             perf_fail_streak = _coerce_int(perf_state.get("fail_streak"), default=0)
             perf_success_streak = _coerce_int(perf_state.get("success_streak"), default=0)
+        slo_state = disk_state.get("slo")
+        if isinstance(slo_state, dict):
+            slo_last_ok = _coerce_bool(slo_state.get("last_ok"), default=True)
+            slo_fail_streak = _coerce_int(slo_state.get("fail_streak"), default=0)
+            slo_success_streak = _coerce_int(slo_state.get("success_streak"), default=0)
+
+        tls_state = disk_state.get("tls")
+        if isinstance(tls_state, dict):
+            tls_last_ok = _coerce_bool(tls_state.get("last_ok"), default=True)
+            tls_fail_streak = _coerce_int(tls_state.get("fail_streak"), default=0)
+            tls_success_streak = _coerce_int(tls_state.get("success_streak"), default=0)
+            tls_last_run_ts = _coerce_float(tls_state.get("last_run_ts"), default=0.0)
+
+        dns_state = disk_state.get("dns")
+        if isinstance(dns_state, dict):
+            dns_last_ok = _coerce_bool(dns_state.get("last_ok"), default=True)
+            dns_fail_streak = _coerce_int(dns_state.get("fail_streak"), default=0)
+            dns_success_streak = _coerce_int(dns_state.get("success_streak"), default=0)
+            dns_last_run_ts = _coerce_float(dns_state.get("last_run_ts"), default=0.0)
+            dns_last_ips = _coerce_str_list_dict(dns_state.get("last_ips"))
+
+        red_state = disk_state.get("red")
+        if isinstance(red_state, dict):
+            red_last_ok = _coerce_bool(red_state.get("last_ok"), default=True)
+            red_fail_streak = _coerce_int(red_state.get("fail_streak"), default=0)
+            red_success_streak = _coerce_int(red_state.get("success_streak"), default=0)
+
+        syn_state = disk_state.get("synthetic")
+        if isinstance(syn_state, dict):
+            synthetic_last_ok = _coerce_bool_dict(syn_state.get("last_ok"))
+            synthetic_fail_streak = _coerce_int_dict(syn_state.get("fail_streak"))
+            synthetic_success_streak = _coerce_int_dict(syn_state.get("success_streak"))
+            synthetic_last_run_ts = _coerce_float_dict(syn_state.get("last_run_ts"))
+
+        wv_state = disk_state.get("web_vitals")
+        if isinstance(wv_state, dict):
+            web_vitals_last_ok = _coerce_bool_dict(wv_state.get("last_ok"))
+            web_vitals_fail_streak = _coerce_int_dict(wv_state.get("fail_streak"))
+            web_vitals_success_streak = _coerce_int_dict(wv_state.get("success_streak"))
+            web_vitals_last_run_ts = _coerce_float_dict(wv_state.get("last_run_ts"))
+
+        api_state = disk_state.get("api_contract")
+        if isinstance(api_state, dict):
+            api_contract_last_ok = _coerce_bool_dict(api_state.get("last_ok"))
+            api_contract_fail_streak = _coerce_int_dict(api_state.get("fail_streak"))
+            api_contract_success_streak = _coerce_int_dict(api_state.get("success_streak"))
+            api_contract_last_run_ts = _coerce_float_dict(api_state.get("last_run_ts"))
+
+        cont_state = disk_state.get("container_health")
+        if isinstance(cont_state, dict):
+            container_last_ok = _coerce_bool(cont_state.get("last_ok"), default=True)
+            container_fail_streak = _coerce_int(cont_state.get("fail_streak"), default=0)
+            container_success_streak = _coerce_int(cont_state.get("success_streak"), default=0)
+            container_last_run_ts = _coerce_float(cont_state.get("last_run_ts"), default=0.0)
+            container_restart_counts = _coerce_int_dict(cont_state.get("restart_counts"))
+
+        proxy_state = disk_state.get("proxy")
+        if isinstance(proxy_state, dict):
+            proxy_last_ok = _coerce_bool(proxy_state.get("last_ok"), default=True)
+            proxy_fail_streak = _coerce_int(proxy_state.get("fail_streak"), default=0)
+            proxy_success_streak = _coerce_int(proxy_state.get("success_streak"), default=0)
+
+        meta_state = disk_state.get("meta")
+        if isinstance(meta_state, dict):
+            meta_last_ok = _coerce_bool(meta_state.get("last_ok"), default=True)
+            meta_fail_streak = _coerce_int(meta_state.get("fail_streak"), default=0)
+            meta_success_streak = _coerce_int(meta_state.get("success_streak"), default=0)
+            state_write_fail_streak = _coerce_int(meta_state.get("state_write_fail_streak"), default=0)
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
     check_semaphore = asyncio.Semaphore(check_concurrency)
     browser_semaphore = asyncio.Semaphore(browser_concurrency)
@@ -1556,6 +2844,87 @@ async def run_loop(config_path: Path, once: bool) -> int:
         "browser_min_mem_available_mb": max(0, browser_min_mem_available_mb),
     }
 
+    def _build_state_payload() -> dict[str, Any]:
+        return {
+            "version": 4,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "last_ok": last_ok,
+            "fail_streak": fail_streak,
+            "success_streak": success_streak,
+            "history": history_by_domain,
+            "browser_degraded_last_notice_ts": float(monitor_state.get("browser_degraded_last_notice_ts") or 0.0),
+            "host_health": {
+                "last_ok": bool(host_health_last_ok),
+                "fail_streak": int(host_health_fail_streak),
+                "success_streak": int(host_health_success_streak),
+                "cpu_prev_total": int(host_cpu_prev_total),
+                "cpu_prev_idle": int(host_cpu_prev_idle),
+            },
+            "performance": {
+                "last_ok": bool(perf_last_ok),
+                "fail_streak": int(perf_fail_streak),
+                "success_streak": int(perf_success_streak),
+            },
+            "slo": {
+                "last_ok": bool(slo_last_ok),
+                "fail_streak": int(slo_fail_streak),
+                "success_streak": int(slo_success_streak),
+            },
+            "tls": {
+                "last_ok": bool(tls_last_ok),
+                "fail_streak": int(tls_fail_streak),
+                "success_streak": int(tls_success_streak),
+                "last_run_ts": float(tls_last_run_ts),
+            },
+            "dns": {
+                "last_ok": bool(dns_last_ok),
+                "fail_streak": int(dns_fail_streak),
+                "success_streak": int(dns_success_streak),
+                "last_run_ts": float(dns_last_run_ts),
+                "last_ips": dns_last_ips,
+            },
+            "red": {
+                "last_ok": bool(red_last_ok),
+                "fail_streak": int(red_fail_streak),
+                "success_streak": int(red_success_streak),
+            },
+            "synthetic": {
+                "last_ok": synthetic_last_ok,
+                "fail_streak": synthetic_fail_streak,
+                "success_streak": synthetic_success_streak,
+                "last_run_ts": synthetic_last_run_ts,
+            },
+            "web_vitals": {
+                "last_ok": web_vitals_last_ok,
+                "fail_streak": web_vitals_fail_streak,
+                "success_streak": web_vitals_success_streak,
+                "last_run_ts": web_vitals_last_run_ts,
+            },
+            "api_contract": {
+                "last_ok": api_contract_last_ok,
+                "fail_streak": api_contract_fail_streak,
+                "success_streak": api_contract_success_streak,
+                "last_run_ts": api_contract_last_run_ts,
+            },
+            "container_health": {
+                "last_ok": bool(container_last_ok),
+                "fail_streak": int(container_fail_streak),
+                "success_streak": int(container_success_streak),
+                "last_run_ts": float(container_last_run_ts),
+                "restart_counts": container_restart_counts,
+            },
+            "proxy": {
+                "last_ok": bool(proxy_last_ok),
+                "fail_streak": int(proxy_fail_streak),
+                "success_streak": int(proxy_success_streak),
+            },
+            "meta": {
+                "last_ok": bool(meta_last_ok),
+                "fail_streak": int(meta_fail_streak),
+                "success_streak": int(meta_success_streak),
+                "state_write_fail_streak": int(state_write_fail_streak),
+            },
+        }
 
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI Service Monitoring Bot"}) as http_client:
         async with async_playwright() as p:
@@ -1683,6 +3052,20 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         last_ok.pop(domain, None)
                         fail_streak.pop(domain, None)
                         success_streak.pop(domain, None)
+                        history_by_domain.pop(domain, None)
+                        synthetic_last_ok.pop(domain, None)
+                        synthetic_fail_streak.pop(domain, None)
+                        synthetic_success_streak.pop(domain, None)
+                        synthetic_last_run_ts.pop(domain, None)
+                        web_vitals_last_ok.pop(domain, None)
+                        web_vitals_fail_streak.pop(domain, None)
+                        web_vitals_success_streak.pop(domain, None)
+                        web_vitals_last_run_ts.pop(domain, None)
+                        api_contract_last_ok.pop(domain, None)
+                        api_contract_fail_streak.pop(domain, None)
+                        api_contract_success_streak.pop(domain, None)
+                        api_contract_last_run_ts.pop(domain, None)
+                        dns_last_ips.pop(domain, None)
                     disabled_lines = sorted(_format_disabled_domain_line(entry, tz) for entry in disabled_entries)
                     enabled_specs = [
                         specs_by_domain[entry.domain] for entry in domain_entries if entry.domain not in disabled_set
@@ -1777,6 +3160,197 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     result.reason,
                                     result.details,
                                 )
+
+                    # ------------------------------
+                    # Rolling history (SLO/RED inputs)
+                    # ------------------------------
+                    if not isinstance(history_by_domain, dict):
+                        history_by_domain = {}
+                    for domain in disabled_set:
+                        history_by_domain.pop(domain, None)
+
+                    for domain, result in cycle_results.items():
+                        details = result.details or {}
+                        http_ms = None
+                        try:
+                            if details.get("http_elapsed_ms") is not None:
+                                http_ms = float(details.get("http_elapsed_ms"))
+                        except Exception:
+                            http_ms = None
+                        browser_ms = None
+                        try:
+                            if details.get("browser_elapsed_ms") is not None:
+                                browser_ms = float(details.get("browser_elapsed_ms"))
+                        except Exception:
+                            browser_ms = None
+                        status_code = None
+                        try:
+                            if details.get("status_code") is not None:
+                                status_code = int(details.get("status_code"))
+                        except Exception:
+                            status_code = None
+
+                        append_sample(
+                            history_by_domain,
+                            domain=domain,
+                            ts=float(cycle_started),
+                            ok=bool(result.ok),
+                            http_elapsed_ms=http_ms,
+                            browser_elapsed_ms=browser_ms,
+                            status_code=status_code,
+                        )
+
+                    try:
+                        prune_history(
+                            history_by_domain,
+                            before_ts=time.time() - float(history_retention_seconds),
+                        )
+                    except Exception:
+                        LOGGER.exception("Failed to prune history")
+
+                    # ------------------------------
+                    # SLO burn-rate monitoring
+                    # ------------------------------
+                    slo_violations: list[SloBurnViolation] = []
+                    if slo_enabled and isinstance(history_by_domain, dict) and history_by_domain:
+                        try:
+                            slo_violations = compute_slo_burn_violations(
+                                history_by_domain=history_by_domain,
+                                now_ts=time.time(),
+                                slo_target_percent=float(slo_target_percent),
+                                burn_rate_rules=slo_rules,
+                                min_total_samples=int(slo_min_total_samples),
+                            )
+                        except Exception:
+                            LOGGER.exception("SLO burn computation failed")
+                            slo_violations = []
+
+                        slo_observed_ok = not bool(slo_violations)
+                        prev_effective = bool(slo_last_ok)
+                        slo_last_ok, slo_fail_streak, slo_success_streak, slo_alerted_down = _update_effective_ok(
+                            prev_effective_ok=prev_effective,
+                            observed_ok=slo_observed_ok,
+                            fail_streak=int(slo_fail_streak),
+                            success_streak=int(slo_success_streak),
+                            down_after_failures=slo_down_after_failures,
+                            up_after_successes=slo_up_after_successes,
+                        )
+
+                        if slo_alerted_down and slo_violations:
+                            msg = _build_slo_alert_message(
+                                violations=slo_violations,
+                                slo_target_percent=float(slo_target_percent),
+                                down_after_failures=slo_down_after_failures,
+                                fail_streak=int(slo_fail_streak),
+                            )
+                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                            LOGGER.warning(
+                                "SLO burn alert sent_ok=%s telegram_last=%s violations=%s",
+                                ok_all,
+                                redact_telegram_response(resps[-1] if resps else {}),
+                                [v.domain for v in slo_violations[:5]],
+                            )
+
+                            if slo_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                if "slo" in active_dispatch_tasks and not active_dispatch_tasks["slo"].done():
+                                    LOGGER.info("Dispatch already running for SLO; skipping new dispatch")
+                                else:
+                                    active_dispatch_tasks["slo"] = asyncio.create_task(
+                                        _dispatch_slo_and_forward(
+                                            http_client=http_client,
+                                            telegram_cfg=telegram_cfg,
+                                            dispatch_cfg=dispatch_cfg,
+                                            dispatch_state=dispatch_state,
+                                            violations=slo_violations,
+                                            slo_target_percent=float(slo_target_percent),
+                                        )
+                                    )
+
+                        slo_recovered = (not prev_effective) and bool(slo_last_ok)
+                        if slo_recovered and slo_notify_on_recovery:
+                            ok, resp = await send_telegram_message(
+                                http_client,
+                                telegram_cfg,
+                                "SLO burn recovered ✅ (burn-rate violations cleared).",
+                            )
+                            LOGGER.info(
+                                "SLO burn recovery notice sent_ok=%s telegram=%s",
+                                ok,
+                                redact_telegram_response(resp),
+                            )
+
+                    # ------------------------------
+                    # RED / golden signals
+                    # ------------------------------
+                    red_violations: list[RedViolation] = []
+                    if red_enabled and isinstance(history_by_domain, dict) and history_by_domain:
+                        try:
+                            red_violations = compute_red_violations(
+                                history_by_domain=history_by_domain,
+                                now_ts=time.time(),
+                                window_minutes=int(red_window_minutes),
+                                min_samples=int(red_min_samples),
+                                error_rate_max_percent=red_error_rate_max_percent,
+                                http_p95_ms_max=red_http_p95_ms_max,
+                                browser_p95_ms_max=red_browser_p95_ms_max,
+                            )
+                        except Exception:
+                            LOGGER.exception("RED computation failed")
+                            red_violations = []
+
+                        red_observed_ok = not bool(red_violations)
+                        prev_effective = bool(red_last_ok)
+                        red_last_ok, red_fail_streak, red_success_streak, red_alerted_down = _update_effective_ok(
+                            prev_effective_ok=prev_effective,
+                            observed_ok=red_observed_ok,
+                            fail_streak=int(red_fail_streak),
+                            success_streak=int(red_success_streak),
+                            down_after_failures=red_down_after_failures,
+                            up_after_successes=red_up_after_successes,
+                        )
+
+                        if red_alerted_down and red_violations:
+                            msg = _build_red_alert_message(
+                                violations=red_violations,
+                                window_minutes=int(red_window_minutes),
+                                down_after_failures=red_down_after_failures,
+                                fail_streak=int(red_fail_streak),
+                            )
+                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                            LOGGER.warning(
+                                "RED degraded alert sent_ok=%s telegram_last=%s domains=%s",
+                                ok_all,
+                                redact_telegram_response(resps[-1] if resps else {}),
+                                [v.domain for v in red_violations[:5]],
+                            )
+
+                            if red_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                if "red" in active_dispatch_tasks and not active_dispatch_tasks["red"].done():
+                                    LOGGER.info("Dispatch already running for RED; skipping new dispatch")
+                                else:
+                                    active_dispatch_tasks["red"] = asyncio.create_task(
+                                        _dispatch_red_and_forward(
+                                            http_client=http_client,
+                                            telegram_cfg=telegram_cfg,
+                                            dispatch_cfg=dispatch_cfg,
+                                            dispatch_state=dispatch_state,
+                                            violations=red_violations,
+                                            window_minutes=int(red_window_minutes),
+                                        )
+                                    )
+
+                        red_recovered = (not prev_effective) and bool(red_last_ok)
+                        if red_recovered and red_notify_on_recovery:
+                            ok, resp = await send_telegram_message(
+                                http_client,
+                                telegram_cfg,
+                                "RED signals recovered ✅ (error-rate/latency back under thresholds).",
+                            )
+                            LOGGER.info(
+                                "RED recovery notice sent_ok=%s telegram=%s",
+                                ok,
+                                redact_telegram_response(resp),
+                            )
 
                     host_snap: dict[str, Any] | None = None
                     host_violations: list[str] | None = None
@@ -1939,6 +3513,697 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 redact_telegram_response(resp),
                             )
 
+                    # ------------------------------
+                    # TLS certificate checks (expiry / handshake)
+                    # ------------------------------
+                    tls_results: list[TlsCertCheckResult] | None = None
+                    if tls_enabled:
+                        now_ts = time.time()
+                        due = (now_ts - float(tls_last_run_ts or 0.0)) >= float(tls_interval_minutes * 60)
+                        if due and enabled_specs:
+                            tls_last_run_ts = now_ts
+                            urls_by_domain = {s.domain: s.url for s in enabled_specs}
+                            try:
+                                tls_results = await check_tls_certs(
+                                    urls_by_domain=urls_by_domain,
+                                    min_days_valid=float(tls_min_days_valid),
+                                    timeout_seconds=float(tls_timeout_seconds),
+                                    concurrency=min(50, max(5, len(urls_by_domain))),
+                                )
+                            except Exception:
+                                LOGGER.exception("TLS cert checks crashed")
+                                tls_results = [
+                                    TlsCertCheckResult(
+                                        domain="tls",
+                                        ok=False,
+                                        host=None,
+                                        port=None,
+                                        not_after_iso=None,
+                                        days_remaining=None,
+                                        error="tls_check_crashed",
+                                        details={},
+                                    )
+                                ]
+
+                            tls_observed_ok = all(r.ok for r in (tls_results or []))
+                            prev_effective = bool(tls_last_ok)
+                            tls_last_ok, tls_fail_streak, tls_success_streak, tls_alerted_down = _update_effective_ok(
+                                prev_effective_ok=prev_effective,
+                                observed_ok=tls_observed_ok,
+                                fail_streak=int(tls_fail_streak),
+                                success_streak=int(tls_success_streak),
+                                down_after_failures=tls_down_after_failures,
+                                up_after_successes=tls_up_after_successes,
+                            )
+
+                            if tls_alerted_down and tls_results and (not tls_observed_ok):
+                                msg = _build_tls_alert_message(
+                                    results=tls_results,
+                                    min_days_valid=float(tls_min_days_valid),
+                                    down_after_failures=tls_down_after_failures,
+                                    fail_streak=int(tls_fail_streak),
+                                )
+                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                                LOGGER.warning(
+                                    "TLS degraded alert sent_ok=%s telegram_last=%s",
+                                    ok_all,
+                                    redact_telegram_response(resps[-1] if resps else {}),
+                                )
+
+                                if tls_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                    if "tls" in active_dispatch_tasks and not active_dispatch_tasks["tls"].done():
+                                        LOGGER.info("Dispatch already running for TLS; skipping new dispatch")
+                                    else:
+                                        active_dispatch_tasks["tls"] = asyncio.create_task(
+                                            _dispatch_tls_and_forward(
+                                                http_client=http_client,
+                                                telegram_cfg=telegram_cfg,
+                                                dispatch_cfg=dispatch_cfg,
+                                                dispatch_state=dispatch_state,
+                                                results=tls_results,
+                                                min_days_valid=float(tls_min_days_valid),
+                                            )
+                                        )
+
+                            tls_recovered = (not prev_effective) and bool(tls_last_ok)
+                            if tls_recovered and tls_notify_on_recovery:
+                                ok, resp = await send_telegram_message(
+                                    http_client,
+                                    telegram_cfg,
+                                    "TLS checks recovered ✅ (certificate issues cleared).",
+                                )
+                                LOGGER.info(
+                                    "TLS recovery notice sent_ok=%s telegram=%s",
+                                    ok,
+                                    redact_telegram_response(resp),
+                                )
+
+                    # ------------------------------
+                    # DNS checks (resolution / drift)
+                    # ------------------------------
+                    dns_results: list[DnsCheckResult] | None = None
+                    if dns_enabled:
+                        now_ts = time.time()
+                        due = (now_ts - float(dns_last_run_ts or 0.0)) >= float(dns_interval_minutes * 60)
+                        if due and enabled_specs:
+                            dns_last_run_ts = now_ts
+                            enabled_domains = [s.domain for s in enabled_specs]
+
+                            # Normalize per-domain configs to lowercase keys.
+                            expected_ips_norm: dict[str, list[str]] = {}
+                            if isinstance(dns_expected_ips_by_domain, dict):
+                                for k, v in dns_expected_ips_by_domain.items():
+                                    kk = str(k or "").strip().lower()
+                                    if not kk:
+                                        continue
+                                    expected_ips_norm[kk] = v if isinstance(v, list) else [v]
+
+                            drift_norm: dict[str, bool] = {d.lower(): bool(dns_alert_on_drift_default) for d in enabled_domains}
+                            if isinstance(dns_alert_on_drift_by_domain, dict):
+                                for k, v in dns_alert_on_drift_by_domain.items():
+                                    kk = str(k or "").strip().lower()
+                                    if not kk:
+                                        continue
+                                    drift_norm[kk] = bool(v)
+
+                            try:
+                                dns_results = await check_dns(
+                                    domains=enabled_domains,
+                                    resolvers=dns_resolvers,
+                                    timeout_seconds=float(dns_timeout_seconds),
+                                    require_ipv4=bool(dns_require_ipv4),
+                                    require_ipv6=bool(dns_require_ipv6),
+                                    previous_ips_by_domain=dns_last_ips,
+                                    expected_ips_by_domain=expected_ips_norm,
+                                    alert_on_drift_by_domain=drift_norm,
+                                )
+                            except Exception:
+                                LOGGER.exception("DNS checks crashed")
+                                dns_results = [
+                                    DnsCheckResult(
+                                        domain="dns",
+                                        ok=False,
+                                        a_records=[],
+                                        aaaa_records=[],
+                                        error="dns_check_crashed",
+                                        drift_detected=False,
+                                        expected_ips=None,
+                                    )
+                                ]
+
+                            # Update baseline for drift checks.
+                            if dns_results:
+                                for r in dns_results:
+                                    cur = sorted(set((r.a_records or []) + (r.aaaa_records or [])))
+                                    dns_last_ips[r.domain] = cur
+
+                            dns_observed_ok = all(r.ok for r in (dns_results or []))
+                            prev_effective = bool(dns_last_ok)
+                            dns_last_ok, dns_fail_streak, dns_success_streak, dns_alerted_down = _update_effective_ok(
+                                prev_effective_ok=prev_effective,
+                                observed_ok=dns_observed_ok,
+                                fail_streak=int(dns_fail_streak),
+                                success_streak=int(dns_success_streak),
+                                down_after_failures=dns_down_after_failures,
+                                up_after_successes=dns_up_after_successes,
+                            )
+
+                            if dns_alerted_down and dns_results and (not dns_observed_ok):
+                                msg = _build_dns_alert_message(
+                                    results=dns_results,
+                                    down_after_failures=dns_down_after_failures,
+                                    fail_streak=int(dns_fail_streak),
+                                )
+                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                                LOGGER.warning(
+                                    "DNS degraded alert sent_ok=%s telegram_last=%s",
+                                    ok_all,
+                                    redact_telegram_response(resps[-1] if resps else {}),
+                                )
+
+                                if dns_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                    if "dns" in active_dispatch_tasks and not active_dispatch_tasks["dns"].done():
+                                        LOGGER.info("Dispatch already running for DNS; skipping new dispatch")
+                                    else:
+                                        active_dispatch_tasks["dns"] = asyncio.create_task(
+                                            _dispatch_dns_and_forward(
+                                                http_client=http_client,
+                                                telegram_cfg=telegram_cfg,
+                                                dispatch_cfg=dispatch_cfg,
+                                                dispatch_state=dispatch_state,
+                                                results=dns_results,
+                                            )
+                                        )
+
+                            dns_recovered = (not prev_effective) and bool(dns_last_ok)
+                            if dns_recovered and dns_notify_on_recovery:
+                                ok, resp = await send_telegram_message(
+                                    http_client,
+                                    telegram_cfg,
+                                    "DNS checks recovered ✅ (resolution issues cleared).",
+                                )
+                                LOGGER.info(
+                                    "DNS recovery notice sent_ok=%s telegram=%s",
+                                    ok,
+                                    redact_telegram_response(resp),
+                                )
+
+                    # ------------------------------
+                    # API contract checks (per-domain)
+                    # ------------------------------
+                    api_failures_to_alert: list[ApiContractCheckResult] = []
+                    api_failures_for_dispatch: list[ApiContractCheckResult] = []
+                    if api_enabled and enabled_specs:
+                        now_ts = time.time()
+                        due_domains = [
+                            s
+                            for s in enabled_specs
+                            if s.api_contract_checks
+                            and (now_ts - float(api_contract_last_run_ts.get(s.domain, 0.0))) >= float(api_interval_minutes * 60)
+                        ]
+                        if due_domains:
+                            tasks_by_domain: dict[str, asyncio.Task[list[ApiContractCheckResult]]] = {}
+                            for spec in due_domains[:50]:
+                                api_contract_last_run_ts[spec.domain] = now_ts
+                                tasks_by_domain[spec.domain] = asyncio.create_task(
+                                    run_api_contract_checks(
+                                        http_client=http_client,
+                                        domain=spec.domain,
+                                        base_url=spec.url,
+                                        checks=spec.api_contract_checks,
+                                        timeout_seconds=float(api_timeout_seconds),
+                                    )
+                                )
+
+                            for domain, task in tasks_by_domain.items():
+                                results = await task
+                                observed_ok = all(r.ok for r in results) if results else True
+                                prev_effective = api_contract_last_ok.get(domain, True)
+                                next_effective, next_fail, next_success, alerted_down = _update_effective_ok(
+                                    prev_effective_ok=bool(prev_effective),
+                                    observed_ok=observed_ok,
+                                    fail_streak=int(api_contract_fail_streak.get(domain, 0)),
+                                    success_streak=int(api_contract_success_streak.get(domain, 0)),
+                                    down_after_failures=api_down_after_failures,
+                                    up_after_successes=api_up_after_successes,
+                                )
+                                api_contract_last_ok[domain] = next_effective
+                                api_contract_fail_streak[domain] = next_fail
+                                api_contract_success_streak[domain] = next_success
+
+                                if alerted_down:
+                                    failures = [r for r in results if not r.ok]
+                                    api_failures_to_alert.extend(failures)
+                                    api_failures_for_dispatch.extend(failures)
+                                    msg = _build_api_contract_alert_message(
+                                        failures=failures,
+                                        down_after_failures=api_down_after_failures,
+                                        fail_streak=int(next_fail),
+                                    )
+                                    ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                                    LOGGER.warning(
+                                        "API contract degraded domain=%s sent_ok=%s telegram_last=%s",
+                                        domain,
+                                        ok_all,
+                                        redact_telegram_response(resps[-1] if resps else {}),
+                                    )
+                                else:
+                                    if (not prev_effective) and bool(next_effective) and api_notify_on_recovery:
+                                        ok, resp = await send_telegram_message(
+                                            http_client,
+                                            telegram_cfg,
+                                            f"API contract checks recovered ✅ domain={domain}",
+                                        )
+                                        LOGGER.info(
+                                            "API contract recovery notice sent_ok=%s telegram=%s domain=%s",
+                                            ok,
+                                            redact_telegram_response(resp),
+                                            domain,
+                                        )
+
+                            if api_failures_for_dispatch and api_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                if "api_contract" in active_dispatch_tasks and not active_dispatch_tasks["api_contract"].done():
+                                    LOGGER.info("Dispatch already running for api_contract; skipping new dispatch")
+                                else:
+                                    active_dispatch_tasks["api_contract"] = asyncio.create_task(
+                                        _dispatch_api_contract_and_forward(
+                                            http_client=http_client,
+                                            telegram_cfg=telegram_cfg,
+                                            dispatch_cfg=dispatch_cfg,
+                                            dispatch_state=dispatch_state,
+                                            failures=api_failures_for_dispatch,
+                                        )
+                                    )
+
+                    # ------------------------------
+                    # Docker container health checks
+                    # ------------------------------
+                    container_issues: list[ContainerHealthIssue] | None = None
+                    if container_enabled:
+                        now_ts = time.time()
+                        due = (now_ts - float(container_last_run_ts or 0.0)) >= float(container_interval_minutes * 60)
+                        if due:
+                            container_last_run_ts = now_ts
+                            try:
+                                container_issues, container_restart_counts_next = await check_container_health(
+                                    docker_socket_path=docker_socket_path,
+                                    include_name_patterns=container_include_patterns,
+                                    exclude_name_patterns=container_exclude_patterns,
+                                    monitor_all=bool(container_monitor_all),
+                                    previous_restart_counts=container_restart_counts,
+                                    timeout_seconds=float(container_timeout_seconds),
+                                )
+                                container_restart_counts = container_restart_counts_next
+                            except Exception:
+                                LOGGER.exception("Container health check crashed")
+                                container_issues = [
+                                    ContainerHealthIssue(
+                                        name="docker",
+                                        container_id="",
+                                        running=None,
+                                        status=None,
+                                        restart_count=None,
+                                        restart_increase=None,
+                                        oom_killed=None,
+                                        health_status=None,
+                                        exit_code=None,
+                                        error="container_health_check_crashed",
+                                    )
+                                ]
+
+                            container_observed_ok = not bool(container_issues)
+                            prev_effective = bool(container_last_ok)
+                            (
+                                container_last_ok,
+                                container_fail_streak,
+                                container_success_streak,
+                                container_alerted_down,
+                            ) = _update_effective_ok(
+                                prev_effective_ok=prev_effective,
+                                observed_ok=container_observed_ok,
+                                fail_streak=int(container_fail_streak),
+                                success_streak=int(container_success_streak),
+                                down_after_failures=container_down_after_failures,
+                                up_after_successes=container_up_after_successes,
+                            )
+
+                            if container_alerted_down and container_issues:
+                                msg = _build_container_health_alert_message(
+                                    issues=container_issues,
+                                    down_after_failures=container_down_after_failures,
+                                    fail_streak=int(container_fail_streak),
+                                )
+                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                                LOGGER.warning(
+                                    "Container health degraded alert sent_ok=%s telegram_last=%s issues=%s",
+                                    ok_all,
+                                    redact_telegram_response(resps[-1] if resps else {}),
+                                    [it.name for it in container_issues[:5]],
+                                )
+
+                                if container_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                    if "container_health" in active_dispatch_tasks and not active_dispatch_tasks["container_health"].done():
+                                        LOGGER.info("Dispatch already running for container_health; skipping new dispatch")
+                                    else:
+                                        active_dispatch_tasks["container_health"] = asyncio.create_task(
+                                            _dispatch_container_health_and_forward(
+                                                http_client=http_client,
+                                                telegram_cfg=telegram_cfg,
+                                                dispatch_cfg=dispatch_cfg,
+                                                dispatch_state=dispatch_state,
+                                                issues=container_issues,
+                                            )
+                                        )
+
+                            container_recovered = (not prev_effective) and bool(container_last_ok)
+                            if container_recovered and container_notify_on_recovery:
+                                ok, resp = await send_telegram_message(
+                                    http_client,
+                                    telegram_cfg,
+                                    "Container health recovered ✅",
+                                )
+                                LOGGER.info(
+                                    "Container health recovery notice sent_ok=%s telegram=%s",
+                                    ok,
+                                    redact_telegram_response(resp),
+                                )
+
+                    # ------------------------------
+                    # Reverse proxy upstream/failover checks
+                    # ------------------------------
+                    if proxy_enabled and cycle_results:
+                        proxy_tz = _load_timezone(proxy_timezone_name)
+                        upstream_issues = check_upstream_header_expectations(
+                            specs_by_domain=specs_by_domain, cycle_results=cycle_results
+                        )
+
+                        access_stats = None
+                        access_violation = False
+                        if proxy_max_502_504_percent is not None and proxy_access_log_path:
+                            access_stats = compute_access_window_stats(
+                                access_log_path=proxy_access_log_path,
+                                now=datetime.now(timezone.utc),
+                                window_seconds=int(proxy_window_seconds),
+                                max_bytes=int(proxy_access_max_bytes),
+                            )
+                            if access_stats is not None and access_stats.total >= int(proxy_min_total_requests):
+                                pct = (int(access_stats.status_502_504) / float(access_stats.total or 1)) * 100.0
+                                if float(pct) > float(proxy_max_502_504_percent):
+                                    access_violation = True
+
+                        upstream_events = []
+                        upstream_summary = None
+                        upstream_violation = False
+                        if proxy_error_log_path and proxy_max_upstream_errors_per_domain > 0:
+                            upstream_events = parse_recent_upstream_errors(
+                                error_log_path=proxy_error_log_path,
+                                now=datetime.now(timezone.utc),
+                                window_seconds=int(proxy_window_seconds),
+                                local_tz=proxy_tz,
+                                max_bytes=int(proxy_error_max_bytes),
+                            )
+                            upstream_summary = summarize_upstream_errors(upstream_events)
+                            counts = upstream_summary.get("counts_by_server") if isinstance(upstream_summary, dict) else {}
+                            if isinstance(counts, dict):
+                                enabled_domains = {s.domain for s in enabled_specs}
+                                for server, count in counts.items():
+                                    if server not in enabled_domains:
+                                        continue
+                                    if int(count) >= int(proxy_max_upstream_errors_per_domain):
+                                        upstream_violation = True
+                                        break
+
+                        proxy_observed_ok = (not upstream_issues) and (not access_violation) and (not upstream_violation)
+                        prev_effective = bool(proxy_last_ok)
+                        proxy_last_ok, proxy_fail_streak, proxy_success_streak, proxy_alerted_down = _update_effective_ok(
+                            prev_effective_ok=prev_effective,
+                            observed_ok=proxy_observed_ok,
+                            fail_streak=int(proxy_fail_streak),
+                            success_streak=int(proxy_success_streak),
+                            down_after_failures=proxy_down_after_failures,
+                            up_after_successes=proxy_up_after_successes,
+                        )
+
+                        if proxy_alerted_down and (not proxy_observed_ok):
+                            msg = _build_proxy_alert_message(
+                                upstream_issues=upstream_issues,
+                                access_stats=access_stats,
+                                upstream_errors_summary=upstream_summary,
+                                window_seconds=int(proxy_window_seconds),
+                                down_after_failures=proxy_down_after_failures,
+                                fail_streak=int(proxy_fail_streak),
+                            )
+                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                            LOGGER.warning(
+                                "Proxy degraded alert sent_ok=%s telegram_last=%s",
+                                ok_all,
+                                redact_telegram_response(resps[-1] if resps else {}),
+                            )
+
+                            if proxy_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                if "proxy" in active_dispatch_tasks and not active_dispatch_tasks["proxy"].done():
+                                    LOGGER.info("Dispatch already running for proxy; skipping new dispatch")
+                                else:
+                                    active_dispatch_tasks["proxy"] = asyncio.create_task(
+                                        _dispatch_proxy_and_forward(
+                                            http_client=http_client,
+                                            telegram_cfg=telegram_cfg,
+                                            dispatch_cfg=dispatch_cfg,
+                                            dispatch_state=dispatch_state,
+                                            upstream_issues=upstream_issues,
+                                            access_stats=access_stats,
+                                            upstream_error_events=upstream_events,
+                                            window_seconds=int(proxy_window_seconds),
+                                        )
+                                    )
+
+                        proxy_recovered = (not prev_effective) and bool(proxy_last_ok)
+                        if proxy_recovered and proxy_notify_on_recovery:
+                            ok, resp = await send_telegram_message(
+                                http_client,
+                                telegram_cfg,
+                                "Proxy/upstream signals recovered ✅",
+                            )
+                            LOGGER.info(
+                                "Proxy recovery notice sent_ok=%s telegram=%s",
+                                ok,
+                                redact_telegram_response(resp),
+                            )
+
+                    # ------------------------------
+                    # Synthetic transactions (Playwright step flows)
+                    # ------------------------------
+                    syn_failures_for_dispatch: list[SyntheticTransactionResult] = []
+                    if syn_enabled and enabled_specs and browser is not None and not browser_degraded:
+                        now_ts = time.time()
+                        candidates = [
+                            s
+                            for s in enabled_specs
+                            if s.synthetic_transactions
+                            and (now_ts - float(synthetic_last_run_ts.get(s.domain, 0.0))) >= float(syn_interval_minutes * 60)
+                        ]
+                        candidates.sort(key=lambda s: float(synthetic_last_run_ts.get(s.domain, 0.0)))
+                        for spec in candidates[: int(syn_max_domains_per_cycle)]:
+                            synthetic_last_run_ts[spec.domain] = now_ts
+                            results = await run_synthetic_transactions(
+                                domain=spec.domain,
+                                base_url=spec.url,
+                                browser=browser,
+                                transactions=spec.synthetic_transactions,
+                                timeout_seconds=float(syn_timeout_seconds),
+                            )
+                            real_failures = [r for r in results if (not r.ok) and (not r.browser_infra_error)]
+                            observed_ok = not bool(real_failures)
+                            prev_effective = synthetic_last_ok.get(spec.domain, True)
+                            (
+                                next_effective,
+                                next_fail,
+                                next_success,
+                                alerted_down,
+                            ) = _update_effective_ok(
+                                prev_effective_ok=bool(prev_effective),
+                                observed_ok=observed_ok,
+                                fail_streak=int(synthetic_fail_streak.get(spec.domain, 0)),
+                                success_streak=int(synthetic_success_streak.get(spec.domain, 0)),
+                                down_after_failures=syn_down_after_failures,
+                                up_after_successes=syn_up_after_successes,
+                            )
+                            synthetic_last_ok[spec.domain] = next_effective
+                            synthetic_fail_streak[spec.domain] = next_fail
+                            synthetic_success_streak[spec.domain] = next_success
+
+                            if alerted_down and real_failures:
+                                msg = _build_synthetic_alert_message(
+                                    failures=real_failures,
+                                    down_after_failures=syn_down_after_failures,
+                                    fail_streak=int(next_fail),
+                                )
+                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                                LOGGER.warning(
+                                    "Synthetic degraded domain=%s sent_ok=%s telegram_last=%s",
+                                    spec.domain,
+                                    ok_all,
+                                    redact_telegram_response(resps[-1] if resps else {}),
+                                )
+                                syn_failures_for_dispatch.extend(real_failures)
+                            else:
+                                recovered = (not prev_effective) and bool(next_effective)
+                                if recovered and syn_notify_on_recovery:
+                                    ok, resp = await send_telegram_message(
+                                        http_client,
+                                        telegram_cfg,
+                                        f"Synthetic transactions recovered ✅ domain={spec.domain}",
+                                    )
+                                    LOGGER.info(
+                                        "Synthetic recovery notice sent_ok=%s telegram=%s domain=%s",
+                                        ok,
+                                        redact_telegram_response(resp),
+                                        spec.domain,
+                                    )
+
+                        if syn_failures_for_dispatch and syn_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                            if "synthetic" in active_dispatch_tasks and not active_dispatch_tasks["synthetic"].done():
+                                LOGGER.info("Dispatch already running for synthetic; skipping new dispatch")
+                            else:
+                                active_dispatch_tasks["synthetic"] = asyncio.create_task(
+                                    _dispatch_synthetic_and_forward(
+                                        http_client=http_client,
+                                        telegram_cfg=telegram_cfg,
+                                        dispatch_cfg=dispatch_cfg,
+                                        dispatch_state=dispatch_state,
+                                        failures=syn_failures_for_dispatch,
+                                    )
+                                )
+
+                    # ------------------------------
+                    # Core Web Vitals (browser metrics)
+                    # ------------------------------
+                    wv_failures_for_dispatch: list[WebVitalsResult] = []
+                    if wv_enabled and enabled_specs and browser is not None and not browser_degraded:
+                        now_ts = time.time()
+                        candidates = [
+                            s
+                            for s in enabled_specs
+                            if (now_ts - float(web_vitals_last_run_ts.get(s.domain, 0.0))) >= float(wv_interval_minutes * 60)
+                        ]
+                        candidates.sort(key=lambda s: float(web_vitals_last_run_ts.get(s.domain, 0.0)))
+                        for spec in candidates[: int(wv_max_domains_per_cycle)]:
+                            web_vitals_last_run_ts[spec.domain] = now_ts
+                            r = await measure_web_vitals(
+                                domain=spec.domain,
+                                url=spec.url,
+                                browser=browser,
+                                timeout_seconds=float(wv_timeout_seconds),
+                                post_load_wait_ms=int(wv_post_load_wait_ms),
+                            )
+
+                            # Skip infra-induced browser failures (handled by browser_degraded warnings).
+                            if (not r.ok) and bool(r.browser_infra_error):
+                                continue
+
+                            # Per-domain overrides via check.py (web_vitals: {...}).
+                            cfg = spec.web_vitals if isinstance(spec.web_vitals, dict) else {}
+                            lcp_max = _coerce_optional_float(cfg.get("lcp_ms_max", wv_lcp_ms_max))
+                            cls_max = _coerce_optional_float(cfg.get("cls_max", wv_cls_max))
+                            inp_max = _coerce_optional_float(cfg.get("inp_ms_max", wv_inp_ms_max))
+
+                            thresholds = {"lcp_ms_max": lcp_max, "cls_max": cls_max, "inp_ms_max": inp_max}
+
+                            evaluated = r
+                            if r.ok:
+                                m = r.metrics or {}
+                                lcp = m.get("lcp_ms")
+                                cls = m.get("cls")
+                                inp = m.get("inp_ms")
+                                violations = []
+                                try:
+                                    if lcp_max is not None and lcp is not None and float(lcp) > float(lcp_max):
+                                        violations.append(f"lcp_ms>{float(lcp_max):.0f}")
+                                except Exception:
+                                    pass
+                                try:
+                                    if cls_max is not None and cls is not None and float(cls) > float(cls_max):
+                                        violations.append(f"cls>{float(cls_max):.3f}")
+                                except Exception:
+                                    pass
+                                try:
+                                    if inp_max is not None and inp is not None and float(inp) > float(inp_max):
+                                        violations.append(f"inp_ms>{float(inp_max):.0f}")
+                                except Exception:
+                                    pass
+                                if violations:
+                                    evaluated = WebVitalsResult(
+                                        domain=r.domain,
+                                        ok=False,
+                                        metrics=r.metrics,
+                                        error="threshold_exceeded: " + ",".join(violations),
+                                        elapsed_ms=r.elapsed_ms,
+                                        browser_infra_error=r.browser_infra_error,
+                                    )
+
+                            observed_ok = bool(evaluated.ok)
+                            prev_effective = web_vitals_last_ok.get(spec.domain, True)
+                            (
+                                next_effective,
+                                next_fail,
+                                next_success,
+                                alerted_down,
+                            ) = _update_effective_ok(
+                                prev_effective_ok=bool(prev_effective),
+                                observed_ok=observed_ok,
+                                fail_streak=int(web_vitals_fail_streak.get(spec.domain, 0)),
+                                success_streak=int(web_vitals_success_streak.get(spec.domain, 0)),
+                                down_after_failures=wv_down_after_failures,
+                                up_after_successes=wv_up_after_successes,
+                            )
+                            web_vitals_last_ok[spec.domain] = next_effective
+                            web_vitals_fail_streak[spec.domain] = next_fail
+                            web_vitals_success_streak[spec.domain] = next_success
+
+                            if alerted_down and (not evaluated.ok):
+                                msg = _build_web_vitals_alert_message(
+                                    failures=[evaluated],
+                                    thresholds=thresholds,
+                                    down_after_failures=wv_down_after_failures,
+                                    fail_streak=int(next_fail),
+                                )
+                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                                LOGGER.warning(
+                                    "Web vitals degraded domain=%s sent_ok=%s telegram_last=%s",
+                                    spec.domain,
+                                    ok_all,
+                                    redact_telegram_response(resps[-1] if resps else {}),
+                                )
+                                wv_failures_for_dispatch.append(evaluated)
+                            else:
+                                recovered = (not prev_effective) and bool(next_effective)
+                                if recovered and wv_notify_on_recovery:
+                                    ok, resp = await send_telegram_message(
+                                        http_client,
+                                        telegram_cfg,
+                                        f"Web vitals recovered ✅ domain={spec.domain}",
+                                    )
+                                    LOGGER.info(
+                                        "Web vitals recovery notice sent_ok=%s telegram=%s domain=%s",
+                                        ok,
+                                        redact_telegram_response(resp),
+                                        spec.domain,
+                                    )
+
+                        if wv_failures_for_dispatch and wv_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                            if "web_vitals" in active_dispatch_tasks and not active_dispatch_tasks["web_vitals"].done():
+                                LOGGER.info("Dispatch already running for web_vitals; skipping new dispatch")
+                            else:
+                                active_dispatch_tasks["web_vitals"] = asyncio.create_task(
+                                    _dispatch_web_vitals_and_forward(
+                                        http_client=http_client,
+                                        telegram_cfg=telegram_cfg,
+                                        dispatch_cfg=dispatch_cfg,
+                                        dispatch_state=dispatch_state,
+                                        failures=wv_failures_for_dispatch,
+                                    )
+                                )
+
                     if browser_degraded:
                         now_ts = time.time()
                         if not monitor_state.get("browser_degraded_active", False):
@@ -1980,32 +4245,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             # if the process crashes and restarts.
                             if state_path is not None:
                                 try:
-                                    _write_state_atomic(
-                                        state_path,
-                                        {
-                                            "version": 3,
-                                            "updated_at": datetime.now(timezone.utc).isoformat(),
-                                            "last_ok": last_ok,
-                                            "fail_streak": fail_streak,
-                                            "success_streak": success_streak,
-                                            "browser_degraded_last_notice_ts": float(
-                                                monitor_state.get("browser_degraded_last_notice_ts") or 0.0
-                                            ),
-                                            "host_health": {
-                                                "last_ok": bool(host_health_last_ok),
-                                                "fail_streak": int(host_health_fail_streak),
-                                                "success_streak": int(host_health_success_streak),
-                                                "cpu_prev_total": int(host_cpu_prev_total),
-                                                "cpu_prev_idle": int(host_cpu_prev_idle),
-                                            },
-                                            "performance": {
-                                                "last_ok": bool(perf_last_ok),
-                                                "fail_streak": int(perf_fail_streak),
-                                                "success_streak": int(perf_success_streak),
-                                            },
-                                        },
-                                    )
+                                    _write_state_atomic(state_path, _build_state_payload())
+                                    state_write_fail_streak = 0
                                 except Exception as exc:
+                                    state_write_fail_streak = int(state_write_fail_streak) + 1
                                     LOGGER.warning(
                                         "Failed to persist degraded notice timestamp path=%s error=%s",
                                         state_path,
@@ -2077,38 +4320,99 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                     if state_path is not None:
                         try:
-                            _write_state_atomic(
-                                state_path,
-                                {
-                                    "version": 3,
-                                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                                    "last_ok": last_ok,
-                                    "fail_streak": fail_streak,
-                                    "success_streak": success_streak,
-                                    "browser_degraded_last_notice_ts": float(
-                                        monitor_state.get("browser_degraded_last_notice_ts") or 0.0
-                                    ),
-                                    "host_health": {
-                                        "last_ok": bool(host_health_last_ok),
-                                        "fail_streak": int(host_health_fail_streak),
-                                        "success_streak": int(host_health_success_streak),
-                                        "cpu_prev_total": int(host_cpu_prev_total),
-                                        "cpu_prev_idle": int(host_cpu_prev_idle),
-                                    },
-                                    "performance": {
-                                        "last_ok": bool(perf_last_ok),
-                                        "fail_streak": int(perf_fail_streak),
-                                        "success_streak": int(perf_success_streak),
-                                    },
-                                },
-                            )
+                            _write_state_atomic(state_path, _build_state_payload())
+                            state_write_fail_streak = 0
                         except Exception as exc:
+                            state_write_fail_streak = int(state_write_fail_streak) + 1
                             LOGGER.warning("Failed to write state file path=%s error=%s", state_path, exc)
 
                     if once:
                         return 0
 
                     elapsed = time.time() - cycle_started
+
+                    # ------------------------------
+                    # Meta-monitoring (monitor pipeline health)
+                    # ------------------------------
+                    if meta_enabled:
+                        meta_reasons: list[str] = []
+                        try:
+                            overrun_threshold = float(interval_seconds) * float(meta_cycle_overrun_factor)
+                        except Exception:
+                            overrun_threshold = float(interval_seconds) * 1.25
+                        if float(elapsed) > float(overrun_threshold):
+                            meta_reasons.append(
+                                f"cycle_overrun: elapsed={round(float(elapsed), 3)}s > threshold={round(float(overrun_threshold), 3)}s interval={int(interval_seconds)}s"
+                            )
+                        if int(state_write_fail_streak) >= int(meta_state_write_failures_max):
+                            meta_reasons.append(
+                                f"state_write_failures: streak={int(state_write_fail_streak)} >= {int(meta_state_write_failures_max)}"
+                            )
+
+                        meta_observed_ok = not bool(meta_reasons)
+                        prev_effective = bool(meta_last_ok)
+                        meta_last_ok, meta_fail_streak, meta_success_streak, meta_alerted_down = _update_effective_ok(
+                            prev_effective_ok=prev_effective,
+                            observed_ok=meta_observed_ok,
+                            fail_streak=int(meta_fail_streak),
+                            success_streak=int(meta_success_streak),
+                            down_after_failures=meta_down_after_failures,
+                            up_after_successes=meta_up_after_successes,
+                        )
+
+                        if meta_alerted_down and meta_reasons:
+                            msg = _build_meta_alert_message(
+                                reasons=meta_reasons,
+                                down_after_failures=meta_down_after_failures,
+                                fail_streak=int(meta_fail_streak),
+                            )
+                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                            LOGGER.warning(
+                                "Meta degraded alert sent_ok=%s telegram_last=%s reasons=%s",
+                                ok_all,
+                                redact_telegram_response(resps[-1] if resps else {}),
+                                meta_reasons[:3],
+                            )
+
+                            if meta_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                if "meta" in active_dispatch_tasks and not active_dispatch_tasks["meta"].done():
+                                    LOGGER.info("Dispatch already running for meta; skipping new dispatch")
+                                else:
+                                    active_dispatch_tasks["meta"] = asyncio.create_task(
+                                        _dispatch_meta_and_forward(
+                                            http_client=http_client,
+                                            telegram_cfg=telegram_cfg,
+                                            dispatch_cfg=dispatch_cfg,
+                                            dispatch_state=dispatch_state,
+                                            reasons=meta_reasons,
+                                            context={
+                                                "interval_seconds": int(interval_seconds),
+                                                "elapsed_seconds": round(float(elapsed), 3),
+                                                "state_write_fail_streak": int(state_write_fail_streak),
+                                                "browser_connected": (
+                                                    bool(browser and getattr(browser, "is_connected", lambda: False)())
+                                                    if browser is not None
+                                                    else False
+                                                ),
+                                                "check_concurrency": int(check_concurrency),
+                                                "browser_concurrency": int(browser_concurrency),
+                                            },
+                                        )
+                                    )
+
+                        meta_recovered = (not prev_effective) and bool(meta_last_ok)
+                        if meta_recovered and meta_notify_on_recovery:
+                            ok, resp = await send_telegram_message(
+                                http_client,
+                                telegram_cfg,
+                                "Monitoring pipeline recovered ✅",
+                            )
+                            LOGGER.info(
+                                "Meta recovery notice sent_ok=%s telegram=%s",
+                                ok,
+                                redact_telegram_response(resp),
+                            )
+
                     sleep_for = max(0.0, interval_seconds - elapsed)
                     LOGGER.info(
                         "Cycle complete elapsed_seconds=%s sleep_seconds=%s",

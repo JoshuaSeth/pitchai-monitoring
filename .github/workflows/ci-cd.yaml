@@ -88,6 +88,8 @@ jobs:
               --init \
               --shm-size 1g \
               -v service-monitoring-state:/data \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v /var/log/nginx:/var/log/nginx:ro \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
               -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
