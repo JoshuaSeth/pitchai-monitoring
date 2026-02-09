@@ -3,6 +3,9 @@ name: Service Monitoring Deploy
 on:
   push:
     branches: [main]
+    # Avoid auto-deploys when only workflow files change.
+    paths-ignore:
+      - ".github/workflows/**"
   workflow_dispatch: {}
 
 concurrency:
@@ -11,7 +14,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pitchai-ci]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,7 +31,7 @@ jobs:
             sh -lc "pip install --no-cache-dir -r requirements-dev.txt && python -m pytest"
 
   deploy-prod:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, pitchai-ci]
     needs: test
     steps:
       - name: Deploy to production (SSH + Docker)
