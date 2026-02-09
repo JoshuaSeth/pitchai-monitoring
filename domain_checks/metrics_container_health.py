@@ -156,8 +156,10 @@ async def check_container_health(
             bad = True
         if isinstance(health_status, str) and health_status and health_status != "healthy":
             bad = True
-        if oom is True:
-            bad = True
+        # Docker's State.OOMKilled can remain True long after a container has recovered
+        # (it reflects the last stop reason, not necessarily a current incident). We
+        # still surface the flag in alerts when another problem is present, but we
+        # do not treat it as a standalone, persistent failure condition.
         if restart_increase is not None and restart_increase > 0:
             bad = True
         if exit_code is not None and exit_code != 0 and running is False:
@@ -211,4 +213,3 @@ async def check_container_health(
 
     issues.sort(key=lambda x: x.name)
     return issues, current_restart_counts
-

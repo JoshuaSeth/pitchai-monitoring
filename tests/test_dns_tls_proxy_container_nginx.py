@@ -113,6 +113,47 @@ async def test_container_health_detects_unhealthy(monkeypatch: pytest.MonkeyPatc
     assert restart_counts == {"id1": 2}
 
 
+@pytest.mark.asyncio
+async def test_container_health_ignores_sticky_oomkilled_for_running_container(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Docker's State.OOMKilled can remain True after a container is up and healthy.
+    We should not spam alerts if the container is otherwise OK.
+    """
+
+    def fake_get_json(*, socket_path: str, path: str, timeout_seconds: float = 5.0) -> DockerUnixResponse:
+        if path.startswith("/containers/json"):
+            return DockerUnixResponse(
+                status=200,
+                ok=True,
+                data=[{"Id": "id1", "Names": ["/svc"], "Status": "Up 1d (healthy)"}],
+                error=None,
+            )
+        if path == "/containers/id1/json":
+            return DockerUnixResponse(
+                status=200,
+                ok=True,
+                data={
+                    "State": {"Running": True, "OOMKilled": True, "ExitCode": 0, "Health": {"Status": "healthy"}},
+                    "RestartCount": 0,
+                },
+                error=None,
+            )
+        return DockerUnixResponse(status=404, ok=False, data=None, error="not_found")
+
+    monkeypatch.setattr("domain_checks.metrics_container_health.docker_unix_get_json", fake_get_json)
+
+    issues, restart_counts = await check_container_health(
+        docker_socket_path="/var/run/docker.sock",
+        include_name_patterns=["^svc$"],
+        exclude_name_patterns=[],
+        monitor_all=False,
+        previous_restart_counts={"id1": 0},
+        timeout_seconds=1.0,
+    )
+    assert issues == []
+    assert restart_counts == {"id1": 0}
+
+
 def test_nginx_access_and_error_log_parsers(tmp_path) -> None:
     now = datetime.now(timezone.utc)
     within = now - timedelta(seconds=10)
@@ -161,4 +202,3 @@ def test_nginx_access_and_error_log_parsers(tmp_path) -> None:
     assert events and events[0].server == "svc.example"
     summary = summarize_upstream_errors(events)
     assert summary["counts_by_server"]["svc.example"] == 1
-
