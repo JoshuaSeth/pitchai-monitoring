@@ -154,13 +154,28 @@ def _parse_disabled_until_ts(value: Any) -> float | None:
 
 def _normalize_domain_entries(domains_cfg: list[Any]) -> list[DomainEntryConfig]:
     entries: list[DomainEntryConfig] = []
+    forced_disabled = {
+        # Dispatcher runs on a different server and is not an app/site we want uptime/UI checks for.
+        # Keeping it here prevents accidental addition causing alert noise.
+        "dispatch.pitchai.net",
+    }
 
     for idx, entry in enumerate(domains_cfg):
         if isinstance(entry, str):
             domain = entry.strip()
             if not domain:
                 raise ValueError(f"domains[{idx}] is empty")
-            entries.append(DomainEntryConfig(domain=domain, raw_entry=domain))
+            if domain in forced_disabled:
+                entries.append(
+                    DomainEntryConfig(
+                        domain=domain,
+                        raw_entry=domain,
+                        disabled=True,
+                        disabled_reason="excluded from monitoring (dispatcher runs elsewhere)",
+                    )
+                )
+            else:
+                entries.append(DomainEntryConfig(domain=domain, raw_entry=domain))
             continue
 
         if not isinstance(entry, dict):
@@ -173,6 +188,11 @@ def _normalize_domain_entries(domains_cfg: list[Any]) -> list[DomainEntryConfig]
         disabled = bool(entry.get("disabled")) or (entry.get("enabled") is False)
         disabled_reason = str(entry.get("disabled_reason") or "").strip() or None
         disabled_until_ts = _parse_disabled_until_ts(entry.get("disabled_until"))
+
+        if domain in forced_disabled:
+            disabled = True
+            if not disabled_reason:
+                disabled_reason = "excluded from monitoring (dispatcher runs elsewhere)"
 
         entries.append(
             DomainEntryConfig(
