@@ -16,6 +16,14 @@ jobs:
   test:
     runs-on: [self-hosted, pitchai-ci]
     steps:
+      # Self-hosted runner + dockerized pytest: the container runs as root and can leave
+      # behind root-owned files in the workspace (e.g. `.pytest_cache`), which then
+      # breaks the next `actions/checkout` clean step. Pre-clean with sudo to keep
+      # the runner from getting stuck.
+      - name: Pre-clean workspace (avoid root-owned leftovers)
+        run: |
+          sudo rm -rf "$GITHUB_WORKSPACE"/* "$GITHUB_WORKSPACE"/.[!.]* "$GITHUB_WORKSPACE"/..?* || true
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -28,7 +36,7 @@ jobs:
             -v "$GITHUB_WORKSPACE:/work" \
             -w /work \
             service-monitoring:ci \
-            sh -lc "pip install --no-cache-dir -r requirements-dev.txt && python -m pytest"
+            sh -lc "pip install --no-cache-dir -r requirements-dev.txt && python -m pytest -o cache_dir=/tmp/pytest_cache"
 
   deploy-prod:
     runs-on: [self-hosted, pitchai-ci]
