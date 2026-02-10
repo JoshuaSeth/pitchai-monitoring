@@ -25,6 +25,7 @@
           </div>
         {% endif %}
         <div class="muted">Test ID: <span class="mono" data-testid="test-id">{{ test.id }}</span></div>
+        <div class="muted">Kind: <span class="mono" data-testid="test-kind">{{ test.test_kind or "stepflow" }}</span></div>
         <div class="muted">Base URL: <span class="mono" data-testid="test-base-url">{{ test.base_url }}</span></div>
         <div class="muted">Interval: <span class="mono">{{ test.interval_seconds }}s</span></div>
         <div class="muted">Timeout: <span class="mono">{{ test.timeout_seconds }}s</span></div>
@@ -51,8 +52,16 @@
       </div>
     </div>
 
-    <h2>Definition</h2>
-    <div class="code" data-testid="definition-json">{{ definition_json }}</div>
+    {% if (test.test_kind or "stepflow") == "stepflow" %}
+      <h2>Definition</h2>
+      <div class="code" data-testid="definition-json">{{ definition_json }}</div>
+    {% else %}
+      <h2>Source</h2>
+      {% if source_filename %}
+        <div class="muted">File: <span class="mono" data-testid="source-filename">{{ source_filename }}</span></div>
+      {% endif %}
+      <div class="code" data-testid="source-code">{{ source_text or "" }}</div>
+    {% endif %}
 
     <h2>Recent Runs</h2>
     <table data-testid="runs-table">

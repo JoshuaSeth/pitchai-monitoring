@@ -5,6 +5,8 @@ import asyncio
 import json
 import logging
 import os
+import re
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +20,10 @@ from domain_checks.metrics_synthetic import run_synthetic_transactions
 
 
 LOGGER = logging.getLogger("e2e-runner")
+
+
+RESULT_PREFIX = "E2E_RESULT_JSON="
+_RESULT_LINE_RE = re.compile(r"^E2E_RESULT_JSON=(\{.*\})\s*$")
 
 
 def _env_int(name: str, default: int) -> int:
@@ -47,25 +53,33 @@ class RunnerConfig:
     registry_base_url: str
     runner_token: str
     artifacts_dir: str
+    tests_dir: str
     poll_seconds: float
     concurrency: int
     trace_on_failure: bool
+    code_exec_mode: str  # local|docker (docker requires /var/run/docker.sock)
 
 
 def load_config() -> RunnerConfig:
     base = (os.getenv("E2E_REGISTRY_BASE_URL") or "http://127.0.0.1:8111").strip()
     tok = (os.getenv("E2E_REGISTRY_RUNNER_TOKEN") or "").strip()
     artifacts = (os.getenv("E2E_ARTIFACTS_DIR") or "/data/e2e-artifacts").strip()
+    tests_dir = (os.getenv("E2E_TESTS_DIR") or "/tests").strip()
     poll = float(os.getenv("E2E_RUNNER_POLL_SECONDS") or "5")
     conc = _env_int("E2E_RUNNER_CONCURRENCY", 1)
     trace_on_failure = _env_bool("E2E_RUNNER_TRACE_ON_FAILURE", False)
+    code_exec_mode = (os.getenv("E2E_RUNNER_CODE_EXEC_MODE") or "local").strip().lower()
+    if code_exec_mode not in {"local", "docker"}:
+        code_exec_mode = "local"
     return RunnerConfig(
         registry_base_url=base,
         runner_token=tok,
         artifacts_dir=artifacts,
+        tests_dir=tests_dir,
         poll_seconds=max(0.5, poll),
         concurrency=max(1, min(conc, 10)),
         trace_on_failure=trace_on_failure,
+        code_exec_mode=code_exec_mode,
     )
 
 
@@ -130,13 +144,127 @@ async def _complete_job(
     resp.raise_for_status()
 
 
-async def _run_one_job(browser: Browser, cfg: RunnerConfig, client: httpx.AsyncClient, job: dict[str, Any]) -> None:
+def _extract_result_json(text: str) -> dict[str, Any] | None:
+    """
+    Submitted test runners print a single machine-readable line:
+      E2E_RESULT_JSON={...}
+    We scan stdout/stderr for the last such line.
+    """
+    if not text:
+        return None
+    last = None
+    for line in str(text).splitlines():
+        m = _RESULT_LINE_RE.match(line.strip())
+        if not m:
+            continue
+        last = m.group(1)
+    if not last:
+        return None
+    try:
+        data = json.loads(last)
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _build_sandbox_env(*, base_url: str, artifacts_dir: str, extra: dict[str, str] | None = None) -> dict[str, str]:
+    """
+    Minimize secret leakage: do not inherit the runner container's full env.
+    """
+    keep_keys = {"PATH", "LANG", "TZ", "CHROMIUM_PATH", "NODE_PATH", "PUPPETEER_EXECUTABLE_PATH", "PUPPETEER_SKIP_DOWNLOAD"}
+    env: dict[str, str] = {}
+    for k, v in os.environ.items():
+        if k in keep_keys or k.startswith("LC_") or k.startswith("PUPPETEER_"):
+            env[str(k)] = str(v)
+    env.setdefault("HOME", "/tmp")
+    env["BASE_URL"] = str(base_url)
+    env["ARTIFACTS_DIR"] = str(artifacts_dir)
+    if extra:
+        for k, v in extra.items():
+            env[str(k)] = str(v)
+    return env
+
+
+async def _run_code_local(
+    *,
+    cfg: RunnerConfig,
+    kind: str,
+    test_file: Path,
+    base_url: str,
+    artifacts_dir: Path,
+    timeout_seconds: float,
+    trace_on_failure: bool,
+) -> tuple[dict[str, Any] | None, str]:
+    """
+    Execute code tests as separate local processes (still isolated from runner env).
+    Returns (parsed_result_json, combined_output).
+    """
+    cmd: list[str]
+    if kind == "playwright_python":
+        cmd = [
+            sys.executable,
+            "-m",
+            "e2e_sandbox.playwright_python",
+            "--test-file",
+            str(test_file),
+            "--base-url",
+            str(base_url),
+            "--artifacts-dir",
+            str(artifacts_dir),
+            "--timeout-seconds",
+            str(timeout_seconds),
+        ]
+        if trace_on_failure:
+            cmd.append("--trace-on-failure")
+    elif kind == "puppeteer_js":
+        cmd = [
+            "node",
+            "/app/e2e_sandbox/puppeteer_js_runner.js",
+            "--test-file",
+            str(test_file),
+            "--base-url",
+            str(base_url),
+            "--artifacts-dir",
+            str(artifacts_dir),
+            "--timeout-seconds",
+            str(timeout_seconds),
+        ]
+    else:
+        raise RuntimeError(f"unsupported_code_kind: {kind}")
+
+    env = _build_sandbox_env(base_url=base_url, artifacts_dir=str(artifacts_dir))
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=env,
+    )
+    try:
+        out_b, err_b = await asyncio.wait_for(proc.communicate(), timeout=max(5.0, float(timeout_seconds) + 15.0))
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        raise
+
+    out = (out_b or b"").decode("utf-8", errors="replace")
+    err = (err_b or b"").decode("utf-8", errors="replace")
+    combined = "\n".join([out.strip(), err.strip()]).strip()
+    parsed = _extract_result_json("\n".join([out, err]))
+    return parsed, combined
+
+
+async def _run_one_job(browser: Browser | None, cfg: RunnerConfig, client: httpx.AsyncClient, job: dict[str, Any]) -> None:
     run_id = str(job.get("run_id") or "").strip()
     test_id = str(job.get("test_id") or "").strip()
     tenant_id = str(job.get("tenant_id") or "").strip()
     base_url = str(job.get("base_url") or "").strip()
     timeout_seconds = float(job.get("timeout_seconds") or 45.0)
+    test_kind = str(job.get("test_kind") or "stepflow").strip().lower() or "stepflow"
     definition = job.get("definition")
+    source_relpath = str(job.get("source_relpath") or "").strip() or None
 
     started_at_ts = time.time()
     artifacts: dict[str, Any] = {}
@@ -151,55 +279,120 @@ async def _run_one_job(browser: Browser, cfg: RunnerConfig, client: httpx.AsyncC
     out_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        transactions = [definition] if isinstance(definition, dict) else []
-        if not transactions:
-            status = "fail"
-            error_kind = "invalid_definition"
-            error_message = "definition must be an object"
-        else:
-            results = await run_synthetic_transactions(
-                domain=test_id or "test",
-                base_url=base_url,
-                browser=browser,
-                transactions=transactions,
-                timeout_seconds=timeout_seconds,
-                artifacts_dir=str(out_dir),
-                trace_on_failure=bool(cfg.trace_on_failure),
-            )
-            r = results[0] if results else None
-            if r is None:
-                status = "fail"
-                error_kind = "runner_error"
-                error_message = "no_result"
-            elif r.ok:
-                status = "pass"
-                elapsed_ms = r.elapsed_ms
-                final_url = (r.details or {}).get("final_url")
+        if test_kind == "stepflow":
+            if browser is None:
+                status = "infra_degraded"
+                error_kind = "browser_unavailable"
+                error_message = "runner has no browser instance"
             else:
-                elapsed_ms = r.elapsed_ms
-                final_url = (r.details or {}).get("final_url")
-                title = (r.details or {}).get("title")
-                error_message = r.error
-                # r.error is already "Type: msg" format.
-                error_kind = "assertion_failed"
-                if r.browser_infra_error:
-                    status = "infra_degraded"
-                    error_kind = "browser_infra_error"
-                else:
+                transactions = [definition] if isinstance(definition, dict) else []
+                if not transactions:
                     status = "fail"
-                # Surface any artifact names collected by the synthetic runner.
-                if isinstance(r.details, dict):
-                    for k in ("failure_screenshot", "trace_zip", "run_log"):
-                        v = r.details.get(k)
-                        if isinstance(v, str) and v.strip():
-                            artifacts[k] = v.strip()
-                    for k, v in r.details.items():
-                        if not isinstance(k, str):
-                            continue
-                        if not k.startswith("screenshot_"):
-                            continue
-                        if isinstance(v, str) and v.strip():
-                            artifacts[k] = v.strip()
+                    error_kind = "invalid_definition"
+                    error_message = "definition must be an object"
+                else:
+                    results = await run_synthetic_transactions(
+                        domain=test_id or "test",
+                        base_url=base_url,
+                        browser=browser,
+                        transactions=transactions,
+                        timeout_seconds=timeout_seconds,
+                        artifacts_dir=str(out_dir),
+                        trace_on_failure=bool(cfg.trace_on_failure),
+                    )
+                    r = results[0] if results else None
+                    if r is None:
+                        status = "fail"
+                        error_kind = "runner_error"
+                        error_message = "no_result"
+                    elif r.ok:
+                        status = "pass"
+                        elapsed_ms = r.elapsed_ms
+                        final_url = (r.details or {}).get("final_url")
+                    else:
+                        elapsed_ms = r.elapsed_ms
+                        final_url = (r.details or {}).get("final_url")
+                        title = (r.details or {}).get("title")
+                        error_message = r.error
+                        # r.error is already "Type: msg" format.
+                        error_kind = "assertion_failed"
+                        if r.browser_infra_error:
+                            status = "infra_degraded"
+                            error_kind = "browser_infra_error"
+                        else:
+                            status = "fail"
+                        # Surface any artifact names collected by the synthetic runner.
+                        if isinstance(r.details, dict):
+                            for k in ("failure_screenshot", "trace_zip", "run_log"):
+                                v = r.details.get(k)
+                                if isinstance(v, str) and v.strip():
+                                    artifacts[k] = v.strip()
+                            for k, v in r.details.items():
+                                if not isinstance(k, str):
+                                    continue
+                                if not k.startswith("screenshot_"):
+                                    continue
+                                if isinstance(v, str) and v.strip():
+                                    artifacts[k] = v.strip()
+        else:
+            if test_kind not in {"playwright_python", "puppeteer_js"}:
+                status = "fail"
+                error_kind = "invalid_kind"
+                error_message = f"unsupported_test_kind: {test_kind}"
+            elif not source_relpath:
+                status = "fail"
+                error_kind = "missing_source"
+                error_message = "source_relpath is required for code tests"
+            else:
+                test_file = (Path(cfg.tests_dir).resolve() / source_relpath).resolve()
+                base_tests = Path(cfg.tests_dir).resolve()
+                if base_tests not in test_file.parents:
+                    status = "fail"
+                    error_kind = "invalid_source_path"
+                    error_message = "source_relpath resolves outside tests_dir"
+                elif not test_file.exists() or not test_file.is_file():
+                    status = "fail"
+                    error_kind = "source_not_found"
+                    error_message = f"missing_file: {test_file}"
+                else:
+                    parsed, combined = await _run_code_local(
+                        cfg=cfg,
+                        kind=test_kind,
+                        test_file=test_file,
+                        base_url=base_url,
+                        artifacts_dir=out_dir,
+                        timeout_seconds=timeout_seconds,
+                        trace_on_failure=bool(cfg.trace_on_failure),
+                    )
+                    # Always persist runner stdout/stderr for debugging.
+                    try:
+                        (out_dir / "runner_output.log").write_text(combined + "\n", encoding="utf-8", errors="replace")
+                        artifacts.setdefault("runner_output", "runner_output.log")
+                    except Exception:
+                        pass
+
+                    if parsed:
+                        status = str(parsed.get("status") or "fail").strip().lower()
+                        if status not in {"pass", "fail", "infra_degraded"}:
+                            status = "fail"
+                        elapsed_ms = parsed.get("elapsed_ms")
+                        try:
+                            elapsed_ms = float(elapsed_ms) if elapsed_ms is not None else None
+                        except Exception:
+                            elapsed_ms = None
+                        error_kind = str(parsed.get("error_kind") or "").strip() or None
+                        error_message = str(parsed.get("error_message") or "").strip() or None
+                        final_url = str(parsed.get("final_url") or "").strip() or None
+                        title = str(parsed.get("title") or "").strip() or None
+                        arts = parsed.get("artifacts")
+                        if isinstance(arts, dict):
+                            for k, v in arts.items():
+                                if isinstance(k, str) and isinstance(v, str) and v.strip():
+                                    artifacts[k] = v.strip()
+                    else:
+                        status = "fail"
+                        error_kind = "missing_result_json"
+                        error_message = "runner output did not include E2E_RESULT_JSON"
     except Exception as exc:
         status = "infra_degraded"
         error_kind = type(exc).__name__
@@ -227,11 +420,13 @@ async def run_loop(cfg: RunnerConfig) -> int:
         raise RuntimeError("Missing E2E_REGISTRY_RUNNER_TOKEN")
 
     LOGGER.info(
-        "Starting e2e-runner registry_base_url=%s poll_seconds=%s concurrency=%s trace_on_failure=%s",
+        "Starting e2e-runner registry_base_url=%s poll_seconds=%s concurrency=%s trace_on_failure=%s tests_dir=%s code_exec_mode=%s",
         cfg.registry_base_url,
         cfg.poll_seconds,
         cfg.concurrency,
         cfg.trace_on_failure,
+        cfg.tests_dir,
+        cfg.code_exec_mode,
     )
 
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI E2E Runner"}) as client:
@@ -274,13 +469,6 @@ async def run_loop(cfg: RunnerConfig) -> int:
 
             try:
                 while True:
-                    # Do not claim runs if we can't execute them (avoids locking runs in "pending").
-                    now_ts = time.time()
-                    b = await _ensure_browser(now_ts)
-                    if b is None:
-                        await asyncio.sleep(max(1.0, cfg.poll_seconds))
-                        continue
-
                     jobs = []
                     try:
                         jobs = await _claim_jobs(client, cfg)
@@ -292,11 +480,28 @@ async def run_loop(cfg: RunnerConfig) -> int:
                     if not jobs:
                         await asyncio.sleep(cfg.poll_seconds)
                         continue
+
+                    # Only launch/restart the shared browser when needed (StepFlow jobs). Code tests
+                    # can still run even if the browser subsystem is degraded.
+                    needs_browser = False
+                    for j in jobs:
+                        if not isinstance(j, dict):
+                            continue
+                        k = str(j.get("test_kind") or "stepflow").strip().lower() or "stepflow"
+                        if k == "stepflow":
+                            needs_browser = True
+                            break
+
+                    b = None
+                    if needs_browser:
+                        b = await _ensure_browser(time.time())
+
                     for job in jobs:
                         if not isinstance(job, dict):
                             continue
                         try:
-                            await _run_one_job(b, cfg, client, job)
+                            k = str(job.get("test_kind") or "stepflow").strip().lower() or "stepflow"
+                            await _run_one_job(b if k == "stepflow" else None, cfg, client, job)
                             rid = str(job.get("run_id") or "").strip()
                             tid = str(job.get("test_id") or "").strip()
                             LOGGER.info("Job complete run_id=%s test_id=%s", rid, tid)
@@ -335,44 +540,32 @@ def main() -> None:
                     LOGGER.info("No jobs claimed; exiting --once")
                     return
                 async with async_playwright() as p:
-                    try:
-                        browser = await _launch_browser(p)
-                    except Exception as exc:
-                        # Best-effort: release locks by completing claimed runs as infra-degraded.
-                        LOGGER.warning("Chromium launch failed in --once; completing claimed jobs as infra_degraded")
-                        for job in jobs:
-                            if not isinstance(job, dict):
-                                continue
-                            rid = str(job.get("run_id") or "").strip()
-                            if not rid:
-                                continue
-                            try:
-                                await _complete_job(
-                                    client,
-                                    cfg,
-                                    run_id=rid,
-                                    payload={
-                                        "status": "infra_degraded",
-                                        "elapsed_ms": None,
-                                        "error_kind": "browser_launch_failed",
-                                        "error_message": f"{type(exc).__name__}: {exc}",
-                                        "final_url": None,
-                                        "title": None,
-                                        "artifacts": {},
-                                        "started_at_ts": time.time(),
-                                        "finished_at_ts": time.time(),
-                                    },
-                                )
-                            except Exception:
-                                continue
-                        return
+                    needs_browser = False
+                    for j in jobs:
+                        if not isinstance(j, dict):
+                            continue
+                        k = str(j.get("test_kind") or "stepflow").strip().lower() or "stepflow"
+                        if k == "stepflow":
+                            needs_browser = True
+                            break
+
+                    browser = None
+                    if needs_browser:
+                        try:
+                            browser = await _launch_browser(p)
+                        except Exception:
+                            LOGGER.warning("Chromium launch failed in --once; StepFlow jobs will be infra_degraded")
+                            browser = None
 
                     try:
                         for job in jobs:
-                            if isinstance(job, dict):
-                                await _run_one_job(browser, cfg, client, job)
+                            if not isinstance(job, dict):
+                                continue
+                            k = str(job.get("test_kind") or "stepflow").strip().lower() or "stepflow"
+                            await _run_one_job(browser if k == "stepflow" else None, cfg, client, job)
                     finally:
-                        await browser.close()
+                        if browser is not None:
+                            await browser.close()
 
         asyncio.run(_once())
         return

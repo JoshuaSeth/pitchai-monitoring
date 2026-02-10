@@ -13,7 +13,7 @@ from typing import Any, Iterable
 from e2e_registry.settings import RegistrySettings
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _utc_ts() -> float:
@@ -75,10 +75,30 @@ def _ensure_schema_conn(conn: sqlite3.Connection) -> None:
 
     if cur == 0:
         _apply_v1(conn)
+        _apply_v2(conn)
         conn.execute("INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('version', ?)", (str(SCHEMA_VERSION),))
         return
 
+    if cur == 1:
+        _apply_v2(conn)
+        conn.execute("UPDATE schema_meta SET v=? WHERE k='version'", (str(SCHEMA_VERSION),))
+        return
+
     raise RuntimeError(f"Unsupported schema version upgrade path cur={cur} target={SCHEMA_VERSION}")
+
+
+def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    try:
+        rows = conn.execute(f"PRAGMA table_info({table});").fetchall()
+    except Exception:
+        return False
+    for r in rows:
+        try:
+            if str(r["name"]) == str(column):
+                return True
+        except Exception:
+            continue
+    return False
 
 
 def _apply_v1(conn: sqlite3.Connection) -> None:
@@ -166,6 +186,23 @@ def _apply_v1(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_tests_tenant_enabled ON tests(tenant_id, enabled);")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_test_state_due ON test_state(next_due_ts);")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_test_started ON runs(test_id, started_at_ts DESC);")
+
+
+def _apply_v2(conn: sqlite3.Connection) -> None:
+    """
+    v2 adds support for uploaded code-based tests in addition to StepFlow definitions.
+    """
+    # tests: identify how a test should be executed.
+    if not _column_exists(conn, "tests", "test_kind"):
+        conn.execute("ALTER TABLE tests ADD COLUMN test_kind TEXT NOT NULL DEFAULT 'stepflow';")
+    if not _column_exists(conn, "tests", "source_relpath"):
+        conn.execute("ALTER TABLE tests ADD COLUMN source_relpath TEXT;")
+    if not _column_exists(conn, "tests", "source_filename"):
+        conn.execute("ALTER TABLE tests ADD COLUMN source_filename TEXT;")
+    if not _column_exists(conn, "tests", "source_sha256"):
+        conn.execute("ALTER TABLE tests ADD COLUMN source_sha256 TEXT;")
+    if not _column_exists(conn, "tests", "source_content_type"):
+        conn.execute("ALTER TABLE tests ADD COLUMN source_content_type TEXT;")
 
 
 @dataclass(frozen=True)
@@ -281,7 +318,13 @@ def insert_test(
     tenant_id: str,
     name: str,
     base_url: str,
-    definition: dict[str, Any],
+    test_id: str | None = None,
+    test_kind: str = "stepflow",
+    definition: dict[str, Any] | None = None,
+    source_relpath: str | None = None,
+    source_filename: str | None = None,
+    source_sha256: str | None = None,
+    source_content_type: str | None = None,
     interval_seconds: int,
     timeout_seconds: int,
     jitter_seconds: int,
@@ -294,9 +337,14 @@ def insert_test(
     try:
         _ensure_schema_conn(conn)
         now = _utc_ts()
-        test_id = _uuid()
+        test_id = str(test_id).strip() if test_id is not None else _uuid()
+        if not test_id:
+            test_id = _uuid()
         jitter = max(0, int(jitter_seconds))
         next_due = now + float(random.randint(0, jitter)) if jitter else now
+        kind = str(test_kind or "stepflow").strip().lower() or "stepflow"
+        defn = definition if isinstance(definition, dict) else {}
+
         conn.execute("BEGIN IMMEDIATE;")
         try:
             conn.execute(
@@ -304,8 +352,9 @@ def insert_test(
                 INSERT INTO tests (
                   id, tenant_id, name, base_url, enabled, interval_seconds, timeout_seconds, jitter_seconds,
                   down_after_failures, up_after_successes, notify_on_recovery, dispatch_on_failure,
-                  definition_json, created_at_ts, updated_at_ts
-                ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  test_kind, definition_json, source_relpath, source_filename, source_sha256, source_content_type,
+                  created_at_ts, updated_at_ts
+                ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     test_id,
@@ -319,7 +368,12 @@ def insert_test(
                     int(up_after_successes),
                     1 if notify_on_recovery else 0,
                     1 if dispatch_on_failure else 0,
-                    _json_dumps(definition),
+                    kind,
+                    _json_dumps(defn),
+                    str(source_relpath).strip() if source_relpath else None,
+                    str(source_filename).strip() if source_filename else None,
+                    str(source_sha256).strip() if source_sha256 else None,
+                    str(source_content_type).strip() if source_content_type else None,
                     now,
                     now,
                 ),
@@ -337,7 +391,15 @@ def insert_test(
         except Exception:
             conn.execute("ROLLBACK;")
             raise
-        return {"id": test_id, "tenant_id": tenant_id, "name": name.strip(), "base_url": base_url.strip(), "next_due_ts": next_due}
+        return {
+            "id": test_id,
+            "tenant_id": tenant_id,
+            "name": name.strip(),
+            "base_url": base_url.strip(),
+            "test_kind": kind,
+            "source_relpath": str(source_relpath).strip() if source_relpath else None,
+            "next_due_ts": next_due,
+        }
     finally:
         conn.close()
 
@@ -401,6 +463,44 @@ def patch_test(settings: RegistrySettings, *, tenant_id: str, test_id: str, patc
         res = conn.execute(
             f"UPDATE tests SET {', '.join(sets)} WHERE id=? AND tenant_id=?",
             tuple(params),
+        )
+        return int(res.rowcount or 0) > 0
+    finally:
+        conn.close()
+
+
+def update_test_source(
+    settings: RegistrySettings,
+    *,
+    tenant_id: str,
+    test_id: str,
+    source_relpath: str,
+    source_filename: str,
+    source_sha256: str | None,
+    source_content_type: str | None,
+) -> bool:
+    """
+    Update the stored test source pointer for code-based tests.
+    """
+    conn = _connect(settings.db_path)
+    try:
+        _ensure_schema_conn(conn)
+        now = _utc_ts()
+        res = conn.execute(
+            """
+            UPDATE tests
+            SET source_relpath=?, source_filename=?, source_sha256=?, source_content_type=?, updated_at_ts=?
+            WHERE id=? AND tenant_id=?
+            """,
+            (
+                str(source_relpath).strip(),
+                str(source_filename).strip(),
+                str(source_sha256).strip() if source_sha256 else None,
+                str(source_content_type).strip() if source_content_type else None,
+                now,
+                test_id,
+                tenant_id,
+            ),
         )
         return int(res.rowcount or 0) > 0
     finally:
@@ -562,7 +662,11 @@ class ClaimedRun:
     test_name: str
     base_url: str
     timeout_seconds: int
+    test_kind: str
     definition: dict[str, Any]
+    source_relpath: str | None
+    source_filename: str | None
+    source_sha256: str | None
 
 
 def claim_due_runs(settings: RegistrySettings, *, max_runs: int) -> list[ClaimedRun]:
@@ -590,7 +694,11 @@ def claim_due_runs(settings: RegistrySettings, *, max_runs: int) -> list[Claimed
                   t.name AS test_name,
                   t.base_url AS base_url,
                   t.timeout_seconds AS timeout_seconds,
+                  t.test_kind AS test_kind,
                   t.definition_json AS definition_json,
+                  t.source_relpath AS source_relpath,
+                  t.source_filename AS source_filename,
+                  t.source_sha256 AS source_sha256,
                   s.next_due_ts AS next_due_ts,
                   s.running_lock_id AS running_lock_id,
                   s.running_locked_at_ts AS running_locked_at_ts
@@ -636,7 +744,11 @@ def claim_due_runs(settings: RegistrySettings, *, max_runs: int) -> list[Claimed
                         test_name=str(r["test_name"]),
                         base_url=str(r["base_url"]),
                         timeout_seconds=int(r["timeout_seconds"] or 45),
+                        test_kind=str(r["test_kind"] or "stepflow").strip().lower() or "stepflow",
                         definition=_json_loads(r["definition_json"]) or {},
+                        source_relpath=str(r["source_relpath"]).strip() if r["source_relpath"] else None,
+                        source_filename=str(r["source_filename"]).strip() if r["source_filename"] else None,
+                        source_sha256=str(r["source_sha256"]).strip() if r["source_sha256"] else None,
                     )
                 )
             conn.execute("COMMIT;")
@@ -873,6 +985,7 @@ def status_summary(settings: RegistrySettings) -> dict[str, Any]:
               t.tenant_id AS tenant_id,
               t.name AS test_name,
               t.base_url AS base_url,
+              t.test_kind AS test_kind,
               t.enabled AS enabled,
               s.effective_ok AS effective_ok,
               s.fail_streak AS fail_streak,

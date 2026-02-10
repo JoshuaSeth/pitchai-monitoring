@@ -118,14 +118,39 @@ docker run --rm \
   service-monitoring:latest
 ```
 
-## External E2E Registry (Developer-Submitted StepFlow Tests)
+## External E2E Registry (Developer-Submitted Test Files)
 
 This repo also includes an optional external E2E test registry + runner:
 
 - Registry service: `python -m e2e_registry.server` (FastAPI + minimal UI)
-- Runner worker: `python -m e2e_runner.main` (claims due runs and executes StepFlow with Playwright)
+- Runner worker: `python -m e2e_runner.main` (claims due runs and executes uploaded Playwright-Python / Puppeteer-JS tests, plus legacy StepFlow)
 
 The registry stores tests + run history in SQLite (single-host) by default and stores artifacts on a shared volume.
+
+### What External Developers Upload
+
+1. Playwright (Python): a single `.py` file that defines:
+
+```py
+async def run(page, base_url, artifacts_dir):
+    await page.goto(base_url.rstrip("/") + "/", wait_until="domcontentloaded")
+    title = await page.title()
+    assert "Example" in (title or "")
+```
+
+2. Puppeteer (JS): a single `.js`/`.mjs` file that exports:
+
+```js
+module.exports.run = async ({ page, baseUrl, artifactsDir }) => {
+  await page.goto(String(baseUrl || "").replace(/\\/$/, "") + "/", { waitUntil: "domcontentloaded" });
+  const title = await page.title();
+  if (!String(title || "").includes("Example")) {
+    throw new Error("title_missing: Example");
+  }
+};
+```
+
+Both types can write additional artifacts into `artifacts_dir` if desired. On failures, the sandbox runners will try to capture `failure.png` + `run.log`.
 
 ### Run Locally (3 terminals)
 
@@ -134,6 +159,7 @@ The registry stores tests + run history in SQLite (single-host) by default and s
 ```bash
 export E2E_REGISTRY_DB_PATH="/tmp/e2e-registry.db"
 export E2E_ARTIFACTS_DIR="/tmp/e2e-artifacts"
+export E2E_TESTS_DIR="/tmp/e2e-tests"
 export E2E_REGISTRY_ADMIN_TOKEN="admin-..."
 export E2E_REGISTRY_MONITOR_TOKEN="monitor-..."
 export E2E_REGISTRY_RUNNER_TOKEN="runner-..."
@@ -146,10 +172,29 @@ python -m e2e_registry.server
 export E2E_REGISTRY_BASE_URL="http://127.0.0.1:8111"
 export E2E_REGISTRY_RUNNER_TOKEN="runner-..."
 export E2E_ARTIFACTS_DIR="/tmp/e2e-artifacts"
+export E2E_TESTS_DIR="/tmp/e2e-tests"
 python -m e2e_runner.main
 ```
 
-3. (Optional) Include external E2E summary in heartbeats:
+3. Upload a test file via API:
+
+```bash
+TENANT_API_KEY="..."
+
+curl -sS -X POST "http://127.0.0.1:8111/api/v1/tests/upload" \
+  -H "Authorization: Bearer ${TENANT_API_KEY}" \
+  -F "name=my_home_smoke" \
+  -F "base_url=https://example.com" \
+  -F "kind=playwright_python" \
+  -F "interval_seconds=300" \
+  -F "timeout_seconds=45" \
+  -F "jitter_seconds=30" \
+  -F "down_after_failures=2" \
+  -F "up_after_successes=2" \
+  -F "file=@./my_home_smoke.py"
+```
+
+4. (Optional) Include external E2E summary in heartbeats:
 
 ```bash
 export E2E_REGISTRY_BASE_URL="http://127.0.0.1:8111"

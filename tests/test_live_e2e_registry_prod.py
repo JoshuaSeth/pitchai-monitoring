@@ -106,25 +106,31 @@ async def test_live_e2e_registry_api_pass_fail_artifacts_and_isolation() -> None
         r.raise_for_status()
         tenant_token = r.json()["token"]
 
-        # Passing test: real domain + real selector.
-        pass_def = {
-            "name": "deplanbook_home_smoke",
-            "steps": [
-                {"type": "goto", "url": "/"},
-                {"type": "expect_title_contains", "text": "Deplanbook"},
-                {"type": "wait_for_selector", "selector": "a[href=\"/diary\"]", "state": "visible"},
-                {"type": "screenshot", "name": "home"},
-            ],
-        }
+        # Passing test: Playwright-Python against a real domain + real selector.
+        pass_py = "\n".join(
+            [
+                "async def run(page, base_url, artifacts_dir):",
+                "    await page.goto(base_url.rstrip('/') + '/', wait_until='domcontentloaded')",
+                "    title = await page.title()",
+                "    assert 'Deplanbook' in (title or '')",
+                "    await page.wait_for_selector('a[href=\"/diary\"]', state='visible', timeout=30000)",
+                "",
+            ]
+        )
 
-        # Failing test: stable domain + guaranteed-fail assertion.
-        fail_def = {
-            "name": "example_com_negative",
-            "steps": [
-                {"type": "goto", "url": "/"},
-                {"type": "expect_text", "text": "THIS SHOULD NOT EXIST"},
-            ],
-        }
+        # Failing test: Puppeteer-JS against a stable domain + guaranteed-fail assertion.
+        fail_js = "\n".join(
+            [
+                "module.exports.run = async ({ page, baseUrl, artifactsDir }) => {",
+                "  await page.goto(String(baseUrl || '').replace(/\\/$/, '') + '/', { waitUntil: 'domcontentloaded' });",
+                "  const body = await page.evaluate(() => document.body?.innerText || '');",
+                "  if (!String(body || '').includes('THIS SHOULD NOT EXIST')) {",
+                "    throw new Error('text_missing: THIS SHOULD NOT EXIST');",
+                "  }",
+                "};",
+                "",
+            ]
+        )
 
         # Avoid Telegram spam: do not transition effective_ok to DOWN during this smoke run.
         common_cfg = {
@@ -139,29 +145,31 @@ async def test_live_e2e_registry_api_pass_fail_artifacts_and_isolation() -> None
         }
 
         r = await client.post(
-            f"{base_url.rstrip('/')}/api/v1/tests",
+            f"{base_url.rstrip('/')}/api/v1/tests/upload",
             headers={"Authorization": f"Bearer {tenant_token}"},
-            json={
+            data={
                 "name": f"live_pass_{nonce}",
                 "base_url": "https://deplanbook.com",
-                "definition": pass_def,
-                **common_cfg,
+                "kind": "playwright_python",
+                **{k: str(v) for k, v in common_cfg.items()},
             },
-            timeout=30.0,
+            files={"file": ("live_pass.py", pass_py.encode("utf-8"), "text/x-python")},
+            timeout=60.0,
         )
         r.raise_for_status()
         pass_test_id = r.json()["test"]["id"]
 
         r = await client.post(
-            f"{base_url.rstrip('/')}/api/v1/tests",
+            f"{base_url.rstrip('/')}/api/v1/tests/upload",
             headers={"Authorization": f"Bearer {tenant_token}"},
-            json={
+            data={
                 "name": f"live_fail_{nonce}",
                 "base_url": "https://example.com",
-                "definition": fail_def,
-                **common_cfg,
+                "kind": "puppeteer_js",
+                **{k: str(v) for k, v in common_cfg.items()},
             },
-            timeout=30.0,
+            files={"file": ("live_fail.js", fail_js.encode("utf-8"), "application/javascript")},
+            timeout=60.0,
         )
         r.raise_for_status()
         fail_test_id = r.json()["test"]["id"]
@@ -318,16 +326,14 @@ async def test_live_e2e_registry_ui_login_and_upload(tmp_path: Path) -> None:
         r.raise_for_status()
         tenant_token = r.json()["token"]
 
-    definition_path = tmp_path / "flow.yaml"
-    definition_path.write_text(
+    test_path = tmp_path / "live_ui_test.py"
+    test_path.write_text(
         "\n".join(
             [
-                "name: live_ui_created",
-                "steps:",
-                "  - type: goto",
-                "    url: /",
-                "  - type: expect_title_contains",
-                "    text: Deplanbook",
+                "async def run(page, base_url, artifacts_dir):",
+                "    await page.goto(base_url.rstrip('/') + '/', wait_until='domcontentloaded')",
+                "    title = await page.title()",
+                "    assert 'Deplanbook' in (title or '')",
                 "",
             ]
         ),
@@ -354,14 +360,15 @@ async def test_live_e2e_registry_ui_login_and_upload(tmp_path: Path) -> None:
             await page.locator("[data-testid=login-submit]").click()
             await page.wait_for_selector("[data-testid=tests-title]")
 
-            # Upload a StepFlow definition.
+            # Upload a Playwright-Python test file.
             await page.locator("[data-testid=nav-upload]").click()
             await page.wait_for_selector("[data-testid=upload-title]")
             name = f"live_ui_created_{uuid.uuid4().hex[:6]}"
             await page.locator("[data-testid=upload-name]").fill(name)
             await page.locator("[data-testid=upload-base-url]").fill("https://deplanbook.com")
             await page.locator("[data-testid=upload-interval]").fill("3600")
-            await page.set_input_files("[data-testid=upload-file]", str(definition_path))
+            await page.locator("[data-testid=upload-kind]").select_option("playwright_python")
+            await page.set_input_files("[data-testid=upload-file]", str(test_path))
             await page.locator("[data-testid=upload-submit]").click()
             await page.wait_for_selector("[data-testid=upload-msg]")
 

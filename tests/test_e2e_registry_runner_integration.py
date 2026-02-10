@@ -89,10 +89,13 @@ def registry_server(tmp_path: Path):
     db_path = tmp_path / "e2e-registry.db"
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
+    tests_dir = tmp_path / "submitted-tests"
+    tests_dir.mkdir(parents=True, exist_ok=True)
 
     settings = RegistrySettings(
         db_path=str(db_path),
         artifacts_dir=str(artifacts_dir),
+        tests_dir=str(tests_dir),
         admin_token="adm_test_token",
         monitor_token="mon_test_token",
         runner_token="run_test_token",
@@ -161,60 +164,69 @@ async def test_e2e_registry_and_runner_end_to_end(
         r.raise_for_status()
         tenant_token = r.json()["token"]
 
-        # Create a passing test and a failing test (tenant).
-        pass_def = {
-            "name": "pass_local",
-            "steps": [
-                {"type": "goto", "url": "/ok"},
-                {"type": "expect_title_contains", "text": "OK Page"},
-                {"type": "expect_text", "text": "Everything is fine"},
-                {"type": "expect_selector_count", "selector": "span.item", "count": 2},
-            ],
-        }
-        fail_def = {
-            "name": "fail_local",
-            "steps": [
-                {"type": "goto", "url": "/ok"},
-                {"type": "expect_text", "text": "THIS SHOULD NOT EXIST"},
-            ],
-        }
+        # Create a passing Playwright-Python test and a failing Puppeteer-JS test (tenant) via file upload.
+        py_src = "\n".join(
+            [
+                "async def run(page, base_url, artifacts_dir):",
+                "    url = base_url.rstrip('/') + '/ok'",
+                "    await page.goto(url, wait_until='domcontentloaded')",
+                "    body = await page.evaluate(\"() => document.body?.innerText || ''\")",
+                "    assert 'Everything is fine' in (body or '')",
+                "",
+            ]
+        )
+        js_src_fail = "\n".join(
+            [
+                "module.exports.run = async ({ page, baseUrl, artifactsDir }) => {",
+                "  const url = String(baseUrl || '').replace(/\\/$/, '') + '/ok';",
+                "  await page.goto(url, { waitUntil: 'domcontentloaded' });",
+                "  const body = await page.evaluate(() => document.body?.innerText || '');",
+                "  if (!String(body || '').includes('THIS SHOULD NOT EXIST')) {",
+                "    throw new Error('text_missing: THIS SHOULD NOT EXIST');",
+                "  }",
+                "};",
+                "",
+            ]
+        )
 
         r = await client.post(
-            f"{base_url}/api/v1/tests",
+            f"{base_url}/api/v1/tests/upload",
             headers={"Authorization": f"Bearer {tenant_token}"},
-            json={
-                "name": "pass_local",
+            data={
+                "name": "pass_local_py",
                 "base_url": local_site_base_url,
-                "definition": pass_def,
-                "interval_seconds": 3600,
-                "timeout_seconds": 10,
-                "jitter_seconds": 0,
-                "down_after_failures": 1,
-                "up_after_successes": 1,
-                "notify_on_recovery": False,
-                "dispatch_on_failure": False,
+                "kind": "playwright_python",
+                "interval_seconds": "3600",
+                "timeout_seconds": "15",
+                "jitter_seconds": "0",
+                "down_after_failures": "1",
+                "up_after_successes": "1",
+                "notify_on_recovery": "0",
+                "dispatch_on_failure": "0",
             },
-            timeout=10.0,
+            files={"file": ("pass_test.py", py_src.encode("utf-8"), "text/x-python")},
+            timeout=20.0,
         )
         r.raise_for_status()
         pass_test_id = r.json()["test"]["id"]
 
         r = await client.post(
-            f"{base_url}/api/v1/tests",
+            f"{base_url}/api/v1/tests/upload",
             headers={"Authorization": f"Bearer {tenant_token}"},
-            json={
-                "name": "fail_local",
+            data={
+                "name": "fail_local_js",
                 "base_url": local_site_base_url,
-                "definition": fail_def,
-                "interval_seconds": 3600,
-                "timeout_seconds": 10,
-                "jitter_seconds": 0,
-                "down_after_failures": 1,
-                "up_after_successes": 1,
-                "notify_on_recovery": False,
-                "dispatch_on_failure": False,
+                "kind": "puppeteer_js",
+                "interval_seconds": "3600",
+                "timeout_seconds": "15",
+                "jitter_seconds": "0",
+                "down_after_failures": "1",
+                "up_after_successes": "1",
+                "notify_on_recovery": "0",
+                "dispatch_on_failure": "0",
             },
-            timeout=10.0,
+            files={"file": ("fail_test.js", js_src_fail.encode("utf-8"), "application/javascript")},
+            timeout=20.0,
         )
         r.raise_for_status()
         fail_test_id = r.json()["test"]["id"]
@@ -228,6 +240,7 @@ async def test_e2e_registry_and_runner_end_to_end(
             "E2E_REGISTRY_RUNNER_TOKEN": settings.runner_token,
             # Runner and registry must share the same artifacts dir for downloads to work.
             "E2E_ARTIFACTS_DIR": str(settings.artifacts_dir),
+            "E2E_TESTS_DIR": str(settings.tests_dir),
             "E2E_RUNNER_CONCURRENCY": "5",
             "E2E_RUNNER_TRACE_ON_FAILURE": "0",
         }
@@ -343,18 +356,24 @@ async def test_e2e_registry_and_runner_end_to_end(
         )
         r.raise_for_status()
 
-        fixed_def = {
-            "name": "fixed_local",
-            "steps": [
-                {"type": "goto", "url": "/ok"},
-                {"type": "expect_text", "text": "Everything is fine"},
-            ],
-        }
-        r = await client.patch(
-            f"{base_url}/api/v1/tests/{fail_test_id}",
+        js_src_pass = "\n".join(
+            [
+                "module.exports.run = async ({ page, baseUrl, artifactsDir }) => {",
+                "  const url = String(baseUrl || '').replace(/\\/$/, '') + '/ok';",
+                "  await page.goto(url, { waitUntil: 'domcontentloaded' });",
+                "  const body = await page.evaluate(() => document.body?.innerText || '');",
+                "  if (!String(body || '').includes('Everything is fine')) {",
+                "    throw new Error('text_missing: Everything is fine');",
+                "  }",
+                "};",
+                "",
+            ]
+        )
+        r = await client.post(
+            f"{base_url}/api/v1/tests/{fail_test_id}/source",
             headers={"Authorization": f"Bearer {tenant_token}"},
-            json={"definition": fixed_def},
-            timeout=10.0,
+            files={"file": ("pass_test.js", js_src_pass.encode("utf-8"), "application/javascript")},
+            timeout=20.0,
         )
         r.raise_for_status()
 

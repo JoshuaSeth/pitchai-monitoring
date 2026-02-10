@@ -123,10 +123,15 @@ E2E_REGISTRY_MONITOR_TOKEN=${monitor}
 E2E_REGISTRY_RUNNER_TOKEN=${runner}
 E2E_REGISTRY_DB_PATH=/data/e2e-registry.db
 E2E_ARTIFACTS_DIR=/artifacts
+E2E_TESTS_DIR=/data/e2e-tests
 E2E_REGISTRY_ALERTS_ENABLED=1
 E2E_REGISTRY_DISPATCH_ENABLED=1
 EOF
               chmod 600 "$E2E_ENV_FILE" || true
+            fi
+            # Backfill new required settings into an existing env file.
+            if ! grep -qE '^E2E_TESTS_DIR=' "$E2E_ENV_FILE"; then
+              echo "E2E_TESTS_DIR=/data/e2e-tests" >>"$E2E_ENV_FILE"
             fi
             E2E_MONITOR_TOKEN="$(grep -E '^E2E_REGISTRY_MONITOR_TOKEN=' "$E2E_ENV_FILE" | head -n1 | cut -d= -f2-)"
             if [[ -z "${E2E_MONITOR_TOKEN}" ]]; then
@@ -159,6 +164,7 @@ EOF
               --shm-size 1g \
               --network "$NET_NAME" \
               -v e2e-artifacts:/artifacts \
+              -v e2e-registry-data:/data:ro \
               --env-file "$E2E_ENV_FILE" \
               -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
               -e E2E_RUNNER_POLL_SECONDS="5" \

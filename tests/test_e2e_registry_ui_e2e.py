@@ -62,10 +62,13 @@ def registry_ui_server(tmp_path: Path):
     db_path = tmp_path / "e2e-registry.db"
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
+    tests_dir = tmp_path / "submitted-tests"
+    tests_dir.mkdir(parents=True, exist_ok=True)
 
     settings = RegistrySettings(
         db_path=str(db_path),
         artifacts_dir=str(artifacts_dir),
+        tests_dir=str(tests_dir),
         admin_token="adm_ui_token",
         monitor_token="mon_ui_token",
         runner_token="run_ui_token",
@@ -133,16 +136,14 @@ async def test_registry_ui_login_and_upload_flow(
     base_url = registry_ui_server["base_url"]
     token = registry_ui_server["tenant_token"]
 
-    definition_path = tmp_path / "flow.yaml"
-    definition_path.write_text(
+    test_path = tmp_path / "ui_test.py"
+    test_path.write_text(
         "\n".join(
             [
-                "name: ui_created_test",
-                "steps:",
-                "  - type: goto",
-                "    url: /",
-                "  - type: expect_text",
-                "    text: Everything is fine",
+                "async def run(page, base_url, artifacts_dir):",
+                "    await page.goto(base_url.rstrip('/') + '/', wait_until='domcontentloaded')",
+                "    body = await page.evaluate(\"() => document.body?.innerText || ''\")",
+                "    assert 'Everything is fine' in (body or '')",
                 "",
             ]
         ),
@@ -178,7 +179,9 @@ async def test_registry_ui_login_and_upload_flow(
             await page.locator("[data-testid=upload-name]").fill("ui_created_test")
             await page.locator("[data-testid=upload-base-url]").fill(local_site_base_url)
             await page.locator("[data-testid=upload-interval]").fill("300")
-            await page.set_input_files("[data-testid=upload-file]", str(definition_path))
+            # Default kind is Playwright (Python) but select it explicitly for clarity.
+            await page.locator("[data-testid=upload-kind]").select_option("playwright_python")
+            await page.set_input_files("[data-testid=upload-file]", str(test_path))
             await page.locator("[data-testid=upload-submit]").click()
             await page.wait_for_selector("[data-testid=upload-msg]")
 
@@ -192,8 +195,8 @@ async def test_registry_ui_login_and_upload_flow(
             await page.wait_for_selector("[data-testid=test-detail-title]")
             title = await page.locator("[data-testid=test-detail-title]").inner_text()
             assert "ui_created_test" in title
-            # This would fail if the page accidentally renders without the definition section.
-            assert await page.locator("[data-testid=definition-json]").count() == 1
+            # This would fail if the page accidentally renders without the source section.
+            assert await page.locator("[data-testid=source-code]").count() == 1
         finally:
             await context.close()
             await browser.close()

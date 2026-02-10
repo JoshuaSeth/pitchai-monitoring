@@ -1,4 +1,4 @@
-# Spec: External Developer-Submitted E2E Tests Registry + Runner
+# Spec: External Developer-Submitted E2E Test Files (Playwright Python + Puppeteer JS) Registry + Runner
 
 ## Original Feature Request (Verbatim)
 
@@ -8,13 +8,13 @@ which it runs, something like that. And then they must submit that to some API a
 signal when it's not passing right and the monitoring every... How often do we run these? Every 5 minutes? so So then the end-to-end tests can be
 registered in the monitor. So yeah, device and architecture for that."""
 
-## Summary
+## Summary (Updated)
 
-Add a secure, multi-tenant way for external developers to register end-to-end UI tests that continuously run against real deployed services and alert when they fail.
+Add a multi-tenant way for external developers to upload real E2E test files (Playwright Python and Puppeteer JS) that continuously run against real deployed services and alert when they fail.
 
 The solution must:
 
-1. Accept test submissions via an API (and optional UI).
+1. Accept test submissions via an API (and optional UI) as files (not YAML-only).
 2. Execute tests on a schedule (default 5 minutes, configurable per test).
 3. Persist results + artifacts (logs, screenshots, optional Playwright traces) and expose them for humans + automation.
 4. Alert and optionally escalate to Dispatcher/Codex when tests fail, with robust anti-spam (debounce + state persistence).
@@ -56,15 +56,15 @@ Key existing design features we should keep and reuse:
 5. Tests can be temporarily disabled (per test, with reason + optional until timestamp) to stop repeated noise.
 6. All of this works with real deployed services (no mocking in acceptance validation).
 
-## Non-Goals
+## Non-Goals (Adjusted)
 
-1. Running untrusted arbitrary code inside the existing `service-monitoring` process/container.
+1. Running developer-submitted code inside the `service-monitoring` process. (Execution belongs in `e2e-runner`.)
 2. Turning this into a full CI system; this is monitoring and operational signaling.
 3. Supporting destructive workflows on production. If a test requires writes, it must run on a dedicated staging environment or use least-privilege accounts.
 
-## Architecture Options (1-4) and Decision
+## Architecture Options (1-4) and Decision (Updated)
 
-### Option 1: Declarative StepFlow Tests via API (Recommended Core)
+### Option 1: Declarative StepFlow Tests via API (Legacy/Optional)
 
 External developers submit tests as a structured JSON/YAML "StepFlow" file (the same DSL already used by `synthetic_transactions`).
 
@@ -84,11 +84,11 @@ Risks/Cons:
 
 When to pick:
 
-Pick this when multi-tenant external input exists and safety is non-negotiable.
+Pick this for simple flows or when you want the safest possible "data-not-code" option. This remains supported, but is no longer the primary developer submission workflow.
 
-### Option 2: Upload Full Playwright Code (JS/Python) and Run in a Sandbox Runner
+### Option 2: Upload Playwright Python + Puppeteer JS Files and Run in a Sandbox Runner (Recommended)
 
-External developers submit a JS/TS test (Playwright Test) or Python script. The system executes it inside an isolated sandbox:
+External developers submit a single-file Playwright Python test (`.py`) or Puppeteer JS test (`.js`/`.mjs`). The system executes it via `e2e-runner`, capturing artifacts and reporting results.
 
 1. A per-run container/job with strict resource limits and no host mounts.
 2. Network allowlisting limited to the target domain(s) via egress proxy or firewall.
@@ -106,7 +106,7 @@ Risks/Cons:
 
 When to pick:
 
-Pick only for trusted developers or after implementing robust sandboxing and tenant isolation.
+Pick this when you explicitly want developers to keep authoring real Playwright/Puppeteer code and you accept the operational/security tradeoffs. This is the primary workflow implemented in this repo now.
 
 ### Option 3: GitOps Tests (PR-based) Instead of API Uploads
 
@@ -145,15 +145,17 @@ When to pick:
 
 Pick when operational bandwidth is limited and you accept vendor dependency.
 
-## Chosen Direction (Best-For-Future, Secure, and Fits This Codebase)
+## Chosen Direction (Implemented)
 
-Implement Option 1 as the foundational architecture:
+Implement Option 2 as the foundational architecture:
 
-1. External tests are submitted as a StepFlow DSL file (JSON/YAML) plus metadata (domain/base_url, schedule, owners, alert policy).
-2. Tests are executed by a dedicated "E2E runner" service that reuses the existing Playwright StepFlow engine (or a small extracted copy of it).
-3. `service-monitoring` integrates results for alerting/heartbeat and can optionally trigger dispatch triage.
+1. External tests are submitted as real code files plus metadata (base_url, schedule, alert policy).
+2. Tests are executed by a dedicated "E2E runner" worker that runs:
+   - Playwright Python via `e2e_sandbox/playwright_python.py`
+   - Puppeteer JS via `e2e_sandbox/puppeteer_js_runner.js`
+3. `service-monitoring` integrates `e2e-registry` status summaries in scheduled heartbeats and can optionally trigger dispatch triage.
 
-Option 2 becomes an explicitly separate "trusted mode" milestone later, gated behind strong sandboxing and internal approval workflows.
+StepFlow remains supported for simple, declarative tests, but is not required for external developer onboarding.
 
 ## Proposed Components
 
@@ -235,6 +237,9 @@ Endpoints:
 1. `POST /api/v1/tests`
    - Creates a new test.
    - Body includes metadata, schedule, and StepFlow definition.
+2. `POST /api/v1/tests/upload`
+   - Creates a new test from an uploaded file (multipart form).
+   - Fields include: `name`, `base_url`, `kind` (`playwright_python` or `puppeteer_js`), schedule/alert config, and `file=@...`.
 2. `GET /api/v1/tests`
    - Lists tests for the authenticated tenant (supports filtering by `enabled`, `base_url`, `label`, `status`).
 3. `GET /api/v1/tests/{test_id}`
@@ -247,6 +252,8 @@ Endpoints:
    - Re-enables a disabled test.
 7. `POST /api/v1/tests/{test_id}/run`
    - Triggers an immediate run (manual override, still resource-limited).
+8. `POST /api/v1/tests/{test_id}/source`
+   - Replaces the uploaded source file for a code-based test (multipart file upload).
 8. `GET /api/v1/tests/{test_id}/runs?limit=...`
    - List recent runs (newest-first).
 9. `GET /api/v1/runs/{run_id}`

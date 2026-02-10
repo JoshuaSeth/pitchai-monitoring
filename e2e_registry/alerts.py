@@ -38,6 +38,7 @@ def build_failure_telegram_message(
     tenant_id: str,
     test_id: str,
     test_name: str,
+    test_kind: str | None = None,
     run_id: str,
     fail_streak: int,
     down_after_failures: int,
@@ -47,6 +48,8 @@ def build_failure_telegram_message(
     artifacts: dict[str, Any] | None,
 ) -> str:
     lines = ["External E2E test is FAILING ❌", f"Test: {test_name}", f"Test ID: {test_id}", f"Run ID: {run_id}"]
+    if test_kind:
+        lines.append(f"Kind: {str(test_kind)[:40]}")
     if down_after_failures > 1:
         lines.append(f"Debounce: fail_streak={int(fail_streak)}/{int(down_after_failures)}")
     if error_kind:
@@ -108,6 +111,7 @@ def build_dispatch_prompt_for_failure(
     *,
     test_id: str,
     test_name: str,
+    test_kind: str | None = None,
     base_url: str,
     run_id: str,
     error_kind: str | None,
@@ -117,6 +121,7 @@ def build_dispatch_prompt_for_failure(
     payload = {
         "test_id": test_id,
         "test_name": test_name,
+        "test_kind": test_kind,
         "base_url": base_url,
         "run_id": run_id,
         "error_kind": error_kind,
@@ -124,7 +129,7 @@ def build_dispatch_prompt_for_failure(
         "artifacts": artifacts or {},
     }
     return (
-        "An external developer-submitted end-to-end UI test (Playwright StepFlow) is failing.\n\n"
+        "An external developer-submitted end-to-end UI test is failing.\n\n"
         "Failure details (JSON):\n"
         f"{_safe_json(payload)}\n\n"
         f"{_dispatch_read_only_rules()}\n"
@@ -210,4 +215,3 @@ async def maybe_dispatch_failure_investigation(
             settings=settings,
             msg=f"Dispatcher triage failed state={queue_state} ui={ui}\nError: {err[:500]}",
         )
-

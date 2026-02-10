@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import hmac
 import os
 import secrets
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +38,37 @@ from e2e_registry.stepflow import StepFlowValidationError, parse_definition_byte
 
 
 COOKIE_TOKEN_HASH = "e2e_token_hash"
+
+
+_ALLOWED_TEST_KINDS = {"stepflow", "playwright_python", "puppeteer_js"}
+
+
+def _normalize_test_kind(kind: str) -> str:
+    s = str(kind or "").strip().lower()
+    # Backwards compatible aliases.
+    aliases = {
+        "stepflow": "stepflow",
+        "yaml": "stepflow",
+        "yml": "stepflow",
+        "playwright-python": "playwright_python",
+        "playwright_python": "playwright_python",
+        "pw_python": "playwright_python",
+        "puppeteer-js": "puppeteer_js",
+        "puppeteer_js": "puppeteer_js",
+        "pptr": "puppeteer_js",
+    }
+    out = aliases.get(s, s)
+    return out if out in _ALLOWED_TEST_KINDS else ""
+
+
+def _safe_filename(name: str, *, default: str) -> str:
+    base = Path(str(name or "")).name
+    cleaned = "".join(ch for ch in base if ch.isalnum() or ch in ("-", "_", ".", "+"))[:120].strip(".")
+    return cleaned or default
+
+
+def _sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
 
 def _parse_until(value: Any) -> float | None:
@@ -82,6 +115,15 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     @app.on_event("startup")
     def _startup() -> None:
         dbm.ensure_schema(app.state.settings)
+        # Ensure storage locations exist (single-host deployment).
+        try:
+            Path(app.state.settings.artifacts_dir).mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        try:
+            Path(app.state.settings.tests_dir).mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -163,10 +205,33 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         if not test:
             raise HTTPException(status_code=404, detail="test_not_found")
         runs = await asyncio.to_thread(dbm.list_runs, app.state.settings, tenant_id=authed.tenant_id, test_id=test_id, limit=50)
+        kind = str(test.get("test_kind") or "stepflow").strip().lower() or "stepflow"
         definition_json = test.get("definition_json") or ""
+        source_text: str | None = None
+        source_filename: str | None = None
+        source_relpath = str(test.get("source_relpath") or "").strip()
+        if kind != "stepflow" and source_relpath:
+            try:
+                base = Path(app.state.settings.tests_dir).resolve()
+                fp = (base / source_relpath).resolve()
+                if base in fp.parents and fp.exists() and fp.is_file():
+                    source_filename = fp.name
+                    source_text = fp.read_text(encoding="utf-8", errors="replace")
+                    if len(source_text) > 80_000:
+                        source_text = source_text[:80_000] + "\n...truncated..."
+            except Exception:
+                source_text = None
         return app.state.templates.TemplateResponse(
             "test_detail.html",
-            {"request": req, "test": test, "runs": runs, "definition_json": definition_json, "msg": msg},
+            {
+                "request": req,
+                "test": test,
+                "runs": runs,
+                "definition_json": definition_json,
+                "source_text": source_text,
+                "source_filename": source_filename,
+                "msg": msg,
+            },
         )
 
     @app.post("/ui/tests/{test_id}/run")
@@ -245,6 +310,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         req: Request,
         name: str = Form(""),
         base_url: str = Form(""),
+        kind: str = Form("stepflow"),
         interval_seconds: int = Form(300),
         file: UploadFile = File(...),
     ) -> HTMLResponse:
@@ -253,20 +319,73 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             return _redirect_to_login()
 
         raw = await file.read()
-        try:
-            defn_raw = parse_definition_bytes(raw, content_type=file.content_type)
-            defn = validate_definition(defn_raw)
-            base = validate_base_url(base_url)
-        except StepFlowValidationError as exc:
+        settings2: RegistrySettings = app.state.settings
+        kind2 = _normalize_test_kind(kind)
+        if not kind2:
             return app.state.templates.TemplateResponse(
-                "upload.html", {"request": req, "error": str(exc), "msg": None}
+                "upload.html", {"request": req, "error": "invalid_kind", "msg": None}
             )
+        if int(settings2.max_upload_bytes) > 0 and len(raw) > int(settings2.max_upload_bytes):
+            return app.state.templates.TemplateResponse(
+                "upload.html", {"request": req, "error": "file_too_large", "msg": None}
+            )
+        try:
+            base = validate_base_url(base_url)
         except HTTPException as exc:
             return app.state.templates.TemplateResponse(
                 "upload.html", {"request": req, "error": str(exc.detail), "msg": None}
             )
 
-        tname = (name or "").strip() or str(defn.get("name") or "test")
+        defn = None
+        tname = (name or "").strip()
+        source_relpath = None
+        source_filename = None
+        source_sha = None
+        content_type = file.content_type
+        test_id_override: str | None = None
+
+        if kind2 == "stepflow":
+            try:
+                defn_raw = parse_definition_bytes(raw, content_type=file.content_type)
+                defn = validate_definition(defn_raw)
+            except StepFlowValidationError as exc:
+                return app.state.templates.TemplateResponse(
+                    "upload.html", {"request": req, "error": str(exc), "msg": None}
+                )
+            tname = tname or str(defn.get("name") or "test")
+        else:
+            # Code-based tests: store the uploaded file on disk and run via sandbox runner.
+            default_fn = "test.py" if kind2 == "playwright_python" else "test.js"
+            source_filename = _safe_filename(file.filename or "", default=default_fn)
+            if kind2 == "playwright_python" and not source_filename.endswith(".py"):
+                return app.state.templates.TemplateResponse(
+                    "upload.html", {"request": req, "error": "python_test_must_be_.py", "msg": None}
+                )
+            if kind2 == "puppeteer_js" and not (source_filename.endswith(".js") or source_filename.endswith(".mjs")):
+                return app.state.templates.TemplateResponse(
+                    "upload.html", {"request": req, "error": "puppeteer_test_must_be_.js", "msg": None}
+                )
+            tname = tname or source_filename
+
+            test_id = str(uuid.uuid4())
+            base_dir = Path(settings2.tests_dir).resolve()
+            rel = Path(authed.tenant_id) / test_id / source_filename
+            fp = (base_dir / rel).resolve()
+            if base_dir not in fp.parents:
+                return app.state.templates.TemplateResponse(
+                    "upload.html", {"request": req, "error": "invalid_upload_path", "msg": None}
+                )
+            try:
+                fp.parent.mkdir(parents=True, exist_ok=True)
+                fp.write_bytes(raw)
+            except Exception as exc:
+                return app.state.templates.TemplateResponse(
+                    "upload.html", {"request": req, "error": f"write_failed: {exc}", "msg": None}
+                )
+            source_relpath = str(rel)
+            source_sha = _sha256_hex(raw)
+            test_id_override = test_id
+
         try:
             created = await asyncio.to_thread(
                 dbm.insert_test,
@@ -274,7 +393,13 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                 tenant_id=authed.tenant_id,
                 name=tname,
                 base_url=base,
+                test_kind=kind2,
                 definition=defn,
+                source_relpath=source_relpath,
+                source_filename=source_filename,
+                source_sha256=source_sha,
+                source_content_type=content_type,
+                test_id=test_id_override,
                 interval_seconds=int(interval_seconds),
                 timeout_seconds=45,
                 jitter_seconds=30,
@@ -334,6 +459,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             tenant_id=auth.tenant_id,
             name=req.name,
             base_url=base,
+            test_kind="stepflow",
             definition=defn,
             interval_seconds=req.interval_seconds,
             timeout_seconds=req.timeout_seconds,
@@ -342,6 +468,99 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             up_after_successes=req.up_after_successes,
             notify_on_recovery=bool(req.notify_on_recovery),
             dispatch_on_failure=bool(req.dispatch_on_failure),
+        )
+        return {"ok": True, "test": created}
+
+    @app.post("/api/v1/tests/upload")
+    async def api_upload_test(
+        req: Request,
+        auth: RequestAuth = Depends(require_tenant_auth),
+        name: str = Form(""),
+        base_url: str = Form(""),
+        kind: str = Form(""),
+        interval_seconds: int = Form(300),
+        timeout_seconds: int = Form(45),
+        jitter_seconds: int = Form(30),
+        down_after_failures: int = Form(2),
+        up_after_successes: int = Form(2),
+        notify_on_recovery: str = Form("0"),
+        dispatch_on_failure: str = Form("0"),
+        file: UploadFile = File(...),
+    ) -> dict[str, Any]:
+        """
+        Upload a single-file E2E test:
+        - kind=playwright_python: a `.py` file that defines `async def run(page, base_url, artifacts_dir)`
+        - kind=puppeteer_js: a `.js`/`.mjs` file that exports `async function run({ page, baseUrl, artifactsDir })`
+
+        This is the main "external devs submit files via API" workflow.
+        """
+        settings2: RegistrySettings = app.state.settings
+        kind2 = _normalize_test_kind(kind)
+        if not kind2:
+            raise HTTPException(status_code=400, detail="invalid_kind")
+        raw = await file.read()
+        if int(settings2.max_upload_bytes) > 0 and len(raw) > int(settings2.max_upload_bytes):
+            raise HTTPException(status_code=413, detail="file_too_large")
+
+        base = validate_base_url(base_url)
+        notify = str(notify_on_recovery or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        dispatch = str(dispatch_on_failure or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+        # StepFlow via upload is supported for convenience, but code-based kinds are the primary goal.
+        defn = None
+        source_relpath = None
+        source_filename = None
+        source_sha = None
+        test_id_override: str | None = None
+
+        if kind2 == "stepflow":
+            try:
+                defn_raw = parse_definition_bytes(raw, content_type=file.content_type)
+                defn = validate_definition(defn_raw)
+            except StepFlowValidationError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            tname = (name or "").strip() or str(defn.get("name") or "test")
+        else:
+            default_fn = "test.py" if kind2 == "playwright_python" else "test.js"
+            source_filename = _safe_filename(file.filename or "", default=default_fn)
+            if kind2 == "playwright_python" and not source_filename.endswith(".py"):
+                raise HTTPException(status_code=400, detail="python_test_must_be_.py")
+            if kind2 == "puppeteer_js" and not (source_filename.endswith(".js") or source_filename.endswith(".mjs")):
+                raise HTTPException(status_code=400, detail="puppeteer_test_must_be_.js")
+
+            tname = (name or "").strip() or source_filename
+            test_id_override = str(uuid.uuid4())
+            base_dir = Path(settings2.tests_dir).resolve()
+            rel = Path(auth.tenant_id) / test_id_override / source_filename
+            fp = (base_dir / rel).resolve()
+            if base_dir not in fp.parents:
+                raise HTTPException(status_code=400, detail="invalid_upload_path")
+            fp.parent.mkdir(parents=True, exist_ok=True)
+            fp.write_bytes(raw)
+
+            source_relpath = str(rel)
+            source_sha = _sha256_hex(raw)
+
+        created = await asyncio.to_thread(
+            dbm.insert_test,
+            app.state.settings,
+            tenant_id=auth.tenant_id,
+            name=tname,
+            base_url=base,
+            test_id=test_id_override,
+            test_kind=kind2,
+            definition=defn,
+            source_relpath=source_relpath,
+            source_filename=source_filename,
+            source_sha256=source_sha,
+            source_content_type=file.content_type,
+            interval_seconds=int(interval_seconds),
+            timeout_seconds=int(timeout_seconds),
+            jitter_seconds=int(jitter_seconds),
+            down_after_failures=int(down_after_failures),
+            up_after_successes=int(up_after_successes),
+            notify_on_recovery=bool(notify),
+            dispatch_on_failure=bool(dispatch),
         )
         return {"ok": True, "test": created}
 
@@ -356,6 +575,94 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         if not test:
             raise HTTPException(status_code=404, detail="not_found")
         return {"ok": True, "test": test}
+
+    @app.get("/api/v1/tests/{test_id}/source")
+    async def api_get_test_source(test_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> FileResponse:
+        test = await asyncio.to_thread(dbm.get_test, app.state.settings, tenant_id=auth.tenant_id, test_id=test_id)
+        if not test:
+            raise HTTPException(status_code=404, detail="not_found")
+        kind = str(test.get("test_kind") or "stepflow").strip().lower() or "stepflow"
+        if kind == "stepflow":
+            # Return definition JSON as a small downloadable artifact.
+            txt = str(test.get("definition_json") or "").strip() or "{}"
+            base = Path(app.state.settings.tests_dir).resolve()
+            tmp = (base / auth.tenant_id / test_id / "definition.json").resolve()
+            if base not in tmp.parents:
+                raise HTTPException(status_code=400, detail="invalid_path")
+            tmp.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(txt, encoding="utf-8", errors="replace")
+            return FileResponse(str(tmp), media_type="application/json")
+
+        rel = str(test.get("source_relpath") or "").strip()
+        if not rel:
+            raise HTTPException(status_code=404, detail="source_missing")
+        base = Path(app.state.settings.tests_dir).resolve()
+        fp = (base / rel).resolve()
+        if base not in fp.parents:
+            raise HTTPException(status_code=400, detail="invalid_path")
+        if not fp.exists() or not fp.is_file():
+            raise HTTPException(status_code=404, detail="source_not_found")
+        return FileResponse(str(fp))
+
+    @app.post("/api/v1/tests/{test_id}/source")
+    async def api_update_test_source(
+        test_id: str,
+        auth: RequestAuth = Depends(require_tenant_auth),
+        file: UploadFile = File(...),
+    ) -> dict[str, Any]:
+        """
+        Replace the stored test source for a code-based test.
+        """
+        settings2: RegistrySettings = app.state.settings
+        test = await asyncio.to_thread(dbm.get_test, settings2, tenant_id=auth.tenant_id, test_id=test_id)
+        if not test:
+            raise HTTPException(status_code=404, detail="not_found")
+        kind = str(test.get("test_kind") or "stepflow").strip().lower() or "stepflow"
+        if kind == "stepflow":
+            raise HTTPException(status_code=400, detail="stepflow_source_updates_use_patch_definition")
+
+        raw = await file.read()
+        if int(settings2.max_upload_bytes) > 0 and len(raw) > int(settings2.max_upload_bytes):
+            raise HTTPException(status_code=413, detail="file_too_large")
+
+        default_fn = "test.py" if kind == "playwright_python" else "test.js"
+        source_filename = _safe_filename(file.filename or "", default=default_fn)
+        if kind == "playwright_python" and not source_filename.endswith(".py"):
+            raise HTTPException(status_code=400, detail="python_test_must_be_.py")
+        if kind == "puppeteer_js" and not (source_filename.endswith(".js") or source_filename.endswith(".mjs")):
+            raise HTTPException(status_code=400, detail="puppeteer_test_must_be_.js")
+
+        base_dir = Path(settings2.tests_dir).resolve()
+        rel = Path(auth.tenant_id) / str(test_id).strip() / source_filename
+        fp = (base_dir / rel).resolve()
+        if base_dir not in fp.parents:
+            raise HTTPException(status_code=400, detail="invalid_upload_path")
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        fp.write_bytes(raw)
+
+        # Best-effort cleanup of the old file when it changes.
+        old_rel = str(test.get("source_relpath") or "").strip()
+        if old_rel and old_rel != str(rel):
+            try:
+                old_fp = (base_dir / old_rel).resolve()
+                if base_dir in old_fp.parents and old_fp.exists() and old_fp.is_file():
+                    old_fp.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        ok = await asyncio.to_thread(
+            dbm.update_test_source,
+            settings2,
+            tenant_id=auth.tenant_id,
+            test_id=test_id,
+            source_relpath=str(rel),
+            source_filename=source_filename,
+            source_sha256=_sha256_hex(raw),
+            source_content_type=file.content_type,
+        )
+        if not ok:
+            raise HTTPException(status_code=404, detail="not_found")
+        return {"ok": True}
 
     @app.patch("/api/v1/tests/{test_id}")
     async def api_patch_test(test_id: str, auth: RequestAuth = Depends(require_tenant_auth), req: PatchTestRequest | None = None) -> dict[str, Any]:
@@ -495,7 +802,11 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                 "test_name": c.test_name,
                 "base_url": c.base_url,
                 "timeout_seconds": c.timeout_seconds,
+                "test_kind": c.test_kind,
                 "definition": c.definition,
+                "source_relpath": c.source_relpath,
+                "source_filename": c.source_filename,
+                "source_sha256": c.source_sha256,
             }
             for c in claimed
         ]
@@ -533,11 +844,13 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                     dbm.get_test_config_internal, app.state.settings, test_id=outcome.test_id
                 )
                 down_after = int(cfg.get("down_after_failures") or 2) if isinstance(cfg, dict) else 2
+                test_kind = str(cfg.get("test_kind") or "stepflow") if isinstance(cfg, dict) else "stepflow"
                 msg = build_failure_telegram_message(
                     settings=app.state.settings,
                     tenant_id=outcome.tenant_id,
                     test_id=outcome.test_id,
                     test_name=outcome.test_name,
+                    test_kind=test_kind,
                     run_id=run_id,
                     fail_streak=int(outcome.fail_streak or 0),
                     down_after_failures=down_after,
@@ -553,6 +866,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                     prompt = build_dispatch_prompt_for_failure(
                         test_id=outcome.test_id,
                         test_name=outcome.test_name,
+                        test_kind=test_kind,
                         base_url=str(cfg.get("base_url") or ""),
                         run_id=run_id,
                         error_kind=req.error_kind,

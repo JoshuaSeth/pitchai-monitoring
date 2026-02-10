@@ -30,6 +30,7 @@ def _env_int(name: str, default: int) -> int:
 class RegistrySettings:
     db_path: str = field(default_factory=lambda: os.getenv("E2E_REGISTRY_DB_PATH", "/data/e2e-registry.db"))
     artifacts_dir: str = field(default_factory=lambda: os.getenv("E2E_ARTIFACTS_DIR", "/data/e2e-artifacts"))
+    tests_dir: str = field(default_factory=lambda: os.getenv("E2E_TESTS_DIR", "/data/e2e-tests"))
 
     # Admin token is used only for admin endpoints (create tenant/api keys).
     admin_token: str = field(default_factory=lambda: os.getenv("E2E_REGISTRY_ADMIN_TOKEN", ""))
@@ -62,3 +63,6 @@ class RegistrySettings:
     runner_lock_timeout_seconds: int = field(
         default_factory=lambda: _env_int("E2E_REGISTRY_RUNNER_LOCK_TIMEOUT_SECONDS", 10 * 60)
     )
+
+    # Upload guardrails.
+    max_upload_bytes: int = field(default_factory=lambda: _env_int("E2E_REGISTRY_MAX_UPLOAD_BYTES", 512_000))
