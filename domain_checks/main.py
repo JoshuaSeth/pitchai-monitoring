@@ -305,6 +305,11 @@ def _get_meta_monitoring_config(config: dict[str, Any]) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def _get_external_e2e_config(config: dict[str, Any]) -> dict[str, Any]:
+    raw = config.get("external_e2e") or {}
+    return raw if isinstance(raw, dict) else {}
+
+
 def _load_timezone(name: str):
     cleaned = (name or "").strip()
     if not cleaned or cleaned.upper() == "UTC":
@@ -615,6 +620,7 @@ def _build_heartbeat_message(
     host_snap: dict[str, Any] | None = None,
     host_violations: list[str] | None = None,
     perf_slow: list[dict[str, Any]] | None = None,
+    external_e2e: dict[str, Any] | None = None,
 ) -> str:
     lines = [
         "Heartbeat: service-monitoring is running ✅",
@@ -680,6 +686,56 @@ def _build_heartbeat_message(
                 lines.append(f"- {domain}: {http_ms} / {browser_ms}")
         else:
             lines.append("Performance: OK")
+
+    if external_e2e is not None:
+        lines.append("")
+        ok = bool(external_e2e.get("ok", True))
+        if not ok:
+            lines.append("External E2E tests: ERROR")
+            err = external_e2e.get("error")
+            if isinstance(err, str) and err.strip():
+                lines.append(f"- {err.strip()[:300]}")
+        else:
+            try:
+                total = int(external_e2e.get("total_tests") or 0)
+            except Exception:
+                total = 0
+            try:
+                failing = int(external_e2e.get("failing_tests") or 0)
+            except Exception:
+                failing = 0
+            status = "OK" if failing <= 0 else "DEGRADED"
+            lines.append(f"External E2E tests: {status} (failing={failing}/{total})")
+
+            tests = external_e2e.get("tests")
+            if isinstance(tests, list) and tests:
+                failing_tests: list[dict[str, Any]] = []
+                for t in tests:
+                    v = t.get("effective_ok")
+                    try:
+                        v_i = 1 if v is None else int(v)
+                    except Exception:
+                        v_i = 1
+                    if v_i == 0:
+                        failing_tests.append(t)
+                if failing_tests:
+                    lines.append("- Failing:")
+                    for t in failing_tests[:5]:
+                        name = t.get("test_name") or t.get("name") or t.get("test_id") or "test"
+                        last_status = t.get("last_status") or "?"
+                        ms = _format_ms(t.get("last_elapsed_ms"))
+                        lines.append(f"  - {name}: {last_status} ({ms})")
+                slow = sorted(
+                    [t for t in tests if t.get("last_elapsed_ms") is not None],
+                    key=lambda x: float(x.get("last_elapsed_ms") or 0.0),
+                    reverse=True,
+                )
+                if slow:
+                    lines.append("- Slowest:")
+                    for t in slow[:3]:
+                        name = t.get("test_name") or t.get("name") or t.get("test_id") or "test"
+                        ms = _format_ms(t.get("last_elapsed_ms"))
+                        lines.append(f"  - {name}: {ms}")
 
     lines.append("")
     lines.append("Domains (HTTP / Browser):")
@@ -2509,6 +2565,21 @@ async def run_loop(config_path: Path, once: bool) -> int:
     started_at = datetime.now(tz)
     last_heartbeat_sent: dict[str, str] = {}  # HH:MM -> YYYY-MM-DD
 
+    external_e2e_cfg = _get_external_e2e_config(config)
+    external_e2e_enabled = bool(external_e2e_cfg.get("enabled", False))
+    external_e2e_base_url = str(
+        os.getenv("E2E_REGISTRY_BASE_URL", str(external_e2e_cfg.get("base_url") or ""))
+    ).strip()
+    external_e2e_token = (
+        os.getenv("E2E_REGISTRY_MONITOR_TOKEN", "").strip()
+        or os.getenv("E2E_REGISTRY_ADMIN_TOKEN", "").strip()
+        or str(external_e2e_cfg.get("monitor_token") or "").strip()
+    )
+    external_e2e_timeout_seconds = _coerce_float(
+        external_e2e_cfg.get("timeout_seconds", 8.0),
+        default=8.0,
+    )
+
     host_health_cfg = _get_host_health_config(config)
     host_health_enabled = bool(host_health_cfg.get("enabled", False))
     host_health_down_after_failures = max(1, int(host_health_cfg.get("down_after_failures", 1)))
@@ -4318,6 +4389,30 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 tzinfo=tz,
                             )
                             if scheduled_dt <= now < (scheduled_dt + timedelta(seconds=tolerance_seconds)):
+                                external_summary = None
+                                if external_e2e_enabled and external_e2e_base_url:
+                                    if not external_e2e_token:
+                                        external_summary = {"ok": False, "error": "missing_e2e_registry_token"}
+                                    else:
+                                        try:
+                                            url = (
+                                                external_e2e_base_url.rstrip("/")
+                                                + "/api/v1/status/summary"
+                                            )
+                                            resp = await http_client.get(
+                                                url,
+                                                headers={"Authorization": f"Bearer {external_e2e_token}"},
+                                                timeout=float(external_e2e_timeout_seconds),
+                                            )
+                                            resp.raise_for_status()
+                                            data = resp.json()
+                                            if isinstance(data, dict):
+                                                external_summary = data
+                                            else:
+                                                external_summary = {"ok": False, "error": "invalid_e2e_registry_response"}
+                                        except Exception as exc:
+                                            external_summary = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
                                 msg = _build_heartbeat_message(
                                     now=now,
                                     scheduled_label=f"{hhmm} {heartbeat_timezone}",
@@ -4327,6 +4422,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     host_snap=host_snap,
                                     host_violations=host_violations,
                                     perf_slow=perf_slow if perf_enabled else None,
+                                    external_e2e=external_summary,
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                                 last_heartbeat_sent[hhmm] = today

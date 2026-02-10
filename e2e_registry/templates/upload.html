@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="panel">
+    <h1 data-testid="upload-title">Upload StepFlow Test</h1>
+    <form method="post" action="/ui/upload" enctype="multipart/form-data">
+      <label for="name">Test name</label>
+      <input id="name" name="name" type="text" data-testid="upload-name" />
+
+      <label for="base_url">Base URL</label>
+      <input id="base_url" name="base_url" type="text" placeholder="https://example.com" data-testid="upload-base-url" />
+
+      <label for="interval_seconds">Interval seconds</label>
+      <input id="interval_seconds" name="interval_seconds" type="number" value="300" data-testid="upload-interval" />
+
+      <label for="file">Definition (YAML or JSON)</label>
+      <input id="file" name="file" type="file" data-testid="upload-file" />
+      <div class="hint">Expected structure: { "name": "...", "steps": [ { "type": "goto" }, ... ] }</div>
+
+      <div class="actions">
+        <button type="submit" data-testid="upload-submit">Create test</button>
+      </div>
+    </form>
+    {% if error %}
+      <div class="err" data-testid="upload-error">{{ error }}</div>
+    {% endif %}
+    {% if msg %}
+      <div class="hint" data-testid="upload-msg">{{ msg }}</div>
+    {% endif %}
+  </div>
+{% endblock %}
+

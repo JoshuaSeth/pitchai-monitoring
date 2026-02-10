@@ -54,10 +54,13 @@ jobs:
 
             APP_NAME="service-monitoring"
             OLD_NAME="monitoring"
+            REGISTRY_NAME="e2e-registry"
+            RUNNER_NAME="e2e-runner"
+            NET_NAME="pitchai-shared"
             IMAGE_SHA="service-monitoring:${{ github.sha }}"
             IMAGE_LATEST="service-monitoring:latest"
 
-            echo "🚀 Deploying ${APP_NAME} @ ${{ github.sha }}"
+            echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} @ ${{ github.sha }}"
 
             DEPLOY_DIR="/tmp/${APP_NAME}-deploy-${{ github.run_id }}-${{ github.run_attempt }}"
             mkdir -p "$DEPLOY_DIR"
@@ -66,6 +69,20 @@ jobs:
             echo "📥 Cloning repo..."
             git clone https://github.com/JoshuaSeth/pitchai-monitoring.git .
             git checkout ${{ github.sha }}
+
+            echo "🌐 Ensuring docker network exists: $NET_NAME"
+            if ! docker network ls --format '{{.Name}}' | grep -qx "$NET_NAME"; then
+              docker network create "$NET_NAME" >/dev/null
+            fi
+
+            stop_rm_if_exists() {
+              local name="$1"
+              if docker ps -a --format '{{.Names}}' | grep -qx "$name"; then
+                echo "🛑 Stopping existing container: $name"
+                docker stop "$name" || true
+                docker rm "$name" || true
+              fi
+            }
 
             if docker ps -a --format '{{.Names}}' | grep -qx "$OLD_NAME"; then
               old_image="$(docker inspect "$OLD_NAME" --format '{{.Config.Image}}' || true)"
@@ -79,44 +96,112 @@ jobs:
               fi
             fi
 
-            if docker ps -a --format '{{.Names}}' | grep -qx "$APP_NAME"; then
-              echo "🛑 Stopping existing container: $APP_NAME"
-              docker stop "$APP_NAME" || true
-              docker rm "$APP_NAME" || true
-            fi
+            stop_rm_if_exists "$APP_NAME"
+            stop_rm_if_exists "$REGISTRY_NAME"
+            stop_rm_if_exists "$RUNNER_NAME"
 
             echo "🔨 Building image..."
             docker build -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
 
-            echo "🚀 Starting container..."
+            echo "📦 Ensuring volumes exist..."
             docker volume create service-monitoring-state >/dev/null
+            docker volume create e2e-registry-data >/dev/null
+            docker volume create e2e-artifacts >/dev/null
+
+            echo "🔐 Ensuring E2E registry tokens exist..."
+            SECRETS_DIR="${HOME}/service-monitoring"
+            mkdir -p "$SECRETS_DIR"
+            E2E_ENV_FILE="$SECRETS_DIR/e2e-registry.env"
+            if [[ ! -f "$E2E_ENV_FILE" ]]; then
+              echo "Generating new E2E registry tokens at $E2E_ENV_FILE"
+              admin="$(python3 - <<'PY'\nimport secrets; print(secrets.token_urlsafe(48))\nPY\n)"
+              monitor="$(python3 - <<'PY'\nimport secrets; print(secrets.token_urlsafe(48))\nPY\n)"
+              runner="$(python3 - <<'PY'\nimport secrets; print(secrets.token_urlsafe(48))\nPY\n)"
+              cat >"$E2E_ENV_FILE" <<EOF
+E2E_REGISTRY_ADMIN_TOKEN=${admin}
+E2E_REGISTRY_MONITOR_TOKEN=${monitor}
+E2E_REGISTRY_RUNNER_TOKEN=${runner}
+E2E_REGISTRY_DB_PATH=/data/e2e-registry.db
+E2E_ARTIFACTS_DIR=/artifacts
+E2E_REGISTRY_ALERTS_ENABLED=1
+E2E_REGISTRY_DISPATCH_ENABLED=1
+EOF
+              chmod 600 "$E2E_ENV_FILE" || true
+            fi
+            E2E_MONITOR_TOKEN="$(grep -E '^E2E_REGISTRY_MONITOR_TOKEN=' "$E2E_ENV_FILE" | head -n1 | cut -d= -f2-)"
+            if [[ -z "${E2E_MONITOR_TOKEN}" ]]; then
+              echo "❌ Missing E2E_REGISTRY_MONITOR_TOKEN in $E2E_ENV_FILE"
+              exit 1
+            fi
+
+            echo "🚀 Starting e2e-registry..."
+            docker run -d \
+              --name "$REGISTRY_NAME" \
+              --restart unless-stopped \
+              --init \
+              --network "$NET_NAME" \
+              -p 127.0.0.1:8111:8111 \
+              -v e2e-registry-data:/data \
+              -v e2e-artifacts:/artifacts \
+              --env-file "$E2E_ENV_FILE" \
+              -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+              -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
+              -e PITCHAI_DISPATCH_BASE_URL="http://pitchai-codex-dispatcher:8129" \
+              -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
+              "$IMAGE_SHA" \
+              python -m e2e_registry.server
+
+            echo "🚀 Starting e2e-runner..."
+            docker run -d \
+              --name "$RUNNER_NAME" \
+              --restart unless-stopped \
+              --init \
+              --shm-size 1g \
+              --network "$NET_NAME" \
+              -v e2e-artifacts:/artifacts \
+              --env-file "$E2E_ENV_FILE" \
+              -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
+              -e E2E_RUNNER_POLL_SECONDS="5" \
+              -e E2E_RUNNER_CONCURRENCY="1" \
+              -e E2E_RUNNER_TRACE_ON_FAILURE="0" \
+              "$IMAGE_SHA" \
+              python -m e2e_runner.main
+
+            echo "🚀 Starting service-monitoring..."
             docker run -d \
               --name "$APP_NAME" \
               --restart unless-stopped \
               --init \
               --shm-size 1g \
+              --network "$NET_NAME" \
               -v service-monitoring-state:/data \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -v /var/log/nginx:/var/log/nginx:ro \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
+              -e PITCHAI_DISPATCH_BASE_URL="http://pitchai-codex-dispatcher:8129" \
               -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
               -e STATE_PATH="/data/state.json" \
+              -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
+              -e E2E_REGISTRY_MONITOR_TOKEN="${E2E_MONITOR_TOKEN}" \
               "$IMAGE_SHA"
 
             echo "⏳ Waiting for startup..."
             sleep 10
 
-            running="$(docker inspect "$APP_NAME" --format '{{.State.Running}}')"
-            if [[ "$running" != "true" ]]; then
-              echo "❌ Container is not running"
-              docker logs "$APP_NAME" --tail 200 || true
-              exit 1
-            fi
+            for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME"; do
+              running="$(docker inspect "$name" --format '{{.State.Running}}')"
+              if [[ "$running" != "true" ]]; then
+                echo "❌ Container is not running: $name"
+                docker logs "$name" --tail 200 || true
+                exit 1
+              fi
+            done
 
-            echo "✅ Container running"
-            docker ps --filter "name=${APP_NAME}"
+            echo "✅ Containers running"
+            docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}"
+            docker logs "$REGISTRY_NAME" --tail 40 || true
+            docker logs "$RUNNER_NAME" --tail 40 || true
             docker logs "$APP_NAME" --tail 80 || true
 
             cd /

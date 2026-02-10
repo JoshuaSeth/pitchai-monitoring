@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="panel">
+    <h1 data-testid="run-detail-title">Run</h1>
+    <div class="muted">Run ID: <span class="mono" data-testid="run-id">{{ run.id }}</span></div>
+    <div class="muted">Test: <a href="/ui/tests/{{ run.test_id }}" data-testid="run-test-link">{{ run.test_name }}</a></div>
+    <div class="muted">Base URL: <span class="mono">{{ run.test_base_url }}</span></div>
+    <div class="muted">Scheduled: <span class="mono">{{ run.scheduled_for_ts }}</span></div>
+    <div class="muted">Started: <span class="mono">{{ run.started_at_ts or "" }}</span></div>
+    <div class="muted">Finished: <span class="mono">{{ run.finished_at_ts or "" }}</span></div>
+    <div class="muted">Status:
+      {% if run.status == "pass" %}
+        <span class="badge ok">pass</span>
+      {% elif run.status == "fail" %}
+        <span class="badge fail">fail</span>
+      {% else %}
+        <span class="badge infra">infra</span>
+      {% endif %}
+    </div>
+    <div class="muted">Elapsed ms: <span class="mono" data-testid="run-elapsed">{{ run.elapsed_ms or "" }}</span></div>
+    {% if run.error_kind or run.error_message %}
+      <h2>Error</h2>
+      <div class="code" data-testid="run-error">{{ (run.error_kind or "") ~ ": " ~ (run.error_message or "") }}</div>
+    {% endif %}
+
+    {% if artifacts %}
+      <h2>Artifacts</h2>
+      <ul>
+        {% for k,v in artifacts.items() %}
+          <li class="mono">
+            {{ k }}:
+            {% if v %}
+              <a href="/api/v1/runs/{{ run.id }}/artifacts/{{ v }}" data-testid="artifact-link">{{ v }}</a>
+            {% else %}
+              (none)
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endblock %}
+

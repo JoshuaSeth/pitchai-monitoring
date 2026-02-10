@@ -118,6 +118,47 @@ docker run --rm \
   service-monitoring:latest
 ```
 
+## External E2E Registry (Developer-Submitted StepFlow Tests)
+
+This repo also includes an optional external E2E test registry + runner:
+
+- Registry service: `python -m e2e_registry.server` (FastAPI + minimal UI)
+- Runner worker: `python -m e2e_runner.main` (claims due runs and executes StepFlow with Playwright)
+
+The registry stores tests + run history in SQLite (single-host) by default and stores artifacts on a shared volume.
+
+### Run Locally (3 terminals)
+
+1. Start the registry:
+
+```bash
+export E2E_REGISTRY_DB_PATH="/tmp/e2e-registry.db"
+export E2E_ARTIFACTS_DIR="/tmp/e2e-artifacts"
+export E2E_REGISTRY_ADMIN_TOKEN="admin-..."
+export E2E_REGISTRY_MONITOR_TOKEN="monitor-..."
+export E2E_REGISTRY_RUNNER_TOKEN="runner-..."
+python -m e2e_registry.server
+```
+
+2. Start the runner:
+
+```bash
+export E2E_REGISTRY_BASE_URL="http://127.0.0.1:8111"
+export E2E_REGISTRY_RUNNER_TOKEN="runner-..."
+export E2E_ARTIFACTS_DIR="/tmp/e2e-artifacts"
+python -m e2e_runner.main
+```
+
+3. (Optional) Include external E2E summary in heartbeats:
+
+```bash
+export E2E_REGISTRY_BASE_URL="http://127.0.0.1:8111"
+export E2E_REGISTRY_MONITOR_TOKEN="monitor-..."
+python -m domain_checks.main --once
+```
+
+Spec and API details: `specs/external-e2e-tests-registry.md`
+
 ## Add a domain
 
 1. Add an entry to `domain_checks/config.yaml`.

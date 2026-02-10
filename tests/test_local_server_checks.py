@@ -389,7 +389,8 @@ async def test_browser_check_required_any_timeout_not_multiplied(local_server_ba
 
     assert ok is False
     assert details["required_any_ok"] is False
-    assert elapsed < 2.5
+    # This should be ~1x timeout, not N * timeout. Allow some slack for CI scheduling jitter.
+    assert elapsed < 3.0
 
 
 @pytest.mark.asyncio

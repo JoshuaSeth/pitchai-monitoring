@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="panel">
+    <h1 data-testid="test-detail-title">Test: {{ test.name }}</h1>
+    <div class="row">
+      <div class="col">
+        <div>Status:
+          {% if test.effective_ok == 1 %}
+            <span class="badge ok">OK</span>
+          {% else %}
+            <span class="badge fail">FAIL</span>
+          {% endif %}
+        </div>
+        <div class="muted">Enabled:
+          {% if test.enabled == 1 %}
+            <span class="badge ok">yes</span>
+          {% else %}
+            <span class="badge fail">no</span>
+          {% endif %}
+        </div>
+        {% if test.disabled_reason or test.disabled_until_ts %}
+          <div class="muted">Disable info:
+            <span class="mono">{{ test.disabled_reason or "" }}</span>
+            <span class="mono">{{ test.disabled_until_ts or "" }}</span>
+          </div>
+        {% endif %}
+        <div class="muted">Test ID: <span class="mono" data-testid="test-id">{{ test.id }}</span></div>
+        <div class="muted">Base URL: <span class="mono" data-testid="test-base-url">{{ test.base_url }}</span></div>
+        <div class="muted">Interval: <span class="mono">{{ test.interval_seconds }}s</span></div>
+        <div class="muted">Timeout: <span class="mono">{{ test.timeout_seconds }}s</span></div>
+        <div class="muted">Jitter: <span class="mono">{{ test.jitter_seconds }}s</span></div>
+        <div class="muted">Debounce: <span class="mono">down_after={{ test.down_after_failures }} up_after={{ test.up_after_successes }}</span></div>
+      </div>
+      <div class="col">
+        <div class="actions">
+          <form method="post" action="/ui/tests/{{ test.id }}/run">
+            <button type="submit" data-testid="run-now">Run now</button>
+          </form>
+          <form method="post" action="/ui/tests/{{ test.id }}/disable">
+            <input type="text" name="reason" value="temporary disable (ui)" data-testid="disable-reason" />
+            <input type="text" name="until" placeholder="until (unix ts or ISO date)" data-testid="disable-until" />
+            <button type="submit" class="secondary" data-testid="disable">Disable</button>
+          </form>
+          <form method="post" action="/ui/tests/{{ test.id }}/enable">
+            <button type="submit" class="secondary" data-testid="enable">Enable</button>
+          </form>
+        </div>
+        {% if msg %}
+          <div class="hint" data-testid="flash">{{ msg }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <h2>Definition</h2>
+    <div class="code" data-testid="definition-json">{{ definition_json }}</div>
+
+    <h2>Recent Runs</h2>
+    <table data-testid="runs-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Status</th>
+          <th>Elapsed</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in runs %}
+          <tr>
+            <td class="mono"><a href="/ui/runs/{{ r.id }}" data-testid="run-link">{{ r.scheduled_for_ts }}</a></td>
+            <td>
+              {% if r.status == "pass" %}
+                <span class="badge ok">pass</span>
+              {% elif r.status == "fail" %}
+                <span class="badge fail">fail</span>
+              {% else %}
+                <span class="badge infra">infra</span>
+              {% endif %}
+            </td>
+            <td class="mono">{{ r.elapsed_ms or "" }}</td>
+            <td class="mono">{{ r.error_kind or "" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

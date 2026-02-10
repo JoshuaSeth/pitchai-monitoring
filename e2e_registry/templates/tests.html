@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="panel">
+    <h1 data-testid="tests-title">Tests</h1>
+    <div class="muted">Tenant: <span class="mono" data-testid="tenant-id">{{ tenant_id }}</span></div>
+    <h2>Registered</h2>
+    <table data-testid="tests-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Name</th>
+          <th>Base URL</th>
+          <th>Streak</th>
+          <th>Last Run</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tests %}
+          <tr>
+            <td>
+              {% if t.effective_ok == 1 %}
+                <span class="badge ok" data-testid="status-ok">OK</span>
+              {% else %}
+                <span class="badge fail" data-testid="status-fail">FAIL</span>
+              {% endif %}
+            </td>
+            <td><a href="/ui/tests/{{ t.id }}" data-testid="test-link">{{ t.name }}</a></td>
+            <td class="mono">{{ t.base_url }}</td>
+            <td class="mono">f={{ t.fail_streak or 0 }} s={{ t.success_streak or 0 }}</td>
+            <td class="mono">{{ t.last_fail_ts or t.last_ok_ts or "" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}
+

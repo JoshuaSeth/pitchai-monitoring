@@ -152,6 +152,8 @@ container_health:
   include_name_patterns:
     - "^service-monitoring$"
     - "^pitchai-codex-dispatcher$"
+    - "^e2e-registry$"
+    - "^e2e-runner$"
     - "^autopar$"
     - "^autopar-auth$"
     - "^afasask$"
@@ -203,6 +205,16 @@ heartbeat:
   times:
     - "07:30"
     - "12:00"
+
+# Optional: include externally-registered StepFlow E2E tests in heartbeats.
+# This fetches `GET {E2E_REGISTRY_BASE_URL}/api/v1/status/summary` using a bearer token.
+external_e2e:
+  enabled: true
+  # Prefer env var override: E2E_REGISTRY_BASE_URL
+  base_url: "http://e2e-registry:8111"
+  # Prefer env var override: E2E_REGISTRY_MONITOR_TOKEN (or E2E_REGISTRY_ADMIN_TOKEN)
+  monitor_token: ""
+  timeout_seconds: 8
 
 # Domains to check every minute.
 # For each domain, add `domain_checks/<domain>/check.py` defining the element checks.
