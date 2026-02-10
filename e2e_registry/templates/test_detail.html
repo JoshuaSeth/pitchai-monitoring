@@ -37,6 +37,12 @@
           <form method="post" action="/ui/tests/{{ test.id }}/run">
             <button type="submit" data-testid="run-now">Run now</button>
           </form>
+          {% if (test.test_kind or "stepflow") != "stepflow" %}
+            <form method="post" action="/ui/tests/{{ test.id }}/source" enctype="multipart/form-data">
+              <input type="file" name="file" data-testid="replace-source-file" />
+              <button type="submit" class="secondary" data-testid="replace-source">Replace file</button>
+            </form>
+          {% endif %}
           <form method="post" action="/ui/tests/{{ test.id }}/disable">
             <input type="text" name="reason" value="temporary disable (ui)" data-testid="disable-reason" />
             <input type="text" name="until" placeholder="until (unix ts or ISO date)" data-testid="disable-until" />

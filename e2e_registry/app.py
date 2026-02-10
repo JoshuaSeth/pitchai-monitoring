@@ -129,6 +129,13 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     async def health() -> dict[str, Any]:
         return {"ok": True, "ts": time.time()}
 
+    @app.get("/")
+    async def root(req: Request) -> RedirectResponse:
+        # Convenience: make the domain root land on the UI.
+        # If the user is already authenticated, go straight to /ui/tests.
+        authed = await _ui_get_auth(req)
+        return RedirectResponse(url="/ui/tests" if authed is not None else "/ui/login", status_code=303)
+
     # -----------------
     # UI auth helpers
     # -----------------
@@ -278,6 +285,71 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             until_ts=None,
         )
         msg = "Enabled" if ok else "Enable failed"
+        return RedirectResponse(url=f"/ui/tests/{test_id}?msg={msg}", status_code=303)
+
+    @app.post("/ui/tests/{test_id}/source")
+    async def ui_update_test_source(
+        req: Request,
+        test_id: str,
+        file: UploadFile = File(...),
+    ) -> RedirectResponse:
+        """
+        Replace the stored source for a code-based test via UI (multipart file upload).
+        """
+        authed = await _ui_require_auth(req)
+        settings2: RegistrySettings = app.state.settings
+
+        test = await asyncio.to_thread(dbm.get_test, settings2, tenant_id=authed.tenant_id, test_id=test_id)
+        if not test:
+            return RedirectResponse(url=f"/ui/tests/{test_id}?msg=Test+not+found", status_code=303)
+
+        kind = str(test.get("test_kind") or "stepflow").strip().lower() or "stepflow"
+        if kind == "stepflow":
+            return RedirectResponse(url=f"/ui/tests/{test_id}?msg=StepFlow+tests+use+definition+updates", status_code=303)
+
+        raw = await file.read()
+        if int(settings2.max_upload_bytes) > 0 and len(raw) > int(settings2.max_upload_bytes):
+            return RedirectResponse(url=f"/ui/tests/{test_id}?msg=File+too+large", status_code=303)
+
+        default_fn = "test.py" if kind == "playwright_python" else "test.js"
+        source_filename = _safe_filename(file.filename or "", default=default_fn)
+        if kind == "playwright_python" and not source_filename.endswith(".py"):
+            return RedirectResponse(url=f"/ui/tests/{test_id}?msg=Expected+.py+file", status_code=303)
+        if kind == "puppeteer_js" and not (source_filename.endswith(".js") or source_filename.endswith(".mjs")):
+            return RedirectResponse(url=f"/ui/tests/{test_id}?msg=Expected+.js+or+.mjs+file", status_code=303)
+
+        base_dir = Path(settings2.tests_dir).resolve()
+        rel = Path(authed.tenant_id) / str(test_id).strip() / source_filename
+        fp = (base_dir / rel).resolve()
+        if base_dir not in fp.parents:
+            return RedirectResponse(url=f"/ui/tests/{test_id}?msg=Invalid+upload+path", status_code=303)
+        try:
+            fp.parent.mkdir(parents=True, exist_ok=True)
+            fp.write_bytes(raw)
+        except Exception as exc:
+            return RedirectResponse(url=f"/ui/tests/{test_id}?msg=Write+failed:+{exc}", status_code=303)
+
+        # Best-effort cleanup of the old file when it changes.
+        old_rel = str(test.get("source_relpath") or "").strip()
+        if old_rel and old_rel != str(rel):
+            try:
+                old_fp = (base_dir / old_rel).resolve()
+                if base_dir in old_fp.parents and old_fp.exists() and old_fp.is_file():
+                    old_fp.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        ok = await asyncio.to_thread(
+            dbm.update_test_source,
+            settings2,
+            tenant_id=authed.tenant_id,
+            test_id=test_id,
+            source_relpath=str(rel),
+            source_filename=source_filename,
+            source_sha256=_sha256_hex(raw),
+            source_content_type=file.content_type,
+        )
+        msg = "Source updated" if ok else "Update failed"
         return RedirectResponse(url=f"/ui/tests/{test_id}?msg={msg}", status_code=303)
 
     @app.get("/ui/runs/{run_id}", response_class=HTMLResponse)

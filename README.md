@@ -127,6 +127,8 @@ This repo also includes an optional external E2E test registry + runner:
 
 The registry stores tests + run history in SQLite (single-host) by default and stores artifacts on a shared volume.
 
+Colleague-facing onboarding guide (UI + API copy/paste): `docs/external-e2e-tests-colleague-guide.md`
+
 ### What External Developers Upload
 
 1. Playwright (Python): a single `.py` file that defines:
