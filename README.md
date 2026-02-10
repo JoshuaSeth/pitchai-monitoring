@@ -159,6 +159,17 @@ python -m domain_checks.main --once
 
 Spec and API details: `specs/external-e2e-tests-registry.md`
 
+## Live Tests (Real Domains / Real Services)
+
+This repo includes `pytest.mark.live` tests that hit real external domains and/or the real Dispatcher/E2E registry. They are skipped by default and require explicit env flags:
+
+- Live domain + metric checks (real websites):
+  - `RUN_LIVE_TESTS=1 python -m pytest -m live tests/test_live_domains.py tests/test_live_metrics.py`
+- Live Dispatcher smoke test (real agent run):
+  - `RUN_LIVE_DISPATCH_TESTS=1 python -m pytest -m live tests/test_live_dispatch.py`
+- Live E2E registry acceptance tests (real registry + runner + Playwright):
+  - `RUN_LIVE_E2E_REGISTRY_TESTS=1 python -m pytest -m live tests/test_live_e2e_registry_prod.py`
+
 ## Add a domain
 
 1. Add an entry to `domain_checks/config.yaml`.

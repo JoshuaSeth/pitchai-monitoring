@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass
@@ -14,6 +15,9 @@ from playwright.async_api import Browser, async_playwright
 
 from domain_checks.common_check import find_chromium_executable
 from domain_checks.metrics_synthetic import run_synthetic_transactions
+
+
+LOGGER = logging.getLogger("e2e-runner")
 
 
 def _env_int(name: str, default: int) -> int:
@@ -222,6 +226,14 @@ async def run_loop(cfg: RunnerConfig) -> int:
     if not cfg.runner_token:
         raise RuntimeError("Missing E2E_REGISTRY_RUNNER_TOKEN")
 
+    LOGGER.info(
+        "Starting e2e-runner registry_base_url=%s poll_seconds=%s concurrency=%s trace_on_failure=%s",
+        cfg.registry_base_url,
+        cfg.poll_seconds,
+        cfg.concurrency,
+        cfg.trace_on_failure,
+    )
+
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI E2E Runner"}) as client:
         async with async_playwright() as p:
             browser: Browser | None = None
@@ -250,12 +262,14 @@ async def run_loop(cfg: RunnerConfig) -> int:
                     browser = await _launch_browser(p)
                     launch_fail_count = 0
                     launch_next_try_ts = 0.0
+                    LOGGER.info("Chromium launched ok")
                     return browser
                 except Exception:
                     launch_fail_count += 1
                     backoff = min(120.0, 2.0 * (2 ** min(launch_fail_count, 6)))
                     launch_next_try_ts = now_ts + backoff
                     browser = None
+                    LOGGER.warning("Chromium launch failed; backoff_seconds=%s fail_count=%s", backoff, launch_fail_count)
                     return None
 
             try:
@@ -270,7 +284,10 @@ async def run_loop(cfg: RunnerConfig) -> int:
                     jobs = []
                     try:
                         jobs = await _claim_jobs(client, cfg)
+                        if jobs:
+                            LOGGER.info("Claimed jobs count=%s", len(jobs))
                     except Exception:
+                        LOGGER.exception("Claim failed")
                         jobs = []
                     if not jobs:
                         await asyncio.sleep(cfg.poll_seconds)
@@ -280,8 +297,14 @@ async def run_loop(cfg: RunnerConfig) -> int:
                             continue
                         try:
                             await _run_one_job(b, cfg, client, job)
+                            rid = str(job.get("run_id") or "").strip()
+                            tid = str(job.get("test_id") or "").strip()
+                            LOGGER.info("Job complete run_id=%s test_id=%s", rid, tid)
                         except Exception:
                             # Avoid crashing the runner loop due to one bad job.
+                            rid = str(job.get("run_id") or "").strip()
+                            tid = str(job.get("test_id") or "").strip()
+                            LOGGER.exception("Job crashed run_id=%s test_id=%s", rid, tid)
                             continue
             finally:
                 if browser is not None:
@@ -296,6 +319,12 @@ def main() -> None:
     parser.add_argument("--once", action="store_true", help="Run a single claim+execute loop then exit")
     args = parser.parse_args()
 
+    log_level = (os.getenv("E2E_RUNNER_LOG_LEVEL") or os.getenv("LOG_LEVEL") or "INFO").strip().upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
     cfg = load_config()
     if args.once:
         # For smoke tests: run loop for one cycle.
@@ -303,12 +332,14 @@ def main() -> None:
             async with httpx.AsyncClient(headers={"User-Agent": "PitchAI E2E Runner"}) as client:
                 jobs = await _claim_jobs(client, cfg)
                 if not jobs:
+                    LOGGER.info("No jobs claimed; exiting --once")
                     return
                 async with async_playwright() as p:
                     try:
                         browser = await _launch_browser(p)
                     except Exception as exc:
                         # Best-effort: release locks by completing claimed runs as infra-degraded.
+                        LOGGER.warning("Chromium launch failed in --once; completing claimed jobs as infra_degraded")
                         for job in jobs:
                             if not isinstance(job, dict):
                                 continue
