@@ -208,6 +208,7 @@ async def run_synthetic_transactions(
                 )
             )
         except Exception as exc:
+            browser_infra_error = _is_browser_infra_error(exc)
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             out.append(
                 SyntheticTransactionResult(
@@ -217,7 +218,7 @@ async def run_synthetic_transactions(
                     elapsed_ms=round(elapsed_ms, 3),
                     error=f"{type(exc).__name__}: {exc}",
                     details={"final_url": _safe_str(page.url) if page else None},
-                    browser_infra_error=False,
+                    browser_infra_error=browser_infra_error,
                 )
             )
         finally:

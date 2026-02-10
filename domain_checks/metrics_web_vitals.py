@@ -178,6 +178,7 @@ async def measure_web_vitals(
             browser_infra_error=browser_infra_error,
         )
     except Exception as exc:
+        browser_infra_error = _is_browser_infra_error(exc)
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         return WebVitalsResult(
             domain=cleaned_domain,
@@ -185,7 +186,7 @@ async def measure_web_vitals(
             metrics={},
             error=f"{type(exc).__name__}: {exc}",
             elapsed_ms=round(elapsed_ms, 3),
-            browser_infra_error=False,
+            browser_infra_error=browser_infra_error,
         )
     finally:
         if page is not None:
@@ -198,4 +199,3 @@ async def measure_web_vitals(
                 await context.close()
             except Exception:
                 pass
-

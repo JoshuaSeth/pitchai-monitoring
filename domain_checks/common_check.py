@@ -91,6 +91,15 @@ def _is_browser_infra_error(exc: Exception) -> bool:
     if "target crashed" in msg:
         return True
 
+    # Playwright driver / transport died (often due to Chromium crash/OOM/shm issues).
+    # In practice this means "the browser infra is broken", not that the website is down.
+    if "connection closed while reading from the driver" in msg:
+        return True
+    if "connection closed while writing to the driver" in msg:
+        return True
+    if "pipe closed by peer" in msg:
+        return True
+
     return False
 
 
@@ -260,7 +269,7 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
                 await context.route('**/*', _route_filter)
             except Exception:
                 pass
-        except PlaywrightError as e:
+        except Exception as e:
             connected = None
             try:
                 connected = browser.is_connected()
@@ -288,7 +297,7 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
 
         try:
             response = await page.goto(spec.url, wait_until="domcontentloaded", timeout=timeout_ms)
-        except PlaywrightError as e:
+        except Exception as e:
             connected = None
             try:
                 connected = browser.is_connected()
@@ -416,7 +425,7 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
             "missing_text": missing_text,
             "browser_elapsed_ms": round(elapsed_ms, 3),
         }
-    except PlaywrightError as e:
+    except Exception as e:
         connected = None
         try:
             connected = browser.is_connected()
