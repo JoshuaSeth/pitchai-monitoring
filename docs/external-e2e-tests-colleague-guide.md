@@ -27,6 +27,24 @@ You need:
 
 If you do not have an API key yet, ask Seth/Infra.
 
+## Mandatory Domain & Scope Rules (Read First)
+
+These are required for all submitted monitoring tests:
+
+1. `base_url` must be the **main production domain** of the app.
+   - Good: `https://deplanbook.com`, `https://autopar.pitchai.net`, `https://cms.deplanbook.com`
+   - Not allowed: staging/dev URLs, local URLs, raw server IPs, private/internal hostnames
+2. Your test must validate real user-visible behavior on that main domain (not only a 200 response).
+3. If you have alias/redirect domains, use one of these patterns:
+   - Primary test on canonical main domain (recommended)
+   - Optional extra test for alias redirect behavior (e.g. alias redirects to canonical domain)
+4. Keep tests non-destructive and safe for production traffic.
+
+Minimum expectation per app:
+
+- At least 1 main-domain smoke test
+- At least 1 critical-path test (key flow/UI element for your app)
+
 ## Step 1: Create Your Test File
 
 Use one of these two supported formats.
@@ -79,7 +97,7 @@ Set variables once:
 ```bash
 BASE="https://monitoring.pitchai.net"
 API_KEY="PASTE_YOUR_API_KEY_HERE"
-TARGET_BASE_URL="https://autopar.pitchai.net"
+MAIN_DOMAIN_URL="https://autopar.pitchai.net"   # MUST be canonical production app domain
 ```
 
 ### Upload Playwright Python file
@@ -89,7 +107,7 @@ RESP="$(
   curl -fsSL -X POST "$BASE/api/v1/tests/upload" \
     -H "Authorization: Bearer ${API_KEY}" \
     -F "name=autopar_home_smoke_py" \
-    -F "base_url=${TARGET_BASE_URL}" \
+    -F "base_url=${MAIN_DOMAIN_URL}" \
     -F "kind=playwright_python" \
     -F "interval_seconds=300" \
     -F "timeout_seconds=45" \
@@ -111,7 +129,7 @@ RESP="$(
   curl -fsSL -X POST "$BASE/api/v1/tests/upload" \
     -H "Authorization: Bearer ${API_KEY}" \
     -F "name=autopar_home_smoke_js" \
-    -F "base_url=${TARGET_BASE_URL}" \
+    -F "base_url=${MAIN_DOMAIN_URL}" \
     -F "kind=puppeteer_js" \
     -F "interval_seconds=300" \
     -F "timeout_seconds=45" \
@@ -252,7 +270,7 @@ This shows the complete flow in one go (upload → run → inspect):
 ```bash
 BASE="https://monitoring.pitchai.net"
 API_KEY="PASTE_YOUR_API_KEY_HERE"
-TARGET_BASE_URL="https://autopar.pitchai.net"
+MAIN_DOMAIN_URL="https://autopar.pitchai.net"
 
 cat > autopar_home_smoke.py <<'PY'
 async def run(page, base_url, artifacts_dir):
@@ -266,7 +284,7 @@ RESP="$(
   curl -fsSL -X POST "$BASE/api/v1/tests/upload" \
     -H "Authorization: Bearer ${API_KEY}" \
     -F "name=autopar_quickstart_example" \
-    -F "base_url=${TARGET_BASE_URL}" \
+    -F "base_url=${MAIN_DOMAIN_URL}" \
     -F "kind=playwright_python" \
     -F "interval_seconds=300" \
     -F "timeout_seconds=45" \
@@ -293,12 +311,25 @@ curl -fsSL "$BASE/api/v1/tests/${TEST_ID}/runs?limit=3" \
 
 Your submitted tests must be:
 
+- On the app’s canonical production main domain (`base_url`)
 - Read-only and non-destructive
 - Short (target under 5-15 seconds)
 - Stable (use reliable selectors and clear assertions)
 - Production-safe (no high-volume loops, no destructive write flows)
 
 If credentials are needed, use dedicated low-privilege test accounts and coordinate with Infra.
+
+## What a “Good” Main-Domain Monitoring Test Looks Like
+
+A high-quality test usually does all of this:
+
+1. Starts at the main production domain (`base_url`)
+2. Waits for meaningful UI render (not just network idle)
+3. Asserts one stable identity signal (title, product text, or logo area)
+4. Asserts one stable critical element (login button, dashboard link, main CTA, key nav item)
+5. Fails clearly with actionable error message if expectation is broken
+
+This gives us fast and reliable signal that the app is truly usable for end users.
 
 ## Troubleshooting
 
@@ -317,7 +348,7 @@ If credentials are needed, use dedicated low-privilege test accounts and coordin
 ### Test always fails
 
 - Download `run.log` and `failure.png` artifacts and fix selectors/assertions.
-- Ensure `base_url` points to the correct environment/domain.
+- Ensure `base_url` points to the app’s canonical production main domain.
 
 ### Test marked `infra_degraded`
 
