@@ -26,6 +26,14 @@ def _env_int(name: str, default: int) -> int:
         return int(default)
 
 
+def _env_str(name: str, default: str) -> str:
+    raw = os.getenv(name)
+    if raw is None:
+        return str(default)
+    s = str(raw).strip()
+    return s if s else str(default)
+
+
 @dataclass(frozen=True)
 class RegistrySettings:
     db_path: str = field(default_factory=lambda: os.getenv("E2E_REGISTRY_DB_PATH", "/data/e2e-registry.db"))
@@ -66,3 +74,13 @@ class RegistrySettings:
 
     # Upload guardrails.
     max_upload_bytes: int = field(default_factory=lambda: _env_int("E2E_REGISTRY_MAX_UPLOAD_BYTES", 512_000))
+
+    # --- Monitoring dashboard (served by the same web app on monitoring.pitchai.net) ---
+    # Path to the service-monitoring state.json volume (mounted read-only into this container).
+    monitor_state_path: str = field(default_factory=lambda: _env_str("SERVICE_MONITOR_STATE_PATH", "/monitor_state/state.json"))
+    # Path to the monitoring config yaml (baked into the image by default).
+    monitor_config_path: str = field(default_factory=lambda: _env_str("SERVICE_MONITOR_CONFIG_PATH", "/app/domain_checks/config.yaml"))
+    # Require a monitoring/admin token login to view the dashboard.
+    dashboard_require_auth: bool = field(default_factory=lambda: _env_bool("MONITOR_DASHBOARD_REQUIRE_AUTH", True))
+    # How many points to return per timeseries (downsamples server-side).
+    dashboard_max_points: int = field(default_factory=lambda: _env_int("MONITOR_DASHBOARD_MAX_POINTS", 1500))

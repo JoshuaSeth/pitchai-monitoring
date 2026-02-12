@@ -1,0 +1,662 @@
+{% extends "base.html" %}
+{% block content %}
+  <style>
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      outline: none;
+    }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .kpi { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px; }
+    .kpi .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .kpi .value { font-size: 18px; font-weight: 750; margin-top: 6px; }
+    .kpi .sub { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .pill { display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.04); }
+    .pill .dot { width: 8px; height: 8px; border-radius: 99px; background: rgba(255,255,255,0.35); }
+    .pill.ok .dot { background: rgba(52,211,153,0.90); }
+    .pill.fail .dot { background: rgba(251,113,133,0.90); }
+    .pill.warn .dot { background: rgba(251,191,36,0.95); }
+    .scroll { overflow-x: auto; }
+    .small { font-size: 12px; color: var(--muted); }
+    .right { text-align: right; }
+    .domain-row { cursor: pointer; }
+    .domain-row.selected td { background: rgba(94,234,212,0.08); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 980px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .two { grid-template-columns: 1fr; } }
+    canvas { width: 100% !important; height: 260px !important; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+    .msg { font-family: var(--mono); font-size: 12px; background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.08); padding: 10px; border-radius: 12px; }
+  </style>
+
+  <div class="panel">
+    <h1 data-testid="dash-title">Monitoring Dashboard</h1>
+
+    <div class="row">
+      <div class="col">
+        <div class="muted">Loaded at: <span class="mono" id="loaded-at" data-testid="dash-loaded-at">...</span></div>
+        <div class="muted">State: <span class="mono" id="state-path" data-testid="dash-state-path">...</span></div>
+        <div class="muted">Config: <span class="mono" id="config-path" data-testid="dash-config-path">...</span></div>
+        <div class="err" id="dash-error" style="display:none;" data-testid="dash-error"></div>
+      </div>
+      <div class="col">
+        <label for="range">Range</label>
+        <select id="range" data-testid="dash-range">
+          <option value="6h">6h</option>
+          <option value="12h">12h</option>
+          <option value="24h" selected>24h</option>
+          <option value="48h">48h</option>
+          <option value="7d">7d</option>
+          <option value="14d">14d</option>
+          <option value="30d">30d</option>
+        </select>
+        <div class="hint">Shows debounced availability + latency + global signals (SLO/RED/TLS/DNS/host health) and recent dispatcher triage conclusions.</div>
+        <div class="actions">
+          <button class="secondary" id="reload" data-testid="dash-reload">Reload</button>
+          <a href="/dashboard/logout" class="badge" data-testid="dash-logout">Logout</a>
+        </div>
+      </div>
+    </div>
+
+    <h2>Quick Status</h2>
+    <div class="kpi-grid" data-testid="dash-kpis">
+      <div class="kpi">
+        <div class="label">Domains Down</div>
+        <div class="value" id="kpi-domains-down">-</div>
+        <div class="sub" id="kpi-domains-down-sub">-</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Degraded Signals</div>
+        <div class="value" id="kpi-signals">-</div>
+        <div class="sub" id="kpi-signals-sub">-</div>
+      </div>
+      <div class="kpi">
+        <div class="label">External E2E Tests</div>
+        <div class="value" id="kpi-e2e">-</div>
+        <div class="sub" id="kpi-e2e-sub">-</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Browser Infra</div>
+        <div class="value" id="kpi-browser">-</div>
+        <div class="sub" id="kpi-browser-sub">-</div>
+      </div>
+    </div>
+
+    <h2>Warnings</h2>
+    <div class="row" style="align-items:center;">
+      <div class="col">
+        <span class="pill" id="pill-overall" data-testid="dash-pill-overall"><span class="dot"></span><span id="pill-overall-text">Loading…</span></span>
+      </div>
+      <div class="col right small" id="history-range" data-testid="dash-history-range">…</div>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top: 16px;">
+    <div class="panel">
+      <h2>Domains</h2>
+      <div class="row" style="gap: 10px;">
+        <div class="col">
+          <input type="text" id="domain-filter" placeholder="Filter domains…" data-testid="dash-domain-filter" />
+        </div>
+        <div class="col">
+          <div class="small">Tip: click a domain row to load charts.</div>
+        </div>
+      </div>
+      <div class="scroll">
+        <table data-testid="dash-domains-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Domain</th>
+              <th>HTTP</th>
+              <th>Browser</th>
+              <th>Code</th>
+              <th>24h OK%</th>
+              <th>24h HTTP p95</th>
+              <th>24h Browser p95</th>
+              <th>Slow (24h)</th>
+            </tr>
+          </thead>
+          <tbody id="domains-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Domain Charts</h2>
+      <div class="muted">Selected: <span class="mono" id="selected-domain" data-testid="dash-selected-domain">-</span></div>
+      <div id="charts-missing" class="hint" style="display:none;" data-testid="dash-charts-missing">
+        Charts are unavailable because Chart.js could not be loaded. The tables still show live data.
+      </div>
+      <canvas id="chart-domain-ok" data-testid="dash-chart-domain-ok"></canvas>
+      <canvas id="chart-domain-latency" data-testid="dash-chart-domain-latency"></canvas>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top: 16px;">
+    <h2>Global Signals</h2>
+    <div class="two">
+      <div>
+        <div class="muted">Binary OK signals over time (1=OK, 0=degraded)</div>
+        <canvas id="chart-signals" data-testid="dash-chart-signals"></canvas>
+      </div>
+      <div>
+        <div class="muted">Host health (percent / load)</div>
+        <canvas id="chart-host" data-testid="dash-chart-host"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top: 16px;">
+    <h2>Agent / Dispatcher Triage</h2>
+    <div class="scroll">
+      <table data-testid="dash-dispatch-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Key</th>
+            <th>State</th>
+            <th>UI</th>
+            <th>Conclusion</th>
+          </tr>
+        </thead>
+        <tbody id="dispatch-body"></tbody>
+      </table>
+    </div>
+    <div class="hint">This combines service-monitoring dispatch triage (state.json) and e2e-registry dispatch runs (SQLite).</div>
+  </div>
+
+  <div class="panel" style="margin-top: 16px;">
+    <h2>Recent Events</h2>
+    <div class="scroll">
+      <table data-testid="dash-events-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Kind</th>
+            <th>Domain</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="events-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+
+      const state = {
+        range: "24h",
+        summary: null,
+        selectedDomain: null,
+        charts: {
+          domainOk: null,
+          domainLatency: null,
+          signals: null,
+          host: null,
+        },
+      };
+
+      function esc(s) {
+        const t = String(s ?? "");
+        return t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+      }
+
+      function fmtTs(ts) {
+        if (!ts) return "";
+        const d = new Date(Number(ts) * 1000);
+        if (!Number.isFinite(d.getTime())) return "";
+        return d.toISOString().replace("T", " ").replace("Z", " UTC");
+      }
+
+      function fmtMs(v) {
+        if (v === null || v === undefined) return "n/a";
+        const n = Number(v);
+        if (!Number.isFinite(n)) return "n/a";
+        return Math.round(n) + "ms";
+      }
+
+      function fmtPct(v) {
+        if (v === null || v === undefined) return "n/a";
+        const n = Number(v);
+        if (!Number.isFinite(n)) return "n/a";
+        return n.toFixed(2) + "%";
+      }
+
+      function setErr(msg) {
+        const el = $("dash-error");
+        if (!msg) {
+          el.style.display = "none";
+          el.innerText = "";
+          return;
+        }
+        el.style.display = "block";
+        el.innerText = String(msg);
+      }
+
+      function setPill(kind, text) {
+        const el = $("pill-overall");
+        el.classList.remove("ok", "fail", "warn");
+        if (kind) el.classList.add(kind);
+        $("pill-overall-text").innerText = text;
+      }
+
+      function pickDefaultDomain(domains) {
+        const enabled = (domains || []).filter((d) => !d.disabled);
+        if (enabled.length) return enabled[0].domain;
+        if (domains && domains.length) return domains[0].domain;
+        return null;
+      }
+
+      function renderSummary(sum) {
+        $("loaded-at").innerText = fmtTs(sum.loaded_at_ts || sum.generated_at_ts);
+        $("state-path").innerText = sum.state_path || "";
+        $("config-path").innerText = sum.config_path || "";
+        setErr(sum.error || "");
+
+        const down = (sum.warnings && sum.warnings.down_domains) ? sum.warnings.down_domains : [];
+        const degraded = (sum.warnings && sum.warnings.degraded_signals) ? sum.warnings.degraded_signals : [];
+        $("kpi-domains-down").innerText = String(down.length);
+        $("kpi-domains-down-sub").innerText = down.length ? down.slice(0, 6).join(", ") : "All monitored domains OK";
+        $("kpi-signals").innerText = String(degraded.length);
+        $("kpi-signals-sub").innerText = degraded.length ? degraded.join(", ") : "All signals OK";
+
+        const e2e = sum.external_e2e || null;
+        if (e2e && e2e.ok) {
+          $("kpi-e2e").innerText = String(e2e.failing_tests ?? 0) + " failing";
+          $("kpi-e2e-sub").innerText = String(e2e.total_tests ?? 0) + " total";
+        } else if (e2e && e2e.error) {
+          $("kpi-e2e").innerText = "n/a";
+          $("kpi-e2e-sub").innerText = String(e2e.error);
+        } else {
+          $("kpi-e2e").innerText = "n/a";
+          $("kpi-e2e-sub").innerText = "external e2e summary unavailable";
+        }
+
+        const browser = (sum.signals && sum.signals.browser) ? sum.signals.browser : {};
+        const browserDegraded = Boolean(browser.degraded_active);
+        $("kpi-browser").innerText = browserDegraded ? "DEGRADED" : "OK";
+        $("kpi-browser-sub").innerText = browserDegraded ? (browser.launch_last_error || "browser crash/close detected") : "Playwright healthy";
+
+        if (down.length || degraded.length || browserDegraded) {
+          setPill("warn", "Attention: warnings present");
+        } else {
+          setPill("ok", "All green");
+        }
+
+        const hr = sum.history_range || {};
+        $("history-range").innerText = (hr.min_ts && hr.max_ts) ? ("History: " + fmtTs(hr.min_ts) + " → " + fmtTs(hr.max_ts)) : "History: n/a";
+      }
+
+      function renderDomains(sum) {
+        const tbody = $("domains-body");
+        tbody.innerHTML = "";
+        const domains = sum.domains || [];
+        for (const d of domains) {
+          const dom = d.domain;
+          const disabled = Boolean(d.disabled);
+          const last = d.last || {};
+          const ok = Boolean(last.ok);
+          const statusCode = last.status_code;
+          const avail = d.availability_24h || {};
+          const lat24 = d.latency_24h || {};
+          const slow24 = d.slow_24h || {};
+
+          let badge = '<span class="badge ok">UP</span>';
+          if (disabled) badge = '<span class="badge infra">DISABLED</span>';
+          else if (!ok) badge = '<span class="badge fail">DOWN</span>';
+
+          const row = document.createElement("tr");
+          row.className = "domain-row";
+          row.dataset.domain = dom;
+          row.innerHTML = [
+            "<td>" + badge + "</td>",
+            "<td class=\"mono\">" + esc(dom) + (disabled && d.disabled_reason ? ("<div class=\"small\">" + esc(d.disabled_reason) + "</div>") : "") + "</td>",
+            "<td class=\"mono\">" + esc(fmtMs(last.http_ms)) + "</td>",
+            "<td class=\"mono\">" + esc(fmtMs(last.browser_ms)) + "</td>",
+            "<td class=\"mono\">" + esc(statusCode ?? "") + "</td>",
+            "<td class=\"mono\">" + esc(fmtPct(avail.ok_pct)) + "</td>",
+            "<td class=\"mono\">" + esc(fmtMs(lat24.http_p95_ms)) + "</td>",
+            "<td class=\"mono\">" + esc(fmtMs(lat24.browser_p95_ms)) + "</td>",
+            "<td class=\"mono\">" + esc((slow24.http_count ?? 0) + "/" + (slow24.browser_count ?? 0)) + "</td>",
+          ].join("");
+          row.addEventListener("click", () => selectDomain(dom));
+          tbody.appendChild(row);
+        }
+      }
+
+      function applyDomainFilter() {
+        const q = String($("domain-filter").value || "").trim().toLowerCase();
+        const rows = $("domains-body").querySelectorAll("tr.domain-row");
+        for (const r of rows) {
+          const dom = String(r.dataset.domain || "").toLowerCase();
+          const show = !q || dom.includes(q);
+          r.style.display = show ? "" : "none";
+        }
+      }
+
+      function setSelectedRow(domain) {
+        const rows = $("domains-body").querySelectorAll("tr.domain-row");
+        for (const r of rows) r.classList.remove("selected");
+        const hit = $("domains-body").querySelector('tr.domain-row[data-domain="' + CSS.escape(domain) + '"]');
+        if (hit) hit.classList.add("selected");
+      }
+
+      async function fetchJson(url) {
+        const resp = await fetch(url, { credentials: "include" });
+        if (resp.status === 401) {
+          window.location.href = "/dashboard/login";
+          return null;
+        }
+        if (!resp.ok) {
+          const txt = await resp.text();
+          throw new Error("http_" + resp.status + ": " + txt.slice(0, 500));
+        }
+        return await resp.json();
+      }
+
+      function chartMissingIfNeeded() {
+        const ok = typeof window.Chart === "function" || (window.Chart && typeof window.Chart === "object");
+        $("charts-missing").style.display = ok ? "none" : "block";
+        return ok;
+      }
+
+      function toXY(samples, fn) {
+        const out = [];
+        for (const s of samples || []) {
+          const ts = Number(s.ts);
+          if (!Number.isFinite(ts)) continue;
+          const y = fn(s);
+          out.push({ x: ts * 1000, y });
+        }
+        return out;
+      }
+
+      function toXYList(samples, idx, conv) {
+        const out = [];
+        for (const s of samples || []) {
+          if (!Array.isArray(s) || s.length <= idx) continue;
+          const ts = Number(s[0]);
+          if (!Number.isFinite(ts)) continue;
+          const v = s[idx];
+          const y = conv ? conv(v) : v;
+          out.push({ x: ts * 1000, y });
+        }
+        return out;
+      }
+
+      function fmtTickMs(v) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return "";
+        const d = new Date(n);
+        if (!Number.isFinite(d.getTime())) return "";
+        // e.g. "02-12 16:45"
+        return d.toISOString().slice(5, 16).replace("T", " ");
+      }
+
+      async function selectDomain(domain) {
+        state.selectedDomain = domain;
+        $("selected-domain").innerText = domain || "-";
+        if (!domain) return;
+        setSelectedRow(domain);
+        if (!chartMissingIfNeeded()) return;
+
+        const range = state.range || "24h";
+        const series = await fetchJson("/api/v1/monitoring/domains/" + encodeURIComponent(domain) + "/series?range=" + encodeURIComponent(range));
+        if (!series) return;
+
+        const samples = series.samples || [];
+        const okXY = toXY(samples, (s) => s.ok ? 1 : 0);
+        const httpXY = toXY(samples, (s) => s.http_ms ?? null);
+        const browserXY = toXY(samples, (s) => s.browser_ms ?? null);
+
+        const okCtx = $("chart-domain-ok").getContext("2d");
+        const latCtx = $("chart-domain-latency").getContext("2d");
+
+        if (state.charts.domainOk) state.charts.domainOk.destroy();
+        state.charts.domainOk = new Chart(okCtx, {
+          type: "line",
+          data: {
+            datasets: [
+              { label: "OK (1) / DOWN (0)", data: okXY, borderColor: "rgba(52,211,153,0.9)", backgroundColor: "rgba(52,211,153,0.15)", stepped: true, pointRadius: 0, borderWidth: 2 },
+            ],
+          },
+          options: {
+            responsive: true,
+            parsing: false,
+            plugins: {
+              legend: { display: true, labels: { color: "#aab3cf" } },
+              tooltip: {
+                callbacks: {
+                  title: (items) => items && items[0] ? fmtTickMs(items[0].parsed.x) : "",
+                },
+              },
+            },
+            scales: {
+              x: { type: "linear", ticks: { color: "#aab3cf", callback: fmtTickMs, maxTicksLimit: 8 }, grid: { color: "rgba(255,255,255,0.06)" } },
+              y: { min: -0.05, max: 1.05, ticks: { color: "#aab3cf", stepSize: 1 }, grid: { color: "rgba(255,255,255,0.06)" } },
+            },
+          },
+        });
+
+        if (state.charts.domainLatency) state.charts.domainLatency.destroy();
+        state.charts.domainLatency = new Chart(latCtx, {
+          type: "line",
+          data: {
+            datasets: [
+              { label: "HTTP ms", data: httpXY, borderColor: "rgba(94,234,212,0.9)", pointRadius: 0, borderWidth: 2 },
+              { label: "Browser ms", data: browserXY, borderColor: "rgba(251,191,36,0.9)", pointRadius: 0, borderWidth: 2 },
+            ],
+          },
+          options: {
+            responsive: true,
+            parsing: false,
+            plugins: {
+              legend: { display: true, labels: { color: "#aab3cf" } },
+              tooltip: {
+                callbacks: {
+                  title: (items) => items && items[0] ? fmtTickMs(items[0].parsed.x) : "",
+                },
+              },
+            },
+            scales: {
+              x: { type: "linear", ticks: { color: "#aab3cf", callback: fmtTickMs, maxTicksLimit: 8 }, grid: { color: "rgba(255,255,255,0.06)" } },
+              y: { ticks: { color: "#aab3cf" }, grid: { color: "rgba(255,255,255,0.06)" } },
+            },
+          },
+        });
+      }
+
+      function renderDispatch(sum) {
+        const tbody = $("dispatch-body");
+        tbody.innerHTML = "";
+
+        const rows = [];
+        const recent = (sum.dispatch && sum.dispatch.recent) ? sum.dispatch.recent : [];
+        for (const r of recent.slice().reverse()) {
+          rows.push({
+            ts: Number(r.ts || 0),
+            state_key: r.state_key || "",
+            queue_state: r.queue_state || "",
+            ui_url: r.ui_url || "",
+            agent_message: r.agent_message || r.error || "",
+          });
+        }
+        const e2e = sum.e2e_registry_dispatch || [];
+        for (const r of e2e) {
+          rows.push({
+            ts: Number(r.created_at_ts || 0),
+            state_key: r.state_key || "",
+            queue_state: r.queue_state || "",
+            ui_url: r.ui_url || "",
+            agent_message: r.agent_message || r.error_message || "",
+          });
+        }
+        rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+        for (const r of rows.slice(0, 80)) {
+          const when = fmtTs(r.ts);
+          const stateKey = String(r.state_key || "");
+          const q = String(r.queue_state || "");
+          const msg = String(r.agent_message || "").slice(0, 2000);
+          const ui = String(r.ui_url || "");
+          const uiHtml = ui ? ('<a href="' + esc(ui) + '" target="_blank" rel="noreferrer">' + esc(ui) + '</a>') : "";
+          const tr = document.createElement("tr");
+          tr.innerHTML = [
+            '<td class="mono">' + esc(when) + "</td>",
+            '<td class="mono">' + esc(stateKey) + "</td>",
+            '<td class="mono">' + esc(q) + "</td>",
+            '<td class="mono">' + uiHtml + "</td>",
+            '<td><div class="msg">' + esc(msg || "") + "</div></td>",
+          ].join("");
+          tbody.appendChild(tr);
+        }
+      }
+
+      function renderEvents(sum) {
+        const tbody = $("events-body");
+        tbody.innerHTML = "";
+        const events = (sum.events && Array.isArray(sum.events)) ? sum.events : [];
+        const sorted = events.slice().sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+        for (const e of sorted.slice(0, 250)) {
+          const when = fmtTs(e.ts);
+          const kind = String(e.kind || "");
+          const domain = String(e.domain || "");
+          const det = Object.assign({}, e);
+          delete det.ts; delete det.kind; delete det.domain;
+          const details = JSON.stringify(det);
+          const tr = document.createElement("tr");
+          tr.innerHTML = [
+            '<td class="mono">' + esc(when) + "</td>",
+            '<td class="mono">' + esc(kind) + "</td>",
+            '<td class="mono">' + esc(domain) + "</td>",
+            '<td class="mono small">' + esc(details).slice(0, 600) + "</td>",
+          ].join("");
+          tbody.appendChild(tr);
+        }
+      }
+
+      async function renderSignalsCharts() {
+        if (!chartMissingIfNeeded()) return;
+        const range = state.range || "24h";
+        const signals = ["browser", "host_health", "performance", "slo", "red", "tls", "dns", "container_health", "proxy", "meta"];
+        const promises = signals.map((s) => fetchJson("/api/v1/monitoring/signals/" + encodeURIComponent(s) + "/series?range=" + encodeURIComponent(range)));
+        const res = await Promise.all(promises);
+        const by = {};
+        for (const r of res) {
+          if (r && r.ok && r.signal) by[String(r.signal)] = r;
+        }
+
+        // Binary signals chart
+        const sigCtx = $("chart-signals").getContext("2d");
+        const datasets = [];
+        const colors = {
+          browser: "rgba(251,191,36,0.95)",
+          host_health: "rgba(94,234,212,0.95)",
+          performance: "rgba(52,211,153,0.95)",
+          slo: "rgba(167,139,250,0.95)",
+          red: "rgba(251,113,133,0.95)",
+          tls: "rgba(59,130,246,0.95)",
+          dns: "rgba(244,114,182,0.95)",
+          container_health: "rgba(253,230,138,0.95)",
+          proxy: "rgba(148,163,184,0.95)",
+          meta: "rgba(163,230,53,0.95)",
+        };
+        for (const s of signals) {
+          const r = by[s];
+          if (!r) continue;
+          const xy = toXYList(r.samples || [], 1, (v) => (Number(v) ? 1 : 0));
+          datasets.push({ label: s, data: xy, borderColor: colors[s] || "rgba(255,255,255,0.6)", pointRadius: 0, borderWidth: 2, stepped: true });
+        }
+
+        if (state.charts.signals) state.charts.signals.destroy();
+        state.charts.signals = new Chart(sigCtx, {
+          type: "line",
+          data: { datasets },
+          options: {
+            responsive: true,
+            parsing: false,
+            plugins: {
+              legend: { display: true, labels: { color: "#aab3cf" } },
+              tooltip: {
+                callbacks: {
+                  title: (items) => items && items[0] ? fmtTickMs(items[0].parsed.x) : "",
+                },
+              },
+            },
+            scales: {
+              x: { type: "linear", ticks: { color: "#aab3cf", callback: fmtTickMs, maxTicksLimit: 8 }, grid: { color: "rgba(255,255,255,0.06)" } },
+              y: { min: -0.05, max: 1.05, ticks: { color: "#aab3cf", stepSize: 1 }, grid: { color: "rgba(255,255,255,0.06)" } },
+            },
+          },
+        });
+
+        // Host metrics chart
+        const host = by["host_health"];
+        const hostCtx = $("chart-host").getContext("2d");
+        const hostDatasets = [];
+        if (host && host.samples) {
+          hostDatasets.push({ label: "OK", data: toXYList(host.samples, 1, (v) => (Number(v) ? 1 : 0)), borderColor: "rgba(52,211,153,0.9)", pointRadius: 0, borderWidth: 2, stepped: true, yAxisID: "yOk" });
+          hostDatasets.push({ label: "Mem %", data: toXYList(host.samples, 2, (v) => (v === null || v === undefined) ? null : Number(v)), borderColor: "rgba(94,234,212,0.9)", pointRadius: 0, borderWidth: 2, yAxisID: "yPct" });
+          hostDatasets.push({ label: "CPU %", data: toXYList(host.samples, 4, (v) => (v === null || v === undefined) ? null : Number(v)), borderColor: "rgba(251,191,36,0.9)", pointRadius: 0, borderWidth: 2, yAxisID: "yPct" });
+          hostDatasets.push({ label: "Disk %", data: toXYList(host.samples, 6, (v) => (v === null || v === undefined) ? null : Number(v)), borderColor: "rgba(251,113,133,0.9)", pointRadius: 0, borderWidth: 2, yAxisID: "yPct" });
+          hostDatasets.push({ label: "Load1/CPU", data: toXYList(host.samples, 5, (v) => (v === null || v === undefined) ? null : Number(v)), borderColor: "rgba(167,139,250,0.9)", pointRadius: 0, borderWidth: 2, yAxisID: "yLoad" });
+        }
+
+        if (state.charts.host) state.charts.host.destroy();
+        state.charts.host = new Chart(hostCtx, {
+          type: "line",
+          data: { datasets: hostDatasets },
+          options: {
+            responsive: true,
+            parsing: false,
+            plugins: {
+              legend: { display: true, labels: { color: "#aab3cf" } },
+              tooltip: {
+                callbacks: {
+                  title: (items) => items && items[0] ? fmtTickMs(items[0].parsed.x) : "",
+                },
+              },
+            },
+            scales: {
+              x: { type: "linear", ticks: { color: "#aab3cf", callback: fmtTickMs, maxTicksLimit: 8 }, grid: { color: "rgba(255,255,255,0.06)" } },
+              yOk: { position: "left", min: -0.05, max: 1.05, ticks: { color: "#aab3cf", stepSize: 1 }, grid: { color: "rgba(255,255,255,0.06)" } },
+              yPct: { position: "right", min: 0, max: 100, ticks: { color: "#aab3cf" }, grid: { drawOnChartArea: false } },
+              yLoad: { position: "right", ticks: { color: "#aab3cf" }, grid: { drawOnChartArea: false } },
+            },
+          },
+        });
+      }
+
+      async function loadAll() {
+        state.range = String($("range").value || "24h");
+        const sum = await fetchJson("/api/v1/monitoring/summary?range=" + encodeURIComponent(state.range));
+        if (!sum) return;
+        state.summary = sum;
+        renderSummary(sum);
+        renderDomains(sum);
+        renderDispatch(sum);
+        renderEvents(sum);
+        applyDomainFilter();
+
+        const dom = state.selectedDomain || pickDefaultDomain(sum.domains || []);
+        if (dom) await selectDomain(dom);
+        await renderSignalsCharts();
+      }
+
+      $("domain-filter").addEventListener("input", applyDomainFilter);
+      $("range").addEventListener("change", () => loadAll().catch((e) => setErr(String(e))));
+      $("reload").addEventListener("click", () => loadAll().catch((e) => setErr(String(e))));
+
+      window.addEventListener("load", () => {
+        loadAll().catch((e) => setErr(String(e)));
+      });
+    })();
+  </script>
+{% endblock %}

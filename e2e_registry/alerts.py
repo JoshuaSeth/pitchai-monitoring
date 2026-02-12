@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -9,6 +10,7 @@ import httpx
 from domain_checks.dispatch_client import DispatchConfig, dispatch_job, run_ui_url, wait_for_terminal_status, get_run_log_tail
 from domain_checks.dispatch_client import extract_last_agent_message_from_exec_log, extract_last_error_message_from_exec_log
 from domain_checks.telegram import TelegramConfig, send_telegram_message_chunked
+from e2e_registry import db as dbm
 from e2e_registry.settings import RegistrySettings
 
 
@@ -167,6 +169,7 @@ async def maybe_dispatch_failure_investigation(
     http_client: httpx.AsyncClient,
     settings: RegistrySettings,
     prompt: str,
+    context: dict[str, Any] | None = None,
 ) -> None:
     if not settings.dispatch_enabled:
         return
@@ -192,7 +195,8 @@ async def maybe_dispatch_failure_investigation(
         ]
     )
 
-    bundle, _runner = await dispatch_job(http_client, cfg, prompt=prompt, config_toml=config_toml, state_key="e2e-registry.failure")
+    state_key = "e2e-registry.failure"
+    bundle, _runner = await dispatch_job(http_client, cfg, prompt=prompt, config_toml=config_toml, state_key=state_key)
     status = await wait_for_terminal_status(http_client, cfg, bundle=bundle)
     queue_state = str(status.get("queue_state") or "")
     ui = run_ui_url(cfg.base_url, bundle)
@@ -201,6 +205,20 @@ async def maybe_dispatch_failure_investigation(
     msg = extract_last_agent_message_from_exec_log(tail)
     if msg:
         LOGGER.info("Dispatch completed state=%s ui=%s last_msg=%s", queue_state, ui, msg[:200])
+        try:
+            await asyncio.to_thread(
+                dbm.insert_dispatch_run,
+                settings,
+                state_key=state_key,
+                bundle=bundle,
+                ui_url=ui,
+                queue_state=queue_state,
+                agent_message=msg,
+                error_message=None,
+                context=context or {},
+            )
+        except Exception:
+            LOGGER.exception("Failed to persist dispatch run record")
         await maybe_send_failure_alert(
             http_client=http_client,
             settings=settings,
@@ -210,8 +228,39 @@ async def maybe_dispatch_failure_investigation(
 
     if queue_state != "processed":
         err = extract_last_error_message_from_exec_log(tail) or ""
+        try:
+            await asyncio.to_thread(
+                dbm.insert_dispatch_run,
+                settings,
+                state_key=state_key,
+                bundle=bundle,
+                ui_url=ui,
+                queue_state=queue_state,
+                agent_message=None,
+                error_message=err,
+                context=context or {},
+            )
+        except Exception:
+            LOGGER.exception("Failed to persist dispatch run record")
         await maybe_send_failure_alert(
             http_client=http_client,
             settings=settings,
             msg=f"Dispatcher triage failed state={queue_state} ui={ui}\nError: {err[:500]}",
         )
+        return
+
+    # processed but no message
+    try:
+        await asyncio.to_thread(
+            dbm.insert_dispatch_run,
+            settings,
+            state_key=state_key,
+            bundle=bundle,
+            ui_url=ui,
+            queue_state=queue_state,
+            agent_message=None,
+            error_message="no_agent_message",
+            context=context or {},
+        )
+    except Exception:
+        LOGGER.exception("Failed to persist dispatch run record")

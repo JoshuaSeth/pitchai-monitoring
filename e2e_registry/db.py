@@ -13,7 +13,7 @@ from typing import Any, Iterable
 from e2e_registry.settings import RegistrySettings
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _utc_ts() -> float:
@@ -76,11 +76,18 @@ def _ensure_schema_conn(conn: sqlite3.Connection) -> None:
     if cur == 0:
         _apply_v1(conn)
         _apply_v2(conn)
+        _apply_v3(conn)
         conn.execute("INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('version', ?)", (str(SCHEMA_VERSION),))
         return
 
     if cur == 1:
         _apply_v2(conn)
+        _apply_v3(conn)
+        conn.execute("UPDATE schema_meta SET v=? WHERE k='version'", (str(SCHEMA_VERSION),))
+        return
+
+    if cur == 2:
+        _apply_v3(conn)
         conn.execute("UPDATE schema_meta SET v=? WHERE k='version'", (str(SCHEMA_VERSION),))
         return
 
@@ -203,6 +210,29 @@ def _apply_v2(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE tests ADD COLUMN source_sha256 TEXT;")
     if not _column_exists(conn, "tests", "source_content_type"):
         conn.execute("ALTER TABLE tests ADD COLUMN source_content_type TEXT;")
+
+
+def _apply_v3(conn: sqlite3.Connection) -> None:
+    """
+    v3 adds a lightweight log of dispatcher triage runs (agent conclusions) so the dashboard
+    can show what the agent found during incidents.
+    """
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dispatch_runs (
+          id TEXT PRIMARY KEY,
+          created_at_ts REAL NOT NULL,
+          state_key TEXT NOT NULL,
+          bundle TEXT,
+          ui_url TEXT,
+          queue_state TEXT,
+          agent_message TEXT,
+          error_message TEXT,
+          context_json TEXT NOT NULL DEFAULT '{}'
+        );
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dispatch_runs_created_at ON dispatch_runs(created_at_ts DESC);")
 
 
 @dataclass(frozen=True)
@@ -1022,5 +1052,88 @@ def status_summary(settings: RegistrySettings) -> dict[str, Any]:
             "failing_tests": len(failing),
             "tests": tests[:200],
         }
+    finally:
+        conn.close()
+
+
+def insert_dispatch_run(
+    settings: RegistrySettings,
+    *,
+    state_key: str,
+    bundle: str | None,
+    ui_url: str | None,
+    queue_state: str | None,
+    agent_message: str | None,
+    error_message: str | None,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    conn = _connect(settings.db_path)
+    try:
+        _ensure_schema_conn(conn)
+        rid = _uuid()
+        now = _utc_ts()
+        conn.execute(
+            """
+            INSERT INTO dispatch_runs (
+              id, created_at_ts, state_key, bundle, ui_url, queue_state, agent_message, error_message, context_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                rid,
+                now,
+                str(state_key or "").strip(),
+                (str(bundle).strip() if bundle is not None else None),
+                (str(ui_url).strip() if ui_url is not None else None),
+                (str(queue_state).strip() if queue_state is not None else None),
+                (str(agent_message)[:20_000] if isinstance(agent_message, str) and agent_message.strip() else None),
+                (str(error_message)[:5_000] if isinstance(error_message, str) and error_message.strip() else None),
+                _json_dumps(context or {}),
+            ),
+        )
+        return {
+            "id": rid,
+            "created_at_ts": now,
+            "state_key": state_key,
+            "bundle": bundle,
+            "ui_url": ui_url,
+            "queue_state": queue_state,
+            "agent_message": agent_message,
+            "error_message": error_message,
+            "context": context or {},
+        }
+    finally:
+        conn.close()
+
+
+def list_dispatch_runs(settings: RegistrySettings, *, limit: int = 80) -> list[dict[str, Any]]:
+    conn = _connect(settings.db_path)
+    try:
+        _ensure_schema_conn(conn)
+        rows = conn.execute(
+            """
+            SELECT
+              id,
+              created_at_ts,
+              state_key,
+              bundle,
+              ui_url,
+              queue_state,
+              agent_message,
+              error_message,
+              context_json
+            FROM dispatch_runs
+            ORDER BY created_at_ts DESC
+            LIMIT ?
+            """,
+            (max(1, min(int(limit), 500)),),
+        ).fetchall()
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            d = dict(r)
+            d["context"] = _json_loads(d.get("context_json")) or {}
+            d.pop("context_json", None)
+            out.append(d)
+        return out
     finally:
         conn.close()

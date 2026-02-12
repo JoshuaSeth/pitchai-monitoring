@@ -146,9 +146,11 @@ EOF
               --init \
               --network "$NET_NAME" \
               -p 127.0.0.1:8111:8111 \
+              -v service-monitoring-state:/monitor_state:ro \
               -v e2e-registry-data:/data \
               -v e2e-artifacts:/artifacts \
               --env-file "$E2E_ENV_FILE" \
+              -e SERVICE_MONITOR_STATE_PATH="/monitor_state/state.json" \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
               -e PITCHAI_DISPATCH_BASE_URL="http://pitchai-codex-dispatcher:8129" \

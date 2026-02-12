@@ -206,6 +206,20 @@ python -m domain_checks.main --once
 
 Spec and API details: `specs/external-e2e-tests-registry.md`
 
+## Monitoring Dashboard (monitoring.pitchai.net)
+
+The `e2e-registry` service also serves a monitoring dashboard for the main uptime/signal monitor:
+
+- Dashboard UI: `/dashboard`
+- Backing API: `/api/v1/monitoring/*`
+
+The dashboard reads `state.json` from the `service-monitoring-state` docker volume (mounted read-only into the `e2e-registry` container).
+
+Auth:
+
+- By default the dashboard requires the `E2E_REGISTRY_MONITOR_TOKEN` (or `E2E_REGISTRY_ADMIN_TOKEN`) via `/dashboard/login`.
+- This is intentionally separate from tenant API keys (external developers should not see internal monitoring signals).
+
 ## Live Tests (Real Domains / Real Services)
 
 This repo includes `pytest.mark.live` tests that hit real external domains and/or the real Dispatcher/E2E registry. They are skipped by default and require explicit env flags:

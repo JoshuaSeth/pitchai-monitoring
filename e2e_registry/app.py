@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from e2e_registry import db as dbm
+from e2e_registry import monitor_dashboard as md
 from e2e_registry.alerts import (
     build_dispatch_prompt_for_failure,
     build_failure_telegram_message,
@@ -38,6 +39,7 @@ from e2e_registry.stepflow import StepFlowValidationError, parse_definition_byte
 
 
 COOKIE_TOKEN_HASH = "e2e_token_hash"
+COOKIE_MONITOR_DASH_TOKEN_HASH = "monitor_dash_token_hash"
 
 
 _ALLOWED_TEST_KINDS = {"stepflow", "playwright_python", "puppeteer_js"}
@@ -107,6 +109,7 @@ def _parse_until(value: Any) -> float | None:
 def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     app = FastAPI(title="PitchAI E2E Registry", version="0.1.0")
     app.state.settings = settings or RegistrySettings()
+    app.state.monitor_cache = {"loaded_at_ts": 0.0, "state_mtime": None, "config_mtime": None, "data": None}
 
     templates_dir = Path(__file__).parent / "templates"
     templates = Jinja2Templates(directory=str(templates_dir))
@@ -131,10 +134,8 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
     @app.get("/")
     async def root(req: Request) -> RedirectResponse:
-        # Convenience: make the domain root land on the UI.
-        # If the user is already authenticated, go straight to /ui/tests.
-        authed = await _ui_get_auth(req)
-        return RedirectResponse(url="/ui/tests" if authed is not None else "/ui/login", status_code=303)
+        # monitoring.pitchai.net is primarily a monitoring surface.
+        return RedirectResponse(url="/dashboard", status_code=303)
 
     # -----------------
     # UI auth helpers
@@ -153,6 +154,84 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
     def _redirect_to_login() -> RedirectResponse:
         return RedirectResponse(url="/ui/login", status_code=303)
+
+    # -----------------
+    # Monitoring dashboard auth (separate from tenant UI auth)
+    # -----------------
+    async def _dash_is_authed(req: Request) -> bool:
+        settings2: RegistrySettings = app.state.settings
+        if not settings2.dashboard_require_auth:
+            return True
+
+        expected: set[str] = set()
+        if settings2.admin_token:
+            expected.add(hash_token(settings2.admin_token))
+        if settings2.monitor_token:
+            expected.add(hash_token(settings2.monitor_token))
+
+        th = (req.cookies.get(COOKIE_MONITOR_DASH_TOKEN_HASH) or "").strip()
+        if th and th in expected:
+            return True
+
+        # Also allow bearer auth for programmatic access.
+        token = (req.headers.get("authorization") or "").strip()
+        if token.lower().startswith("bearer "):
+            provided = token.split(None, 1)[1].strip()
+            if settings2.admin_token and hmac.compare_digest(provided, settings2.admin_token.strip()):
+                return True
+            if settings2.monitor_token and hmac.compare_digest(provided, settings2.monitor_token.strip()):
+                return True
+
+        return False
+
+    async def _dash_require_auth(req: Request) -> None:
+        if not await _dash_is_authed(req):
+            raise HTTPException(status_code=401, detail="dashboard_unauthorized")
+
+    def _dash_redirect_to_login() -> RedirectResponse:
+        return RedirectResponse(url="/dashboard/login", status_code=303)
+
+    async def _get_monitor_data() -> md.MonitorData:
+        settings2: RegistrySettings = app.state.settings
+        cache = getattr(app.state, "monitor_cache", None)
+        if not isinstance(cache, dict):
+            cache = {"loaded_at_ts": 0.0, "state_mtime": None, "config_mtime": None, "data": None}
+            app.state.monitor_cache = cache
+
+        def _mtime(path: str) -> float | None:
+            try:
+                return float(os.stat(path).st_mtime)
+            except Exception:
+                return None
+
+        now_ts = time.time()
+        ttl_seconds = 5.0
+        state_mtime = _mtime(settings2.monitor_state_path)
+        config_mtime = _mtime(settings2.monitor_config_path)
+
+        data = cache.get("data")
+        try:
+            loaded_at = float(cache.get("loaded_at_ts") or 0.0)
+        except Exception:
+            loaded_at = 0.0
+
+        if (
+            isinstance(data, md.MonitorData)
+            and cache.get("state_mtime") == state_mtime
+            and cache.get("config_mtime") == config_mtime
+            and (now_ts - loaded_at) < ttl_seconds
+        ):
+            return data
+
+        data2 = md.load_monitor_data(
+            state_path=settings2.monitor_state_path,
+            config_path=settings2.monitor_config_path,
+        )
+        cache["data"] = data2
+        cache["loaded_at_ts"] = now_ts
+        cache["state_mtime"] = state_mtime
+        cache["config_mtime"] = config_mtime
+        return data2
 
     # -----------------
     # UI routes
@@ -183,6 +262,54 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         resp = RedirectResponse(url="/ui/login", status_code=303)
         resp.delete_cookie(COOKIE_TOKEN_HASH)
         return resp
+
+    # -----------------
+    # Monitoring dashboard routes
+    # -----------------
+    @app.get("/dashboard/login", response_class=HTMLResponse)
+    async def dash_login(req: Request) -> HTMLResponse:
+        if await _dash_is_authed(req):
+            return RedirectResponse(url="/dashboard", status_code=303)
+        return app.state.templates.TemplateResponse("dashboard_login.html", {"request": req, "error": None})
+
+    @app.post("/dashboard/login")
+    async def dash_login_post(req: Request, monitor_key: str = Form("")):
+        token = (monitor_key or "").strip()
+        if not token:
+            return app.state.templates.TemplateResponse(
+                "dashboard_login.html", {"request": req, "error": "Missing monitoring token"}
+            )
+        settings2: RegistrySettings = app.state.settings
+        ok = False
+        if settings2.admin_token and hmac.compare_digest(token, settings2.admin_token.strip()):
+            ok = True
+        if settings2.monitor_token and hmac.compare_digest(token, settings2.monitor_token.strip()):
+            ok = True
+        if not ok:
+            return app.state.templates.TemplateResponse(
+                "dashboard_login.html", {"request": req, "error": "Invalid monitoring token"}
+            )
+        resp = RedirectResponse(url="/dashboard", status_code=303)
+        resp.set_cookie(
+            COOKIE_MONITOR_DASH_TOKEN_HASH,
+            hash_token(token),
+            httponly=True,
+            samesite="lax",
+            secure=(req.url.scheme == "https"),
+        )
+        return resp
+
+    @app.get("/dashboard/logout")
+    async def dash_logout() -> RedirectResponse:
+        resp = RedirectResponse(url="/dashboard/login", status_code=303)
+        resp.delete_cookie(COOKIE_MONITOR_DASH_TOKEN_HASH)
+        return resp
+
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def dashboard(req: Request) -> HTMLResponse:
+        if not await _dash_is_authed(req):
+            return _dash_redirect_to_login()
+        return app.state.templates.TemplateResponse("dashboard.html", {"request": req, "title": "Monitoring"})
 
     @app.get("/ui/tests", response_class=HTMLResponse)
     async def ui_tests(req: Request) -> HTMLResponse:
@@ -493,6 +620,109 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     # -----------------
     # API routes
     # -----------------
+    @app.get("/api/v1/monitoring/summary")
+    async def api_monitoring_summary(req: Request, range: str = "24h") -> dict[str, Any]:  # noqa: A002
+        await _dash_require_auth(req)
+        settings2: RegistrySettings = app.state.settings
+        now_ts = time.time()
+        since_ts, until_ts = md.resolve_range(now_ts=now_ts, range_label=range)
+
+        data = await _get_monitor_data()
+        e2e_status = await asyncio.to_thread(dbm.status_summary, settings2)
+        e2e_dispatch = await asyncio.to_thread(dbm.list_dispatch_runs, settings2, limit=80)
+
+        summary = md.build_dashboard_summary(
+            data=data,
+            now_ts=now_ts,
+            e2e_status_summary=e2e_status,
+            e2e_dispatch_runs=e2e_dispatch,
+        )
+
+        # Filter events/dispatch to the selected range for a smaller, more relevant payload.
+        events = summary.get("events") if isinstance(summary.get("events"), list) else []
+        events2: list[dict[str, Any]] = []
+        for e in events:
+            if not isinstance(e, dict):
+                continue
+            try:
+                ts = float(e.get("ts") or 0.0)
+            except Exception:
+                continue
+            if ts < float(since_ts) or ts > float(until_ts):
+                continue
+            events2.append(e)
+        summary["events"] = events2
+
+        dispatch = summary.get("dispatch") if isinstance(summary.get("dispatch"), dict) else {}
+        recent = dispatch.get("recent") if isinstance(dispatch.get("recent"), list) else []
+        recent2: list[dict[str, Any]] = []
+        for r in recent:
+            if not isinstance(r, dict):
+                continue
+            try:
+                ts = float(r.get("ts") or 0.0)
+            except Exception:
+                ts = 0.0
+            if ts and (ts < float(since_ts) or ts > float(until_ts)):
+                continue
+            recent2.append(r)
+        dispatch["recent"] = recent2
+        summary["dispatch"] = dispatch
+
+        return summary
+
+    @app.get("/api/v1/monitoring/domains/{domain}/series")
+    async def api_domain_series(
+        domain: str,
+        req: Request,
+        range: str = "24h",  # noqa: A002
+        since_ts: float | None = None,
+        until_ts: float | None = None,
+    ) -> dict[str, Any]:
+        await _dash_require_auth(req)
+        settings2: RegistrySettings = app.state.settings
+        now_ts = time.time()
+        if since_ts is None or until_ts is None:
+            s, u = md.resolve_range(now_ts=now_ts, range_label=range)
+            since_ts = float(s) if since_ts is None else float(since_ts)
+            until_ts = float(u) if until_ts is None else float(until_ts)
+        if float(until_ts) < float(since_ts):
+            raise HTTPException(status_code=400, detail="invalid_range")
+        data = await _get_monitor_data()
+        return md.domain_timeseries(
+            data=data,
+            domain=domain,
+            since_ts=float(since_ts),
+            until_ts=float(until_ts),
+            max_points=int(settings2.dashboard_max_points),
+        )
+
+    @app.get("/api/v1/monitoring/signals/{signal}/series")
+    async def api_signal_series(
+        signal: str,
+        req: Request,
+        range: str = "24h",  # noqa: A002
+        since_ts: float | None = None,
+        until_ts: float | None = None,
+    ) -> dict[str, Any]:
+        await _dash_require_auth(req)
+        settings2: RegistrySettings = app.state.settings
+        now_ts = time.time()
+        if since_ts is None or until_ts is None:
+            s, u = md.resolve_range(now_ts=now_ts, range_label=range)
+            since_ts = float(s) if since_ts is None else float(since_ts)
+            until_ts = float(u) if until_ts is None else float(until_ts)
+        if float(until_ts) < float(since_ts):
+            raise HTTPException(status_code=400, detail="invalid_range")
+        data = await _get_monitor_data()
+        return md.signal_timeseries(
+            data=data,
+            signal=signal,
+            since_ts=float(since_ts),
+            until_ts=float(until_ts),
+            max_points=int(settings2.dashboard_max_points),
+        )
+
     @app.post("/api/v1/admin/tenants")
     async def api_create_tenant(_auth: None = Depends(require_admin), req: CreateTenantRequest | None = None) -> dict[str, Any]:
         if req is None:
@@ -949,6 +1179,14 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                         http_client=http_client,
                         settings=app.state.settings,
                         prompt=prompt,
+                        context={
+                            "tenant_id": outcome.tenant_id,
+                            "test_id": outcome.test_id,
+                            "test_name": outcome.test_name,
+                            "test_kind": test_kind,
+                            "base_url": str(cfg.get("base_url") or "") if isinstance(cfg, dict) else "",
+                            "run_id": run_id,
+                        },
                     )
 
             if outcome.recovered_up and outcome.updated and outcome.test_id and outcome.test_name:

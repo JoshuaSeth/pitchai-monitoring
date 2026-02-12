@@ -826,6 +826,41 @@ def _coerce_str_list_dict(value: Any) -> dict[str, list[str]]:
     return out
 
 
+def _coerce_list_of_dicts(value: Any, *, max_items: int = 500) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        out.append(item)
+        if len(out) >= max(1, int(max_items)):
+            break
+    return out
+
+
+def _coerce_signal_history(value: Any, *, max_samples_per_signal: int = 50_000) -> dict[str, list[list[Any]]]:
+    if not isinstance(value, dict):
+        return {}
+    out: dict[str, list[list[Any]]] = {}
+    for k, v in value.items():
+        key = str(k or "").strip()
+        if not key:
+            continue
+        if not isinstance(v, list):
+            continue
+        samples: list[list[Any]] = []
+        for s in v:
+            if not isinstance(s, list) or not s:
+                continue
+            samples.append(s)
+            if len(samples) >= max(1, int(max_samples_per_signal)):
+                break
+        if samples:
+            out[key] = samples
+    return out
+
+
 def _coerce_bool(value: Any, *, default: bool) -> bool:
     return value if isinstance(value, bool) else bool(default)
 
@@ -855,14 +890,25 @@ def _coerce_optional_float(value: Any) -> float | None:
 
 def _load_monitor_state(path: Path) -> dict[str, Any]:
     default_state = {
-        "version": 4,
+        "version": 5,
         # "observed": raw per-cycle observed results (can include transient flakes).
         # "effective": debounced effective status aligned with DOWN alerting.
-        "history_ok_mode": "observed",
+        "history_ok_mode": "effective",
         "last_ok": {},
         "fail_streak": {},
         "success_streak": {},
         "history": {},
+        # Small rolling histories used by dashboards and post-incident review.
+        "signal_history": {},
+        "dispatch_history": [],
+        "dispatch_last": {},
+        "events": [],
+        # Last host snapshot for visibility (dashboard/heartbeats).
+        "host_last_snapshot": {},
+        # Browser health state (Playwright infra stability).
+        "browser_degraded_active": False,
+        "browser_degraded_first_seen_ts": 0.0,
+        "browser_launch_last_error": None,
         "browser_degraded_last_notice_ts": 0.0,
         "host_health": {
             "last_ok": True,
@@ -980,6 +1026,21 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     state["success_streak"] = _coerce_int_dict(raw.get("success_streak"))
     state["history"] = coerce_history(raw.get("history"))
     state["browser_degraded_last_notice_ts"] = last_notice_ts
+    state["signal_history"] = _coerce_signal_history(raw.get("signal_history"))
+    state["dispatch_history"] = _coerce_list_of_dicts(raw.get("dispatch_history"), max_items=1000)
+    dispatch_last = raw.get("dispatch_last")
+    if isinstance(dispatch_last, dict):
+        state["dispatch_last"] = dispatch_last
+    state["events"] = _coerce_list_of_dicts(raw.get("events"), max_items=5000)
+
+    host_last_snapshot = raw.get("host_last_snapshot")
+    if isinstance(host_last_snapshot, dict):
+        state["host_last_snapshot"] = host_last_snapshot
+
+    state["browser_degraded_active"] = _coerce_bool(raw.get("browser_degraded_active"), default=False)
+    state["browser_degraded_first_seen_ts"] = _coerce_float(raw.get("browser_degraded_first_seen_ts"), default=0.0)
+    ble = raw.get("browser_launch_last_error")
+    state["browser_launch_last_error"] = str(ble)[:800] if isinstance(ble, str) and ble.strip() else None
 
     host = raw.get("host_health")
     if isinstance(host, dict):
@@ -2073,6 +2134,9 @@ async def _dispatch_prompt_and_forward(
     state_key: str,
     telegram_title: str,
     dispatch_state: dict[str, Any],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     if not _dispatch_is_enabled(dispatch_cfg, dispatch_state):
         LOGGER.info("Dispatch disabled; skipping dispatch title=%s", telegram_title)
@@ -2080,7 +2144,48 @@ async def _dispatch_prompt_and_forward(
 
     pre_commands = [_docker_cli_install_pre_command()]
 
+    def _record_dispatch(entry: dict[str, Any]) -> None:
+        """
+        Persist a small record of dispatcher triage runs into the monitor state.
+        Used by the monitoring dashboard to show the last agent conclusions.
+        """
+        try:
+            entry.setdefault("ts", time.time())
+        except Exception:
+            pass
+        entry.setdefault("state_key", state_key)
+        entry.setdefault("title", telegram_title)
+        if dispatch_history is not None:
+            dispatch_history.append(entry)
+            # Keep memory bounded even if pruning fails.
+            if len(dispatch_history) > 2000:
+                del dispatch_history[: max(0, len(dispatch_history) - 1500)]
+        if dispatch_last is not None:
+            try:
+                key = str(entry.get("state_key") or state_key).strip() or state_key
+            except Exception:
+                key = state_key
+            dispatch_last[key] = entry
+        if events is not None:
+            try:
+                events.append(
+                    {
+                        "ts": float(entry.get("ts") or time.time()),
+                        "kind": "dispatch_completed",
+                        "state_key": str(entry.get("state_key") or state_key),
+                        "title": str(entry.get("title") or telegram_title),
+                        "queue_state": str(entry.get("queue_state") or ""),
+                        "ok": bool(entry.get("ok", False)),
+                        "ui_url": str(entry.get("ui_url") or ""),
+                    }
+                )
+                if len(events) > 10_000:
+                    del events[: max(0, len(events) - 8000)]
+            except Exception:
+                pass
+
     try:
+        started_ts = time.time()
         bundle, runner = await dispatch_job(
             http_client,
             dispatch_cfg,
@@ -2091,7 +2196,8 @@ async def _dispatch_prompt_and_forward(
         )
         LOGGER.info("Dispatch queued title=%s bundle=%s runner=%s", telegram_title, bundle, runner)
 
-        await wait_for_terminal_status(http_client, dispatch_cfg, bundle=bundle)
+        status = await wait_for_terminal_status(http_client, dispatch_cfg, bundle=bundle)
+        queue_state = str(status.get("queue_state") or "")
         ui = run_ui_url(dispatch_cfg.base_url, bundle)
         tail = await get_run_log_tail(http_client, dispatch_cfg, bundle=bundle)
         msg = extract_last_agent_message_from_exec_log(tail) or await get_last_agent_message(
@@ -2118,6 +2224,21 @@ async def _dispatch_prompt_and_forward(
                     bundle,
                     err_txt[:500] if err_txt else None,
                 )
+                _record_dispatch(
+                    {
+                        "ts": time.time(),
+                        "started_ts": started_ts,
+                        "state_key": state_key,
+                        "title": telegram_title,
+                        "bundle": bundle,
+                        "runner": runner,
+                        "queue_state": queue_state,
+                        "ui_url": ui,
+                        "ok": False,
+                        "error": err_txt[:800] if err_txt else "runner_quota_exceeded",
+                        "agent_message": None,
+                    }
+                )
                 return
 
             extra = f" Last error: {err_txt[:300]}" if err_txt else ""
@@ -2133,6 +2254,21 @@ async def _dispatch_prompt_and_forward(
                 ok,
                 redact_telegram_response(resp),
             )
+            _record_dispatch(
+                {
+                    "ts": time.time(),
+                    "started_ts": started_ts,
+                    "state_key": state_key,
+                    "title": telegram_title,
+                    "bundle": bundle,
+                    "runner": runner,
+                    "queue_state": queue_state,
+                    "ui_url": ui,
+                    "ok": bool(queue_state == "processed"),
+                    "error": err_txt[:800] if err_txt else "no_agent_message",
+                    "agent_message": None,
+                }
+            )
             return
 
         header = f"{telegram_title} (bundle={bundle})\n{ui}\n\n"
@@ -2143,6 +2279,21 @@ async def _dispatch_prompt_and_forward(
             bundle,
             ok_all,
             redact_telegram_response(resps[-1] if resps else {}),
+        )
+        _record_dispatch(
+            {
+                "ts": time.time(),
+                "started_ts": started_ts,
+                "state_key": state_key,
+                "title": telegram_title,
+                "bundle": bundle,
+                "runner": runner,
+                "queue_state": queue_state,
+                "ui_url": ui,
+                "ok": True,
+                "error": None,
+                "agent_message": msg[:12_000],
+            }
         )
     except httpx.HTTPStatusError as exc:
         status_code = getattr(getattr(exc, "response", None), "status_code", None)
@@ -2178,6 +2329,21 @@ async def _dispatch_prompt_and_forward(
                 telegram_cfg,
                 f"{telegram_title} dispatch escalation FAILED: {err}",
             )
+        _record_dispatch(
+            {
+                "ts": time.time(),
+                "started_ts": time.time(),
+                "state_key": state_key,
+                "title": telegram_title,
+                "bundle": None,
+                "runner": None,
+                "queue_state": f"http_{status_code}" if status_code is not None else "http_error",
+                "ui_url": "",
+                "ok": False,
+                "error": err[:800],
+                "agent_message": None,
+            }
+        )
     except Exception as exc:
         err = f"{type(exc).__name__}: {exc}"
         LOGGER.exception("Dispatch failed title=%s error=%s", telegram_title, err)
@@ -2185,6 +2351,21 @@ async def _dispatch_prompt_and_forward(
             http_client,
             telegram_cfg,
             f"{telegram_title} dispatch escalation FAILED: {err}",
+        )
+        _record_dispatch(
+            {
+                "ts": time.time(),
+                "started_ts": time.time(),
+                "state_key": state_key,
+                "title": telegram_title,
+                "bundle": None,
+                "runner": None,
+                "queue_state": "exception",
+                "ui_url": "",
+                "ok": False,
+                "error": err[:800],
+                "agent_message": None,
+            }
         )
 
 
@@ -2195,6 +2376,9 @@ async def _dispatch_and_forward(
     dispatch_cfg: DispatchConfig,
     result: DomainCheckResult,
     dispatch_state: dict[str, Any],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_dispatch_prompt(result)
     await _dispatch_prompt_and_forward(
@@ -2205,6 +2389,9 @@ async def _dispatch_and_forward(
         state_key=f"service-monitoring.{result.domain}",
         telegram_title=f"{result.domain} investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2216,6 +2403,9 @@ async def _dispatch_host_health_and_forward(
     dispatch_state: dict[str, Any],
     violations: list[str],
     snap: dict[str, Any],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_host_health_dispatch_prompt(violations=violations, snap=snap)
     await _dispatch_prompt_and_forward(
@@ -2226,6 +2416,9 @@ async def _dispatch_host_health_and_forward(
         state_key="service-monitoring.host_health",
         telegram_title="Host health investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2236,6 +2429,9 @@ async def _dispatch_performance_and_forward(
     dispatch_cfg: DispatchConfig,
     dispatch_state: dict[str, Any],
     slow: list[dict[str, Any]],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_performance_dispatch_prompt(slow=slow)
     await _dispatch_prompt_and_forward(
@@ -2246,6 +2442,9 @@ async def _dispatch_performance_and_forward(
         state_key="service-monitoring.performance",
         telegram_title="Performance investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2257,6 +2456,9 @@ async def _dispatch_tls_and_forward(
     dispatch_state: dict[str, Any],
     results: list[TlsCertCheckResult],
     min_days_valid: float,
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_tls_dispatch_prompt(results=results, min_days_valid=min_days_valid)
     await _dispatch_prompt_and_forward(
@@ -2267,6 +2469,9 @@ async def _dispatch_tls_and_forward(
         state_key="service-monitoring.tls",
         telegram_title="TLS investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2277,6 +2482,9 @@ async def _dispatch_dns_and_forward(
     dispatch_cfg: DispatchConfig,
     dispatch_state: dict[str, Any],
     results: list[DnsCheckResult],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_dns_dispatch_prompt(results=results)
     await _dispatch_prompt_and_forward(
@@ -2287,6 +2495,9 @@ async def _dispatch_dns_and_forward(
         state_key="service-monitoring.dns",
         telegram_title="DNS investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2298,6 +2509,9 @@ async def _dispatch_slo_and_forward(
     dispatch_state: dict[str, Any],
     violations: list[SloBurnViolation],
     slo_target_percent: float,
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_slo_dispatch_prompt(violations=violations, slo_target_percent=slo_target_percent)
     await _dispatch_prompt_and_forward(
@@ -2308,6 +2522,9 @@ async def _dispatch_slo_and_forward(
         state_key="service-monitoring.slo",
         telegram_title="SLO burn investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2319,6 +2536,9 @@ async def _dispatch_red_and_forward(
     dispatch_state: dict[str, Any],
     violations: list[RedViolation],
     window_minutes: int,
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_red_dispatch_prompt(violations=violations, window_minutes=window_minutes)
     await _dispatch_prompt_and_forward(
@@ -2329,6 +2549,9 @@ async def _dispatch_red_and_forward(
         state_key="service-monitoring.red",
         telegram_title="RED signals investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2339,6 +2562,9 @@ async def _dispatch_api_contract_and_forward(
     dispatch_cfg: DispatchConfig,
     dispatch_state: dict[str, Any],
     failures: list[ApiContractCheckResult],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_api_contract_dispatch_prompt(failures=failures)
     await _dispatch_prompt_and_forward(
@@ -2349,6 +2575,9 @@ async def _dispatch_api_contract_and_forward(
         state_key="service-monitoring.api_contract",
         telegram_title="API contract investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2359,6 +2588,9 @@ async def _dispatch_synthetic_and_forward(
     dispatch_cfg: DispatchConfig,
     dispatch_state: dict[str, Any],
     failures: list[SyntheticTransactionResult],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_synthetic_dispatch_prompt(failures=failures)
     await _dispatch_prompt_and_forward(
@@ -2369,6 +2601,9 @@ async def _dispatch_synthetic_and_forward(
         state_key="service-monitoring.synthetic",
         telegram_title="Synthetic transactions investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2379,6 +2614,9 @@ async def _dispatch_web_vitals_and_forward(
     dispatch_cfg: DispatchConfig,
     dispatch_state: dict[str, Any],
     failures: list[WebVitalsResult],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_web_vitals_dispatch_prompt(failures=failures)
     await _dispatch_prompt_and_forward(
@@ -2389,6 +2627,9 @@ async def _dispatch_web_vitals_and_forward(
         state_key="service-monitoring.web_vitals",
         telegram_title="Web vitals investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2399,6 +2640,9 @@ async def _dispatch_container_health_and_forward(
     dispatch_cfg: DispatchConfig,
     dispatch_state: dict[str, Any],
     issues: list[ContainerHealthIssue],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_container_health_dispatch_prompt(issues=issues)
     await _dispatch_prompt_and_forward(
@@ -2409,6 +2653,9 @@ async def _dispatch_container_health_and_forward(
         state_key="service-monitoring.container_health",
         telegram_title="Container health investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2422,6 +2669,9 @@ async def _dispatch_proxy_and_forward(
     access_stats: NginxAccessWindowStats | None,
     upstream_error_events: list[NginxUpstreamErrorEvent],
     window_seconds: int,
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_proxy_dispatch_prompt(
         upstream_issues=upstream_issues,
@@ -2437,6 +2687,9 @@ async def _dispatch_proxy_and_forward(
         state_key="service-monitoring.proxy",
         telegram_title="Proxy/upstream investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2448,6 +2701,9 @@ async def _dispatch_meta_and_forward(
     dispatch_state: dict[str, Any],
     reasons: list[str],
     context: dict[str, Any],
+    dispatch_history: list[dict[str, Any]] | None = None,
+    dispatch_last: dict[str, dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
 ) -> None:
     prompt = _build_meta_dispatch_prompt(reasons=reasons, context=context)
     await _dispatch_prompt_and_forward(
@@ -2458,6 +2714,9 @@ async def _dispatch_meta_and_forward(
         state_key="service-monitoring.meta",
         telegram_title="Monitoring pipeline investigation",
         dispatch_state=dispatch_state,
+        dispatch_history=dispatch_history,
+        dispatch_last=dispatch_last,
+        events=events,
     )
 
 
@@ -2841,12 +3100,32 @@ async def run_loop(config_path: Path, once: bool) -> int:
     meta_fail_streak = 0
     meta_success_streak = 0
     state_write_fail_streak = 0
+    signal_history: dict[str, list[list[Any]]] = {}
+    dispatch_history: list[dict[str, Any]] = []
+    dispatch_last: dict[str, dict[str, Any]] = {}
+    events: list[dict[str, Any]] = []
+    host_last_snapshot: dict[str, Any] = {}
+    browser_degraded_active = False
+    browser_degraded_first_seen_ts = 0.0
+    browser_launch_last_error: str | None = None
     if state_path is not None:
         disk_state = _load_monitor_state(state_path)
         last_ok.update(disk_state.get("last_ok") or {})
         fail_streak.update(disk_state.get("fail_streak") or {})
         success_streak.update(disk_state.get("success_streak") or {})
         history_by_domain = disk_state.get("history") or {}
+        signal_history = disk_state.get("signal_history") if isinstance(disk_state.get("signal_history"), dict) else {}
+        dispatch_history = disk_state.get("dispatch_history") if isinstance(disk_state.get("dispatch_history"), list) else []
+        dispatch_last = disk_state.get("dispatch_last") if isinstance(disk_state.get("dispatch_last"), dict) else {}
+        events = disk_state.get("events") if isinstance(disk_state.get("events"), list) else []
+        host_last_snapshot = disk_state.get("host_last_snapshot") if isinstance(disk_state.get("host_last_snapshot"), dict) else {}
+        browser_degraded_active = bool(disk_state.get("browser_degraded_active", False))
+        try:
+            browser_degraded_first_seen_ts = float(disk_state.get("browser_degraded_first_seen_ts") or 0.0)
+        except Exception:
+            browser_degraded_first_seen_ts = 0.0
+        ble = disk_state.get("browser_launch_last_error")
+        browser_launch_last_error = str(ble)[:800] if isinstance(ble, str) and ble.strip() else None
         history_ok_mode = str(disk_state.get("history_ok_mode") or "").strip().lower()
         if history_ok_mode != "effective" and isinstance(history_by_domain, dict) and history_by_domain:
             # One-time migration: older state files stored per-cycle *observed* ok in history,
@@ -2981,18 +3260,72 @@ async def run_loop(config_path: Path, once: bool) -> int:
     except Exception:
         browser_min_mem_available_mb = 2048
     monitor_state: dict[str, Any] = {
-        "browser_degraded_active": False,
-        "browser_degraded_first_seen_ts": 0.0,
+        "browser_degraded_active": bool(browser_degraded_active),
+        "browser_degraded_first_seen_ts": float(browser_degraded_first_seen_ts or 0.0),
         "browser_degraded_last_notice_ts": float(disk_state.get("browser_degraded_last_notice_ts") or 0.0),
         "browser_degraded_recover_streak": 0,
         "browser_degraded_notice_min_interval_seconds": 6 * 3600,
         "browser_launch_fail_count": 0,
         "browser_launch_next_try_ts": 0.0,
-        "browser_launch_last_error": None,
+        "browser_launch_last_error": browser_launch_last_error,
         "browser_min_mem_available_mb": max(0, browser_min_mem_available_mb),
     }
 
+    def _append_event(kind: str, *, ts: float | None = None, **fields: Any) -> None:
+        try:
+            entry = {"ts": float(ts) if ts is not None else time.time(), "kind": str(kind)}
+            for k, v in fields.items():
+                entry[str(k)] = v
+            events.append(entry)
+            if len(events) > 10_000:
+                del events[: max(0, len(events) - 8000)]
+        except Exception:
+            pass
+
+    def _append_signal_sample(name: str, sample: list[Any]) -> None:
+        key = str(name or "").strip()
+        if not key:
+            return
+        if not sample:
+            return
+        items = signal_history.get(key)
+        if items is None:
+            signal_history[key] = [sample]
+            return
+        items.append(sample)
+
+    def _prune_signal_history(*, before_ts: float) -> None:
+        cutoff = float(before_ts)
+        for key in list(signal_history.keys()):
+            items = signal_history.get(key) or []
+            if not items:
+                signal_history.pop(key, None)
+                continue
+            idx = 0
+            for i, s in enumerate(items):
+                try:
+                    ts = float(s[0])
+                except Exception:
+                    idx = i + 1
+                    continue
+                if ts >= cutoff:
+                    idx = i
+                    break
+            else:
+                idx = len(items)
+            if idx <= 0:
+                continue
+            if idx >= len(items):
+                signal_history.pop(key, None)
+                continue
+            del items[:idx]
+            signal_history[key] = items
+
     def _build_state_payload() -> dict[str, Any]:
+        # Keep state bounded. We prune time-series histories by timestamp below, but
+        # also hard-cap list growth for safety if a corrupt clock or bug bypasses pruning.
+        dispatch_history_capped = dispatch_history[-500:]
+        events_capped = events[-2000:]
         return {
             "version": 5,
             "history_ok_mode": "effective",
@@ -3001,6 +3334,18 @@ async def run_loop(config_path: Path, once: bool) -> int:
             "fail_streak": fail_streak,
             "success_streak": success_streak,
             "history": history_by_domain,
+            "signal_history": signal_history,
+            "dispatch_history": dispatch_history_capped,
+            "dispatch_last": dispatch_last,
+            "events": events_capped,
+            "host_last_snapshot": host_last_snapshot,
+            "browser_degraded_active": bool(monitor_state.get("browser_degraded_active", False)),
+            "browser_degraded_first_seen_ts": float(monitor_state.get("browser_degraded_first_seen_ts") or 0.0),
+            "browser_launch_last_error": (
+                str(monitor_state.get("browser_launch_last_error"))[:800]
+                if isinstance(monitor_state.get("browser_launch_last_error"), str)
+                else None
+            ),
             "browser_degraded_last_notice_ts": float(monitor_state.get("browser_degraded_last_notice_ts") or 0.0),
             "host_health": {
                 "last_ok": bool(host_health_last_ok),
@@ -3245,7 +3590,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         fail_streak[domain] = next_fail
                         success_streak[domain] = next_success
 
+                        recovered = (not prev_effective) and bool(next_effective)
+
                         if alerted_down:
+                            det = result.details or {}
+                            _append_event(
+                                "domain_down",
+                                ts=float(cycle_started),
+                                domain=domain,
+                                reason=result.reason,
+                                status_code=det.get("status_code"),
+                                error=(det.get("error")[:800] if isinstance(det.get("error"), str) else None),
+                                fail_streak=int(next_fail),
+                            )
                             # Transition UP -> DOWN (debounced), or startup DOWN after threshold.
                             enriched = DomainCheckResult(
                                 domain=result.domain,
@@ -3280,6 +3637,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             dispatch_cfg=dispatch_cfg,
                                             dispatch_state=dispatch_state,
                                             result=enriched,
+                                            dispatch_history=dispatch_history,
+                                            dispatch_last=dispatch_last,
+                                            events=events,
                                         )
                                     )
                             else:
@@ -3290,6 +3650,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     dispatch_state.get("disabled_reason"),
                                 )
                         else:
+                            if recovered:
+                                _append_event("domain_up", ts=float(cycle_started), domain=domain)
                             if result.ok is False and prev_effective is True and next_effective is True:
                                 LOGGER.warning(
                                     "Domain failing (alert suppressed) domain=%s fail_streak=%s/%s reason=%s details=%s",
@@ -3392,8 +3754,18 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             down_after_failures=slo_down_after_failures,
                             up_after_successes=slo_up_after_successes,
                         )
+                        _append_signal_sample(
+                            "slo",
+                            [float(cycle_started), 1 if bool(slo_last_ok) else 0, int(len(slo_violations or []))],
+                        )
 
                         if slo_alerted_down and slo_violations:
+                            _append_event(
+                                "slo_degraded",
+                                ts=float(cycle_started),
+                                violations=int(len(slo_violations)),
+                                domains=[v.domain for v in slo_violations[:20]],
+                            )
                             msg = _build_slo_alert_message(
                                 violations=slo_violations,
                                 slo_target_percent=float(slo_target_percent),
@@ -3420,10 +3792,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             dispatch_state=dispatch_state,
                                             violations=slo_violations,
                                             slo_target_percent=float(slo_target_percent),
+                                            dispatch_history=dispatch_history,
+                                            dispatch_last=dispatch_last,
+                                            events=events,
                                         )
                                     )
 
                         slo_recovered = (not prev_effective) and bool(slo_last_ok)
+                        if slo_recovered:
+                            _append_event("slo_recovered", ts=float(cycle_started))
                         if slo_recovered and slo_notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
@@ -3465,8 +3842,18 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             down_after_failures=red_down_after_failures,
                             up_after_successes=red_up_after_successes,
                         )
+                        _append_signal_sample(
+                            "red",
+                            [float(cycle_started), 1 if bool(red_last_ok) else 0, int(len(red_violations or []))],
+                        )
 
                         if red_alerted_down and red_violations:
+                            _append_event(
+                                "red_degraded",
+                                ts=float(cycle_started),
+                                violations=int(len(red_violations)),
+                                domains=[v.domain for v in red_violations[:20]],
+                            )
                             msg = _build_red_alert_message(
                                 violations=red_violations,
                                 window_minutes=int(red_window_minutes),
@@ -3493,10 +3880,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             dispatch_state=dispatch_state,
                                             violations=red_violations,
                                             window_minutes=int(red_window_minutes),
+                                            dispatch_history=dispatch_history,
+                                            dispatch_last=dispatch_last,
+                                            events=events,
                                         )
                                     )
 
                         red_recovered = (not prev_effective) and bool(red_last_ok)
+                        if red_recovered:
+                            _append_event("red_recovered", ts=float(cycle_started))
                         if red_recovered and red_notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
@@ -3551,7 +3943,43 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             up_after_successes=host_health_up_after_successes,
                         )
 
+                        # Persist last host snapshot for dashboard visibility (and time-series history below).
+                        try:
+                            host_last_snapshot = dict(host_snap)
+                            host_last_snapshot.pop("cpu_prev_total_next", None)
+                            host_last_snapshot.pop("cpu_prev_idle_next", None)
+                        except Exception:
+                            host_last_snapshot = host_snap or {}
+
+                        disk_worst_used_percent = None
+                        disk = host_snap.get("disk") if isinstance(host_snap.get("disk"), dict) else {}
+                        for _path, info in disk.items():
+                            if not isinstance(info, dict):
+                                continue
+                            pct = info.get("used_percent")
+                            try:
+                                pct_f = float(pct)
+                            except Exception:
+                                continue
+                            if disk_worst_used_percent is None or pct_f > disk_worst_used_percent:
+                                disk_worst_used_percent = pct_f
+
+                        _append_signal_sample(
+                            "host_health",
+                            [
+                                float(cycle_started),
+                                1 if bool(host_health_last_ok) else 0,
+                                host_snap.get("mem_used_percent"),
+                                host_snap.get("swap_used_percent"),
+                                host_snap.get("cpu_used_percent"),
+                                host_snap.get("load1_per_cpu"),
+                                disk_worst_used_percent,
+                                int(len(host_violations or [])),
+                            ],
+                        )
+
                         if host_alerted_down and host_violations:
+                            _append_event("host_health_degraded", ts=float(cycle_started), violations=host_violations[:20])
                             msg = _build_host_health_alert_message(
                                 violations=host_violations,
                                 snap=host_snap,
@@ -3586,10 +4014,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             dispatch_state=dispatch_state,
                                             violations=host_violations,
                                             snap=host_snap,
+                                            dispatch_history=dispatch_history,
+                                            dispatch_last=dispatch_last,
+                                            events=events,
                                         )
                                     )
 
                         host_recovered = (not prev_effective) and bool(host_health_last_ok)
+                        if host_recovered:
+                            _append_event("host_health_recovered", ts=float(cycle_started))
                         if host_recovered and host_notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
@@ -3620,8 +4053,17 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             down_after_failures=perf_down_after_failures,
                             up_after_successes=perf_up_after_successes,
                         )
+                        _append_signal_sample(
+                            "performance",
+                            [float(cycle_started), 1 if bool(perf_last_ok) else 0, int(len(perf_slow or []))],
+                        )
 
                         if perf_alerted_down and perf_slow:
+                            _append_event(
+                                "performance_degraded",
+                                ts=float(cycle_started),
+                                slow_domains=[e.get("domain") for e in perf_slow[:20]],
+                            )
                             msg = _build_performance_alert_message(
                                 slow=perf_slow,
                                 down_after_failures=perf_down_after_failures,
@@ -3654,10 +4096,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             dispatch_cfg=dispatch_cfg,
                                             dispatch_state=dispatch_state,
                                             slow=perf_slow,
+                                            dispatch_history=dispatch_history,
+                                            dispatch_last=dispatch_last,
+                                            events=events,
                                         )
                                     )
 
                         perf_recovered = (not prev_effective) and bool(perf_last_ok)
+                        if perf_recovered:
+                            _append_event("performance_recovered", ts=float(cycle_started))
                         if perf_recovered and perf_notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
@@ -3712,8 +4159,23 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 down_after_failures=tls_down_after_failures,
                                 up_after_successes=tls_up_after_successes,
                             )
+                            tls_fail_count = 0
+                            try:
+                                tls_fail_count = sum(1 for r in (tls_results or []) if not bool(getattr(r, "ok", False)))
+                            except Exception:
+                                tls_fail_count = 0
+                            _append_signal_sample(
+                                "tls",
+                                [float(cycle_started), 1 if bool(tls_last_ok) else 0, int(tls_fail_count)],
+                            )
 
                             if tls_alerted_down and tls_results and (not tls_observed_ok):
+                                _append_event(
+                                    "tls_degraded",
+                                    ts=float(cycle_started),
+                                    failures=int(tls_fail_count),
+                                    domains=[r.domain for r in (tls_results or []) if not r.ok][:20],
+                                )
                                 msg = _build_tls_alert_message(
                                     results=tls_results,
                                     min_days_valid=float(tls_min_days_valid),
@@ -3739,10 +4201,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                                 dispatch_state=dispatch_state,
                                                 results=tls_results,
                                                 min_days_valid=float(tls_min_days_valid),
+                                                dispatch_history=dispatch_history,
+                                                dispatch_last=dispatch_last,
+                                                events=events,
                                             )
                                         )
 
                             tls_recovered = (not prev_effective) and bool(tls_last_ok)
+                            if tls_recovered:
+                                _append_event("tls_recovered", ts=float(cycle_started))
                             if tls_recovered and tls_notify_on_recovery:
                                 ok, resp = await send_telegram_message(
                                     http_client,
@@ -3824,8 +4291,23 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 down_after_failures=dns_down_after_failures,
                                 up_after_successes=dns_up_after_successes,
                             )
+                            dns_fail_count = 0
+                            try:
+                                dns_fail_count = sum(1 for r in (dns_results or []) if not bool(getattr(r, "ok", False)))
+                            except Exception:
+                                dns_fail_count = 0
+                            _append_signal_sample(
+                                "dns",
+                                [float(cycle_started), 1 if bool(dns_last_ok) else 0, int(dns_fail_count)],
+                            )
 
                             if dns_alerted_down and dns_results and (not dns_observed_ok):
+                                _append_event(
+                                    "dns_degraded",
+                                    ts=float(cycle_started),
+                                    failures=int(dns_fail_count),
+                                    domains=[r.domain for r in (dns_results or []) if not r.ok][:20],
+                                )
                                 msg = _build_dns_alert_message(
                                     results=dns_results,
                                     down_after_failures=dns_down_after_failures,
@@ -3849,10 +4331,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                                 dispatch_cfg=dispatch_cfg,
                                                 dispatch_state=dispatch_state,
                                                 results=dns_results,
+                                                dispatch_history=dispatch_history,
+                                                dispatch_last=dispatch_last,
+                                                events=events,
                                             )
                                         )
 
                             dns_recovered = (not prev_effective) and bool(dns_last_ok)
+                            if dns_recovered:
+                                _append_event("dns_recovered", ts=float(cycle_started))
                             if dns_recovered and dns_notify_on_recovery:
                                 ok, resp = await send_telegram_message(
                                     http_client,
@@ -3949,6 +4436,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             dispatch_cfg=dispatch_cfg,
                                             dispatch_state=dispatch_state,
                                             failures=api_failures_for_dispatch,
+                                            dispatch_history=dispatch_history,
+                                            dispatch_last=dispatch_last,
+                                            events=events,
                                         )
                                     )
 
@@ -4003,8 +4493,18 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 down_after_failures=container_down_after_failures,
                                 up_after_successes=container_up_after_successes,
                             )
+                            container_issue_count = int(len(container_issues or []))
+                            _append_signal_sample(
+                                "container_health",
+                                [float(cycle_started), 1 if bool(container_last_ok) else 0, container_issue_count],
+                            )
 
                             if container_alerted_down and container_issues:
+                                _append_event(
+                                    "container_health_degraded",
+                                    ts=float(cycle_started),
+                                    issues=[it.name for it in container_issues[:20]],
+                                )
                                 msg = _build_container_health_alert_message(
                                     issues=container_issues,
                                     down_after_failures=container_down_after_failures,
@@ -4029,10 +4529,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                                 dispatch_cfg=dispatch_cfg,
                                                 dispatch_state=dispatch_state,
                                                 issues=container_issues,
+                                                dispatch_history=dispatch_history,
+                                                dispatch_last=dispatch_last,
+                                                events=events,
                                             )
                                         )
 
                             container_recovered = (not prev_effective) and bool(container_last_ok)
+                            if container_recovered:
+                                _append_event("container_health_recovered", ts=float(cycle_started))
                             if container_recovered and container_notify_on_recovery:
                                 ok, resp = await send_telegram_message(
                                     http_client,
@@ -4100,8 +4605,39 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             down_after_failures=proxy_down_after_failures,
                             up_after_successes=proxy_up_after_successes,
                         )
+                        pct_502_504 = None
+                        access_total = 0
+                        access_502_504 = 0
+                        if access_stats is not None:
+                            try:
+                                access_total = int(access_stats.total)
+                                access_502_504 = int(access_stats.status_502_504)
+                                pct_502_504 = (access_502_504 / float(access_total or 1)) * 100.0
+                            except Exception:
+                                pct_502_504 = None
+                                access_total = 0
+                                access_502_504 = 0
+                        _append_signal_sample(
+                            "proxy",
+                            [
+                                float(cycle_started),
+                                1 if bool(proxy_last_ok) else 0,
+                                int(len(upstream_issues or [])),
+                                pct_502_504,
+                                int(access_total),
+                                int(access_502_504),
+                                int(len(upstream_events or [])),
+                            ],
+                        )
 
                         if proxy_alerted_down and (not proxy_observed_ok):
+                            _append_event(
+                                "proxy_degraded",
+                                ts=float(cycle_started),
+                                upstream_issues=int(len(upstream_issues or [])),
+                                access_502_504_percent=pct_502_504,
+                                upstream_events=int(len(upstream_events or [])),
+                            )
                             msg = _build_proxy_alert_message(
                                 upstream_issues=upstream_issues,
                                 access_stats=access_stats,
@@ -4131,10 +4667,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             access_stats=access_stats,
                                             upstream_error_events=upstream_events,
                                             window_seconds=int(proxy_window_seconds),
+                                            dispatch_history=dispatch_history,
+                                            dispatch_last=dispatch_last,
+                                            events=events,
                                         )
                                     )
 
                         proxy_recovered = (not prev_effective) and bool(proxy_last_ok)
+                        if proxy_recovered:
+                            _append_event("proxy_recovered", ts=float(cycle_started))
                         if proxy_recovered and proxy_notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
@@ -4229,6 +4770,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         dispatch_cfg=dispatch_cfg,
                                         dispatch_state=dispatch_state,
                                         failures=syn_failures_for_dispatch,
+                                        dispatch_history=dispatch_history,
+                                        dispatch_last=dispatch_last,
+                                        events=events,
                                     )
                                 )
 
@@ -4358,8 +4902,21 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         dispatch_cfg=dispatch_cfg,
                                         dispatch_state=dispatch_state,
                                         failures=wv_failures_for_dispatch,
+                                        dispatch_history=dispatch_history,
+                                        dispatch_last=dispatch_last,
+                                        events=events,
                                     )
                                 )
+
+                    _append_signal_sample(
+                        "browser",
+                        [
+                            float(cycle_started),
+                            0 if browser_degraded else 1,
+                            1 if bool(monitor_state.get("browser_degraded_active")) else 0,
+                            int(monitor_state.get("browser_launch_fail_count") or 0),
+                        ],
+                    )
 
                     if browser_degraded:
                         now_ts = time.time()
@@ -4397,6 +4954,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 ok,
                                 redact_telegram_response(resp),
                             )
+                            _append_event(
+                                "browser_degraded_notice",
+                                ts=float(now_ts),
+                                last_error=(last_err.strip()[:800] if isinstance(last_err, str) else None),
+                                host_hint=(health_hint.strip()[:500] if isinstance(health_hint, str) else None),
+                            )
 
                             # Persist the notice timestamp immediately (before any risky restart work) to avoid spam
                             # if the process crashes and restarts.
@@ -4428,6 +4991,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 monitor_state["browser_degraded_first_seen_ts"] = 0.0
                                 monitor_state["browser_degraded_recover_streak"] = 0
                                 LOGGER.info("Playwright browser checks recovered")
+                                _append_event("browser_recovered", ts=time.time())
 
                     # Prune completed dispatch tasks to avoid unbounded growth.
                     for domain, task in list(active_dispatch_tasks.items()):
@@ -4500,6 +5064,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 )
                                 break
 
+                    try:
+                        _prune_signal_history(before_ts=time.time() - float(history_retention_seconds))
+                    except Exception:
+                        LOGGER.exception("Failed to prune signal history")
+
                     if state_path is not None:
                         try:
                             _write_state_atomic(state_path, _build_state_payload())
@@ -4541,8 +5110,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             down_after_failures=meta_down_after_failures,
                             up_after_successes=meta_up_after_successes,
                         )
+                        _append_signal_sample(
+                            "meta",
+                            [
+                                float(cycle_started),
+                                1 if bool(meta_last_ok) else 0,
+                                int(len(meta_reasons or [])),
+                                round(float(elapsed), 3),
+                                int(state_write_fail_streak),
+                            ],
+                        )
 
                         if meta_alerted_down and meta_reasons:
+                            _append_event("meta_degraded", ts=float(cycle_started), reasons=meta_reasons[:20])
                             msg = _build_meta_alert_message(
                                 reasons=meta_reasons,
                                 down_after_failures=meta_down_after_failures,
@@ -4579,10 +5159,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                                 "check_concurrency": int(check_concurrency),
                                                 "browser_concurrency": int(browser_concurrency),
                                             },
+                                            dispatch_history=dispatch_history,
+                                            dispatch_last=dispatch_last,
+                                            events=events,
                                         )
                                     )
 
                         meta_recovered = (not prev_effective) and bool(meta_last_ok)
+                        if meta_recovered:
+                            _append_event("meta_recovered", ts=float(cycle_started))
                         if meta_recovered and meta_notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
