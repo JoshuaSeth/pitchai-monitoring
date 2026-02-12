@@ -855,6 +855,10 @@ def _coerce_optional_float(value: Any) -> float | None:
 
 def _load_monitor_state(path: Path) -> dict[str, Any]:
     default_state = {
+        "version": 4,
+        # "observed": raw per-cycle observed results (can include transient flakes).
+        # "effective": debounced effective status aligned with DOWN alerting.
+        "history_ok_mode": "observed",
         "last_ok": {},
         "fail_streak": {},
         "success_streak": {},
@@ -943,14 +947,22 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     if not isinstance(raw, dict):
         return default_state
 
+    raw_version = _coerce_int(raw.get("version"), default=_coerce_int(default_state.get("version"), default=0))
+    history_ok_mode_raw = str(raw.get("history_ok_mode") or "").strip().lower()
+    history_ok_mode = history_ok_mode_raw if history_ok_mode_raw in {"observed", "effective"} else str(default_state.get("history_ok_mode") or "observed")
+
     # Back-compat: previously stored only {"last_ok": {...}} or raw mapping.
     if isinstance(raw.get("last_ok"), dict) and not any(k in raw for k in ("fail_streak", "success_streak")):
         state = dict(default_state)
+        state["version"] = raw_version
+        state["history_ok_mode"] = history_ok_mode
         state["last_ok"] = _coerce_bool_dict(raw.get("last_ok"))
         return state
 
     if all(isinstance(v, bool) for v in raw.values()):
         state = dict(default_state)
+        state["version"] = raw_version
+        state["history_ok_mode"] = history_ok_mode
         state["last_ok"] = _coerce_bool_dict(raw)
         return state
 
@@ -961,6 +973,8 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
         last_notice_ts = 0.0
 
     state = dict(default_state)
+    state["version"] = raw_version
+    state["history_ok_mode"] = history_ok_mode
     state["last_ok"] = _coerce_bool_dict(raw.get("last_ok"))
     state["fail_streak"] = _coerce_int_dict(raw.get("fail_streak"))
     state["success_streak"] = _coerce_int_dict(raw.get("success_streak"))
@@ -2833,6 +2847,49 @@ async def run_loop(config_path: Path, once: bool) -> int:
         fail_streak.update(disk_state.get("fail_streak") or {})
         success_streak.update(disk_state.get("success_streak") or {})
         history_by_domain = disk_state.get("history") or {}
+        history_ok_mode = str(disk_state.get("history_ok_mode") or "").strip().lower()
+        if history_ok_mode != "effective" and isinstance(history_by_domain, dict) and history_by_domain:
+            # One-time migration: older state files stored per-cycle *observed* ok in history,
+            # which made SLO burn-rate alerts extremely noisy (single transient flakes burn budget).
+            # Convert stored history to the debounced effective ok stream so SLO/RED align with
+            # our domain DOWN alerting definition.
+            try:
+                migrated: dict[str, list[list[Any]]] = {}
+                for domain, items in history_by_domain.items():
+                    if not isinstance(domain, str) or not domain:
+                        continue
+                    if not isinstance(items, list) or not items:
+                        continue
+                    prev_effective = True
+                    f_streak = 0
+                    s_streak = 0
+                    out_items: list[list[Any]] = []
+                    for s in items:
+                        if not isinstance(s, list) or len(s) < 2:
+                            continue
+                        observed_ok = bool(s[1])
+                        next_effective, f_streak, s_streak, _alerted = _update_effective_ok(
+                            prev_effective_ok=bool(prev_effective),
+                            observed_ok=observed_ok,
+                            fail_streak=int(f_streak),
+                            success_streak=int(s_streak),
+                            down_after_failures=down_after_failures,
+                            up_after_successes=up_after_successes,
+                        )
+                        s2 = list(s)
+                        s2[1] = bool(next_effective)
+                        out_items.append(s2)
+                        prev_effective = bool(next_effective)
+                    if out_items:
+                        migrated[domain] = out_items
+                history_by_domain = migrated
+                LOGGER.info(
+                    "Migrated history ok mode to effective prev_mode=%s domains=%s",
+                    (history_ok_mode or "unknown"),
+                    len(history_by_domain),
+                )
+            except Exception:
+                LOGGER.exception("Failed to migrate history ok mode to effective")
         host_state = disk_state.get("host_health")
         if isinstance(host_state, dict):
             host_health_last_ok = _coerce_bool(host_state.get("last_ok"), default=True)
@@ -2937,7 +2994,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
     def _build_state_payload() -> dict[str, Any]:
         return {
-            "version": 4,
+            "version": 5,
+            "history_ok_mode": "effective",
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "last_ok": last_ok,
             "fail_streak": fail_streak,
@@ -3281,11 +3339,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         except Exception:
                             status_code = None
 
+                        # IMPORTANT: use the debounced effective state for history-driven SLO/RED metrics.
+                        #
+                        # Rationale: a single transient failure (e.g. one Playwright timeout) is often a
+                        # monitor flake and is intentionally suppressed by `down_after_failures`.
+                        # Using the effective state keeps SLO burn-rate alerts aligned with our
+                        # "domain is DOWN" definition, reducing false-positive budget burn.
+                        effective_ok = bool(last_ok.get(domain, bool(result.ok)))
+
                         append_sample(
                             history_by_domain,
                             domain=domain,
                             ts=float(cycle_started),
-                            ok=bool(result.ok),
+                            ok=effective_ok,
                             http_elapsed_ms=http_ms,
                             browser_elapsed_ms=browser_ms,
                             status_code=status_code,
