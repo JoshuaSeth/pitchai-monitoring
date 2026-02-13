@@ -233,7 +233,9 @@ async def test_live_e2e_registry_api_pass_fail_artifacts_and_isolation() -> None
         runs_before.raise_for_status()
         before_count = len(runs_before.json().get("runs") or [])
 
-        until_ts = time.time() + 3600
+        # This is a live acceptance test against a real running prod registry. Ensure the intentionally failing
+        # test stays disabled long enough that it never becomes operational noise (and never flips effective_ok).
+        until_ts = time.time() + (10 * 365 * 24 * 3600)
         rr = await client.post(
             f"{base_url.rstrip('/')}/api/v1/tests/{fail_test_id}/disable",
             headers={"Authorization": f"Bearer {tenant_token}"},
@@ -297,6 +299,15 @@ async def test_live_e2e_registry_api_pass_fail_artifacts_and_isolation() -> None
         names = {str(t.get("test_name") or "") for t in tests if isinstance(t, dict)}
         assert f"live_pass_{nonce}" in names
         assert f"live_fail_{nonce}" in names
+
+        # Cleanup: keep the passing test from becoming an accidental long-lived scheduled job.
+        rr = await client.post(
+            f"{base_url.rstrip('/')}/api/v1/tests/{pass_test_id}/disable",
+            headers={"Authorization": f"Bearer {tenant_token}"},
+            json={"reason": "live smoke cleanup", "until": until_ts},
+            timeout=15.0,
+        )
+        rr.raise_for_status()
 
 
 @pytest.mark.asyncio
