@@ -34,6 +34,26 @@ def _env_str(name: str, default: str) -> str:
     return s if s else str(default)
 
 
+def _env_csv(name: str) -> tuple[str, ...]:
+    raw = os.getenv(name)
+    if raw is None:
+        return ()
+    out: list[str] = []
+    for part in str(raw).split(","):
+        item = part.strip().lower()
+        if item:
+            out.append(item)
+    return tuple(out)
+
+
+def _strict_base_url_policy_default() -> bool:
+    raw = os.getenv("E2E_REGISTRY_STRICT_BASE_URL_POLICY")
+    if raw is not None:
+        return _env_bool("E2E_REGISTRY_STRICT_BASE_URL_POLICY", False)
+    public = str(os.getenv("E2E_REGISTRY_PUBLIC_BASE_URL", "")).strip().lower()
+    return "monitoring.pitchai.net" in public
+
+
 @dataclass(frozen=True)
 class RegistrySettings:
     db_path: str = field(default_factory=lambda: os.getenv("E2E_REGISTRY_DB_PATH", "/data/e2e-registry.db"))
@@ -74,6 +94,11 @@ class RegistrySettings:
 
     # Upload guardrails.
     max_upload_bytes: int = field(default_factory=lambda: _env_int("E2E_REGISTRY_MAX_UPLOAD_BYTES", 512_000))
+    strict_base_url_policy: bool = field(default_factory=_strict_base_url_policy_default)
+    # Optional explicit allowlist for strict mode (comma-separated hostnames).
+    base_url_allowed_hosts: tuple[str, ...] = field(default_factory=lambda: _env_csv("E2E_REGISTRY_ALLOWED_BASE_URL_HOSTS"))
+    # If strict mode and explicit allowlist is empty, derive allowlist from monitoring config domains.
+    base_url_allow_monitored_domains: bool = field(default_factory=lambda: _env_bool("E2E_REGISTRY_ALLOW_MONITORED_DOMAINS", True))
 
     # --- Monitoring dashboard (served by the same web app on monitoring.pitchai.net) ---
     # Path to the service-monitoring state.json volume (mounted read-only into this container).

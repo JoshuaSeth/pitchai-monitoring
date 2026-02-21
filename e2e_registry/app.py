@@ -3,12 +3,15 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import ipaddress
+import logging
 import os
 import secrets
 import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -40,9 +43,29 @@ from e2e_registry.stepflow import StepFlowValidationError, parse_definition_byte
 
 COOKIE_TOKEN_HASH = "e2e_token_hash"
 COOKIE_MONITOR_DASH_TOKEN_HASH = "monitor_dash_token_hash"
+LOGGER = logging.getLogger("e2e-registry")
 
 
 _ALLOWED_TEST_KINDS = {"stepflow", "playwright_python", "puppeteer_js"}
+_RESERVED_BASE_URL_HOSTS = {
+    "example.com",
+    "example.org",
+    "example.net",
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "::1",
+}
+_RESERVED_BASE_URL_SUFFIXES = (
+    ".example.com",
+    ".example.org",
+    ".example.net",
+    ".localhost",
+    ".local",
+    ".internal",
+    ".invalid",
+    ".test",
+)
 
 
 def _normalize_test_kind(kind: str) -> str:
@@ -106,6 +129,52 @@ def _parse_until(value: Any) -> float | None:
         raise HTTPException(status_code=400, detail=f"invalid_until: {exc}") from exc
 
 
+def _url_host(base_url: str) -> str:
+    try:
+        host = (urlsplit(str(base_url or "").strip()).hostname or "").strip().lower()
+    except Exception:
+        host = ""
+    return host.rstrip(".")
+
+
+def _host_is_reserved_or_non_public(host: str) -> bool:
+    h = str(host or "").strip().lower().rstrip(".")
+    if not h:
+        return True
+    if h in _RESERVED_BASE_URL_HOSTS:
+        return True
+    if any(h.endswith(sfx) for sfx in _RESERVED_BASE_URL_SUFFIXES):
+        return True
+
+    try:
+        ip = ipaddress.ip_address(h)
+    except ValueError:
+        ip = None
+
+    if ip is not None:
+        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            return True
+        return False
+
+    # Strict mode should reject bare internal names (e.g. "my-service").
+    if "." not in h:
+        return True
+    return False
+
+
+def _load_monitored_allowlist_hosts(settings: RegistrySettings) -> set[str]:
+    if not settings.base_url_allow_monitored_domains:
+        return set()
+    cfg = md._load_yaml(Path(str(settings.monitor_config_path or "").strip()))
+    entries = md._normalize_domain_entries(cfg.get("domains"))
+    hosts: set[str] = set()
+    for entry in entries:
+        d = str((entry or {}).get("domain") or "").strip().lower().rstrip(".")
+        if d:
+            hosts.add(d)
+    return hosts
+
+
 def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     app = FastAPI(title="PitchAI E2E Registry", version="0.1.0")
     app.state.settings = settings or RegistrySettings()
@@ -127,6 +196,78 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             Path(app.state.settings.tests_dir).mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
+
+        # Defensive cleanup: quarantine tests with disallowed hosts so they cannot keep firing.
+        try:
+            quarantined = _quarantine_disallowed_tests()
+            if quarantined > 0:
+                LOGGER.warning("Quarantined disallowed e2e tests count=%s", quarantined)
+        except Exception:
+            LOGGER.exception("Failed to quarantine disallowed e2e tests")
+
+    def _strict_allowed_hosts() -> set[str]:
+        settings2: RegistrySettings = app.state.settings
+        allowed = {h.strip().lower().rstrip(".") for h in settings2.base_url_allowed_hosts if str(h).strip()}
+        if not allowed:
+            allowed = _load_monitored_allowlist_hosts(settings2)
+        return allowed
+
+    def _is_disallowed_host(host: str) -> bool:
+        settings2: RegistrySettings = app.state.settings
+        if not settings2.strict_base_url_policy:
+            return False
+        if _host_is_reserved_or_non_public(host):
+            return True
+        allowed = _strict_allowed_hosts()
+        if allowed and host not in allowed:
+            return True
+        return False
+
+    def _quarantine_disallowed_tests() -> int:
+        settings2: RegistrySettings = app.state.settings
+        if not settings2.strict_base_url_policy:
+            return 0
+        summary = dbm.status_summary(settings2)
+        tests = summary.get("tests") if isinstance(summary, dict) else None
+        if not isinstance(tests, list):
+            return 0
+        changed = 0
+        for item in tests:
+            if not isinstance(item, dict):
+                continue
+            host = _url_host(str(item.get("base_url") or ""))
+            if not _is_disallowed_host(host):
+                continue
+            tenant_id = str(item.get("tenant_id") or "").strip()
+            test_id = str(item.get("test_id") or "").strip()
+            if not tenant_id or not test_id:
+                continue
+            ok = dbm.set_test_disabled(
+                settings2,
+                tenant_id=tenant_id,
+                test_id=test_id,
+                disabled=True,
+                reason=f"auto-disabled disallowed base_url host: {host or 'unknown'}",
+                until_ts=None,
+            )
+            if ok:
+                changed += 1
+        return changed
+
+    def _validate_and_enforce_base_url(raw_base_url: str) -> str:
+        base = validate_base_url(raw_base_url)
+        settings2: RegistrySettings = app.state.settings
+        if not settings2.strict_base_url_policy:
+            return base
+
+        host = _url_host(base)
+        if _host_is_reserved_or_non_public(host):
+            raise HTTPException(status_code=400, detail="base_url_not_allowed_host")
+
+        allowed = _strict_allowed_hosts()
+        if allowed and host not in allowed:
+            raise HTTPException(status_code=400, detail="base_url_not_monitored_domain")
+        return base
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -529,7 +670,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                 "upload.html", {"request": req, "error": "file_too_large", "msg": None}
             )
         try:
-            base = validate_base_url(base_url)
+            base = _validate_and_enforce_base_url(base_url)
         except HTTPException as exc:
             return app.state.templates.TemplateResponse(
                 "upload.html", {"request": req, "error": str(exc.detail), "msg": None}
@@ -750,7 +891,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         if req is None:
             raise HTTPException(status_code=400, detail="missing_body")
         try:
-            base = validate_base_url(req.base_url)
+            base = _validate_and_enforce_base_url(req.base_url)
             defn = validate_definition(req.definition)
         except StepFlowValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -804,7 +945,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         if int(settings2.max_upload_bytes) > 0 and len(raw) > int(settings2.max_upload_bytes):
             raise HTTPException(status_code=413, detail="file_too_large")
 
-        base = validate_base_url(base_url)
+        base = _validate_and_enforce_base_url(base_url)
         notify = str(notify_on_recovery or "").strip().lower() in {"1", "true", "yes", "y", "on"}
         dispatch = str(dispatch_on_failure or "").strip().lower() in {"1", "true", "yes", "y", "on"}
 
@@ -972,7 +1113,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="missing_body")
         patch: dict[str, Any] = req.model_dump(exclude_unset=True)
         if "base_url" in patch and patch["base_url"] is not None:
-            patch["base_url"] = validate_base_url(patch["base_url"])
+            patch["base_url"] = _validate_and_enforce_base_url(patch["base_url"])
         if "definition" in patch and patch["definition"] is not None:
             patch["definition"] = validate_definition(patch["definition"])
         ok = await asyncio.to_thread(dbm.patch_test, app.state.settings, tenant_id=auth.tenant_id, test_id=test_id, patch=patch)

@@ -126,12 +126,20 @@ E2E_ARTIFACTS_DIR=/artifacts
 E2E_TESTS_DIR=/data/e2e-tests
 E2E_REGISTRY_ALERTS_ENABLED=1
 E2E_REGISTRY_DISPATCH_ENABLED=1
+E2E_REGISTRY_STRICT_BASE_URL_POLICY=1
+E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=1
 EOF
               chmod 600 "$E2E_ENV_FILE" || true
             fi
             # Backfill new required settings into an existing env file.
             if ! grep -qE '^E2E_TESTS_DIR=' "$E2E_ENV_FILE"; then
               echo "E2E_TESTS_DIR=/data/e2e-tests" >>"$E2E_ENV_FILE"
+            fi
+            if ! grep -qE '^E2E_REGISTRY_STRICT_BASE_URL_POLICY=' "$E2E_ENV_FILE"; then
+              echo "E2E_REGISTRY_STRICT_BASE_URL_POLICY=1" >>"$E2E_ENV_FILE"
+            fi
+            if ! grep -qE '^E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=' "$E2E_ENV_FILE"; then
+              echo "E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=1" >>"$E2E_ENV_FILE"
             fi
             E2E_MONITOR_TOKEN="$(grep -E '^E2E_REGISTRY_MONITOR_TOKEN=' "$E2E_ENV_FILE" | head -n1 | cut -d= -f2-)"
             if [[ -z "${E2E_MONITOR_TOKEN}" ]]; then

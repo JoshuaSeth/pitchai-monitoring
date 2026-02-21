@@ -34,6 +34,7 @@ These are required for all submitted monitoring tests:
 1. `base_url` must be the **main production domain** of the app.
    - Good: `https://deplanbook.com`, `https://autopar.pitchai.net`, `https://cms.deplanbook.com`
    - Not allowed: staging/dev URLs, local URLs, raw server IPs, private/internal hostnames
+   - API guardrail: reserved/test hosts like `example.com` and non-public hosts like `localhost` are rejected
 2. Your test must validate real user-visible behavior on that main domain (not only a 200 response).
 3. If you have alias/redirect domains, use one of these patterns:
    - Primary test on canonical main domain (recommended)

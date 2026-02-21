@@ -519,7 +519,7 @@ The following validations must exist and be runnable. They are acceptance-level 
    - Verify the runner executes it and stores a PASS run record.
    - Verify `service-monitoring` heartbeat includes that test as PASS with elapsed_ms.
 
-2. Live acceptance negative: register a test that is guaranteed to fail against a real domain (example: expect text "THIS SHOULD NOT EXIST" on `https://example.com/`).
+2. Live acceptance negative: register a test that is guaranteed to fail against a real monitored domain (example: expect text "THIS SHOULD NOT EXIST" on `https://deplanbook.com/`).
    - Verify the run is recorded as FAIL.
    - Verify Telegram warning fires only on debounced transition.
 

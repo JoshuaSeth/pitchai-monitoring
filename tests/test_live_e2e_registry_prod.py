@@ -164,7 +164,8 @@ async def test_live_e2e_registry_api_pass_fail_artifacts_and_isolation() -> None
             headers={"Authorization": f"Bearer {tenant_token}"},
             data={
                 "name": f"live_fail_{nonce}",
-                "base_url": "https://example.com",
+                # Keep this on a real monitored production domain; assertion itself guarantees failure.
+                "base_url": "https://deplanbook.com",
                 "kind": "puppeteer_js",
                 **{k: str(v) for k, v in common_cfg.items()},
             },

@@ -186,7 +186,7 @@ TENANT_API_KEY="..."
 curl -sS -X POST "http://127.0.0.1:8111/api/v1/tests/upload" \
   -H "Authorization: Bearer ${TENANT_API_KEY}" \
   -F "name=my_home_smoke" \
-  -F "base_url=https://example.com" \
+  -F "base_url=https://deplanbook.com" \
   -F "kind=playwright_python" \
   -F "interval_seconds=300" \
   -F "timeout_seconds=45" \
