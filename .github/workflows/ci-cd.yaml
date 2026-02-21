@@ -114,9 +114,9 @@ jobs:
             E2E_ENV_FILE="$SECRETS_DIR/e2e-registry.env"
             if [[ ! -f "$E2E_ENV_FILE" ]]; then
               echo "Generating new E2E registry tokens at $E2E_ENV_FILE"
-              admin="$(python3 - <<'PY'\nimport secrets; print(secrets.token_urlsafe(48))\nPY\n)"
-              monitor="$(python3 - <<'PY'\nimport secrets; print(secrets.token_urlsafe(48))\nPY\n)"
-              runner="$(python3 - <<'PY'\nimport secrets; print(secrets.token_urlsafe(48))\nPY\n)"
+              admin="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+              monitor="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+              runner="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
               {
                 echo "E2E_REGISTRY_ADMIN_TOKEN=${admin}"
                 echo "E2E_REGISTRY_MONITOR_TOKEN=${monitor}"
