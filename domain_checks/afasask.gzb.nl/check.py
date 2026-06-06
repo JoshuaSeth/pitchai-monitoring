@@ -1,29 +1,60 @@
 CHECK = {
     "domain": "afasask.gzb.nl",
-    "url": "https://afasask.gzb.nl",
-    # This endpoint sometimes responds slowly; use higher timeouts to reduce false alerts.
+    "url": "https://afasask.gzb.nl/chat_mini/gzb/start?floating=false&mode=codex",
     "http_timeout_seconds": 30.0,
     "browser_timeout_seconds": 60.0,
-    # This domain is currently allowed to be in maintenance mode (or even show
-    # an upstream 502 page) without triggering alerts.
-    "allowed_status_codes": [200, 502, 503],
+    "allowed_status_codes": [200],
     "required_selectors_any": [
-        {"selector": "text=/afas online/i", "state": "visible"},
-        {"selector": "text=/maintenance|temporarily unavailable|we'?ll be back/i", "state": "visible"},
-        {"selector": "text=/bad gateway|service unavailable|gateway timeout/i", "state": "visible"},
-        {"selector": "#token", "state": "visible"},
         {"selector": "#chat-input", "state": "visible"},
-        {"selector": "text=Login with Token", "state": "attached"},
+        {"selector": "text=/AFASAsk/i", "state": "visible"},
+    ],
+    "api_contract_checks": [
+        {
+            "name": "afasask_health",
+            "path": "/health",
+            "expected_status_codes": [200],
+            "expected_content_type_contains": "application/json",
+            "json_paths_equal": {"status": "ok"},
+            "max_elapsed_ms": 1500,
+        },
+        {
+            "name": "codex_no_quota_readiness",
+            "path": "/internal/monitor/codex-readiness",
+            "headers": {"Authorization": "Bearer ${AFASASK_MONITOR_TOKEN}"},
+            "expected_status_codes": [200],
+            "expected_content_type_contains": "application/json",
+            "json_paths_equal": {
+                "status": "ok",
+                "quota_used": False,
+                "prompt_submitted": False,
+                "generation_started": False,
+                "afasask.temp_codex_home_materialized": True,
+                "broker_canary.status": "ok",
+                "broker_canary.response.status": "ok",
+            },
+            "json_paths_required": [
+                "checked_at",
+                "afasask.account_id_hash",
+                "broker_canary.response.selected_account.account_id_hash",
+                "broker_canary.response.pool.selectable_accounts",
+            ],
+            "max_elapsed_ms": 20000,
+        },
     ],
     "synthetic_transactions": [
         {
-            "name": "landing_or_maintenance",
+            "name": "codex_shell_loads",
             "steps": [
                 {"type": "goto"},
-                {"type": "wait_for_selector", "selector": "body", "state": "visible"},
+                {"type": "wait_for_selector", "selector": "#chat-input", "state": "visible"},
+                {"type": "wait_for_selector", "selector": "[data-testid='codex-intensity-selector']", "state": "visible"},
             ],
         }
     ],
-    # Allow maintenance text for this domain.
-    "forbidden_text_any": [],
+    "forbidden_text_any": [
+        "Bad Gateway",
+        "Service Unavailable",
+        "Gateway Timeout",
+        "❌ Mislukt",
+    ],
 }

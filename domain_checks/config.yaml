@@ -110,7 +110,7 @@ red:
 # API contract checks (per-domain definitions live in each domain's check.py).
 api_contract:
   enabled: true
-  interval_minutes: 10
+  interval_minutes: 5
   timeout_seconds: 10
   down_after_failures: 2
   up_after_successes: 2
@@ -224,8 +224,6 @@ domains:
     disabled_reason: 'temporary disable (requested)'
   - domain: autopar.pitchai.net
   - domain: afasask.gzb.nl
-    disabled: true
-    disabled_reason: 'temporary disable (flapping/unstable)'
   - domain: skybuyfly.pitchai.net
   - domain: deplanbook.com
   - domain: cms.deplanbook.com
