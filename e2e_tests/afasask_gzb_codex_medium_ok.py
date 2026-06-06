@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+# The registry schedules this at 1800 seconds; keep the test itself short and read-only.
 import re
 import time
 from pathlib import Path

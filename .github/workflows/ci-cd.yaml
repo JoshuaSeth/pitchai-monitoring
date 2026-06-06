@@ -146,6 +146,20 @@ jobs:
               echo "❌ Missing E2E_REGISTRY_MONITOR_TOKEN in $E2E_ENV_FILE"
               exit 1
             fi
+            AFASASK_MONITOR_ENV_FILE="$SECRETS_DIR/afasask-monitor.env"
+            if [[ ! -f "$AFASASK_MONITOR_ENV_FILE" ]]; then
+              afasask_monitor_token="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+              {
+                echo "AFASASK_MONITOR_TOKEN=${afasask_monitor_token}"
+              } >"$AFASASK_MONITOR_ENV_FILE"
+              chmod 600 "$AFASASK_MONITOR_ENV_FILE" || true
+            fi
+            # shellcheck disable=SC1090
+            source "$AFASASK_MONITOR_ENV_FILE"
+            if [[ -z "${AFASASK_MONITOR_TOKEN:-}" ]]; then
+              echo "❌ Missing AFASASK_MONITOR_TOKEN in $AFASASK_MONITOR_ENV_FILE"
+              exit 1
+            fi
 
             echo "🚀 Starting e2e-registry..."
             docker run -d \
@@ -200,6 +214,7 @@ jobs:
               -e STATE_PATH="/data/state.json" \
               -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
               -e E2E_REGISTRY_MONITOR_TOKEN="${E2E_MONITOR_TOKEN}" \
+              -e AFASASK_MONITOR_TOKEN="${AFASASK_MONITOR_TOKEN}" \
               "$IMAGE_SHA"
 
             echo "⏳ Waiting for startup..."
