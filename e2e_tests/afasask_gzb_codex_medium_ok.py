@@ -51,7 +51,7 @@ async def run(page, base_url, artifacts_dir):
             || lower.includes('backend')
             || lower.includes('geen tool-calls');
         }""",
-        assistant_count_before,
+        arg=assistant_count_before,
         timeout=240_000,
     )
 
