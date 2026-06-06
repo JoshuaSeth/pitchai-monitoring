@@ -44,8 +44,9 @@ async def run(page, base_url, artifacts_dir):
             || lower.includes('usage_limit_reached')
             || lower.includes('hit your usage limit')
             || lower.includes('http 429')
-            || lower.includes('auth')
             || lower.includes('refresh_token')
+            || lower.includes('auth failure')
+            || lower.includes('auth invalid')
             || lower.includes('backend')
             || lower.includes('geen tool-calls');
         }""",
