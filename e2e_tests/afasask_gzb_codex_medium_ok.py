@@ -23,8 +23,10 @@ async def run(page, base_url, artifacts_dir):
     assert hidden_intensity == "medium", f"wrong_intensity: {hidden_intensity!r}"
 
     prompt = (
-        "AFASASK_MONITORING_CANARY_NOOP. "
-        "Dit is een interne halfuurlijkse health check. Antwoord exact met: OK"
+        "AFASASK_MONITORING_CANARY_MINIMAL_TOOL_CHECK. "
+        "Dit is een interne halfuurlijkse health check. Doe een minimale, read-only controle "
+        "van de beschikbare AFASAsk/GZB kennisbasis of werkruimte voordat je antwoordt. "
+        "Als die controle lukt, antwoord exact met: OK"
     )
     await page.get_by_test_id("chat-input").fill(prompt)
     await page.get_by_test_id("chat-submit").click()
