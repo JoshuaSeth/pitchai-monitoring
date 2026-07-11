@@ -24,6 +24,12 @@
     reset_credit_expiry: "Reset credit expiry",
   };
 
+  const riskLabels = {
+    low: "Low risk",
+    medium: "Medium risk",
+    high: "High risk",
+  };
+
   function byId(id) {
     return document.getElementById(id);
   }
@@ -298,6 +304,62 @@
     setChildren(byId("forecast-grid"), cells);
   }
 
+  function renderRunout(forecast) {
+    const payload = forecast || {};
+    const burn = payload.burn_rate || {};
+    const sourceLabel = burn.source === "native_broker_samples"
+      ? `trailing ${burn.lookback_hours || 2}h observed`
+      : "current-window estimate";
+    byId("burn-rate").textContent = `${number(burn.capacity_points_per_hour, 1) || "0.0"} points/hour · ${sourceLabel} · ${burn.confidence || "low"} confidence`;
+
+    const cells = [];
+    for (const horizon of payload.horizons || []) {
+      const risk = riskLabels[horizon.risk] ? horizon.risk : "low";
+      const cell = element("article", `runout-cell risk-${risk}`);
+      const head = element("div", "runout-cell-head");
+      head.append(
+        element("span", "runout-horizon", horizon.label),
+        element("span", `risk-badge ${risk}`, riskLabels[risk])
+      );
+      const probability = element("div", "runout-probability");
+      probability.append(
+        element("strong", "", number(horizon.probability_percent, 0) || "0"),
+        element("span", "", "%")
+      );
+      const meterRoot = element("div", `risk-meter ${risk}`);
+      const meterFill = document.createElement("span");
+      meterFill.style.setProperty("--value", `${Math.max(0, Math.min(100, Number(horizon.probability_percent) || 0))}%`);
+      meterRoot.appendChild(meterFill);
+      let timing = "No likely runout in this window";
+      if (horizon.likely_window_start && horizon.likely_window_end) {
+        timing = `${formatTime(horizon.likely_window_start, false)} to ${formatTime(horizon.likely_window_end, false)}`;
+      } else if (horizon.expected_runout_at) {
+        timing = `Expected near ${formatTime(horizon.expected_runout_at, false)}`;
+      }
+      const detail = element("div", "runout-detail");
+      detail.append(
+        element("span", "", `${number(horizon.initial_capacity_points, 0) || "0"} points now`),
+        element("span", "", `${horizon.scheduled_five_hour_resets || 0} automatic resets`)
+      );
+      cell.append(
+        head,
+        probability,
+        meterRoot,
+        element("div", "runout-timing", timing),
+        detail
+      );
+      cells.push(cell);
+    }
+    setChildren(byId("runout-grid"), cells);
+
+    const drivers = (payload.drivers || []).map((driver) => {
+      const item = element("span", "runout-driver");
+      item.append(element("i", "", ""), document.createTextNode(driver));
+      return item;
+    });
+    setChildren(byId("runout-drivers"), drivers);
+  }
+
   function niceMaximum(value) {
     const maximum = Math.max(1, Number(value) || 0);
     const magnitude = 10 ** Math.floor(Math.log10(maximum));
@@ -306,14 +368,34 @@
     return rounded * magnitude;
   }
 
-  function shortDate(value) {
+  function shortHour(value, includeHour) {
     const parsed = parseDate(value);
     if (!parsed) return "-";
-    return new Intl.DateTimeFormat(undefined, {
+    const options = {
       month: "short",
       day: "numeric",
       timeZone: "UTC",
-    }).format(parsed);
+    };
+    if (includeHour) {
+      options.hour = "2-digit";
+      options.hour12 = false;
+    }
+    return new Intl.DateTimeFormat(undefined, options).format(parsed);
+  }
+
+  function smoothLinePath(coordinates) {
+    if (!coordinates.length) return "";
+    if (coordinates.length === 1) return `M${coordinates[0][0]},${coordinates[0][1]}`;
+    let path = `M${coordinates[0][0].toFixed(2)},${coordinates[0][1].toFixed(2)}`;
+    for (let index = 1; index < coordinates.length - 1; index += 1) {
+      const point = coordinates[index];
+      const next = coordinates[index + 1];
+      const midpoint = [(point[0] + next[0]) / 2, (point[1] + next[1]) / 2];
+      path += ` Q${point[0].toFixed(2)},${point[1].toFixed(2)} ${midpoint[0].toFixed(2)},${midpoint[1].toFixed(2)}`;
+    }
+    const last = coordinates[coordinates.length - 1];
+    path += ` L${last[0].toFixed(2)},${last[1].toFixed(2)}`;
+    return path;
   }
 
   function renderLineChart(points, seriesLabel, hasCoverage) {
@@ -324,12 +406,12 @@
     }
 
     const compact = window.innerWidth < 620;
-    const width = compact ? 420 : 960;
-    const height = compact ? 260 : 300;
-    const padding = { top: 18, right: 18, bottom: 42, left: compact ? 54 : 66 };
+    const width = compact ? 420 : 1440;
+    const height = compact ? 300 : 390;
+    const padding = { top: 22, right: 24, bottom: 48, left: compact ? 62 : 76 };
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
-    const values = points.map((point) => Math.max(0, Number(point.tokens) || 0));
+    const values = points.map((point) => Math.max(0, Number(point.smoothed_tokens ?? point.tokens) || 0));
     const yMaximum = niceMaximum(Math.max(...values));
     const xFor = (index) => padding.left + (points.length === 1 ? plotWidth / 2 : index * plotWidth / (points.length - 1));
     const yFor = (value) => padding.top + plotHeight - value / yMaximum * plotHeight;
@@ -354,32 +436,35 @@
     }
 
     const coordinates = values.map((value, index) => [xFor(index), yFor(value)]);
-    const linePath = coordinates.map((point, index) => `${index ? "L" : "M"}${point[0].toFixed(2)},${point[1].toFixed(2)}`).join(" ");
+    const linePath = smoothLinePath(coordinates);
     const areaPath = `${linePath} L${coordinates[coordinates.length - 1][0].toFixed(2)},${(padding.top + plotHeight).toFixed(2)} L${coordinates[0][0].toFixed(2)},${(padding.top + plotHeight).toFixed(2)} Z`;
     svg.appendChild(svgElement("path", "chart-area", { d: areaPath }));
     svg.appendChild(svgElement("path", "chart-line", { d: linePath }));
 
+    const tickEvery = compact ? 48 : 24;
     points.forEach((point, index) => {
-      if (!compact || index % 2 === 0 || index === points.length - 1) {
+      if (index % tickEvery === 0 || index === points.length - 1) {
         const xLabel = svgElement("text", "chart-x-label", {
           x: coordinates[index][0],
           y: height - 14,
-          "text-anchor": "middle",
+          "text-anchor": index === 0 ? "start" : index === points.length - 1 ? "end" : "middle",
         });
-        xLabel.textContent = shortDate(point.at || `${point.date}T00:00:00Z`);
+        xLabel.textContent = shortHour(point.at, index === points.length - 1);
         svg.appendChild(xLabel);
       }
-      const marker = svgElement("circle", "chart-point", {
-        cx: coordinates[index][0],
-        cy: coordinates[index][1],
-        r: compact ? 4.5 : 5,
-      });
-      const title = svgElement("title", "", {});
-      title.textContent = `${seriesLabel}: ${compactNumber(point.tokens)} tokens on ${point.date}`;
-      marker.appendChild(title);
-      svg.appendChild(marker);
+      if (point.provenance === "observed" || point.provenance === "blended" || index === points.length - 1) {
+        const marker = svgElement("circle", `chart-point ${point.provenance || ""}`, {
+          cx: coordinates[index][0],
+          cy: coordinates[index][1],
+          r: point.provenance === "observed" ? 3.5 : 2.5,
+        });
+        const title = svgElement("title", "", {});
+        title.textContent = `${seriesLabel}: ${compactNumber(point.tokens)} tokens · ${shortHour(point.at, true)} UTC · ${point.provenance || "estimated"}`;
+        marker.appendChild(title);
+        svg.appendChild(marker);
+      }
     });
-    frame.setAttribute("aria-label", `${seriesLabel} daily token usage over the past seven days`);
+    frame.setAttribute("aria-label", `${seriesLabel} smoothed hourly token usage over the past seven days`);
     setChildren(frame, [svg]);
   }
 
@@ -408,15 +493,18 @@
     const total = values.reduce((sum, value) => sum + value, 0);
     const summary = selected ? {
       seven_day_tokens: total,
-      average_daily_tokens: values.length ? Math.round(total / values.length) : 0,
-      peak_daily_tokens: values.length ? Math.max(...values) : 0,
-      today_tokens: values.length ? values[values.length - 1] : 0,
+      average_hourly_tokens: values.length ? Math.round(total / values.length) : 0,
+      peak_hourly_tokens: values.length ? Math.max(...values) : 0,
+      trailing_two_hour_tokens: values.slice(-2).reduce((sum, value) => sum + value, 0),
+      observed_share_percent: total
+        ? Math.round(points.reduce((sum, point) => sum + Number(point.observed_tokens || 0), 0) / total * 1000) / 10
+        : 0,
     } : payload.summary || {};
     const stats = [
       ["Seven days", compactNumber(summary.seven_day_tokens), "tokens"],
-      ["Daily average", compactNumber(summary.average_daily_tokens), "tokens / day"],
-      ["Peak day", compactNumber(summary.peak_daily_tokens), "tokens"],
-      ["Today so far", compactNumber(summary.today_tokens), "tokens"],
+      ["Hourly average", compactNumber(summary.average_hourly_tokens), "tokens / hour"],
+      ["Peak hour", compactNumber(summary.peak_hourly_tokens), "tokens"],
+      ["Trailing 2h", compactNumber(summary.trailing_two_hour_tokens), "tokens"],
     ].map(([label, value, unit]) => {
       const item = element("div", "history-stat");
       item.append(
@@ -430,7 +518,12 @@
     const coverage = Number(payload.accounts_reporting || 0);
     const configured = Number(payload.configured_accounts || 0);
     const updatedAt = selected ? selected.updated_at : payload.updated_at;
+    const nativeHours = selected ? Number(selected.native_hour_count || 0) : Number(payload.reconstruction?.native_hour_count || 0);
     byId("history-freshness").textContent = `${coverage}/${configured} accounts · ${updatedAt ? ageFromIso(updatedAt) : "pending"}`;
+    byId("history-method").textContent = "Provider daily totals · hourly UTC reconstruction · 3-hour smooth";
+    byId("history-coverage").textContent = nativeHours
+      ? `${nativeHours} hour${nativeHours === 1 ? "" : "s"} include observed deltas`
+      : "Estimated hourly shape; native coverage is accumulating";
     renderLineChart(points || [], selected ? selected.label : "All accounts combined", coverage > 0);
   }
 
@@ -560,6 +653,7 @@
     state.snapshot = snapshot;
     renderLiveState(snapshot);
     renderDecision(snapshot);
+    renderRunout(snapshot.runout_forecast || {});
     renderForecasts(snapshot.forecasts || []);
     renderHistory(snapshot.usage_history || {});
     renderResetBank(snapshot.reset_bank || {});

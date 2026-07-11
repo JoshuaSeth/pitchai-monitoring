@@ -36,6 +36,14 @@ One normalized capacity point equals one percentage point of a five-hour account
 
 Banked resets use the provider's read-only reset inventory. The UI shows every grant and expiry date returned by the provider, ordered by expiry. When only a count is available, the dashboard says dated detail is unavailable rather than inventing it. Neither the broker analytics endpoint nor the dashboard implements the provider's reset-consumption action; redeeming a reset is outside this service's capability.
 
+## Hourly history and runout forecast
+
+The provider profile route reports historical token totals by UTC day, not hour. The dashboard reconstructs 168 hourly points with an even, daily-total-constrained allocation and applies a three-hour smoothing window for the line plot. Every complete raw reconstructed day still sums exactly to the provider total. The API marks each hour as `reconstructed`, `blended`, or `observed`; it does not present reconstructed hours as provider-observed facts.
+
+The production container writes a redacted sample every five minutes to `/srv/codex-usage-dashboard/usage-samples.json`. The directory is mode `700` and the atomic sample file is mode `600`, both root-owned. Samples contain account labels, quota percentages/reset times, and current-day usage counters only. They contain no broker account IDs, auth files, credentials, auth tokens, device codes, or provider response bodies. Retention is eight days. Native usage deltas progressively replace reconstructed hourly allocations, and native five-hour quota deltas provide the preferred trailing two-hour burn estimate.
+
+Runout probability uses deterministic burn-rate scenarios around the trailing two-hour sample rate. Until enough native samples exist, the UI labels a current-window average estimate and lowers confidence. Capacity is consumed earliest-reset-first; automatic five-hour resets and weekly eligibility resets are modeled. Weekly percentages remain a hard gate and are not converted into five-hour points. Banked resets never enter forecast capacity because they require a forbidden manual redemption action.
+
 ## Operations
 
 Build and deploy the container from the repository root:
@@ -87,5 +95,6 @@ For an Nginx rollback, restore the timestamped backup beside `/etc/nginx/sites-a
 
 - No `auth.json`, access token, refresh token, broker token, password, device code, callback code, or mailbox code may enter the API, DOM, logs, screenshots, tests, or repository.
 - Token history and reset-bank collection is GET-only at the provider boundary. Reset redemption is forbidden and has no dashboard route or control.
+- The dashboard-owned history mount is the only writable persistent path in the read-only container.
 - Active requester/session counts are informational telemetry only. They never reduce account availability.
 - Only actual auth validity, provider rate/quota state, disabled state, freshness, and the broker safety floor affect displayed selectability.

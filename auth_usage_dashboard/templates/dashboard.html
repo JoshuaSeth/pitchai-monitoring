@@ -55,6 +55,18 @@
         </div>
       </section>
 
+      <section class="runout-section" aria-labelledby="runout-title" data-testid="runout-forecast">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Burn-adjusted outlook</div>
+            <h2 id="runout-title">Probability of full capacity runout</h2>
+          </div>
+          <div class="section-aside burn-rate-aside" id="burn-rate">Burn estimate pending</div>
+        </div>
+        <div class="runout-grid" id="runout-grid"></div>
+        <div class="runout-drivers" id="runout-drivers"></div>
+      </section>
+
       <section class="forecast-section" aria-labelledby="forecast-title">
         <div class="section-heading">
           <div>
@@ -69,7 +81,7 @@
       <section class="history-section" aria-labelledby="history-title">
         <div class="section-heading history-heading">
           <div>
-            <div class="section-label">Provider token activity</div>
+            <div class="section-label">Hourly operational series</div>
             <h2 id="history-title">Seven-day usage burn</h2>
           </div>
           <div class="history-tools">
@@ -82,10 +94,10 @@
         </div>
         <div class="history-shell" data-testid="usage-history">
           <div class="history-stats" id="history-stats"></div>
-          <div class="chart-frame" id="usage-chart" role="img" aria-label="Daily token usage over the past seven days"></div>
+          <div class="chart-frame" id="usage-chart" role="img" aria-label="Hourly token usage over the past seven days"></div>
           <div class="history-foot">
-            <span>Daily UTC buckets from the provider</span>
-            <span>Today is a partial day</span>
+            <span id="history-method">Hourly reconstruction pending</span>
+            <span id="history-coverage">Current hour is partial</span>
           </div>
         </div>
       </section>

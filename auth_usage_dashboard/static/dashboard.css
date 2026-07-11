@@ -305,6 +305,7 @@ h2 {
 }
 
 .forecast-section,
+.runout-section,
 .history-section,
 .reset-bank-section,
 .accounts-section,
@@ -337,6 +338,163 @@ h2 {
   font-family: var(--mono);
   font-size: 12px;
   text-align: right;
+}
+
+.burn-rate-aside {
+  max-width: 620px;
+}
+
+.runout-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px 7px 0 0;
+  background: var(--surface);
+}
+
+.runout-cell {
+  position: relative;
+  min-width: 0;
+  min-height: 218px;
+  padding: 20px 22px 18px;
+  border-top: 4px solid var(--green);
+  border-right: 1px solid var(--line);
+}
+
+.runout-cell:last-child {
+  border-right: 0;
+}
+
+.runout-cell.risk-medium {
+  border-top-color: var(--amber);
+}
+
+.runout-cell.risk-high {
+  border-top-color: var(--red);
+}
+
+.runout-cell-head,
+.runout-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.runout-horizon {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.risk-badge {
+  padding: 4px 6px;
+  border: 1px solid #b5ddce;
+  border-radius: 4px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.risk-badge.medium {
+  border-color: #efd5a6;
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.risk-badge.high {
+  border-color: #efbac5;
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.runout-probability {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 17px;
+  font-family: var(--mono);
+  line-height: 1;
+}
+
+.runout-probability strong {
+  font-size: 42px;
+}
+
+.runout-probability span {
+  color: var(--muted);
+  font-size: 18px;
+}
+
+.risk-meter {
+  height: 7px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-muted);
+}
+
+.risk-meter > span {
+  display: block;
+  width: var(--value, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+
+.risk-meter.medium > span {
+  background: var(--amber);
+}
+
+.risk-meter.high > span {
+  background: var(--red);
+}
+
+.runout-timing {
+  min-height: 33px;
+  margin-top: 13px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.runout-detail {
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.runout-drivers {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 7px 7px;
+  background: #f9faf8;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.runout-driver {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.runout-driver i {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--cyan);
 }
 
 .forecast-grid {
@@ -501,8 +659,8 @@ h2 {
 
 .chart-frame {
   width: 100%;
-  height: 330px;
-  padding: 12px 14px 2px;
+  height: 430px;
+  padding: 14px 14px 4px;
 }
 
 .usage-line-chart {
@@ -540,8 +698,16 @@ h2 {
 .chart-point {
   fill: var(--surface);
   stroke: var(--cyan);
-  stroke-width: 3;
+  stroke-width: 2;
   vector-effect: non-scaling-stroke;
+}
+
+.chart-point.observed {
+  fill: var(--cyan);
+}
+
+.chart-point.blended {
+  fill: var(--surface);
 }
 
 .chart-empty {
@@ -1025,6 +1191,22 @@ footer {
   }
 }
 
+@media (max-width: 900px) {
+  .runout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .runout-cell {
+    min-height: 185px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .runout-cell:last-child {
+    border-bottom: 0;
+  }
+}
+
 @media (max-width: 760px) {
   .header-inner,
   main {
@@ -1113,8 +1295,19 @@ footer {
   }
 
   .chart-frame {
-    height: 270px;
+    height: 320px;
     padding: 8px 4px 0;
+  }
+
+  .runout-cell {
+    padding: 17px 18px;
+  }
+
+  .runout-drivers {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+    padding: 12px 14px;
   }
 
   .history-foot {

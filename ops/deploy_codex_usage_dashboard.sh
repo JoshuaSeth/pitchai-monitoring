@@ -6,6 +6,7 @@ readonly CONTAINER="codex-usage-dashboard"
 readonly BROKER_CONTAINER="auth-token-server"
 readonly BROKER_ENV="/etc/auth-token-server/auth-token-server.env"
 readonly BROKER_ACCOUNTS="/srv/auth-token-server/data/accounts"
+readonly DASHBOARD_DATA="/srv/codex-usage-dashboard"
 readonly PROD_PORT="8124"
 readonly CANARY_PORT="18124"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,6 +25,7 @@ for command in docker curl python3 git; do
 done
 [[ -r "${BROKER_ENV}" ]] || { printf 'Broker environment is not readable.\n' >&2; exit 1; }
 [[ -d "${BROKER_ACCOUNTS}" ]] || { printf 'Broker account inventory is unavailable.\n' >&2; exit 1; }
+install -d -m 700 -o root -g root "${DASHBOARD_DATA}"
 [[ "$(stat -c '%a:%U:%G' "${BROKER_ENV}")" == "600:root:root" ]] || {
   printf 'Broker environment permissions are not 600 root:root.\n' >&2
   exit 1
@@ -59,8 +61,12 @@ run_dashboard() {
   local restart_policy="$3"
   local probe_enabled="$4"
   local health_args=()
+  local history_args=()
   if [[ "${port}" != "${PROD_PORT}" ]]; then
     health_args+=(--no-healthcheck)
+    history_args+=("--tmpfs" "/dashboard-data:rw,nosuid,nodev,noexec,size=16m")
+  else
+    history_args+=(--mount "type=bind,src=${DASHBOARD_DATA},dst=/dashboard-data")
   fi
   docker run --detach \
     --name "${name}" \
@@ -76,6 +82,7 @@ run_dashboard() {
     --memory 384m \
     --cpus 1.0 \
     --mount "type=bind,src=${BROKER_ACCOUNTS},dst=/broker-data/accounts,readonly" \
+    "${history_args[@]}" \
     --env AUTH_USAGE_BROKER_ADMIN_TOKEN \
     --env AUTH_USAGE_BROKER_DATA_DIR=/broker-data \
     --env AUTH_USAGE_BROKER_URL=http://127.0.0.1:38188 \
@@ -87,6 +94,9 @@ run_dashboard() {
     --env AUTH_USAGE_SNAPSHOT_REFRESH_SECONDS=15 \
     --env AUTH_USAGE_STALE_AFTER_SECONDS=600 \
     --env AUTH_USAGE_ANALYTICS_STALE_AFTER_SECONDS=1800 \
+    --env AUTH_USAGE_HISTORY_FILE=/dashboard-data/usage-samples.json \
+    --env AUTH_USAGE_HISTORY_RETENTION_DAYS=8 \
+    --env AUTH_USAGE_HISTORY_SAMPLE_INTERVAL_SECONDS=300 \
     --env AUTH_USAGE_REQUIRE_PROXY_AUTH=1 \
     "${health_args[@]}" \
     "${image}" >/dev/null
@@ -105,10 +115,14 @@ import json
 import os
 
 payload = json.loads(os.environ["DASHBOARD_JSON"])
-assert payload["schema_version"] == 2
+assert payload["schema_version"] == 3
 assert payload["summary"]["configured_accounts"] > 0
 assert payload["usage_history"]["provider_granularity"] == "daily"
+assert payload["usage_history"]["granularity"] == "hour"
+assert payload["usage_history"]["point_count"] == 168
 assert "combined" in payload["usage_history"]
+assert len(payload["runout_forecast"]["horizons"]) == 3
+assert payload["runout_forecast"]["banked_reset_policy"]["included_as_automatic_capacity"] is False
 assert "details" in payload["reset_bank"]
 encoded = json.dumps(payload)
 for forbidden in ("auth_json", "access_token", "refresh_token", "admin_token", "credit_id"):

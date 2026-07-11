@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -110,9 +111,11 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
         )
         assert response.status_code == 200
         payload = response.json()
-        assert payload["schema_version"] == 2
+        assert payload["schema_version"] == 3
         assert payload["summary"]["configured_accounts"] == 1
+        assert payload["usage_history"]["point_count"] == 168
         assert payload["usage_history"]["accounts_reporting"] == 1
+        assert len(payload["runout_forecast"]["horizons"]) == 3
         assert payload["reset_bank"]["total_available"] == 1
         assert payload["accounts"][0]["label"] == "safe@example.com"
         assert "internal-id" not in response.text
@@ -151,6 +154,22 @@ def test_safe_probe_runs_on_startup_and_manual_probe_is_throttled(tmp_path: Path
         assert response.json()["retry_after_seconds"] > 0
         assert source.analytics_probe_count == 1
         assert source.probe_count == 0
+
+
+def test_corrupt_sample_history_is_reported_without_hiding_live_capacity(tmp_path: Path) -> None:
+    history_file = tmp_path / "usage-samples.json"
+    history_file.write_text('{"schema_version":1,"samples":[{"at":"bad","accounts":{}}]}', encoding="utf-8")
+    settings = replace(_settings(tmp_path), history_file=history_file)
+    app = create_app(settings, source=FakeSource([_raw_account()]))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/capacity", headers={"X-PitchAI-Operator": "seth"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["usable_now"] == 1
+    assert payload["source"]["history_error"] == "ValueError"
+    assert any(warning["code"] == "history_error" for warning in payload["warnings"])
 
 
 def test_state_source_reads_metadata_and_state_but_never_auth_json(tmp_path: Path) -> None:

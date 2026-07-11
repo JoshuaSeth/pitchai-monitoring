@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from .history import build_hourly_usage_history
+from .runout import build_runout_forecast
+
 
 UTC = timezone.utc
 FORECAST_HORIZONS = (
@@ -161,6 +164,8 @@ def build_dashboard_snapshot(
     last_analytics_probe_at: datetime | None = None,
     probe_interval_seconds: int = 300,
     analytics_probe_interval_seconds: int = 900,
+    usage_samples: list[dict[str, Any]] | None = None,
+    history_error: str | None = None,
 ) -> dict[str, Any]:
     probe_errors = probe_errors or {}
     analytics_probe_errors = analytics_probe_errors or {}
@@ -186,11 +191,18 @@ def build_dashboard_snapshot(
         _forecast(accounts, now=now, key=key, label=label, horizon_seconds=seconds)
         for key, label, seconds in FORECAST_HORIZONS
     ]
-    usage_history = _usage_history(accounts, now=now)
+    usage_history = build_hourly_usage_history(accounts, samples=usage_samples or [], now=now)
     reset_bank = _reset_bank(accounts, now=now)
+    runout_forecast = build_runout_forecast(
+        accounts,
+        samples=usage_samples or [],
+        reset_bank=reset_bank,
+        now=now,
+    )
     warnings = _warnings(
         accounts,
         source_error=source_error,
+        history_error=history_error,
         probe_errors=probe_errors,
         analytics_probe_errors=analytics_probe_errors,
     )
@@ -217,7 +229,7 @@ def build_dashboard_snapshot(
     next_useful = next((event for event in events if event["kind"] in {"five_hour_reset", "weekly_reset"}), None)
 
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "generated_at": isoformat(now),
         "source": {
             "name": "authoritative Codex authentication broker",
@@ -231,6 +243,7 @@ def build_dashboard_snapshot(
             "stale": bool(source_error or stale_count or analytics_stale_count),
             "stale_account_count": stale_count,
             "analytics_stale_account_count": analytics_stale_count,
+            "history_error": history_error,
             "error": source_error,
         },
         "summary": {
@@ -242,6 +255,7 @@ def build_dashboard_snapshot(
             "next_useful_capacity_label": next_useful["account_label"] if next_useful else None,
         },
         "forecasts": forecasts,
+        "runout_forecast": runout_forecast,
         "usage_history": usage_history,
         "reset_bank": reset_bank,
         "warnings": warnings,
@@ -252,7 +266,8 @@ def build_dashboard_snapshot(
             "definition": "100 points equals one full five-hour account window; scheduled five-hour resets add 100 points.",
             "weekly_handling": "Weekly exhaustion blocks contribution until its reset; weekly percentages are reported separately and are not converted into five-hour points.",
             "maximum_not_prediction": True,
-            "token_history": "Provider-reported token activity grouped by UTC day; the current day is partial.",
+            "token_history": "Provider daily totals are reconstructed into 168 hourly UTC points and progressively replaced by native sample deltas; the current hour is partial.",
+            "runout_forecast": "Probabilities model recent capacity burn and automatic five-hour resets. Banked resets are excluded because redemption is manual and forbidden here.",
             "reset_bank": "Read-only inventory. The dashboard has no action that can consume a banked reset.",
         },
     }
@@ -320,7 +335,7 @@ def _parse_token_usage(
             "longest_streak_days",
         )
     }
-    first_day = now.date() - timedelta(days=6)
+    first_day = now.date() - timedelta(days=7)
     daily: list[dict[str, Any]] = []
     raw_buckets = payload.get("daily_usage_buckets")
     if isinstance(raw_buckets, list):
@@ -346,65 +361,6 @@ def _parse_token_usage(
         "updated_at": isoformat(parsed_updated_at),
         "stale": stale,
         "probe_error": probe_error,
-    }
-
-
-def _usage_history(accounts: list[dict[str, Any]], *, now: datetime) -> dict[str, Any]:
-    dates = [(now.date() - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
-    reporting = [account for account in accounts if account["token_usage"]["available"]]
-    series: list[dict[str, Any]] = []
-    combined = {day: 0 for day in dates}
-    for account in reporting:
-        values = {point["date"]: point["tokens"] for point in account["token_usage"]["daily"]}
-        points = []
-        for day in dates:
-            tokens = int(values.get(day, 0))
-            combined[day] += tokens
-            points.append({"date": day, "at": f"{day}T00:00:00Z", "tokens": tokens})
-        series.append(
-            {
-                "label": account["label"],
-                "points": points,
-                "updated_at": account["token_usage"]["updated_at"],
-                "stale": account["token_usage"]["stale"],
-            }
-        )
-    series.sort(key=lambda item: item["label"].lower())
-    combined_points = [
-        {
-            "date": day,
-            "at": f"{day}T00:00:00Z",
-            "tokens": combined[day],
-            "accounts_reporting": len(reporting),
-        }
-        for day in dates
-    ]
-    totals = [point["tokens"] for point in combined_points]
-    updated_values = [
-        _parse_datetime(account["token_usage"].get("updated_at"))
-        for account in reporting
-    ]
-    valid_updates = [value for value in updated_values if value is not None]
-    total_tokens = sum(totals)
-    return {
-        "granularity": "day",
-        "provider_granularity": "daily",
-        "timezone": "UTC",
-        "period_start": f"{dates[0]}T00:00:00Z",
-        "period_end": isoformat(now),
-        "current_day_partial": True,
-        "accounts_reporting": len(reporting),
-        "configured_accounts": len(accounts),
-        "stale_account_count": sum(1 for account in reporting if account["token_usage"]["stale"]),
-        "updated_at": isoformat(min(valid_updates, default=None)),
-        "combined": combined_points,
-        "series": series,
-        "summary": {
-            "seven_day_tokens": total_tokens,
-            "average_daily_tokens": round(total_tokens / len(dates)),
-            "peak_daily_tokens": max(totals, default=0),
-            "today_tokens": totals[-1] if totals else 0,
-        },
     }
 
 
@@ -592,12 +548,21 @@ def _warnings(
     accounts: list[dict[str, Any]],
     *,
     source_error: str | None,
+    history_error: str | None,
     probe_errors: dict[str, str],
     analytics_probe_errors: dict[str, str],
 ) -> list[dict[str, Any]]:
     warnings: list[dict[str, Any]] = []
     if source_error:
         warnings.append({"severity": "critical", "code": "source_error", "message": "Broker state refresh failed"})
+    if history_error:
+        warnings.append(
+            {
+                "severity": "warning",
+                "code": "history_error",
+                "message": "Usage sample history could not be persisted",
+            }
+        )
     if probe_errors:
         warnings.append(
             {
