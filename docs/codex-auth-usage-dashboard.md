@@ -58,11 +58,18 @@ Do not print the full API response in shared logs. It contains account labels an
 ## Nginx, DNS, and access
 
 - DNS: `codexusage.pitchai.net` A record to the public IPv4 address of `pitchai-dev`.
+- HTTP bootstrap source: `ops/codexusage.pitchai.net.bootstrap.nginx.conf`.
 - Nginx source: `ops/codexusage.pitchai.net.nginx.conf`.
 - Basic Auth file: `/etc/nginx/htpasswd-pitchai-tools-dashboard`.
 - TLS: Certbot-managed certificate for `codexusage.pitchai.net`.
+- Certificate renewal: `ops/renew_codexusage_certificate.sh` through the committed systemd service and timer.
+- External canary: the monitoring service checks the redacted `/healthz` response, DNS, TLS, and browser reachability. Docker performs the local container health check on `pitchai-dev`.
 
 The same PitchAI tools dashboard credentials provide access. Never place a password in this repository, PM notes, screenshots, logs, or Telegram.
+
+For a first deployment, install and enable the HTTP bootstrap vhost, run `nginx -t`, and reload Nginx before requesting the certificate. Once the certificate exists, replace the bootstrap file with the final Nginx source, validate again, and reload. This keeps the ACME challenge reachable without making Nginx depend on a certificate that has not been issued yet.
+
+The host's legacy Certbot Python environment is not used for this certificate. Install `ops/renew_codexusage_certificate.sh` as `/usr/local/sbin/renew-codexusage-certificate`, install the two committed unit files in `/etc/systemd/system`, then enable `codexusage-cert-renew.timer`. The script pins the working official Certbot container image and renews only this certificate; it reloads Nginx only when the certificate fingerprint changes.
 
 ## Rollback
 
