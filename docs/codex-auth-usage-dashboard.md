@@ -15,9 +15,11 @@ The broker state files are root-only (`0600`). The production container therefor
 
 ## Freshness and probe cost
 
-The service rereads broker state every 15 seconds and runs a no-generation usage probe at most once every 5 minutes. A manual refresh is throttled to one probe per minute.
+The service rereads broker state every 15 seconds, runs a no-generation quota probe at most once every 5 minutes, and refreshes token history plus the reset bank at most once every 15 minutes. A manual refresh is throttled to one probe per minute.
 
 The probe calls the broker's existing `POST /v1/admin/accounts/{id}/probe` endpoint. That endpoint refreshes auth if needed and calls the Codex usage endpoint; it does not submit a prompt or run a model generation. The dashboard deliberately discards the secret-bearing admin response body and rereads only redacted state files.
+
+The analytics refresh calls the broker's `POST /v1/admin/accounts/{id}/analytics-probe` endpoint. The broker then uses the same refreshed account auth to issue provider `GET` requests to `/wham/profiles/me` and `/wham/rate-limit-reset-credits`. Only daily token buckets, aggregate token statistics, reset counts, display titles, statuses, and grant/expiry dates enter `state.json`. Provider profile fields, reset-credit IDs, and every credential field are dropped before persistence. The provider exposes daily history, so the chart reports seven UTC daily buckets and marks the current day partial; it does not invent hourly precision.
 
 This keeps quota metadata current without creating synthetic model work. Reducing the probe interval below five minutes is discouraged because it increases provider and auth traffic without improving operator decisions.
 
@@ -32,7 +34,7 @@ One normalized capacity point equals one percentage point of a five-hour account
 - Stale, auth-invalid, disabled, and unknown accounts do not contribute usable points.
 - The broker safety floor is honored. An account at or below `AUTH_TOKEN_SERVER_MIN_FIVE_HOUR_REMAINING_PERCENT` is shown as five-hour limited even if the provider still reports a small remainder.
 
-Reset credits use the provider's `rate_limit_reset_credits` metadata. The UI shows all dates returned by the provider. When the provider returns only `available_count`, the dashboard says that dates are unavailable rather than inventing them.
+Banked resets use the provider's read-only reset inventory. The UI shows every grant and expiry date returned by the provider, ordered by expiry. When only a count is available, the dashboard says dated detail is unavailable rather than inventing it. Neither the broker analytics endpoint nor the dashboard implements the provider's reset-consumption action; redeeming a reset is outside this service's capability.
 
 ## Operations
 
@@ -84,5 +86,6 @@ For an Nginx rollback, restore the timestamped backup beside `/etc/nginx/sites-a
 ## Data safety invariants
 
 - No `auth.json`, access token, refresh token, broker token, password, device code, callback code, or mailbox code may enter the API, DOM, logs, screenshots, tests, or repository.
+- Token history and reset-bank collection is GET-only at the provider boundary. Reset redemption is forbidden and has no dashboard route or control.
 - Active requester/session counts are informational telemetry only. They never reduce account availability.
 - Only actual auth validity, provider rate/quota state, disabled state, freshness, and the broker safety floor affect displayed selectability.

@@ -47,6 +47,16 @@ class BrokerStateSource:
     def probe_accounts(self, accounts: list[dict[str, Any]]) -> dict[str, str]:
         """Probe enabled accounts while deliberately discarding secret-bearing bodies."""
 
+        return self._probe_accounts(accounts, endpoint="probe")
+
+    def probe_analytics(self, accounts: list[dict[str, Any]]) -> dict[str, str]:
+        """Refresh redacted token history and reset-bank state."""
+
+        return self._probe_accounts(accounts, endpoint="analytics-probe")
+
+    def _probe_accounts(self, accounts: list[dict[str, Any]], *, endpoint: str) -> dict[str, str]:
+        """Call one broker probe endpoint without reading its response body."""
+
         errors: dict[str, str] = {}
         for account in accounts:
             metadata = account.get("metadata") if isinstance(account.get("metadata"), dict) else {}
@@ -60,7 +70,7 @@ class BrokerStateSource:
             try:
                 with self._client.stream(
                     "POST",
-                    f"/v1/admin/accounts/{quote(account_id, safe='')}/probe",
+                    f"/v1/admin/accounts/{quote(account_id, safe='')}/{endpoint}",
                     content=b"{}",
                     headers={"Content-Type": "application/json"},
                 ) as response:

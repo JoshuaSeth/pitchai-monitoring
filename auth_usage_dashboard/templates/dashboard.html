@@ -66,6 +66,50 @@
         <div class="forecast-grid" id="forecast-grid" data-testid="forecast-grid"></div>
       </section>
 
+      <section class="history-section" aria-labelledby="history-title">
+        <div class="section-heading history-heading">
+          <div>
+            <div class="section-label">Provider token activity</div>
+            <h2 id="history-title">Seven-day usage burn</h2>
+          </div>
+          <div class="history-tools">
+            <label class="sr-only" for="history-series">Usage series</label>
+            <select id="history-series" class="history-select" aria-label="Usage series">
+              <option value="combined">All accounts combined</option>
+            </select>
+            <span class="section-aside" id="history-freshness">History pending</span>
+          </div>
+        </div>
+        <div class="history-shell" data-testid="usage-history">
+          <div class="history-stats" id="history-stats"></div>
+          <div class="chart-frame" id="usage-chart" role="img" aria-label="Daily token usage over the past seven days"></div>
+          <div class="history-foot">
+            <span>Daily UTC buckets from the provider</span>
+            <span>Today is a partial day</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="reset-bank-section" aria-labelledby="reset-bank-title">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Read-only inventory</div>
+            <h2 id="reset-bank-title">Banked usage resets</h2>
+          </div>
+          <div class="reset-bank-total"><strong id="reset-bank-count">-</strong> available</div>
+        </div>
+        <div class="reset-bank-shell" data-testid="reset-bank">
+          <div class="reset-bank-header" aria-hidden="true">
+            <span>Account</span>
+            <span>Reset</span>
+            <span>Granted</span>
+            <span>Expires</span>
+          </div>
+          <div id="reset-bank-list"></div>
+          <button class="reset-bank-toggle" id="reset-bank-toggle" type="button" hidden>Show all resets</button>
+        </div>
+      </section>
+
       <section class="warning-section is-empty" id="warning-section" aria-labelledby="warning-title">
         <div class="warning-heading">
           <img src="/static/icons/triangle-alert.svg" alt="" width="18" height="18" />
@@ -97,7 +141,7 @@
                 <th scope="col">5-hour reset</th>
                 <th scope="col">Weekly capacity</th>
                 <th scope="col">Weekly reset</th>
-                <th scope="col">Redeemable resets</th>
+                <th scope="col">Banked resets</th>
                 <th scope="col">Freshness</th>
               </tr>
             </thead>
@@ -123,7 +167,7 @@
           <img src="/static/icons/shield-check.svg" alt="" width="18" height="18" />
           <span id="method-note">Capacity points are normalized five-hour headroom; weekly limits remain a separate hard constraint.</span>
         </div>
-        <div class="footer-meta">No prompts are submitted by freshness probes.</div>
+        <div class="footer-meta">No prompts or reset redemptions are submitted.</div>
       </footer>
     </main>
 

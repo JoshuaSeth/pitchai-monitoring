@@ -61,8 +61,10 @@ class DashboardSettings:
     bind_port: int = 8124
     snapshot_refresh_seconds: int = 15
     safe_probe_interval_seconds: int = 300
+    analytics_probe_interval_seconds: int = 900
     manual_probe_min_interval_seconds: int = 60
     stale_after_seconds: int = 600
+    analytics_stale_after_seconds: int = 1800
     request_timeout_seconds: float = 25.0
     min_five_hour_remaining_percent: float = 10.0
     safe_probe_enabled: bool = True
@@ -105,11 +107,17 @@ class DashboardSettings:
             safe_probe_interval_seconds=_env_int(
                 "AUTH_USAGE_SAFE_PROBE_INTERVAL_SECONDS", 300, minimum=60, maximum=3600
             ),
+            analytics_probe_interval_seconds=_env_int(
+                "AUTH_USAGE_ANALYTICS_PROBE_INTERVAL_SECONDS", 900, minimum=300, maximum=86400
+            ),
             manual_probe_min_interval_seconds=_env_int(
                 "AUTH_USAGE_MANUAL_PROBE_MIN_INTERVAL_SECONDS", 60, minimum=30, maximum=900
             ),
             stale_after_seconds=_env_int(
                 "AUTH_USAGE_STALE_AFTER_SECONDS", 600, minimum=120, maximum=86400
+            ),
+            analytics_stale_after_seconds=_env_int(
+                "AUTH_USAGE_ANALYTICS_STALE_AFTER_SECONDS", 1800, minimum=600, maximum=172800
             ),
             request_timeout_seconds=_env_float(
                 "AUTH_USAGE_REQUEST_TIMEOUT_SECONDS", 25.0, minimum=2.0, maximum=120.0

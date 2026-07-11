@@ -19,6 +19,7 @@ class FakeSource:
     def __init__(self, accounts: list[dict[str, Any]]) -> None:
         self.accounts = accounts
         self.probe_count = 0
+        self.analytics_probe_count = 0
         self.closed = False
 
     def read_accounts(self) -> list[dict[str, Any]]:
@@ -26,6 +27,10 @@ class FakeSource:
 
     def probe_accounts(self, accounts: list[dict[str, Any]]) -> dict[str, str]:
         self.probe_count += 1
+        return {}
+
+    def probe_analytics(self, accounts: list[dict[str, Any]]) -> dict[str, str]:
+        self.analytics_probe_count += 1
         return {}
 
     def close(self) -> None:
@@ -54,6 +59,17 @@ def _raw_account() -> dict[str, Any]:
                     },
                 },
                 "rate_limit_reset_credits": {"available_count": 1},
+            },
+            "analytics": {
+                "last_probe_at": now.isoformat(),
+                "token_usage_updated_at": now.isoformat(),
+                "token_usage": {
+                    "summary": {"lifetime_tokens": 1_000},
+                    "daily_usage_buckets": [{"start_date": now.date().isoformat(), "tokens": 100}],
+                },
+                "reset_credits_updated_at": now.isoformat(),
+                "reset_credits": {"available_count": 1, "credits": []},
+                "errors": {},
             },
         },
     }
@@ -94,8 +110,10 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
         )
         assert response.status_code == 200
         payload = response.json()
-        assert payload["schema_version"] == 1
+        assert payload["schema_version"] == 2
         assert payload["summary"]["configured_accounts"] == 1
+        assert payload["usage_history"]["accounts_reporting"] == 1
+        assert payload["reset_bank"]["total_available"] == 1
         assert payload["accounts"][0]["label"] == "safe@example.com"
         assert "internal-id" not in response.text
         assert response.headers["cache-control"] == "private, no-store"
@@ -122,7 +140,8 @@ def test_safe_probe_runs_on_startup_and_manual_probe_is_throttled(tmp_path: Path
     app = create_app(_settings(tmp_path, safe_probe=True), source=source)
 
     with TestClient(app) as client:
-        assert source.probe_count == 1
+        assert source.analytics_probe_count == 1
+        assert source.probe_count == 0
         response = client.post(
             "/api/v1/refresh",
             headers={"X-PitchAI-Operator": "seth", "X-Auth-Usage-Action": "refresh"},
@@ -130,7 +149,8 @@ def test_safe_probe_runs_on_startup_and_manual_probe_is_throttled(tmp_path: Path
         assert response.status_code == 200
         assert response.json()["reason"] == "probe_throttled"
         assert response.json()["retry_after_seconds"] > 0
-        assert source.probe_count == 1
+        assert source.analytics_probe_count == 1
+        assert source.probe_count == 0
 
 
 def test_state_source_reads_metadata_and_state_but_never_auth_json(tmp_path: Path) -> None:

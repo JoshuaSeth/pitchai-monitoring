@@ -23,6 +23,7 @@ def _account(
     weekly_reset: datetime | None = None,
     last_probe: datetime | None = None,
     credits: object | None = None,
+    analytics: object | None = None,
 ) -> dict[str, object]:
     five_reset = five_reset or NOW + timedelta(hours=3)
     weekly_reset = weekly_reset or NOW + timedelta(days=6)
@@ -39,6 +40,24 @@ def _account(
         primary["used_percent"] = five_used
     if weekly_used is not None:
         secondary["used_percent"] = weekly_used
+    state: dict[str, object] = {
+        "availability": availability,
+        "last_probe_at": last_probe.isoformat(),
+        "refresh_token": "must-not-escape",
+        "usage": {
+            "email": label,
+            "plan_type": "pro",
+            "rate_limit": {
+                "primary_window": primary,
+                "secondary_window": secondary,
+            },
+            "rate_limit_reset_credits": credits
+            if credits is not None
+            else {"available_count": 2},
+        },
+    }
+    if analytics is not None:
+        state["analytics"] = analytics
     return {
         "metadata": {
             "account_id": f"id-{label}",
@@ -46,22 +65,7 @@ def _account(
             "enabled": enabled,
             "broker_secret": "must-not-escape",
         },
-        "state": {
-            "availability": availability,
-            "last_probe_at": last_probe.isoformat(),
-            "refresh_token": "must-not-escape",
-            "usage": {
-                "email": label,
-                "plan_type": "pro",
-                "rate_limit": {
-                    "primary_window": primary,
-                    "secondary_window": secondary,
-                },
-                "rate_limit_reset_credits": credits
-                if credits is not None
-                else {"available_count": 2},
-            },
-        },
+        "state": state,
         "auth_json": {"access_token": "must-not-escape"},
     }
 
@@ -194,3 +198,107 @@ def test_dashboard_snapshot_does_not_expose_raw_auth_or_broker_identifiers() -> 
     assert "refresh_token" not in encoded
     assert "broker_secret" not in encoded
     assert "id-operator@example.com" not in encoded
+
+
+def test_usage_history_combines_authoritative_daily_buckets() -> None:
+    analytics_a = {
+        "token_usage_updated_at": (NOW - timedelta(minutes=2)).isoformat(),
+        "token_usage": {
+            "summary": {"lifetime_tokens": 20_000},
+            "daily_usage_buckets": [
+                {"start_date": "2026-07-09", "tokens": 1_000},
+                {"start_date": "2026-07-10", "tokens": 2_000},
+                {"start_date": "2026-07-11", "tokens": 500},
+            ],
+        },
+        "reset_credits_updated_at": (NOW - timedelta(minutes=2)).isoformat(),
+        "reset_credits": {"available_count": 0, "credits": []},
+        "errors": {},
+    }
+    analytics_b = {
+        "token_usage_updated_at": (NOW - timedelta(minutes=3)).isoformat(),
+        "token_usage": {
+            "summary": {"lifetime_tokens": 30_000},
+            "daily_usage_buckets": [
+                {"start_date": "2026-07-09", "tokens": 400},
+                {"start_date": "2026-07-11", "tokens": 600},
+            ],
+        },
+        "reset_credits_updated_at": (NOW - timedelta(minutes=3)).isoformat(),
+        "reset_credits": {"available_count": 0, "credits": []},
+        "errors": {},
+    }
+
+    snapshot = build_dashboard_snapshot(
+        [
+            _account("a@example.com", analytics=analytics_a),
+            _account("b@example.com", analytics=analytics_b),
+        ],
+        now=NOW,
+        stale_after_seconds=600,
+        analytics_stale_after_seconds=1800,
+        min_five_hour_remaining_percent=10,
+    )
+
+    history = snapshot["usage_history"]
+    assert history["provider_granularity"] == "daily"
+    assert history["accounts_reporting"] == 2
+    assert history["summary"] == {
+        "seven_day_tokens": 4_500,
+        "average_daily_tokens": 643,
+        "peak_daily_tokens": 2_000,
+        "today_tokens": 1_100,
+    }
+    by_date = {point["date"]: point["tokens"] for point in history["combined"]}
+    assert by_date["2026-07-09"] == 1_400
+    assert by_date["2026-07-10"] == 2_000
+    assert by_date["2026-07-11"] == 1_100
+    assert len(history["series"]) == 2
+
+
+def test_reset_bank_exposes_dates_but_not_provider_ids_or_private_copy() -> None:
+    analytics = {
+        "token_usage_updated_at": NOW.isoformat(),
+        "token_usage": {"summary": {}, "daily_usage_buckets": []},
+        "reset_credits_updated_at": NOW.isoformat(),
+        "reset_credits": {
+            "available_count": 1,
+            "credits": [
+                {
+                    "id": "must-not-escape-credit-id",
+                    "reset_type": "weekly",
+                    "status": "available",
+                    "granted_at": "2026-07-10T08:00:00Z",
+                    "expires_at": "2026-07-18T08:00:00Z",
+                    "title": "Weekly reset",
+                    "description": "must-not-escape-provider-copy",
+                }
+            ],
+        },
+        "errors": {},
+    }
+
+    snapshot = build_dashboard_snapshot(
+        [_account("bank@example.com", analytics=analytics)],
+        now=NOW,
+        stale_after_seconds=600,
+        analytics_stale_after_seconds=1800,
+        min_five_hour_remaining_percent=10,
+    )
+
+    bank = snapshot["reset_bank"]
+    assert bank["total_available"] == 1
+    assert bank["details"] == [
+        {
+            "account_label": "bank@example.com",
+            "reset_type": "weekly",
+            "status": "available",
+            "title": "Weekly reset",
+            "granted_at": "2026-07-10T08:00:00Z",
+            "expires_at": "2026-07-18T08:00:00Z",
+            "expires_in_seconds": 590_400,
+        }
+    ]
+    encoded = json.dumps(snapshot)
+    assert "must-not-escape-credit-id" not in encoded
+    assert "must-not-escape-provider-copy" not in encoded

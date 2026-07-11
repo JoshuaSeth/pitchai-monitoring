@@ -83,8 +83,10 @@ run_dashboard() {
     --env "AUTH_USAGE_BIND_PORT=${port}" \
     --env "AUTH_USAGE_SAFE_PROBE_ENABLED=${probe_enabled}" \
     --env AUTH_USAGE_SAFE_PROBE_INTERVAL_SECONDS=300 \
+    --env AUTH_USAGE_ANALYTICS_PROBE_INTERVAL_SECONDS=900 \
     --env AUTH_USAGE_SNAPSHOT_REFRESH_SECONDS=15 \
     --env AUTH_USAGE_STALE_AFTER_SECONDS=600 \
+    --env AUTH_USAGE_ANALYTICS_STALE_AFTER_SECONDS=1800 \
     --env AUTH_USAGE_REQUIRE_PROXY_AUTH=1 \
     "${health_args[@]}" \
     "${image}" >/dev/null
@@ -103,10 +105,13 @@ import json
 import os
 
 payload = json.loads(os.environ["DASHBOARD_JSON"])
-assert payload["schema_version"] == 1
+assert payload["schema_version"] == 2
 assert payload["summary"]["configured_accounts"] > 0
+assert payload["usage_history"]["provider_granularity"] == "daily"
+assert "combined" in payload["usage_history"]
+assert "details" in payload["reset_bank"]
 encoded = json.dumps(payload)
-for forbidden in ("auth_json", "access_token", "refresh_token", "admin_token"):
+for forbidden in ("auth_json", "access_token", "refresh_token", "admin_token", "credit_id"):
     assert forbidden not in encoded
 PY
       return 0

@@ -19,6 +19,8 @@ class StateSource(Protocol):
 
     def probe_accounts(self, accounts: list[dict[str, Any]]) -> dict[str, str]: ...
 
+    def probe_analytics(self, accounts: list[dict[str, Any]]) -> dict[str, str]: ...
+
     def close(self) -> None: ...
 
 
@@ -33,10 +35,15 @@ class CapacityService:
         self._last_probe_monotonic: float | None = None
         self._last_safe_probe_at: datetime | None = None
         self._last_probe_errors: dict[str, str] = {}
+        self._last_analytics_probe_monotonic: float | None = None
+        self._last_analytics_probe_at: datetime | None = None
+        self._last_analytics_probe_errors: dict[str, str] = {}
 
     async def start(self) -> None:
         if self.settings.safe_probe_enabled and not self.settings.probe_on_startup:
-            self._last_probe_monotonic = time.monotonic()
+            started_at = time.monotonic()
+            self._last_probe_monotonic = started_at
+            self._last_analytics_probe_monotonic = started_at
         await self.refresh(force_probe=self.settings.safe_probe_enabled and self.settings.probe_on_startup)
         self._loop_task = asyncio.create_task(self._refresh_loop(), name="auth-usage-dashboard-refresh")
 
@@ -82,8 +89,22 @@ class CapacityService:
         async with self._refresh_lock:
             try:
                 raw_accounts = await asyncio.to_thread(self.source.read_accounts)
-                due = self._probe_due()
-                if self.settings.safe_probe_enabled and (force_probe or due):
+                analytics_due = self._analytics_probe_due()
+                run_analytics = self.settings.safe_probe_enabled and (force_probe or analytics_due)
+                if run_analytics:
+                    probe_started = time.monotonic()
+                    self._last_probe_monotonic = probe_started
+                    self._last_analytics_probe_monotonic = probe_started
+                    self._last_analytics_probe_errors = await asyncio.to_thread(
+                        self.source.probe_analytics,
+                        raw_accounts,
+                    )
+                    self._last_probe_errors = self._last_analytics_probe_errors
+                    probed_at = utc_now()
+                    self._last_safe_probe_at = probed_at
+                    self._last_analytics_probe_at = probed_at
+                    raw_accounts = await asyncio.to_thread(self.source.read_accounts)
+                elif self.settings.safe_probe_enabled and self._probe_due():
                     self._last_probe_monotonic = time.monotonic()
                     self._last_probe_errors = await asyncio.to_thread(self.source.probe_accounts, raw_accounts)
                     self._last_safe_probe_at = utc_now()
@@ -93,11 +114,15 @@ class CapacityService:
                     raw_accounts,
                     now=now,
                     stale_after_seconds=self.settings.stale_after_seconds,
+                    analytics_stale_after_seconds=self.settings.analytics_stale_after_seconds,
                     min_five_hour_remaining_percent=self.settings.min_five_hour_remaining_percent,
                     probe_errors=self._last_probe_errors,
+                    analytics_probe_errors=self._last_analytics_probe_errors,
                     source_error=None,
                     last_safe_probe_at=self._last_safe_probe_at,
+                    last_analytics_probe_at=self._last_analytics_probe_at,
                     probe_interval_seconds=self.settings.safe_probe_interval_seconds,
+                    analytics_probe_interval_seconds=self.settings.analytics_probe_interval_seconds,
                 )
             except Exception as exc:
                 LOG.warning("Capacity snapshot refresh failed: %s", type(exc).__name__)
@@ -107,10 +132,13 @@ class CapacityService:
                         [],
                         now=now,
                         stale_after_seconds=self.settings.stale_after_seconds,
+                        analytics_stale_after_seconds=self.settings.analytics_stale_after_seconds,
                         min_five_hour_remaining_percent=self.settings.min_five_hour_remaining_percent,
                         source_error=type(exc).__name__,
                         last_safe_probe_at=self._last_safe_probe_at,
+                        last_analytics_probe_at=self._last_analytics_probe_at,
                         probe_interval_seconds=self.settings.safe_probe_interval_seconds,
+                        analytics_probe_interval_seconds=self.settings.analytics_probe_interval_seconds,
                     )
                 else:
                     snapshot = copy.deepcopy(self._snapshot)
@@ -127,6 +155,14 @@ class CapacityService:
         if self._last_probe_monotonic is None:
             return True
         return time.monotonic() - self._last_probe_monotonic >= self.settings.safe_probe_interval_seconds
+
+    def _analytics_probe_due(self) -> bool:
+        if self._last_analytics_probe_monotonic is None:
+            return True
+        return (
+            time.monotonic() - self._last_analytics_probe_monotonic
+            >= self.settings.analytics_probe_interval_seconds
+        )
 
     async def _refresh_loop(self) -> None:
         while not self._stop.is_set():

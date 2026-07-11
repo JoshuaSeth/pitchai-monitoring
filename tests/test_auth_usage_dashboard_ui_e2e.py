@@ -36,6 +36,25 @@ def _fixture_account(
     offset_minutes: int,
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
+    banked = offset_minutes % 4
+    daily_usage = [
+        {
+            "start_date": (now.date() - timedelta(days=6 - day)).isoformat(),
+            "tokens": (day + 1) * 12_000 + offset_minutes * 40,
+        }
+        for day in range(7)
+    ]
+    reset_details = []
+    if banked:
+        reset_details.append(
+            {
+                "reset_type": "weekly",
+                "status": "available",
+                "granted_at": (now - timedelta(days=2)).isoformat(),
+                "expires_at": (now + timedelta(days=8, hours=offset_minutes % 5)).isoformat(),
+                "title": "Weekly usage reset",
+            }
+        )
     return {
         "metadata": {"account_id": f"internal-{offset_minutes}", "label": label, "enabled": True},
         "state": {
@@ -56,7 +75,18 @@ def _fixture_account(
                         "limit_window_seconds": 604_800,
                     },
                 },
-                "rate_limit_reset_credits": {"available_count": offset_minutes % 4},
+                "rate_limit_reset_credits": {"available_count": banked},
+            },
+            "analytics": {
+                "last_probe_at": (now - timedelta(seconds=35)).isoformat(),
+                "token_usage_updated_at": (now - timedelta(seconds=35)).isoformat(),
+                "token_usage": {
+                    "summary": {"lifetime_tokens": sum(item["tokens"] for item in daily_usage)},
+                    "daily_usage_buckets": daily_usage,
+                },
+                "reset_credits_updated_at": (now - timedelta(seconds=35)).isoformat(),
+                "reset_credits": {"available_count": banked, "credits": reset_details},
+                "errors": {},
             },
         },
     }
@@ -107,6 +137,9 @@ class FixtureSource:
         return deepcopy(self.accounts)
 
     def probe_accounts(self, accounts: list[dict[str, Any]]) -> dict[str, str]:
+        return {}
+
+    def probe_analytics(self, accounts: list[dict[str, Any]]) -> dict[str, str]:
         return {}
 
     def close(self) -> None:
@@ -180,6 +213,13 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(auth_usage_
             assert await desktop.locator("[data-testid=account-table] tbody tr").count() == 8
             assert "accounts are ready" in (await desktop.locator("#decision-title").inner_text()).lower()
             assert await desktop.locator("#forecast-grid .forecast-cell").count() == 3
+            assert await desktop.locator("#usage-chart svg .chart-line").count() == 1
+            assert await desktop.locator("#history-series option").count() == 9
+            assert await desktop.locator("#reset-bank-list .reset-bank-row").count() == 6
+            await desktop.locator("#reset-bank-toggle").click()
+            assert await desktop.locator("#reset-bank-list .reset-bank-row").count() == 7
+            await desktop.locator("#history-series").select_option("onboarding.bigi.net")
+            assert "onboarding.bigi.net" in (await desktop.locator("#usage-chart").get_attribute("aria-label"))
             assert await desktop.locator("#mobile-account-list").is_hidden()
             await _assert_no_viewport_overflow(desktop)
 
@@ -187,6 +227,7 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(auth_usage_
             await mobile.goto(auth_usage_server, wait_until="networkidle")
             await mobile.locator("#mobile-account-list .mobile-account").first.wait_for()
             assert await mobile.locator("#mobile-account-list .mobile-account").count() == 8
+            assert await mobile.locator("#usage-chart svg .chart-line").count() == 1
             assert await mobile.locator(".table-shell").is_hidden()
             await _assert_no_viewport_overflow(mobile)
         finally:

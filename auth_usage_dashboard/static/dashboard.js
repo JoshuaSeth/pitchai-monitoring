@@ -4,6 +4,8 @@
   const state = {
     snapshot: null,
     zone: "utc",
+    historySeries: "combined",
+    bankExpanded: false,
     toastTimer: null,
   };
 
@@ -39,6 +41,15 @@
     });
   }
 
+  function compactNumber(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return "-";
+    return new Intl.NumberFormat(undefined, {
+      notation: parsed >= 10_000 ? "compact" : "standard",
+      maximumFractionDigits: parsed >= 10_000 ? 1 : 0,
+    }).format(parsed);
+  }
+
   function parseDate(value) {
     if (!value) return null;
     const date = new Date(value);
@@ -65,16 +76,19 @@
   function formatDuration(seconds) {
     const value = Number(seconds);
     if (!Number.isFinite(value)) return "Unknown";
-    if (value <= 1) return "now";
-    if (value < 60) return `in ${Math.ceil(value)}s`;
-    const minutes = Math.ceil(value / 60);
-    if (minutes < 60) return `in ${minutes}m`;
+    if (Math.abs(value) <= 1) return "now";
+    const future = value > 0;
+    const absolute = Math.abs(value);
+    const phrase = (duration) => future ? `in ${duration}` : `${duration} ago`;
+    if (absolute < 60) return phrase(`${Math.ceil(absolute)}s`);
+    const minutes = Math.ceil(absolute / 60);
+    if (minutes < 60) return phrase(`${minutes}m`);
     const hours = Math.floor(minutes / 60);
     const remainder = minutes % 60;
-    if (hours < 24) return remainder ? `in ${hours}h ${remainder}m` : `in ${hours}h`;
+    if (hours < 24) return phrase(remainder ? `${hours}h ${remainder}m` : `${hours}h`);
     const days = Math.floor(hours / 24);
     const dayHours = hours % 24;
-    return dayHours ? `in ${days}d ${dayHours}h` : `in ${days}d`;
+    return phrase(dayHours ? `${days}d ${dayHours}h` : `${days}d`);
   }
 
   function ageFromIso(value) {
@@ -95,6 +109,15 @@
     const node = document.createElement(tag);
     if (className) node.className = className;
     if (value !== undefined) node.textContent = text(value);
+    return node;
+  }
+
+  function svgElement(tag, className, attributes) {
+    const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    if (className) node.setAttribute("class", className);
+    for (const [name, value] of Object.entries(attributes || {})) {
+      node.setAttribute(name, String(value));
+    }
     return node;
   }
 
@@ -237,7 +260,7 @@
         mobileField("5-hour reset", resetCell(account.five_hour)),
         mobileField("Weekly capacity", capacityCell(account.weekly)),
         mobileField("Weekly reset", resetCell(account.weekly)),
-        mobileField("Redeemable resets", creditsCell(account)),
+        mobileField("Banked resets", creditsCell(account)),
         mobileField("Freshness", freshnessCell(account))
       );
       card.append(header, grid);
@@ -273,6 +296,187 @@
       cells.push(cell);
     }
     setChildren(byId("forecast-grid"), cells);
+  }
+
+  function niceMaximum(value) {
+    const maximum = Math.max(1, Number(value) || 0);
+    const magnitude = 10 ** Math.floor(Math.log10(maximum));
+    const normalized = maximum / magnitude;
+    const rounded = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+    return rounded * magnitude;
+  }
+
+  function shortDate(value) {
+    const parsed = parseDate(value);
+    if (!parsed) return "-";
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(parsed);
+  }
+
+  function renderLineChart(points, seriesLabel, hasCoverage) {
+    const frame = byId("usage-chart");
+    if (!hasCoverage || !Array.isArray(points) || !points.length) {
+      setChildren(frame, [element("div", "chart-empty", "Token history is not available yet.")]);
+      return;
+    }
+
+    const compact = window.innerWidth < 620;
+    const width = compact ? 420 : 960;
+    const height = compact ? 260 : 300;
+    const padding = { top: 18, right: 18, bottom: 42, left: compact ? 54 : 66 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const values = points.map((point) => Math.max(0, Number(point.tokens) || 0));
+    const yMaximum = niceMaximum(Math.max(...values));
+    const xFor = (index) => padding.left + (points.length === 1 ? plotWidth / 2 : index * plotWidth / (points.length - 1));
+    const yFor = (value) => padding.top + plotHeight - value / yMaximum * plotHeight;
+
+    const svg = svgElement("svg", "usage-line-chart", {
+      viewBox: `0 0 ${width} ${height}`,
+      "aria-hidden": "true",
+      focusable: "false",
+    });
+    for (let index = 0; index <= 4; index += 1) {
+      const value = yMaximum * (4 - index) / 4;
+      const y = padding.top + plotHeight * index / 4;
+      svg.appendChild(svgElement("line", "chart-grid-line", {
+        x1: padding.left,
+        x2: width - padding.right,
+        y1: y,
+        y2: y,
+      }));
+      const label = svgElement("text", "chart-y-label", { x: padding.left - 11, y: y + 4, "text-anchor": "end" });
+      label.textContent = compactNumber(value);
+      svg.appendChild(label);
+    }
+
+    const coordinates = values.map((value, index) => [xFor(index), yFor(value)]);
+    const linePath = coordinates.map((point, index) => `${index ? "L" : "M"}${point[0].toFixed(2)},${point[1].toFixed(2)}`).join(" ");
+    const areaPath = `${linePath} L${coordinates[coordinates.length - 1][0].toFixed(2)},${(padding.top + plotHeight).toFixed(2)} L${coordinates[0][0].toFixed(2)},${(padding.top + plotHeight).toFixed(2)} Z`;
+    svg.appendChild(svgElement("path", "chart-area", { d: areaPath }));
+    svg.appendChild(svgElement("path", "chart-line", { d: linePath }));
+
+    points.forEach((point, index) => {
+      if (!compact || index % 2 === 0 || index === points.length - 1) {
+        const xLabel = svgElement("text", "chart-x-label", {
+          x: coordinates[index][0],
+          y: height - 14,
+          "text-anchor": "middle",
+        });
+        xLabel.textContent = shortDate(point.at || `${point.date}T00:00:00Z`);
+        svg.appendChild(xLabel);
+      }
+      const marker = svgElement("circle", "chart-point", {
+        cx: coordinates[index][0],
+        cy: coordinates[index][1],
+        r: compact ? 4.5 : 5,
+      });
+      const title = svgElement("title", "", {});
+      title.textContent = `${seriesLabel}: ${compactNumber(point.tokens)} tokens on ${point.date}`;
+      marker.appendChild(title);
+      svg.appendChild(marker);
+    });
+    frame.setAttribute("aria-label", `${seriesLabel} daily token usage over the past seven days`);
+    setChildren(frame, [svg]);
+  }
+
+  function renderHistory(history) {
+    const payload = history || {};
+    const series = Array.isArray(payload.series) ? payload.series : [];
+    const select = byId("history-series");
+    const options = [element("option", "", "All accounts combined")];
+    options[0].value = "combined";
+    for (const item of series) {
+      const option = element("option", "", item.label);
+      option.value = item.label;
+      options.push(option);
+    }
+    if (state.historySeries !== "combined" && !series.some((item) => item.label === state.historySeries)) {
+      state.historySeries = "combined";
+    }
+    setChildren(select, options);
+    select.value = state.historySeries;
+
+    const selected = state.historySeries === "combined"
+      ? null
+      : series.find((item) => item.label === state.historySeries);
+    const points = selected ? selected.points : payload.combined;
+    const values = Array.isArray(points) ? points.map((point) => Number(point.tokens) || 0) : [];
+    const total = values.reduce((sum, value) => sum + value, 0);
+    const summary = selected ? {
+      seven_day_tokens: total,
+      average_daily_tokens: values.length ? Math.round(total / values.length) : 0,
+      peak_daily_tokens: values.length ? Math.max(...values) : 0,
+      today_tokens: values.length ? values[values.length - 1] : 0,
+    } : payload.summary || {};
+    const stats = [
+      ["Seven days", compactNumber(summary.seven_day_tokens), "tokens"],
+      ["Daily average", compactNumber(summary.average_daily_tokens), "tokens / day"],
+      ["Peak day", compactNumber(summary.peak_daily_tokens), "tokens"],
+      ["Today so far", compactNumber(summary.today_tokens), "tokens"],
+    ].map(([label, value, unit]) => {
+      const item = element("div", "history-stat");
+      item.append(
+        element("span", "history-stat-label", label),
+        element("strong", "", value),
+        element("small", "", unit)
+      );
+      return item;
+    });
+    setChildren(byId("history-stats"), stats);
+    const coverage = Number(payload.accounts_reporting || 0);
+    const configured = Number(payload.configured_accounts || 0);
+    const updatedAt = selected ? selected.updated_at : payload.updated_at;
+    byId("history-freshness").textContent = `${coverage}/${configured} accounts · ${updatedAt ? ageFromIso(updatedAt) : "pending"}`;
+    renderLineChart(points || [], selected ? selected.label : "All accounts combined", coverage > 0);
+  }
+
+  function renderResetBank(bank) {
+    const payload = bank || {};
+    const total = payload.total_available;
+    byId("reset-bank-count").textContent = total === null || total === undefined ? "-" : String(total);
+    const details = Array.isArray(payload.details) ? payload.details : [];
+    const visibleDetails = state.bankExpanded ? details : details.slice(0, 6);
+    const rows = [];
+    for (const detail of visibleDetails) {
+      const row = element("article", "reset-bank-row");
+      const identity = element("div", "reset-bank-account");
+      identity.dataset.label = "Account";
+      identity.appendChild(element("strong", "", detail.account_label));
+      if (detail.status) identity.appendChild(element("span", "", detail.status));
+      const reset = element("div", "reset-bank-kind");
+      reset.dataset.label = "Reset";
+      reset.append(
+        element("strong", "", detail.title || detail.reset_type || "Usage reset"),
+        element("span", "", detail.reset_type || "Unspecified")
+      );
+      const granted = element("div", "reset-bank-date");
+      granted.dataset.label = "Granted";
+      granted.appendChild(element("strong", "", formatTime(detail.granted_at, false)));
+      const expires = element("div", "reset-bank-date");
+      expires.dataset.label = "Expires";
+      expires.append(
+        element("strong", "", formatTime(detail.expires_at, false)),
+        element("span", detail.expires_in_seconds < 0 ? "is-expired" : "", formatDuration(detail.expires_in_seconds))
+      );
+      row.append(identity, reset, granted, expires);
+      rows.push(row);
+    }
+    if (!rows.length) {
+      const message = Number(total) > 0
+        ? `${total} banked reset${Number(total) === 1 ? "" : "s"}; dated detail is unavailable.`
+        : "No banked usage resets are currently available.";
+      rows.push(element("div", "empty-state", message));
+    }
+    setChildren(byId("reset-bank-list"), rows);
+    const toggle = byId("reset-bank-toggle");
+    toggle.hidden = details.length <= 6;
+    toggle.textContent = state.bankExpanded
+      ? "Show next six resets"
+      : `Show all ${details.length} resets`;
   }
 
   function renderWarnings(warnings) {
@@ -357,6 +561,8 @@
     renderLiveState(snapshot);
     renderDecision(snapshot);
     renderForecasts(snapshot.forecasts || []);
+    renderHistory(snapshot.usage_history || {});
+    renderResetBank(snapshot.reset_bank || {});
     renderWarnings(snapshot.warnings || []);
     renderAccountTable(snapshot.accounts || []);
     renderMobileAccounts(snapshot.accounts || []);
@@ -419,6 +625,14 @@
 
   function initialize() {
     byId("refresh-button").addEventListener("click", requestRefresh);
+    byId("history-series").addEventListener("change", (event) => {
+      state.historySeries = event.target.value || "combined";
+      if (state.snapshot) renderHistory(state.snapshot.usage_history || {});
+    });
+    byId("reset-bank-toggle").addEventListener("click", () => {
+      state.bankExpanded = !state.bankExpanded;
+      if (state.snapshot) renderResetBank(state.snapshot.reset_bank || {});
+    });
     for (const button of document.querySelectorAll(".zone-option")) {
       button.addEventListener("click", () => setZone(button.dataset.zone));
     }
@@ -430,6 +644,13 @@
       showToast("Unable to load broker capacity");
     });
     window.setInterval(() => loadSnapshot().catch(() => {}), 30_000);
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        if (state.snapshot) renderHistory(state.snapshot.usage_history || {});
+      }, 120);
+    });
   }
 
   document.addEventListener("DOMContentLoaded", initialize);
