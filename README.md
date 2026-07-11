@@ -230,7 +230,7 @@ This repository also contains the protected operational dashboard for the author
 - Deployment: `ops/deploy_codex_usage_dashboard.sh`
 - Operations, capacity methodology, security, and rollback: `docs/codex-auth-usage-dashboard.md`
 
-The dashboard reads only redacted broker metadata/state, refreshes quota with the broker's no-generation usage probe, and charts provider-reported daily token activity plus read-only banked-reset dates. It never reads or exposes broker `auth.json` files and has no reset-redemption capability.
+The dashboard reads only redacted broker metadata/state, refreshes quota with the broker's no-generation usage probe, and charts a seven-day hourly burn series constrained to provider-reported daily totals. A root-private sample ledger progressively replaces reconstructed hours with native deltas and drives reset-aware 1h/6h/24h runout probabilities. Banked-reset dates remain read-only and excluded from automatic capacity; the service never reads broker `auth.json` files and has no reset-redemption capability.
 
 ## Live Tests (Real Domains / Real Services)
 

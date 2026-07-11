@@ -242,17 +242,18 @@ def test_usage_history_combines_authoritative_daily_buckets() -> None:
 
     history = snapshot["usage_history"]
     assert history["provider_granularity"] == "daily"
+    assert history["granularity"] == "hour"
+    assert history["point_count"] == 168
     assert history["accounts_reporting"] == 2
-    assert history["summary"] == {
-        "seven_day_tokens": 4_500,
-        "average_daily_tokens": 643,
-        "peak_daily_tokens": 2_000,
-        "today_tokens": 1_100,
-    }
-    by_date = {point["date"]: point["tokens"] for point in history["combined"]}
+    by_date: dict[str, int] = {}
+    for point in history["combined"]:
+        day = point["at"][:10]
+        by_date[day] = by_date.get(day, 0) + point["tokens"]
     assert by_date["2026-07-09"] == 1_400
     assert by_date["2026-07-10"] == 2_000
     assert by_date["2026-07-11"] == 1_100
+    assert history["summary"]["seven_day_tokens"] == 4_500
+    assert history["summary"]["observed_share_percent"] == 0
     assert len(history["series"]) == 2
 
 

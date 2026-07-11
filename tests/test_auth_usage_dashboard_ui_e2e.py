@@ -212,8 +212,13 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(auth_usage_
             await desktop.locator("[data-testid=account-table] tbody tr").first.wait_for()
             assert await desktop.locator("[data-testid=account-table] tbody tr").count() == 8
             assert "accounts are ready" in (await desktop.locator("#decision-title").inner_text()).lower()
+            assert await desktop.locator("#runout-grid .runout-cell").count() == 3
+            assert "points/hour" in (await desktop.locator("#burn-rate").inner_text())
             assert await desktop.locator("#forecast-grid .forecast-cell").count() == 3
             assert await desktop.locator("#usage-chart svg .chart-line").count() == 1
+            assert "hourly token usage" in (await desktop.locator("#usage-chart").get_attribute("aria-label"))
+            chart_box = await desktop.locator("#usage-chart").bounding_box()
+            assert chart_box is not None and chart_box["width"] > 1300
             assert await desktop.locator("#history-series option").count() == 9
             assert await desktop.locator("#reset-bank-list .reset-bank-row").count() == 6
             await desktop.locator("#reset-bank-toggle").click()
@@ -227,6 +232,7 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(auth_usage_
             await mobile.goto(auth_usage_server, wait_until="networkidle")
             await mobile.locator("#mobile-account-list .mobile-account").first.wait_for()
             assert await mobile.locator("#mobile-account-list .mobile-account").count() == 8
+            assert await mobile.locator("#runout-grid .runout-cell").count() == 3
             assert await mobile.locator("#usage-chart svg .chart-line").count() == 1
             assert await mobile.locator(".table-shell").is_hidden()
             await _assert_no_viewport_overflow(mobile)

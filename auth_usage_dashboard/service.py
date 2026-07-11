@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from .capacity import build_dashboard_snapshot, isoformat, utc_now
+from .history import UsageSampleStore
 from .settings import DashboardSettings
 
 
@@ -25,7 +26,13 @@ class StateSource(Protocol):
 
 
 class CapacityService:
-    def __init__(self, settings: DashboardSettings, source: StateSource) -> None:
+    def __init__(
+        self,
+        settings: DashboardSettings,
+        source: StateSource,
+        *,
+        sample_store: UsageSampleStore | None = None,
+    ) -> None:
         self.settings = settings
         self.source = source
         self._snapshot: dict[str, Any] | None = None
@@ -38,6 +45,13 @@ class CapacityService:
         self._last_analytics_probe_monotonic: float | None = None
         self._last_analytics_probe_at: datetime | None = None
         self._last_analytics_probe_errors: dict[str, str] = {}
+        self._sample_store = sample_store
+        if self._sample_store is None and settings.history_file is not None:
+            self._sample_store = UsageSampleStore(
+                settings.history_file,
+                retention_days=settings.history_retention_days,
+                sample_interval_seconds=settings.history_sample_interval_seconds,
+            )
 
     async def start(self) -> None:
         if self.settings.safe_probe_enabled and not self.settings.probe_on_startup:
@@ -110,8 +124,7 @@ class CapacityService:
                     self._last_safe_probe_at = utc_now()
                     raw_accounts = await asyncio.to_thread(self.source.read_accounts)
                 now = utc_now()
-                self._snapshot = build_dashboard_snapshot(
-                    raw_accounts,
+                snapshot_arguments = dict(
                     now=now,
                     stale_after_seconds=self.settings.stale_after_seconds,
                     analytics_stale_after_seconds=self.settings.analytics_stale_after_seconds,
@@ -123,6 +136,25 @@ class CapacityService:
                     last_analytics_probe_at=self._last_analytics_probe_at,
                     probe_interval_seconds=self.settings.safe_probe_interval_seconds,
                     analytics_probe_interval_seconds=self.settings.analytics_probe_interval_seconds,
+                )
+                base_snapshot = build_dashboard_snapshot(raw_accounts, **snapshot_arguments)
+                usage_samples: list[dict[str, Any]] = []
+                history_error: str | None = None
+                if self._sample_store is not None:
+                    try:
+                        usage_samples = await asyncio.to_thread(
+                            self._sample_store.record,
+                            base_snapshot["accounts"],
+                            at=now,
+                        )
+                    except (OSError, ValueError) as exc:
+                        history_error = type(exc).__name__
+                        LOG.warning("Usage sample persistence failed: %s", history_error)
+                self._snapshot = build_dashboard_snapshot(
+                    raw_accounts,
+                    **snapshot_arguments,
+                    usage_samples=usage_samples,
+                    history_error=history_error,
                 )
             except Exception as exc:
                 LOG.warning("Capacity snapshot refresh failed: %s", type(exc).__name__)

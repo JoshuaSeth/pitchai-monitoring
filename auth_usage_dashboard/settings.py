@@ -71,6 +71,9 @@ class DashboardSettings:
     probe_on_startup: bool = True
     require_proxy_auth: bool = True
     proxy_auth_header: str = "x-pitchai-operator"
+    history_file: Path | None = None
+    history_retention_days: int = 8
+    history_sample_interval_seconds: int = 300
 
     @classmethod
     def from_env(cls) -> "DashboardSettings":
@@ -129,4 +132,13 @@ class DashboardSettings:
             probe_on_startup=_env_bool("AUTH_USAGE_PROBE_ON_STARTUP", True),
             require_proxy_auth=_env_bool("AUTH_USAGE_REQUIRE_PROXY_AUTH", True),
             proxy_auth_header=os.getenv("AUTH_USAGE_PROXY_AUTH_HEADER", "x-pitchai-operator").strip().lower(),
+            history_file=Path(
+                os.getenv("AUTH_USAGE_HISTORY_FILE", "/dashboard-data/usage-samples.json")
+            ).expanduser(),
+            history_retention_days=_env_int(
+                "AUTH_USAGE_HISTORY_RETENTION_DAYS", 8, minimum=7, maximum=31
+            ),
+            history_sample_interval_seconds=_env_int(
+                "AUTH_USAGE_HISTORY_SAMPLE_INTERVAL_SECONDS", 300, minimum=60, maximum=1800
+            ),
         )
