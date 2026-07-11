@@ -1,0 +1,15 @@
+[Unit]
+Description=Renew the codexusage.pitchai.net certificate
+After=docker.service network-online.target nginx.service
+Wants=network-online.target
+Requires=docker.service
+ConditionPathExists=/etc/letsencrypt/renewal/codexusage.pitchai.net.conf
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/sbin/renew-codexusage-certificate
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true

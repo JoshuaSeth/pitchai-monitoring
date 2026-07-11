@@ -1,0 +1,22 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+COPY requirements-auth-usage.txt ./
+RUN pip install --no-cache-dir -r requirements-auth-usage.txt \
+  && addgroup --system --gid 10001 dashboard \
+  && adduser --system --uid 10001 --gid 10001 --no-create-home dashboard
+
+COPY auth_usage_dashboard ./auth_usage_dashboard
+
+USER 10001:10001
+
+EXPOSE 8124
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8124/healthz', timeout=3).read()"]
+
+CMD ["python", "-m", "auth_usage_dashboard.server"]

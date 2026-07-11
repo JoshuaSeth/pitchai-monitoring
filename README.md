@@ -220,6 +220,18 @@ Auth:
 - By default the dashboard requires the `E2E_REGISTRY_MONITOR_TOKEN` (or `E2E_REGISTRY_ADMIN_TOKEN`) via `/dashboard/login`.
 - This is intentionally separate from tenant API keys (external developers should not see internal monitoring signals).
 
+## Codex Capacity Dashboard (codexusage.pitchai.net)
+
+This repository also contains the protected operational dashboard for the authoritative Codex authentication broker:
+
+- Service: `python -m auth_usage_dashboard.server`
+- Container: `Dockerfile.auth-usage`
+- Protected UI/API: `https://codexusage.pitchai.net`
+- Deployment: `ops/deploy_codex_usage_dashboard.sh`
+- Operations, capacity methodology, security, and rollback: `docs/codex-auth-usage-dashboard.md`
+
+The dashboard reads only redacted broker metadata/state, refreshes quota with the broker's no-generation usage probe, and charts provider-reported daily token activity plus read-only banked-reset dates. It never reads or exposes broker `auth.json` files and has no reset-redemption capability.
+
 ## Live Tests (Real Domains / Real Services)
 
 This repo includes `pytest.mark.live` tests that hit real external domains and/or the real Dispatcher/E2E registry. They are skipped by default and require explicit env flags:

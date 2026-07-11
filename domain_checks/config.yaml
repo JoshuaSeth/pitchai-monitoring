@@ -219,6 +219,7 @@ external_e2e:
 # Domains to check every minute.
 # For each domain, add `domain_checks/<domain>/check.py` defining the element checks.
 domains:
+  - domain: codexusage.pitchai.net
   - domain: afasask.pitchai.net
     disabled: true
     disabled_reason: 'temporary disable (requested)'

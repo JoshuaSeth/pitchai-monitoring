@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>{{ title }}</title>
+    <link rel="icon" href="/static/favicon.ico" sizes="any" />
+    <link rel="stylesheet" href="/static/dashboard.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="brand-block">
+          <img class="brand-mark" src="/static/favicon.ico" alt="" width="40" height="40" />
+          <div>
+            <div class="brand-name">Codex Capacity</div>
+            <div class="brand-context">Authentication broker</div>
+          </div>
+        </div>
+        <div class="header-tools">
+          <div class="zone-control" role="group" aria-label="Time zone">
+            <button class="zone-option is-active" type="button" data-zone="utc">UTC</button>
+            <button class="zone-option" type="button" data-zone="local">Local</button>
+          </div>
+          <button class="icon-button" id="refresh-button" type="button" title="Refresh broker usage" aria-label="Refresh broker usage">
+            <img src="/static/icons/refresh-cw.svg" alt="" width="18" height="18" />
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="live-strip" aria-live="polite">
+        <div class="live-primary">
+          <span class="live-dot is-loading" id="live-dot"></span>
+          <span class="live-title" id="live-title">Reading broker state</span>
+        </div>
+        <div class="live-meta">
+          <span id="generated-at">Waiting for first snapshot</span>
+          <span class="meta-separator" aria-hidden="true"></span>
+          <span id="probe-age">Probe pending</span>
+        </div>
+      </section>
+
+      <section class="decision-band" data-testid="decision-band">
+        <div class="decision-copy">
+          <div class="section-label">Capacity now</div>
+          <h1 id="decision-title">Loading account capacity...</h1>
+          <p id="decision-detail">The broker snapshot is being normalized into operational capacity windows.</p>
+        </div>
+        <div class="decision-count">
+          <strong id="usable-count">-</strong>
+          <span>selectable accounts</span>
+        </div>
+      </section>
+
+      <section class="forecast-section" aria-labelledby="forecast-title">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Maximum usable headroom</div>
+            <h2 id="forecast-title">Capacity forecast</h2>
+          </div>
+          <div class="section-aside" id="next-capacity">Next reset unknown</div>
+        </div>
+        <div class="forecast-grid" id="forecast-grid" data-testid="forecast-grid"></div>
+      </section>
+
+      <section class="history-section" aria-labelledby="history-title">
+        <div class="section-heading history-heading">
+          <div>
+            <div class="section-label">Provider token activity</div>
+            <h2 id="history-title">Seven-day usage burn</h2>
+          </div>
+          <div class="history-tools">
+            <label class="sr-only" for="history-series">Usage series</label>
+            <select id="history-series" class="history-select" aria-label="Usage series">
+              <option value="combined">All accounts combined</option>
+            </select>
+            <span class="section-aside" id="history-freshness">History pending</span>
+          </div>
+        </div>
+        <div class="history-shell" data-testid="usage-history">
+          <div class="history-stats" id="history-stats"></div>
+          <div class="chart-frame" id="usage-chart" role="img" aria-label="Daily token usage over the past seven days"></div>
+          <div class="history-foot">
+            <span>Daily UTC buckets from the provider</span>
+            <span>Today is a partial day</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="reset-bank-section" aria-labelledby="reset-bank-title">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Read-only inventory</div>
+            <h2 id="reset-bank-title">Banked usage resets</h2>
+          </div>
+          <div class="reset-bank-total"><strong id="reset-bank-count">-</strong> available</div>
+        </div>
+        <div class="reset-bank-shell" data-testid="reset-bank">
+          <div class="reset-bank-header" aria-hidden="true">
+            <span>Account</span>
+            <span>Reset</span>
+            <span>Granted</span>
+            <span>Expires</span>
+          </div>
+          <div id="reset-bank-list"></div>
+          <button class="reset-bank-toggle" id="reset-bank-toggle" type="button" hidden>Show all resets</button>
+        </div>
+      </section>
+
+      <section class="warning-section is-empty" id="warning-section" aria-labelledby="warning-title">
+        <div class="warning-heading">
+          <img src="/static/icons/triangle-alert.svg" alt="" width="18" height="18" />
+          <h2 id="warning-title">Attention</h2>
+        </div>
+        <div class="warning-list" id="warning-list"></div>
+      </section>
+
+      <section class="accounts-section" aria-labelledby="accounts-title">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Authoritative inventory</div>
+            <h2 id="accounts-title">Broker accounts</h2>
+          </div>
+          <div class="status-legend" aria-label="Status legend">
+            <span><i class="legend-dot available"></i>Available</span>
+            <span><i class="legend-dot limited"></i>Limited</span>
+            <span><i class="legend-dot invalid"></i>Invalid</span>
+          </div>
+        </div>
+
+        <div class="table-shell">
+          <table class="account-table" data-testid="account-table">
+            <thead>
+              <tr>
+                <th scope="col">Account</th>
+                <th scope="col">Status</th>
+                <th scope="col">5-hour capacity</th>
+                <th scope="col">5-hour reset</th>
+                <th scope="col">Weekly capacity</th>
+                <th scope="col">Weekly reset</th>
+                <th scope="col">Banked resets</th>
+                <th scope="col">Freshness</th>
+              </tr>
+            </thead>
+            <tbody id="account-table-body"></tbody>
+          </table>
+        </div>
+        <div class="mobile-account-list" id="mobile-account-list"></div>
+      </section>
+
+      <section class="events-section" aria-labelledby="events-title">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Next 24 hours</div>
+            <h2 id="events-title">Capacity arrivals</h2>
+          </div>
+          <img class="section-icon" src="/static/icons/clock-3.svg" alt="" width="22" height="22" />
+        </div>
+        <div class="event-list" id="event-list"></div>
+      </section>
+
+      <footer>
+        <div class="method-note">
+          <img src="/static/icons/shield-check.svg" alt="" width="18" height="18" />
+          <span id="method-note">Capacity points are normalized five-hour headroom; weekly limits remain a separate hard constraint.</span>
+        </div>
+        <div class="footer-meta">No prompts or reset redemptions are submitted.</div>
+      </footer>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/static/dashboard.js" defer></script>
+  </body>
+</html>

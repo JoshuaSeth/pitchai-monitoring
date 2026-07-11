@@ -24,6 +24,7 @@ EXPECTED_UP = {
     "afasask.pitchai.net",
     "autopar.pitchai.net",
     "cms.deplanbook.com",
+    "codexusage.pitchai.net",
     "deplanbook.com",
     "dpb.pitchai.net",
     "hetcis.nl",
