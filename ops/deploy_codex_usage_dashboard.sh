@@ -110,25 +110,9 @@ check_dashboard() {
     if output="$(curl --fail --silent --show-error --max-time 3 \
       --header 'X-PitchAI-Operator: deployment-check' \
       "http://127.0.0.1:${port}/api/v1/capacity" 2>/dev/null)"; then
-      DASHBOARD_JSON="${output}" python3 - <<'PY'
-import json
-import os
-
-payload = json.loads(os.environ["DASHBOARD_JSON"])
-assert payload["schema_version"] == 3
-assert payload["summary"]["configured_accounts"] > 0
-assert payload["usage_history"]["provider_granularity"] == "daily"
-assert payload["usage_history"]["granularity"] == "hour"
-assert payload["usage_history"]["point_count"] == 168
-assert "combined" in payload["usage_history"]
-assert len(payload["runout_forecast"]["horizons"]) == 3
-assert payload["runout_forecast"]["banked_reset_policy"]["included_as_automatic_capacity"] is False
-assert "details" in payload["reset_bank"]
-encoded = json.dumps(payload)
-for forbidden in ("auth_json", "access_token", "refresh_token", "admin_token", "credit_id"):
-    assert forbidden not in encoded
-PY
-      return 0
+      if python3 "${REPO_ROOT}/auth_usage_dashboard/deployment_check.py" <<<"${output}"; then
+        return 0
+      fi
     fi
     attempts=$((attempts - 1))
     sleep 0.25
