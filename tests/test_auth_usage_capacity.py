@@ -159,6 +159,30 @@ def test_windows_are_classified_by_duration_when_provider_order_is_reversed() ->
     assert account["weekly"]["remaining_percent"] == 60
 
 
+def test_durationless_provider_window_is_unknown_not_five_hour_capacity() -> None:
+    raw = _account("durationless@example.com", five_used=100, weekly_used=None)
+    raw["state"]["usage"]["rate_limit"] = {
+        "primary_window": {
+            "used_percent": 100,
+            "reset_at": (NOW + timedelta(hours=2)).isoformat(),
+        }
+    }
+
+    account = _parse(raw)
+
+    assert account["status"] == "available"
+    assert account["selectable_now"] is True
+    assert account["five_hour"] == {
+        "reported": False,
+        "used_percent": None,
+        "remaining_percent": None,
+        "reset_at": None,
+        "reset_in_seconds": None,
+        "window_seconds": None,
+    }
+    assert account["weekly"]["reported"] is False
+
+
 def test_reset_credit_details_support_provider_field_names_and_dates() -> None:
     raw = _account(
         "credits@example.com",
@@ -275,7 +299,9 @@ def test_stale_available_account_is_not_counted_as_usable_capacity() -> None:
     assert snapshot["summary"]["usable_now"] == 0
     assert any(item["code"] == "stale" for item in snapshot["warnings"])
     assert all(item["capacity_points"] is None for item in snapshot["forecasts"])
-    assert all(item["measurement_status"] == "unavailable" for item in snapshot["forecasts"])
+    assert all(
+        item["measurement_status"] == "unavailable" for item in snapshot["forecasts"]
+    )
 
 
 def test_dashboard_snapshot_does_not_expose_raw_auth_or_broker_identifiers() -> None:

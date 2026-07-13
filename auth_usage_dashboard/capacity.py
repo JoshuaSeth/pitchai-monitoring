@@ -382,7 +382,6 @@ def _named_rate_limit_windows(
     rate_limit: dict[str, Any],
 ) -> dict[str, dict[str, Any] | None]:
     named: dict[str, dict[str, Any] | None] = {"five_hour": None, "weekly": None}
-    unclassified: list[dict[str, Any]] = []
     for field in ("primary_window", "secondary_window"):
         window = rate_limit.get(field)
         if not isinstance(window, dict):
@@ -400,12 +399,6 @@ def _named_rate_limit_windows(
             and named["weekly"] is None
         ):
             named["weekly"] = window
-        else:
-            unclassified.append(window)
-
-    for key in ("five_hour", "weekly"):
-        if named[key] is None and unclassified:
-            named[key] = unclassified.pop(0)
     return named
 
 
