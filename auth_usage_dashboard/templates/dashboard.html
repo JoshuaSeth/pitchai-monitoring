@@ -59,7 +59,7 @@
         <div class="section-heading">
           <div>
             <div class="section-label">Burn-adjusted outlook</div>
-            <h2 id="runout-title">Probability of full capacity runout</h2>
+            <h2 id="runout-title">Probability of full reported-capacity runout</h2>
           </div>
           <div class="section-aside burn-rate-aside" id="burn-rate">Burn estimate pending</div>
         </div>
@@ -70,8 +70,8 @@
       <section class="forecast-section" aria-labelledby="forecast-title">
         <div class="section-heading">
           <div>
-            <div class="section-label">Maximum usable headroom</div>
-            <h2 id="forecast-title">Capacity forecast</h2>
+            <div class="section-label">Authoritative provider headroom</div>
+            <h2 id="forecast-title">Capacity across planning windows</h2>
           </div>
           <div class="section-aside" id="next-capacity">Next reset unknown</div>
         </div>
@@ -166,7 +166,7 @@
       <section class="events-section" aria-labelledby="events-title">
         <div class="section-heading">
           <div>
-            <div class="section-label">Next 24 hours</div>
+            <div class="section-label">Next eight days</div>
             <h2 id="events-title">Capacity arrivals</h2>
           </div>
           <img class="section-icon" src="/static/icons/clock-3.svg" alt="" width="22" height="22" />
@@ -177,7 +177,7 @@
       <footer>
         <div class="method-note">
           <img src="/static/icons/shield-check.svg" alt="" width="18" height="18" />
-          <span id="method-note">Capacity points are normalized five-hour headroom; weekly limits remain a separate hard constraint.</span>
+          <span id="method-note">Capacity points follow the provider window declared by the live snapshot.</span>
         </div>
         <div class="footer-meta">No prompts or reset redemptions are submitted.</div>
       </footer>

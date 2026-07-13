@@ -84,13 +84,33 @@ def _parse(raw: dict[str, object]) -> dict[str, object]:
     [
         (_account("available@example.com"), "available", True),
         (_account("disabled@example.com", enabled=False), "disabled", False),
-        (_account("invalid@example.com", availability="auth_invalid"), "auth_invalid", False),
-        (_account("weekly@example.com", availability="rate_limited", weekly_used=100), "weekly_limited", False),
-        (_account("five@example.com", availability="rate_limited", five_used=100), "five_hour_limited", False),
-        (_account("floor@example.com", availability="available", five_used=90), "five_hour_limited", False),
+        (
+            _account("invalid@example.com", availability="auth_invalid"),
+            "auth_invalid",
+            False,
+        ),
+        (
+            _account(
+                "weekly@example.com", availability="rate_limited", weekly_used=100
+            ),
+            "weekly_limited",
+            False,
+        ),
+        (
+            _account("five@example.com", availability="rate_limited", five_used=100),
+            "five_hour_limited",
+            False,
+        ),
+        (
+            _account("floor@example.com", availability="available", five_used=90),
+            "five_hour_limited",
+            False,
+        ),
     ],
 )
-def test_account_status_classification(raw: dict[str, object], status: str, selectable: bool) -> None:
+def test_account_status_classification(
+    raw: dict[str, object], status: str, selectable: bool
+) -> None:
     account = _parse(raw)
     assert account["status"] == status
     assert account["selectable_now"] is selectable
@@ -196,7 +216,10 @@ def test_forecast_counts_current_headroom_and_resets_inside_horizon() -> None:
 
 
 def test_missing_five_hour_windows_are_unavailable_not_zero_capacity() -> None:
-    accounts = [_account("a@example.com", weekly_used=0), _account("b@example.com", weekly_used=100)]
+    accounts = [
+        _account("a@example.com", weekly_used=0),
+        _account("b@example.com", weekly_used=100),
+    ]
     for raw in accounts:
         rate_limit = raw["state"]["usage"]["rate_limit"]
         rate_limit["primary_window"] = rate_limit.pop("secondary_window")
@@ -217,10 +240,23 @@ def test_missing_five_hour_windows_are_unavailable_not_zero_capacity() -> None:
         "remaining_percent": None,
     }
     assert snapshot["summary"]["window_aggregates"]["weekly"]["remaining_percent"] == 50
-    assert all(item["measurement_status"] == "unavailable" for item in snapshot["forecasts"])
-    assert all(item["capacity_percent"] is None for item in snapshot["forecasts"])
-    assert snapshot["runout_forecast"]["data_available"] is False
-    assert all(item["risk"] == "unknown" for item in snapshot["runout_forecast"]["horizons"])
+    assert snapshot["summary"]["capacity_basis"] == {
+        "key": "weekly",
+        "label": "Weekly",
+        "reporting_accounts": 2,
+        "eligible_accounts": 2,
+        "measurement_status": "complete",
+    }
+    assert all(
+        item["measurement_status"] == "complete" for item in snapshot["forecasts"]
+    )
+    assert all(item["basis_key"] == "weekly" for item in snapshot["forecasts"])
+    assert all(item["capacity_percent"] == 50 for item in snapshot["forecasts"])
+    assert snapshot["runout_forecast"]["data_available"] is True
+    assert snapshot["runout_forecast"]["capacity_basis"]["key"] == "weekly"
+    assert len(snapshot["events"]) == 2
+    assert all(item["kind"] == "weekly_reset" for item in snapshot["events"])
+    assert snapshot["summary"]["next_useful_capacity_label"] == "b@example.com"
     assert any(item["code"] == "five_hour_unreported" for item in snapshot["warnings"])
 
 
@@ -238,7 +274,8 @@ def test_stale_available_account_is_not_counted_as_usable_capacity() -> None:
     assert snapshot["accounts"][0]["stale"] is True
     assert snapshot["summary"]["usable_now"] == 0
     assert any(item["code"] == "stale" for item in snapshot["warnings"])
-    assert all(item["capacity_points"] == 0 for item in snapshot["forecasts"])
+    assert all(item["capacity_points"] is None for item in snapshot["forecasts"])
+    assert all(item["measurement_status"] == "unavailable" for item in snapshot["forecasts"])
 
 
 def test_dashboard_snapshot_does_not_expose_raw_auth_or_broker_identifiers() -> None:

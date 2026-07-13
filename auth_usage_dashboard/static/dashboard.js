@@ -21,14 +21,13 @@
   const eventLabels = {
     five_hour_reset: "5-hour reset",
     weekly_reset: "Weekly reset",
-    reset_credit_expiry: "Reset credit expiry",
   };
 
   const riskLabels = {
     low: "Low risk",
     medium: "Medium risk",
     high: "High risk",
-    unknown: "Not measured",
+    unknown: "Unavailable",
   };
 
   function byId(id) {
@@ -152,12 +151,21 @@
     return badge;
   }
 
-  function capacityCell(window) {
+  function missingWindowText(account, windowKey, field) {
+    if (!account.enabled) return "Disabled";
+    if (account.auth_valid === false) return "Unavailable until login";
+    if (windowKey === "five_hour") {
+      return field === "reset" ? "No 5h reset exposed" : "Provider does not expose 5h";
+    }
+    return field === "reset" ? "No reset reported" : "No provider measurement";
+  }
+
+  function capacityCell(window, account, windowKey) {
     const wrapper = document.createElement("div");
     const remaining = window && window.remaining_percent;
     const used = window && window.used_percent;
     if (finiteNumber(remaining) === null) {
-      wrapper.appendChild(element("span", "cell-sub", "Not measured"));
+      wrapper.appendChild(element("span", "cell-sub is-specific", missingWindowText(account, windowKey, "capacity")));
       return wrapper;
     }
     const line = element("div", "capacity-number");
@@ -168,10 +176,10 @@
     return wrapper;
   }
 
-  function resetCell(window) {
+  function resetCell(window, account, windowKey) {
     const wrapper = document.createElement("div");
     if (!window || !window.reset_at) {
-      wrapper.appendChild(element("div", "reset-time", "Unknown"));
+      wrapper.appendChild(element("div", "cell-sub is-specific", missingWindowText(account, windowKey, "reset")));
       return wrapper;
     }
     wrapper.append(
@@ -233,10 +241,10 @@
       const values = [
         accountIdentity(account),
         statusBadge(account.status),
-        capacityCell(account.five_hour),
-        resetCell(account.five_hour),
-        capacityCell(account.weekly),
-        resetCell(account.weekly),
+        capacityCell(account.five_hour, account, "five_hour"),
+        resetCell(account.five_hour, account, "five_hour"),
+        capacityCell(account.weekly, account, "weekly"),
+        resetCell(account.weekly, account, "weekly"),
         creditsCell(account),
         freshnessCell(account),
       ];
@@ -271,10 +279,10 @@
       header.append(accountIdentity(account), statusBadge(account.status));
       const grid = element("div", "mobile-account-grid");
       grid.append(
-        mobileField("5-hour capacity", capacityCell(account.five_hour)),
-        mobileField("5-hour reset", resetCell(account.five_hour)),
-        mobileField("Weekly capacity", capacityCell(account.weekly)),
-        mobileField("Weekly reset", resetCell(account.weekly)),
+        mobileField("5-hour capacity", capacityCell(account.five_hour, account, "five_hour")),
+        mobileField("5-hour reset", resetCell(account.five_hour, account, "five_hour")),
+        mobileField("Weekly capacity", capacityCell(account.weekly, account, "weekly")),
+        mobileField("Weekly reset", resetCell(account.weekly, account, "weekly")),
         mobileField("Banked resets", creditsCell(account)),
         mobileField("Freshness", freshnessCell(account))
       );
@@ -293,26 +301,26 @@
       const capacityPercent = finiteNumber(forecast.capacity_percent);
       if (capacityPercent === null) {
         cell.classList.add("is-unavailable");
-        value.append(element("span", "", "Not measured"));
+        value.append(element("span", "", "Unavailable"));
       } else {
         value.append(element("span", "", number(capacityPercent, 1)), element("small", "", "%"));
       }
       const detail = element("div", "forecast-detail");
       if (capacityPercent === null) {
         detail.append(
-          element("span", "", "5-hour window unavailable"),
+          element("span", "", "No provider capacity window"),
           element("span", "", `${forecast.usable_accounts_now || 0} selectable now`)
         );
       } else {
         detail.append(
-          element("span", "", `${number(forecast.capacity_points, 0)} points`),
-          element("span", "", `${number(forecast.account_equivalents, 2)} account windows`)
+          element("span", "", `${forecast.basis_label || "Reported"} headroom`),
+          element("span", "", `${number(forecast.capacity_points, 0)} / ${number(forecast.maximum_points, 0)} points`)
         );
       }
       const secondary = element("div", "forecast-detail");
       secondary.append(
         element("span", "", `${forecast.contributing_accounts || 0} contributors`),
-        element("span", "", `${forecast.five_hour_resets || 0} resets`)
+        element("span", "", `${forecast.automatic_resets || 0} automatic resets`)
       );
       cell.append(
         element("div", "forecast-label", forecast.label),
@@ -329,14 +337,15 @@
   function renderRunout(forecast) {
     const payload = forecast || {};
     const burn = payload.burn_rate || {};
+    const basis = payload.capacity_basis || {};
     const burnRate = finiteNumber(burn.capacity_points_per_hour);
     if (payload.data_available === false || burnRate === null) {
-      byId("burn-rate").textContent = "Five-hour provider window unavailable · runout not calculated";
+      byId("burn-rate").textContent = "No provider capacity window · runout unavailable";
     } else {
       const sourceLabel = burn.source === "native_broker_samples"
         ? `trailing ${burn.lookback_hours || 2}h observed`
         : "current-window estimate";
-      byId("burn-rate").textContent = `${number(burnRate, 1)} points/hour · ${sourceLabel} · ${burn.confidence || "low"} confidence`;
+      byId("burn-rate").textContent = `${number(burnRate, 1)} ${String(basis.label || "reported").toLowerCase()} points/hour · ${sourceLabel} · ${burn.confidence || "low"} confidence`;
     }
 
     const cells = [];
@@ -356,7 +365,7 @@
       const meterFill = document.createElement("span");
       meterFill.style.setProperty("--value", `${Math.max(0, Math.min(100, probabilityPercent === null ? 0 : probabilityPercent))}%`);
       meterRoot.appendChild(meterFill);
-      let timing = probabilityPercent === null ? "Five-hour capacity is not reported" : "No likely runout in this window";
+      let timing = probabilityPercent === null ? "Provider capacity is unavailable" : "No likely runout in this window";
       if (horizon.likely_window_start && horizon.likely_window_end) {
         timing = `${formatTime(horizon.likely_window_start, false)} to ${formatTime(horizon.likely_window_end, false)}`;
       } else if (horizon.expected_runout_at) {
@@ -371,7 +380,7 @@
       } else {
         detail.append(
           element("span", "", `${number(horizon.initial_capacity_points, 0)} points now`),
-          element("span", "", `${horizon.scheduled_five_hour_resets || 0} automatic resets`)
+          element("span", "", `${horizon.scheduled_resets || 0} automatic resets`)
         );
       }
       cell.append(
@@ -631,7 +640,7 @@
       );
       items.push(item);
     }
-    if (!items.length) items.push(element("div", "empty-state", "No useful capacity reset is scheduled in the next 24 hours."));
+    if (!items.length) items.push(element("div", "empty-state", "No automatic capacity reset is reported in the next eight days."));
     setChildren(byId("event-list"), items);
   }
 
@@ -642,7 +651,8 @@
     const fiveHour = windowAggregates.five_hour || {};
     const weekly = windowAggregates.weekly || {};
     const weeklyRemaining = finiteNumber(weekly.remaining_percent);
-    const fiveHourMeasured = Number(fiveHour.reporting_accounts || 0) > 0;
+    const capacityBasis = summary.capacity_basis || {};
+    const fiveHourMeasured = capacityBasis.key === "five_hour" && Number(fiveHour.reporting_accounts || 0) > 0;
     const band = document.querySelector(".decision-band");
     band.classList.remove("is-warning", "is-critical");
     byId("usable-count").textContent = String(usable);
@@ -669,8 +679,8 @@
       byId("decision-detail").textContent = "Wait for the next eligible reset or repair accounts flagged as auth invalid.";
     }
     byId("next-capacity").textContent = summary.next_useful_capacity_at
-      ? `Next useful reset: ${summary.next_useful_capacity_label} · ${formatTime(summary.next_useful_capacity_at, false)}`
-      : "No useful reset inside 24 hours";
+      ? `Next capacity arrival: ${summary.next_useful_capacity_label} · ${formatTime(summary.next_useful_capacity_at, false)}`
+      : "No automatic reset reported inside eight days";
   }
 
   function renderLiveState(snapshot) {

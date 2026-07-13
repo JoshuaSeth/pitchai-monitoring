@@ -13,9 +13,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _payload() -> dict[str, object]:
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "summary": {
             "configured_accounts": 8,
+            "capacity_basis": {
+                "key": "weekly",
+                "label": "Weekly",
+                "measurement_status": "complete",
+            },
             "window_aggregates": {
                 "five_hour": {"measurement_status": "unavailable"},
                 "weekly": {"measurement_status": "partial"},
@@ -41,7 +46,7 @@ def _payload() -> dict[str, object]:
     }
 
 
-def test_deployment_validator_accepts_schema_three_capacity() -> None:
+def test_deployment_validator_accepts_schema_four_capacity() -> None:
     validate_capacity_payload(_payload())
 
 

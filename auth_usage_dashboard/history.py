@@ -23,7 +23,9 @@ def parse_datetime(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
     try:
-        return datetime.fromisoformat(value.strip().replace("Z", "+00:00")).astimezone(UTC)
+        return datetime.fromisoformat(value.strip().replace("Z", "+00:00")).astimezone(
+            UTC
+        )
     except ValueError:
         return None
 
@@ -50,7 +52,10 @@ class UsageSampleStore:
         if not self.path.exists():
             return []
         payload = json.loads(self.path.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict) or payload.get("schema_version") != SAMPLE_SCHEMA_VERSION:
+        if (
+            not isinstance(payload, dict)
+            or payload.get("schema_version") != SAMPLE_SCHEMA_VERSION
+        ):
             raise ValueError("unsupported usage sample store schema")
         samples = payload.get("samples")
         if not isinstance(samples, list):
@@ -59,13 +64,18 @@ class UsageSampleStore:
             raise ValueError("usage sample store contains an invalid sample")
         return samples
 
-    def record(self, accounts: list[dict[str, Any]], *, at: datetime) -> list[dict[str, Any]]:
+    def record(
+        self, accounts: list[dict[str, Any]], *, at: datetime
+    ) -> list[dict[str, Any]]:
         at = at.astimezone(UTC)
         samples = self.read()
         cutoff = at - self.retention
         samples = [sample for sample in samples if (_sample_at(sample) or at) >= cutoff]
         last_at = _sample_at(samples[-1]) if samples else None
-        if last_at is not None and (at - last_at).total_seconds() < self.sample_interval_seconds:
+        if (
+            last_at is not None
+            and (at - last_at).total_seconds() < self.sample_interval_seconds
+        ):
             return samples
 
         sampled_accounts: dict[str, dict[str, Any]] = {}
@@ -135,7 +145,9 @@ def build_hourly_usage_history(
                 "points": points,
                 "updated_at": account["token_usage"]["updated_at"],
                 "stale": account["token_usage"]["stale"],
-                "native_hour_count": sum(1 for point in points if point["observed_tokens"] > 0),
+                "native_hour_count": sum(
+                    1 for point in points if point["observed_tokens"] > 0
+                ),
             }
         )
     series.sort(key=lambda item: item["label"].lower())
@@ -143,7 +155,9 @@ def build_hourly_usage_history(
     combined: list[dict[str, Any]] = []
     for index, at in enumerate(hours):
         raw_tokens = sum(item["points"][index]["tokens"] for item in series)
-        observed_tokens = sum(item["points"][index]["observed_tokens"] for item in series)
+        observed_tokens = sum(
+            item["points"][index]["observed_tokens"] for item in series
+        )
         combined.append(
             {
                 "at": isoformat(at),
@@ -176,7 +190,9 @@ def build_hourly_usage_history(
         "current_hour_partial": True,
         "accounts_reporting": len(reporting),
         "configured_accounts": len(accounts),
-        "stale_account_count": sum(1 for account in reporting if account["token_usage"]["stale"]),
+        "stale_account_count": sum(
+            1 for account in reporting if account["token_usage"]["stale"]
+        ),
         "updated_at": isoformat(min(valid_updates)) if valid_updates else None,
         "combined": combined,
         "series": series,
@@ -185,14 +201,20 @@ def build_hourly_usage_history(
             "average_hourly_tokens": round(total / len(combined)) if combined else 0,
             "peak_hourly_tokens": max(values, default=0),
             "trailing_two_hour_tokens": sum(values[-2:]),
-            "observed_share_percent": round(observed_total / total * 100.0, 1) if total else 0.0,
+            "observed_share_percent": round(observed_total / total * 100.0, 1)
+            if total
+            else 0.0,
         },
         "reconstruction": {
             "method": "daily-total-constrained hourly allocation with three-hour smoothing",
             "daily_totals_preserved": True,
             "native_samples_used": observed_total > 0,
-            "native_hour_count": sum(1 for point in combined if point["observed_tokens"] > 0),
-            "estimated_hour_count": sum(1 for point in combined if point["reconstructed_tokens"] > 0),
+            "native_hour_count": sum(
+                1 for point in combined if point["observed_tokens"] > 0
+            ),
+            "estimated_hour_count": sum(
+                1 for point in combined if point["reconstructed_tokens"] > 0
+            ),
             "note": "Provider history is daily. Hourly estimates preserve reported daily totals and are replaced by observed sample deltas as coverage accumulates.",
         },
     }
@@ -203,6 +225,7 @@ def capacity_burn_rate(
     *,
     samples: list[dict[str, Any]],
     now: datetime,
+    window_key: str = "five_hour",
     lookback_hours: int = 2,
 ) -> dict[str, Any]:
     now = now.astimezone(UTC)
@@ -211,12 +234,21 @@ def capacity_burn_rate(
     sampled_points = 0.0
     sampled_hours = 0.0
     covered_labels: set[str] = set()
-    recent = [sample for sample in samples if (_sample_at(sample) or now) >= cutoff - timedelta(minutes=15)]
+    recent = [
+        sample
+        for sample in samples
+        if (_sample_at(sample) or now) >= cutoff - timedelta(minutes=15)
+    ]
 
     for previous, current in zip(recent, recent[1:]):
         previous_at = _sample_at(previous)
         current_at = _sample_at(current)
-        if previous_at is None or current_at is None or current_at <= previous_at or current_at < cutoff:
+        if (
+            previous_at is None
+            or current_at is None
+            or current_at <= previous_at
+            or current_at < cutoff
+        ):
             continue
         hours = (current_at - max(previous_at, cutoff)).total_seconds() / 3600.0
         if hours <= 0:
@@ -227,13 +259,27 @@ def capacity_burn_rate(
         interval_covered = False
         for label, current_account in current_accounts.items():
             previous_account = previous_accounts.get(label)
-            if not isinstance(previous_account, dict) or not isinstance(current_account, dict):
+            if not isinstance(previous_account, dict) or not isinstance(
+                current_account, dict
+            ):
                 continue
-            if previous_account.get("five_reset_at") != current_account.get("five_reset_at"):
+            previous_window = _sample_window(
+                previous_account, at=previous_at, key=window_key
+            )
+            current_window = _sample_window(
+                current_account, at=current_at, key=window_key
+            )
+            if previous_window is None or current_window is None:
                 continue
-            previous_used = _number(previous_account.get("five_used_percent"))
-            current_used = _number(current_account.get("five_used_percent"))
-            if previous_used is None or current_used is None or current_used < previous_used:
+            if previous_window["reset_at"] != current_window["reset_at"]:
+                continue
+            previous_used = previous_window["used_percent"]
+            current_used = current_window["used_percent"]
+            if (
+                previous_used is None
+                or current_used is None
+                or current_used < previous_used
+            ):
                 continue
             interval_points += current_used - previous_used
             covered_labels.add(label)
@@ -244,11 +290,13 @@ def capacity_burn_rate(
             sampled_hours += hours
 
     native_rate = sampled_points / sampled_hours if sampled_hours > 0 else None
-    fallback_rates = _current_window_rates(accounts, now=now)
+    fallback_rates = _current_window_rates(accounts, now=now, window_key=window_key)
     if native_rate is not None and len(recent) >= 3:
         rate = native_rate
         source = "native_broker_samples"
-        confidence = "high" if len(recent) >= 9 and len(covered_labels) >= 2 else "medium"
+        confidence = (
+            "high" if len(recent) >= 9 and len(covered_labels) >= 2 else "medium"
+        )
     else:
         rate = sum(fallback_rates)
         source = "current_window_average"
@@ -260,20 +308,31 @@ def capacity_burn_rate(
     return {
         "capacity_points_per_hour": round(max(0.0, rate), 2),
         "source": source,
+        "window_key": window_key,
         "lookback_hours": lookback_hours if source == "native_broker_samples" else None,
-        "fallback_window": "current five-hour windows" if source != "native_broker_samples" else None,
+        "fallback_window": f"current {window_key.replace('_', '-')} windows"
+        if source != "native_broker_samples"
+        else None,
         "confidence": confidence,
         "sample_count": len(recent),
-        "covered_accounts": len(covered_labels) if source == "native_broker_samples" else len(fallback_rates),
+        "covered_accounts": len(covered_labels)
+        if source == "native_broker_samples"
+        else len(fallback_rates),
         "coefficient_of_variation": round(min(1.5, max(0.15, variation)), 3),
         "native_interval_rates": [round(value, 3) for value in rates[-24:]],
     }
 
 
 def _sample_account(account: dict[str, Any], *, at: datetime) -> dict[str, Any]:
-    five_hour = account.get("five_hour") if isinstance(account.get("five_hour"), dict) else {}
+    five_hour = (
+        account.get("five_hour") if isinstance(account.get("five_hour"), dict) else {}
+    )
     weekly = account.get("weekly") if isinstance(account.get("weekly"), dict) else {}
-    token_usage = account.get("token_usage") if isinstance(account.get("token_usage"), dict) else {}
+    token_usage = (
+        account.get("token_usage")
+        if isinstance(account.get("token_usage"), dict)
+        else {}
+    )
     token_date = at.date().isoformat()
     today_tokens = 0
     for point in token_usage.get("daily", []):
@@ -321,13 +380,19 @@ def _observed_token_deltas(
         current_accounts = current.get("accounts", {})
         for label, current_account in current_accounts.items():
             previous_account = previous_accounts.get(label)
-            if not isinstance(previous_account, dict) or not isinstance(current_account, dict):
+            if not isinstance(previous_account, dict) or not isinstance(
+                current_account, dict
+            ):
                 continue
             if previous_account.get("token_date") != current_account.get("token_date"):
                 continue
             previous_total = _integer(previous_account.get("tokens_today"))
             current_total = _integer(current_account.get("tokens_today"))
-            if previous_total is None or current_total is None or current_total <= previous_total:
+            if (
+                previous_total is None
+                or current_total is None
+                or current_total <= previous_total
+            ):
                 continue
             observed[label][floor_hour(current_at)] += current_total - previous_total
     return {label: dict(values) for label, values in observed.items()}
@@ -380,7 +445,9 @@ def _hourly_points(
     return points
 
 
-def _bounded_observed(values: dict[datetime, int], *, total: int) -> dict[datetime, int]:
+def _bounded_observed(
+    values: dict[datetime, int], *, total: int
+) -> dict[datetime, int]:
     observed_total = sum(values.values())
     if observed_total <= total:
         return values
@@ -394,10 +461,14 @@ def _distribute_integer(total: int, keys: list[datetime]) -> dict[datetime, int]
     if total <= 0 or not keys:
         return {key: 0 for key in keys}
     base, remainder = divmod(total, len(keys))
-    return {key: base + (1 if index < remainder else 0) for index, key in enumerate(keys)}
+    return {
+        key: base + (1 if index < remainder else 0) for index, key in enumerate(keys)
+    }
 
 
-def _distribute_weighted(total: int, weights: dict[datetime, float]) -> dict[datetime, int]:
+def _distribute_weighted(
+    total: int, weights: dict[datetime, float]
+) -> dict[datetime, int]:
     raw = {key: total * weight for key, weight in weights.items()}
     result = {key: int(math.floor(value)) for key, value in raw.items()}
     remainder = total - sum(result.values())
@@ -427,12 +498,25 @@ def _provenance(tokens: int, observed_tokens: int) -> str:
     return "observed" if observed_tokens >= tokens else "blended"
 
 
-def _current_window_rates(accounts: list[dict[str, Any]], *, now: datetime) -> list[float]:
+def _current_window_rates(
+    accounts: list[dict[str, Any]],
+    *,
+    now: datetime,
+    window_key: str,
+) -> list[float]:
     rates: list[float] = []
     for account in accounts:
-        if not account.get("enabled") or account.get("auth_valid") is not True or account.get("stale"):
+        if (
+            not account.get("enabled")
+            or account.get("auth_valid") is not True
+            or account.get("stale")
+        ):
             continue
-        window = account.get("five_hour") if isinstance(account.get("five_hour"), dict) else {}
+        window = (
+            account.get(window_key) if isinstance(account.get(window_key), dict) else {}
+        )
+        if window.get("reported") is not True:
+            continue
         used = _number(window.get("used_percent"))
         reset_at = parse_datetime(window.get("reset_at"))
         window_seconds = _integer(window.get("window_seconds")) or 18_000
@@ -443,6 +527,33 @@ def _current_window_rates(accounts: list[dict[str, Any]], *, now: datetime) -> l
         if 1 / 12 <= elapsed_hours <= window_seconds / 3600.0 + 0.25:
             rates.append(max(0.0, used / elapsed_hours))
     return rates
+
+
+def _sample_window(
+    account: dict[str, Any],
+    *,
+    at: datetime,
+    key: str,
+) -> dict[str, Any] | None:
+    prefix = "five" if key == "five_hour" else "weekly"
+    used = _number(account.get(f"{prefix}_used_percent"))
+    reset_at = parse_datetime(account.get(f"{prefix}_reset_at"))
+    if used is not None and reset_at is not None:
+        return {"used_percent": used, "reset_at": isoformat(reset_at)}
+
+    # Samples written before schema v4 called every provider primary window
+    # five-hour. A reset more than six hours away cannot be a five-hour window,
+    # so it is safe to recover those historical weekly deltas.
+    if key == "weekly":
+        legacy_used = _number(account.get("five_used_percent"))
+        legacy_reset = parse_datetime(account.get("five_reset_at"))
+        if (
+            legacy_used is not None
+            and legacy_reset is not None
+            and legacy_reset - at > timedelta(hours=6)
+        ):
+            return {"used_percent": legacy_used, "reset_at": isoformat(legacy_reset)}
+    return None
 
 
 def _coefficient_of_variation(values: list[float]) -> float | None:
