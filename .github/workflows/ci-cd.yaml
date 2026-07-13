@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: [self-hosted, pitchai-ci]
+    runs-on: ubuntu-22.04
     steps:
       # Self-hosted runner + dockerized pytest: the container runs as root and can leave
       # behind root-owned files in the workspace (e.g. `.pytest_cache`), which then
@@ -39,7 +39,7 @@ jobs:
             sh -lc "pip install --no-cache-dir -r requirements-dev.txt && python -m pytest -o cache_dir=/tmp/pytest_cache"
 
   deploy-prod:
-    runs-on: [self-hosted, pitchai-ci]
+    runs-on: ubuntu-22.04
     needs: test
     steps:
       - name: Deploy to production (SSH + Docker)
