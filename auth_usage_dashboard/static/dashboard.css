@@ -374,6 +374,10 @@ h2 {
   border-top-color: var(--red);
 }
 
+.runout-cell.risk-unknown {
+  border-top-color: var(--muted);
+}
+
 .runout-cell-head,
 .runout-detail {
   display: flex;
@@ -409,6 +413,12 @@ h2 {
   border-color: #efbac5;
   background: var(--red-soft);
   color: var(--red);
+}
+
+.risk-badge.unknown {
+  border-color: var(--line-strong);
+  background: var(--surface-muted);
+  color: var(--muted);
 }
 
 .runout-probability {
@@ -451,6 +461,10 @@ h2 {
 
 .risk-meter.high > span {
   background: var(--red);
+}
+
+.risk-meter.unknown > span {
+  background: transparent;
 }
 
 .runout-timing {
@@ -539,6 +553,12 @@ h2 {
   font-size: 17px;
 }
 
+.forecast-cell.is-unavailable .forecast-value {
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 22px;
+}
+
 .forecast-meter,
 .capacity-meter {
   position: relative;
@@ -569,6 +589,11 @@ h2 {
 .forecast-meter.is-mid > span,
 .capacity-meter.is-mid > span {
   background: var(--amber);
+}
+
+.forecast-meter.is-unavailable > span,
+.capacity-meter.is-unavailable > span {
+  background: transparent;
 }
 
 .forecast-detail {

@@ -34,6 +34,7 @@ def _fixture_account(
     five_used: float,
     weekly_used: float,
     offset_minutes: int,
+    weekly_only: bool = False,
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
     banked = offset_minutes % 4
@@ -55,6 +56,20 @@ def _fixture_account(
                 "title": "Weekly usage reset",
             }
         )
+    rate_limit = {
+        "primary_window": {
+            "used_percent": five_used,
+            "reset_at": (now + timedelta(minutes=offset_minutes)).isoformat(),
+            "limit_window_seconds": 18_000,
+        },
+        "secondary_window": {
+            "used_percent": weekly_used,
+            "reset_at": (now + timedelta(days=5, hours=offset_minutes % 8)).isoformat(),
+            "limit_window_seconds": 604_800,
+        },
+    }
+    if weekly_only:
+        rate_limit = {"primary_window": rate_limit["secondary_window"]}
     return {
         "metadata": {"account_id": f"internal-{offset_minutes}", "label": label, "enabled": True},
         "state": {
@@ -63,18 +78,7 @@ def _fixture_account(
             "usage": {
                 "email": label,
                 "plan_type": "pro",
-                "rate_limit": {
-                    "primary_window": {
-                        "used_percent": five_used,
-                        "reset_at": (now + timedelta(minutes=offset_minutes)).isoformat(),
-                        "limit_window_seconds": 18_000,
-                    },
-                    "secondary_window": {
-                        "used_percent": weekly_used,
-                        "reset_at": (now + timedelta(days=5, hours=offset_minutes % 8)).isoformat(),
-                        "limit_window_seconds": 604_800,
-                    },
-                },
+                "rate_limit": rate_limit,
                 "rate_limit_reset_credits": {"available_count": banked},
             },
             "analytics": {
@@ -109,7 +113,12 @@ class FixtureSource:
                 offset_minutes=214,
             ),
             _fixture_account(
-                "onboarding.bigi.net", availability="available", five_used=22, weekly_used=32, offset_minutes=161
+                "onboarding.bigi.net",
+                availability="available",
+                five_used=22,
+                weekly_used=32,
+                offset_minutes=161,
+                weekly_only=True,
             ),
             _fixture_account(
                 "sales@pitchai.net", availability="rate_limited", five_used=100, weekly_used=19, offset_minutes=34
@@ -211,6 +220,9 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(auth_usage_
             await desktop.goto(auth_usage_server, wait_until="networkidle")
             await desktop.locator("[data-testid=account-table] tbody tr").first.wait_for()
             assert await desktop.locator("[data-testid=account-table] tbody tr").count() == 8
+            onboarding_row = desktop.locator("[data-testid=account-table] tbody tr", has_text="onboarding.bigi.net")
+            assert "Not measured" in await onboarding_row.locator("td").nth(2).inner_text()
+            assert "68% left" in await onboarding_row.locator("td").nth(4).inner_text()
             assert "accounts are ready" in (await desktop.locator("#decision-title").inner_text()).lower()
             assert await desktop.locator("#runout-grid .runout-cell").count() == 3
             assert "points/hour" in (await desktop.locator("#burn-rate").inner_text())
@@ -232,6 +244,9 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(auth_usage_
             await mobile.goto(auth_usage_server, wait_until="networkidle")
             await mobile.locator("#mobile-account-list .mobile-account").first.wait_for()
             assert await mobile.locator("#mobile-account-list .mobile-account").count() == 8
+            onboarding_card = mobile.locator("#mobile-account-list .mobile-account", has_text="onboarding.bigi.net")
+            assert "Not measured" in await onboarding_card.inner_text()
+            assert "68% left" in await onboarding_card.inner_text()
             assert await mobile.locator("#runout-grid .runout-cell").count() == 3
             assert await mobile.locator("#usage-chart svg .chart-line").count() == 1
             assert await mobile.locator(".table-shell").is_hidden()

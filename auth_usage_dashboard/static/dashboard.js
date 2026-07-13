@@ -28,6 +28,7 @@
     low: "Low risk",
     medium: "Medium risk",
     high: "High risk",
+    unknown: "Not measured",
   };
 
   function byId(id) {
@@ -38,9 +39,15 @@
     return value === null || value === undefined || value === "" ? "-" : String(value);
   }
 
-  function number(value, digits) {
+  function finiteNumber(value) {
+    if (value === null || value === undefined || value === "" || typeof value === "boolean") return null;
     const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return null;
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function number(value, digits) {
+    const parsed = finiteNumber(value);
+    if (parsed === null) return null;
     return parsed.toLocaleString(undefined, {
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
@@ -48,8 +55,8 @@
   }
 
   function compactNumber(value) {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return "-";
+    const parsed = finiteNumber(value);
+    if (parsed === null) return "-";
     return new Intl.NumberFormat(undefined, {
       notation: parsed >= 10_000 ? "compact" : "standard",
       maximumFractionDigits: parsed >= 10_000 ? 1 : 0,
@@ -128,8 +135,10 @@
   }
 
   function meter(value, className) {
-    const parsed = Math.max(0, Math.min(100, Number(value) || 0));
+    const numeric = finiteNumber(value);
+    const parsed = Math.max(0, Math.min(100, numeric === null ? 0 : numeric));
     const root = element("div", className || "capacity-meter");
+    if (numeric === null) root.classList.add("is-unavailable");
     if (parsed <= 10) root.classList.add("is-low");
     else if (parsed <= 35) root.classList.add("is-mid");
     const fill = document.createElement("span");
@@ -147,7 +156,7 @@
     const wrapper = document.createElement("div");
     const remaining = window && window.remaining_percent;
     const used = window && window.used_percent;
-    if (!Number.isFinite(Number(remaining))) {
+    if (finiteNumber(remaining) === null) {
       wrapper.appendChild(element("span", "cell-sub", "Not measured"));
       return wrapper;
     }
@@ -281,12 +290,25 @@
     for (const forecast of forecasts || []) {
       const cell = element("article", "forecast-cell");
       const value = element("div", "forecast-value");
-      value.append(element("span", "", number(forecast.capacity_percent, 1) || "0.0"), element("small", "", "%"));
+      const capacityPercent = finiteNumber(forecast.capacity_percent);
+      if (capacityPercent === null) {
+        cell.classList.add("is-unavailable");
+        value.append(element("span", "", "Not measured"));
+      } else {
+        value.append(element("span", "", number(capacityPercent, 1)), element("small", "", "%"));
+      }
       const detail = element("div", "forecast-detail");
-      detail.append(
-        element("span", "", `${number(forecast.capacity_points, 0) || "0"} points`),
-        element("span", "", `${number(forecast.account_equivalents, 2) || "0"} account windows`)
-      );
+      if (capacityPercent === null) {
+        detail.append(
+          element("span", "", "5-hour window unavailable"),
+          element("span", "", `${forecast.usable_accounts_now || 0} selectable now`)
+        );
+      } else {
+        detail.append(
+          element("span", "", `${number(forecast.capacity_points, 0)} points`),
+          element("span", "", `${number(forecast.account_equivalents, 2)} account windows`)
+        );
+      }
       const secondary = element("div", "forecast-detail");
       secondary.append(
         element("span", "", `${forecast.contributing_accounts || 0} contributors`),
@@ -295,7 +317,7 @@
       cell.append(
         element("div", "forecast-label", forecast.label),
         value,
-        meter(forecast.capacity_percent, "forecast-meter"),
+        meter(capacityPercent, "forecast-meter"),
         detail,
         secondary
       );
@@ -307,14 +329,19 @@
   function renderRunout(forecast) {
     const payload = forecast || {};
     const burn = payload.burn_rate || {};
-    const sourceLabel = burn.source === "native_broker_samples"
-      ? `trailing ${burn.lookback_hours || 2}h observed`
-      : "current-window estimate";
-    byId("burn-rate").textContent = `${number(burn.capacity_points_per_hour, 1) || "0.0"} points/hour · ${sourceLabel} · ${burn.confidence || "low"} confidence`;
+    const burnRate = finiteNumber(burn.capacity_points_per_hour);
+    if (payload.data_available === false || burnRate === null) {
+      byId("burn-rate").textContent = "Five-hour provider window unavailable · runout not calculated";
+    } else {
+      const sourceLabel = burn.source === "native_broker_samples"
+        ? `trailing ${burn.lookback_hours || 2}h observed`
+        : "current-window estimate";
+      byId("burn-rate").textContent = `${number(burnRate, 1)} points/hour · ${sourceLabel} · ${burn.confidence || "low"} confidence`;
+    }
 
     const cells = [];
     for (const horizon of payload.horizons || []) {
-      const risk = riskLabels[horizon.risk] ? horizon.risk : "low";
+      const risk = riskLabels[horizon.risk] ? horizon.risk : "unknown";
       const cell = element("article", `runout-cell risk-${risk}`);
       const head = element("div", "runout-cell-head");
       head.append(
@@ -322,25 +349,31 @@
         element("span", `risk-badge ${risk}`, riskLabels[risk])
       );
       const probability = element("div", "runout-probability");
-      probability.append(
-        element("strong", "", number(horizon.probability_percent, 0) || "0"),
-        element("span", "", "%")
-      );
+      const probabilityPercent = finiteNumber(horizon.probability_percent);
+      probability.append(element("strong", "", probabilityPercent === null ? "-" : number(probabilityPercent, 0)));
+      if (probabilityPercent !== null) probability.append(element("span", "", "%"));
       const meterRoot = element("div", `risk-meter ${risk}`);
       const meterFill = document.createElement("span");
-      meterFill.style.setProperty("--value", `${Math.max(0, Math.min(100, Number(horizon.probability_percent) || 0))}%`);
+      meterFill.style.setProperty("--value", `${Math.max(0, Math.min(100, probabilityPercent === null ? 0 : probabilityPercent))}%`);
       meterRoot.appendChild(meterFill);
-      let timing = "No likely runout in this window";
+      let timing = probabilityPercent === null ? "Five-hour capacity is not reported" : "No likely runout in this window";
       if (horizon.likely_window_start && horizon.likely_window_end) {
         timing = `${formatTime(horizon.likely_window_start, false)} to ${formatTime(horizon.likely_window_end, false)}`;
       } else if (horizon.expected_runout_at) {
         timing = `Expected near ${formatTime(horizon.expected_runout_at, false)}`;
       }
       const detail = element("div", "runout-detail");
-      detail.append(
-        element("span", "", `${number(horizon.initial_capacity_points, 0) || "0"} points now`),
-        element("span", "", `${horizon.scheduled_five_hour_resets || 0} automatic resets`)
-      );
+      if (probabilityPercent === null) {
+        detail.append(
+          element("span", "", `${payload.usable_accounts_now || 0} selectable accounts`),
+          element("span", "", "No inferred resets")
+        );
+      } else {
+        detail.append(
+          element("span", "", `${number(horizon.initial_capacity_points, 0)} points now`),
+          element("span", "", `${horizon.scheduled_five_hour_resets || 0} automatic resets`)
+        );
+      }
       cell.append(
         head,
         probability,
@@ -605,20 +638,31 @@
   function renderDecision(snapshot) {
     const summary = snapshot.summary || {};
     const usable = Number(summary.usable_now || 0);
+    const windowAggregates = summary.window_aggregates || {};
+    const fiveHour = windowAggregates.five_hour || {};
+    const weekly = windowAggregates.weekly || {};
+    const weeklyRemaining = finiteNumber(weekly.remaining_percent);
+    const fiveHourMeasured = Number(fiveHour.reporting_accounts || 0) > 0;
     const band = document.querySelector(".decision-band");
     band.classList.remove("is-warning", "is-critical");
     byId("usable-count").textContent = String(usable);
     if (usable >= 3) {
       byId("decision-title").textContent = `${usable} accounts are ready for concurrent work`;
-      byId("decision-detail").textContent = "Capacity is distributed across multiple auth-valid accounts. Continue to preserve accounts with the lowest five-hour headroom.";
+      byId("decision-detail").textContent = fiveHourMeasured
+        ? "Capacity is distributed across multiple auth-valid accounts. Preserve accounts with the lowest measured five-hour headroom."
+        : `${weeklyRemaining === null ? "Weekly headroom is partially unknown" : `${number(weeklyRemaining, 1)}% of known weekly capacity remains`}. Five-hour capacity is not currently reported and is not treated as zero.`;
     } else if (usable === 2) {
       band.classList.add("is-warning");
       byId("decision-title").textContent = "Two accounts are selectable now";
-      byId("decision-detail").textContent = "Normal work fits, but sustained multi-agent load should be paced against the next five-hour reset.";
+      byId("decision-detail").textContent = fiveHourMeasured
+        ? "Normal work fits, but sustained multi-agent load should be paced against the next five-hour reset."
+        : "Normal work fits, but five-hour capacity is not currently reported; pace sustained multi-agent load conservatively.";
     } else if (usable === 1) {
       band.classList.add("is-critical");
       byId("decision-title").textContent = "Only one account is selectable now";
-      byId("decision-detail").textContent = "Avoid bursty manager and subagent workloads until another five-hour window resets.";
+      byId("decision-detail").textContent = fiveHourMeasured
+        ? "Avoid bursty manager and subagent workloads until another five-hour window resets."
+        : "Avoid bursty manager and subagent workloads; five-hour capacity is not currently reported.";
     } else {
       band.classList.add("is-critical");
       byId("decision-title").textContent = "No account is currently selectable";
@@ -663,7 +707,7 @@
     renderEvents(snapshot.events || []);
     const methodology = snapshot.methodology || {};
     if (methodology.definition) {
-      byId("method-note").textContent = `${methodology.definition} ${methodology.weekly_handling || ""}`.trim();
+      byId("method-note").textContent = `${methodology.definition} ${methodology.weekly_handling || ""} ${methodology.missing_windows || ""}`.trim();
     }
   }
 

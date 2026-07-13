@@ -38,12 +38,14 @@ def _account(
         "selectable_now": True,
         "stale": False,
         "five_hour": {
+            "reported": True,
             "used_percent": used,
             "remaining_percent": remaining,
             "reset_at": (reset_at or NOW + timedelta(hours=3)).isoformat(),
             "window_seconds": 18_000,
         },
         "weekly": {
+            "reported": True,
             "used_percent": 100 - weekly_remaining,
             "remaining_percent": weekly_remaining,
             "reset_at": (NOW + timedelta(days=5)).isoformat(),
@@ -184,3 +186,28 @@ def test_runout_forecast_excludes_banked_resets_from_capacity() -> None:
     assert with_bank["banked_reset_policy"]["included_as_automatic_capacity"] is False
     assert with_bank["banked_reset_policy"]["available_count"] == 99
     assert with_bank["horizons"][0]["probability_percent"] > 0
+
+
+def test_runout_forecast_does_not_infer_zero_from_unreported_five_hour_window() -> None:
+    account = _account()
+    account["five_hour"] = {
+        "reported": False,
+        "used_percent": None,
+        "remaining_percent": None,
+        "reset_at": None,
+        "window_seconds": None,
+    }
+
+    forecast = build_runout_forecast(
+        [account],
+        samples=[],
+        reset_bank={"total_available": 3},
+        now=NOW,
+    )
+
+    assert forecast["data_available"] is False
+    assert forecast["usable_accounts_now"] == 1
+    assert forecast["highest_probability_percent"] is None
+    assert all(item["probability_percent"] is None for item in forecast["horizons"])
+    assert all(item["risk"] == "unknown" for item in forecast["horizons"])
+    assert forecast["banked_reset_policy"]["included_as_automatic_capacity"] is False
