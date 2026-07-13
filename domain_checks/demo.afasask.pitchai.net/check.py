@@ -1,19 +1,19 @@
 CHECK = {
-    "domain": "afasask.gzb.nl",
-    "url": "https://afasask.gzb.nl/chat_mini/gzb/start?floating=false&reload=true&mode=codex&intensity=medium",
+    "domain": "demo.afasask.pitchai.net",
+    "url": "https://demo.afasask.pitchai.net/chat/demo/start?floating=false&reload=true&mode=codex&intensity=fast",
     "http_timeout_seconds": 30.0,
     "browser_timeout_seconds": 60.0,
     "allowed_status_codes": [200],
-    "expected_title_contains": "GZB - Chat",
+    "expected_title_contains": "Demo - Chat",
     "required_selectors_all": [
         {"selector": "#chat-input", "state": "visible"},
         {"selector": ".chat-submit", "state": "visible"},
-        {"selector": "text=/AFASASK/i", "state": "visible"},
-        {"selector": "text=/Medium/i", "state": "visible"},
+        {"selector": "text=/Demo Assistant/i", "state": "visible"},
+        {"selector": "text=/Fast/i", "state": "visible"},
     ],
     "api_contract_checks": [
         {
-            "name": "afasask_health",
+            "name": "afasask_demo_health",
             "path": "/health",
             "expected_status_codes": [200],
             "expected_content_type_contains": "application/json",
@@ -46,7 +46,7 @@ CHECK = {
     ],
     "synthetic_transactions": [
         {
-            "name": "codex_medium_shell_ready",
+            "name": "codex_fast_shell_ready",
             "steps": [
                 {"type": "goto"},
                 {"type": "wait_for_selector", "selector": "#chat-input", "state": "visible"},

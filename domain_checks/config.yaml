@@ -157,6 +157,7 @@ container_health:
     - "^autopar$"
     - "^autopar-auth$"
     - "^afasask$"
+    - "^afasask-demo$"
     - "^afasask-quick-chat$"
     - "^aipc$"
     - "^aipc-stable$"
@@ -224,6 +225,7 @@ domains:
     disabled_reason: 'temporary disable (requested)'
   - domain: autopar.pitchai.net
   - domain: afasask.gzb.nl
+  - domain: demo.afasask.pitchai.net
   - domain: skybuyfly.pitchai.net
   - domain: deplanbook.com
   - domain: cms.deplanbook.com
