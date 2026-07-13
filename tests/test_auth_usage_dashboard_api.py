@@ -41,7 +41,11 @@ class FakeSource:
 def _raw_account() -> dict[str, Any]:
     now = datetime.now(UTC)
     return {
-        "metadata": {"account_id": "internal-id", "label": "safe@example.com", "enabled": True},
+        "metadata": {
+            "account_id": "internal-id",
+            "label": "safe@example.com",
+            "enabled": True,
+        },
         "state": {
             "availability": "available",
             "last_probe_at": now.isoformat(),
@@ -66,7 +70,9 @@ def _raw_account() -> dict[str, Any]:
                 "token_usage_updated_at": now.isoformat(),
                 "token_usage": {
                     "summary": {"lifetime_tokens": 1_000},
-                    "daily_usage_buckets": [{"start_date": now.date().isoformat(), "tokens": 100}],
+                    "daily_usage_buckets": [
+                        {"start_date": now.date().isoformat(), "tokens": 100}
+                    ],
                 },
                 "reset_credits_updated_at": now.isoformat(),
                 "reset_credits": {"available_count": 1, "credits": []},
@@ -111,7 +117,7 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
         )
         assert response.status_code == 200
         payload = response.json()
-        assert payload["schema_version"] == 3
+        assert payload["schema_version"] == 4
         assert payload["summary"]["configured_accounts"] == 1
         assert payload["usage_history"]["point_count"] == 168
         assert payload["usage_history"]["accounts_reporting"] == 1
@@ -120,7 +126,9 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
         assert payload["accounts"][0]["label"] == "safe@example.com"
         assert "internal-id" not in response.text
         assert response.headers["cache-control"] == "private, no-store"
-        assert response.headers["content-security-policy"].startswith("default-src 'self'")
+        assert response.headers["content-security-policy"].startswith(
+            "default-src 'self'"
+        )
 
         missing_action = client.post(
             "/api/v1/refresh",
@@ -138,7 +146,9 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
     assert source.closed is True
 
 
-def test_safe_probe_runs_on_startup_and_manual_probe_is_throttled(tmp_path: Path) -> None:
+def test_safe_probe_runs_on_startup_and_manual_probe_is_throttled(
+    tmp_path: Path,
+) -> None:
     source = FakeSource([_raw_account()])
     app = create_app(_settings(tmp_path, safe_probe=True), source=source)
 
@@ -156,14 +166,20 @@ def test_safe_probe_runs_on_startup_and_manual_probe_is_throttled(tmp_path: Path
         assert source.probe_count == 0
 
 
-def test_corrupt_sample_history_is_reported_without_hiding_live_capacity(tmp_path: Path) -> None:
+def test_corrupt_sample_history_is_reported_without_hiding_live_capacity(
+    tmp_path: Path,
+) -> None:
     history_file = tmp_path / "usage-samples.json"
-    history_file.write_text('{"schema_version":1,"samples":[{"at":"bad","accounts":{}}]}', encoding="utf-8")
+    history_file.write_text(
+        '{"schema_version":1,"samples":[{"at":"bad","accounts":{}}]}', encoding="utf-8"
+    )
     settings = replace(_settings(tmp_path), history_file=history_file)
     app = create_app(settings, source=FakeSource([_raw_account()]))
 
     with TestClient(app) as client:
-        response = client.get("/api/v1/capacity", headers={"X-PitchAI-Operator": "seth"})
+        response = client.get(
+            "/api/v1/capacity", headers={"X-PitchAI-Operator": "seth"}
+        )
 
     assert response.status_code == 200
     payload = response.json()
@@ -172,7 +188,9 @@ def test_corrupt_sample_history_is_reported_without_hiding_live_capacity(tmp_pat
     assert any(warning["code"] == "history_error" for warning in payload["warnings"])
 
 
-def test_state_source_reads_metadata_and_state_but_never_auth_json(tmp_path: Path) -> None:
+def test_state_source_reads_metadata_and_state_but_never_auth_json(
+    tmp_path: Path,
+) -> None:
     account_dir = tmp_path / "accounts" / "account-1"
     account_dir.mkdir(parents=True)
     (account_dir / "metadata.json").write_text(
@@ -200,7 +218,14 @@ def test_state_source_reads_metadata_and_state_but_never_auth_json(tmp_path: Pat
 
     assert accounts == [
         {
-            "metadata": {"account_id": "account-1", "label": "safe@example.com", "enabled": True},
-            "state": {"availability": "available", "usage": {"email": "safe@example.com"}},
+            "metadata": {
+                "account_id": "account-1",
+                "label": "safe@example.com",
+                "enabled": True,
+            },
+            "state": {
+                "availability": "available",
+                "usage": {"email": "safe@example.com"},
+            },
         }
     ]

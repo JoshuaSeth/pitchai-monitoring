@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from .history import build_hourly_usage_history
-from .runout import build_runout_forecast
+from .runout import build_runout_forecast, select_capacity_basis
 
 
 UTC = timezone.utc
@@ -13,6 +13,7 @@ FORECAST_HORIZONS = (
     ("six_hours", "Next 6 hours", 6 * 60 * 60),
     ("day", "Next 24 hours", 24 * 60 * 60),
 )
+CAPACITY_EVENT_HORIZON_SECONDS = 8 * 24 * 60 * 60
 
 
 def utc_now() -> datetime:
@@ -38,19 +39,29 @@ def parse_account(
     metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
     state = raw.get("state") if isinstance(raw.get("state"), dict) else {}
     usage = state.get("usage") if isinstance(state.get("usage"), dict) else {}
-    rate_limit = usage.get("rate_limit") if isinstance(usage.get("rate_limit"), dict) else {}
-    analytics = state.get("analytics") if isinstance(state.get("analytics"), dict) else {}
-    analytics_errors = analytics.get("errors") if isinstance(analytics.get("errors"), dict) else {}
+    rate_limit = (
+        usage.get("rate_limit") if isinstance(usage.get("rate_limit"), dict) else {}
+    )
+    analytics = (
+        state.get("analytics") if isinstance(state.get("analytics"), dict) else {}
+    )
+    analytics_errors = (
+        analytics.get("errors") if isinstance(analytics.get("errors"), dict) else {}
+    )
 
     label = _string(metadata.get("label")) or "Unlabeled account"
     email = _string(usage.get("email")) or label
     enabled = metadata.get("enabled", True) is not False
     availability = _string(state.get("availability")) or "unknown"
     named_windows = _named_rate_limit_windows(rate_limit)
-    five_hour = _parse_window(named_windows["five_hour"], now=now, default_seconds=18_000)
+    five_hour = _parse_window(
+        named_windows["five_hour"], now=now, default_seconds=18_000
+    )
     weekly = _parse_window(named_windows["weekly"], now=now, default_seconds=604_800)
     last_probe = _parse_datetime(state.get("last_probe_at"))
-    stale_seconds = None if last_probe is None else max(0, int((now - last_probe).total_seconds()))
+    stale_seconds = (
+        None if last_probe is None else max(0, int((now - last_probe).total_seconds()))
+    )
     stale = last_probe is None or stale_seconds > stale_after_seconds
 
     five_remaining = five_hour.get("remaining_percent")
@@ -74,7 +85,9 @@ def parse_account(
     elif not usage or availability == "unknown":
         status = "unknown"
         reason = "Usage state unavailable"
-    elif weekly_remaining is not None and weekly_remaining <= 0 and not weekly_reset_due:
+    elif (
+        weekly_remaining is not None and weekly_remaining <= 0 and not weekly_reset_due
+    ):
         status = "weekly_limited"
         reason = "Weekly usage window exhausted"
     elif five_remaining is not None and five_remaining <= 0 and not primary_reset_due:
@@ -112,7 +125,8 @@ def parse_account(
         updated_at=analytics.get("token_usage_updated_at"),
         now=now,
         stale_after_seconds=analytics_stale_after_seconds,
-        probe_error=analytics_probe_error or _string(analytics_errors.get("token_usage")),
+        probe_error=analytics_probe_error
+        or _string(analytics_errors.get("token_usage")),
     )
     analytics_reset_credits = analytics.get("reset_credits")
     if isinstance(analytics_reset_credits, dict):
@@ -124,13 +138,17 @@ def parse_account(
             reset_updated_at is None
             or (now - reset_updated_at).total_seconds() > analytics_stale_after_seconds
         )
-        credits["probe_error"] = analytics_probe_error or _string(analytics_errors.get("reset_credits"))
+        credits["probe_error"] = analytics_probe_error or _string(
+            analytics_errors.get("reset_credits")
+        )
     else:
         credits = _parse_reset_credits(usage.get("rate_limit_reset_credits"))
         credits["source"] = "usage_summary"
         credits["updated_at"] = isoformat(last_probe)
         credits["stale"] = stale
-        credits["probe_error"] = analytics_probe_error or _string(analytics_errors.get("reset_credits"))
+        credits["probe_error"] = analytics_probe_error or _string(
+            analytics_errors.get("reset_credits")
+        )
     active_sessions = _integer(state.get("active_session_count"), minimum=0) or 0
 
     return {
@@ -150,7 +168,9 @@ def parse_account(
         "token_usage": token_usage,
         "reset_credits": credits,
         "active_session_count": active_sessions,
-        "latest_session_expires_at": isoformat(_parse_datetime(state.get("lease_expires_at"))),
+        "latest_session_expires_at": isoformat(
+            _parse_datetime(state.get("lease_expires_at"))
+        ),
         "last_probe_at": isoformat(last_probe),
         "stale": stale,
         "stale_seconds": stale_seconds,
@@ -185,27 +205,48 @@ def build_dashboard_snapshot(
             analytics_stale_after_seconds=analytics_stale_after_seconds,
             min_five_hour_remaining_percent=min_five_hour_remaining_percent,
             probe_error=probe_errors.get(
-                str((raw.get("metadata") or {}).get("label") or (raw.get("metadata") or {}).get("account_id") or "")
+                str(
+                    (raw.get("metadata") or {}).get("label")
+                    or (raw.get("metadata") or {}).get("account_id")
+                    or ""
+                )
             ),
             analytics_probe_error=analytics_probe_errors.get(
-                str((raw.get("metadata") or {}).get("label") or (raw.get("metadata") or {}).get("account_id") or "")
+                str(
+                    (raw.get("metadata") or {}).get("label")
+                    or (raw.get("metadata") or {}).get("account_id")
+                    or ""
+                )
             ),
         )
         for raw in raw_accounts
     ]
-    accounts.sort(key=lambda account: (not account["enabled"], account["email"].lower()))
+    accounts.sort(
+        key=lambda account: (not account["enabled"], account["email"].lower())
+    )
 
+    capacity_basis = select_capacity_basis(accounts)
     forecasts = [
-        _forecast(accounts, now=now, key=key, label=label, horizon_seconds=seconds)
+        _forecast(
+            accounts,
+            now=now,
+            key=key,
+            label=label,
+            horizon_seconds=seconds,
+            window_key=capacity_basis.get("key"),
+        )
         for key, label, seconds in FORECAST_HORIZONS
     ]
-    usage_history = build_hourly_usage_history(accounts, samples=usage_samples or [], now=now)
+    usage_history = build_hourly_usage_history(
+        accounts, samples=usage_samples or [], now=now
+    )
     reset_bank = _reset_bank(accounts, now=now)
     runout_forecast = build_runout_forecast(
         accounts,
         samples=usage_samples or [],
         reset_bank=reset_bank,
         now=now,
+        capacity_basis=capacity_basis,
     )
     warnings = _warnings(
         accounts,
@@ -214,16 +255,33 @@ def build_dashboard_snapshot(
         probe_errors=probe_errors,
         analytics_probe_errors=analytics_probe_errors,
     )
-    events = _capacity_events(accounts, now=now, horizon_seconds=24 * 60 * 60)
+    events = _capacity_events(
+        accounts,
+        now=now,
+        horizon_seconds=CAPACITY_EVENT_HORIZON_SECONDS,
+    )
     status_counts = {
         status: sum(1 for account in accounts if account["status"] == status)
-        for status in ("available", "five_hour_limited", "weekly_limited", "auth_invalid", "disabled", "unknown")
+        for status in (
+            "available",
+            "five_hour_limited",
+            "weekly_limited",
+            "auth_invalid",
+            "disabled",
+            "unknown",
+        )
     }
     last_probe_values = [
-        _parse_datetime(account.get("last_probe_at")) for account in accounts if account.get("last_probe_at")
+        _parse_datetime(account.get("last_probe_at"))
+        for account in accounts
+        if account.get("last_probe_at")
     ]
-    oldest_probe = min((value for value in last_probe_values if value is not None), default=None)
-    newest_probe = max((value for value in last_probe_values if value is not None), default=None)
+    oldest_probe = min(
+        (value for value in last_probe_values if value is not None), default=None
+    )
+    newest_probe = max(
+        (value for value in last_probe_values if value is not None), default=None
+    )
     enabled_accounts = [account for account in accounts if account["enabled"]]
     stale_count = sum(1 for account in enabled_accounts if account["stale"])
     analytics_stale_count = sum(
@@ -232,16 +290,21 @@ def build_dashboard_snapshot(
         if account["token_usage"]["stale"] or account["reset_credits"]["stale"]
     )
     fresh_usable_count = sum(
-        1 for account in enabled_accounts if account["selectable_now"] and not account["stale"]
+        1
+        for account in enabled_accounts
+        if account["selectable_now"] and not account["stale"]
     )
-    next_useful = next((event for event in events if event["kind"] in {"five_hour_reset", "weekly_reset"}), None)
+    next_useful = next(
+        (event for event in events if event["restores_selectability"]),
+        next(iter(events), None),
+    )
     window_aggregates = {
         "five_hour": _window_aggregate(enabled_accounts, key="five_hour"),
         "weekly": _window_aggregate(enabled_accounts, key="weekly"),
     }
 
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "generated_at": isoformat(now),
         "source": {
             "name": "authoritative Codex authentication broker",
@@ -264,8 +327,12 @@ def build_dashboard_snapshot(
             "usable_now": fresh_usable_count,
             "status_counts": status_counts,
             "window_aggregates": window_aggregates,
+            "capacity_basis": capacity_basis,
             "next_useful_capacity_at": next_useful["at"] if next_useful else None,
-            "next_useful_capacity_label": next_useful["account_label"] if next_useful else None,
+            "next_useful_capacity_label": next_useful["account_label"]
+            if next_useful
+            else None,
+            "capacity_event_horizon_seconds": CAPACITY_EVENT_HORIZON_SECONDS,
         },
         "forecasts": forecasts,
         "runout_forecast": runout_forecast,
@@ -275,13 +342,13 @@ def build_dashboard_snapshot(
         "events": events,
         "accounts": accounts,
         "methodology": {
-            "unit": "normalized five-hour capacity point",
-            "definition": "100 points equals one full reported five-hour account window; scheduled five-hour resets add 100 points.",
-            "weekly_handling": "Weekly exhaustion blocks contribution until its reset; weekly percentages are reported separately and are not converted into five-hour points.",
-            "missing_windows": "A provider window that is not reported remains unknown and is never converted to zero usage or zero remaining capacity.",
+            "unit": "normalized reported-window capacity point",
+            "definition": "100 points equals one full account window for the declared forecast basis. The dashboard prefers measured five-hour windows and otherwise uses measured weekly windows.",
+            "weekly_handling": "Weekly exhaustion blocks selection until its provider-reported reset. When weekly is the forecast basis, its remaining percentage is used directly rather than relabeled as five-hour capacity.",
+            "missing_windows": "A provider window that is not reported remains unavailable and is never converted to zero usage or zero remaining capacity.",
             "maximum_not_prediction": True,
             "token_history": "Provider daily totals are reconstructed into 168 hourly UTC points and progressively replaced by native sample deltas; the current hour is partial.",
-            "runout_forecast": "Probabilities model recent capacity burn and automatic five-hour resets. Banked resets are excluded because redemption is manual and forbidden here.",
+            "runout_forecast": "Probabilities model recent percentage-point burn and automatic resets for the declared provider-window basis. Banked resets are excluded because redemption is manual and forbidden here.",
             "reset_bank": "Read-only inventory. The dashboard has no action that can consume a banked reset.",
         },
     }
@@ -293,8 +360,14 @@ def _parse_window(value: Any, *, now: datetime, default_seconds: int) -> dict[st
     used = _percent(window.get("used_percent"))
     remaining = None if used is None else round(max(0.0, 100.0 - used), 2)
     reset_at = _parse_datetime(window.get("reset_at"))
-    reset_in = None if reset_at is None else max(0, int((reset_at - now).total_seconds()))
-    seconds = (_integer(window.get("limit_window_seconds"), minimum=1) or default_seconds) if reported else None
+    reset_in = (
+        None if reset_at is None else max(0, int((reset_at - now).total_seconds()))
+    )
+    seconds = (
+        (_integer(window.get("limit_window_seconds"), minimum=1) or default_seconds)
+        if reported
+        else None
+    )
     return {
         "reported": reported,
         "used_percent": used,
@@ -305,7 +378,9 @@ def _parse_window(value: Any, *, now: datetime, default_seconds: int) -> dict[st
     }
 
 
-def _named_rate_limit_windows(rate_limit: dict[str, Any]) -> dict[str, dict[str, Any] | None]:
+def _named_rate_limit_windows(
+    rate_limit: dict[str, Any],
+) -> dict[str, dict[str, Any] | None]:
     named: dict[str, dict[str, Any] | None] = {"five_hour": None, "weekly": None}
     unclassified: list[dict[str, Any]] = []
     for field in ("primary_window", "secondary_window"):
@@ -313,9 +388,17 @@ def _named_rate_limit_windows(rate_limit: dict[str, Any]) -> dict[str, dict[str,
         if not isinstance(window, dict):
             continue
         seconds = _integer(window.get("limit_window_seconds"), minimum=1)
-        if seconds is not None and 4 * 60 * 60 <= seconds <= 6 * 60 * 60 and named["five_hour"] is None:
+        if (
+            seconds is not None
+            and 4 * 60 * 60 <= seconds <= 6 * 60 * 60
+            and named["five_hour"] is None
+        ):
             named["five_hour"] = window
-        elif seconds is not None and seconds >= 6 * 24 * 60 * 60 and named["weekly"] is None:
+        elif (
+            seconds is not None
+            and seconds >= 6 * 24 * 60 * 60
+            and named["weekly"] is None
+        ):
             named["weekly"] = window
         else:
             unclassified.append(window)
@@ -335,7 +418,9 @@ def _window_aggregate(accounts: list[dict[str, Any]], *, key: str) -> dict[str, 
         and account[key].get("reported") is True
         and isinstance(account[key].get("remaining_percent"), (int, float))
     ]
-    remaining_points = sum(float(account[key]["remaining_percent"]) for account in measured)
+    remaining_points = sum(
+        float(account[key]["remaining_percent"]) for account in measured
+    )
     maximum_points = float(len(measured) * 100)
     if not measured:
         measurement_status = "unavailable"
@@ -349,13 +434,17 @@ def _window_aggregate(accounts: list[dict[str, Any]], *, key: str) -> dict[str, 
         "unknown_accounts": len(accounts) - len(measured),
         "remaining_points": round(remaining_points, 1) if measured else None,
         "maximum_known_points": round(maximum_points, 1) if measured else None,
-        "remaining_percent": round(remaining_points / maximum_points * 100.0, 1) if measured else None,
+        "remaining_percent": round(remaining_points / maximum_points * 100.0, 1)
+        if measured
+        else None,
     }
 
 
 def _parse_reset_credits(value: Any) -> dict[str, Any]:
     payload = value if isinstance(value, dict) else {}
-    count = _integer(payload.get("available_count", payload.get("availableCount")), minimum=0)
+    count = _integer(
+        payload.get("available_count", payload.get("availableCount")), minimum=0
+    )
     raw_details = payload.get("credits")
     details: list[dict[str, Any]] = []
     if isinstance(raw_details, list):
@@ -366,8 +455,12 @@ def _parse_reset_credits(value: Any) -> dict[str, Any]:
                 {
                     "reset_type": _string(raw.get("reset_type", raw.get("resetType"))),
                     "status": _string(raw.get("status")),
-                    "granted_at": isoformat(_parse_datetime(raw.get("granted_at", raw.get("grantedAt")))),
-                    "expires_at": isoformat(_parse_datetime(raw.get("expires_at", raw.get("expiresAt")))),
+                    "granted_at": isoformat(
+                        _parse_datetime(raw.get("granted_at", raw.get("grantedAt")))
+                    ),
+                    "expires_at": isoformat(
+                        _parse_datetime(raw.get("expires_at", raw.get("expiresAt")))
+                    ),
                     "title": _limited_string(raw.get("title"), 120),
                 }
             )
@@ -375,7 +468,9 @@ def _parse_reset_credits(value: Any) -> dict[str, Any]:
         "available_count": count,
         "details": details,
         "details_available": isinstance(raw_details, list),
-        "dates_available": any(detail["granted_at"] or detail["expires_at"] for detail in details),
+        "dates_available": any(
+            detail["granted_at"] or detail["expires_at"] for detail in details
+        ),
     }
 
 
@@ -388,7 +483,9 @@ def _parse_token_usage(
     probe_error: str | None,
 ) -> dict[str, Any]:
     payload = value if isinstance(value, dict) else {}
-    summary_payload = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    summary_payload = (
+        payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    )
     summary = {
         key: _integer(summary_payload.get(key), minimum=0)
         for key in (
@@ -408,7 +505,11 @@ def _parse_token_usage(
                 continue
             bucket_date = _parse_date(raw.get("start_date"))
             tokens = _integer(raw.get("tokens"), minimum=0)
-            if bucket_date is None or tokens is None or not first_day <= bucket_date <= now.date():
+            if (
+                bucket_date is None
+                or tokens is None
+                or not first_day <= bucket_date <= now.date()
+            ):
                 continue
             daily.append({"date": bucket_date.isoformat(), "tokens": tokens})
     daily.sort(key=lambda item: item["date"])
@@ -438,7 +539,11 @@ def _reset_bank(accounts: list[dict[str, Any]], *, now: datetime) -> dict[str, A
         account_details = reset_credits.get("details")
         if isinstance(count, int):
             known_counts.append(count)
-        if isinstance(count, int) and isinstance(account_details, list) and count > len(account_details):
+        if (
+            isinstance(count, int)
+            and isinstance(account_details, list)
+            and count > len(account_details)
+        ):
             count_only_accounts += 1
         if not isinstance(account_details, list):
             continue
@@ -453,7 +558,9 @@ def _reset_bank(accounts: list[dict[str, Any]], *, now: datetime) -> dict[str, A
                     "granted_at": detail.get("granted_at"),
                     "expires_at": detail.get("expires_at"),
                     "expires_in_seconds": (
-                        None if expires_at is None else int((expires_at - now).total_seconds())
+                        None
+                        if expires_at is None
+                        else int((expires_at - now).total_seconds())
                     ),
                 }
             )
@@ -477,7 +584,9 @@ def _reset_bank(accounts: list[dict[str, Any]], *, now: datetime) -> dict[str, A
         "detail_count": len(details),
         "details": details,
         "earliest_expiry_at": isoformat(min(future_expiries, default=None)),
-        "stale_account_count": sum(1 for account in accounts if account["reset_credits"]["stale"]),
+        "stale_account_count": sum(
+            1 for account in accounts if account["reset_credits"]["stale"]
+        ),
     }
 
 
@@ -488,6 +597,7 @@ def _forecast(
     key: str,
     label: str,
     horizon_seconds: int,
+    window_key: str | None,
 ) -> dict[str, Any]:
     horizon_end = now + timedelta(seconds=horizon_seconds)
     capacity_points = 0.0
@@ -501,7 +611,10 @@ def _forecast(
     for account in accounts:
         if not account["enabled"]:
             continue
-        primary = account["five_hour"]
+        if window_key not in {"five_hour", "weekly"}:
+            unknown_windows += 1
+            continue
+        primary = account[window_key]
         weekly = account["weekly"]
         if primary.get("reported") is not True:
             unknown_windows += 1
@@ -538,7 +651,11 @@ def _forecast(
         if account["auth_valid"] is not True or account["stale"]:
             continue
         for reset_at in scheduled_resets:
-            if weekly_limited and (weekly_reset is None or reset_at < weekly_reset):
+            if (
+                window_key == "five_hour"
+                and weekly_limited
+                and (weekly_reset is None or reset_at < weekly_reset)
+            ):
                 continue
             capacity_points += 100.0
             reset_events += 1
@@ -565,16 +682,28 @@ def _forecast(
         "key": key,
         "label": label,
         "horizon_seconds": horizon_seconds,
+        "basis_key": window_key,
+        "basis_label": _window_label(window_key),
         **capacity_payload,
         "measurement_status": measurement_status,
         "measured_window_accounts": measured_windows,
         "unknown_window_accounts": unknown_windows,
-        "usable_accounts_now": sum(1 for account in accounts if account["selectable_now"] and not account["stale"]),
+        "usable_accounts_now": sum(
+            1
+            for account in accounts
+            if account["selectable_now"] and not account["stale"]
+        ),
         "contributing_accounts": len(contributors),
-        "five_hour_resets": reset_events,
+        "automatic_resets": reset_events,
+        "five_hour_resets": reset_events if window_key == "five_hour" else 0,
         "weekly_blocked_accounts": weekly_blocked,
-        "confidence": "unavailable" if not measured_windows else (
-            "partial" if unknown_windows or any(account["stale"] for account in accounts if account["enabled"]) else "high"
+        "confidence": "unavailable"
+        if not measured_windows
+        else (
+            "partial"
+            if unknown_windows
+            or any(account["stale"] for account in accounts if account["enabled"])
+            else "high"
         ),
     }
 
@@ -598,13 +727,18 @@ def _scheduled_resets(
     return resets
 
 
-def _capacity_events(accounts: list[dict[str, Any]], *, now: datetime, horizon_seconds: int) -> list[dict[str, Any]]:
+def _capacity_events(
+    accounts: list[dict[str, Any]], *, now: datetime, horizon_seconds: int
+) -> list[dict[str, Any]]:
     horizon_end = now + timedelta(seconds=horizon_seconds)
     events: list[dict[str, Any]] = []
     for account in accounts:
         if not account["enabled"] or account["auth_valid"] is not True:
             continue
-        for kind, window in (("five_hour_reset", account["five_hour"]), ("weekly_reset", account["weekly"])):
+        for kind, window in (
+            ("five_hour_reset", account["five_hour"]),
+            ("weekly_reset", account["weekly"]),
+        ):
             if window.get("reported") is not True:
                 continue
             reset_at = _parse_datetime(window.get("reset_at"))
@@ -616,23 +750,26 @@ def _capacity_events(accounts: list[dict[str, Any]], *, now: datetime, horizon_s
                     "account_label": account["label"],
                     "at": isoformat(reset_at),
                     "in_seconds": int((reset_at - now).total_seconds()),
-                    "capacity_points": 100 if kind == "five_hour_reset" else None,
+                    "capacity_points": 100,
+                    "restores_selectability": (
+                        kind == "five_hour_reset"
+                        and account["status"] == "five_hour_limited"
+                    )
+                    or (
+                        kind == "weekly_reset" and account["status"] == "weekly_limited"
+                    ),
                 }
             )
-        for detail in account["reset_credits"]["details"]:
-            expires_at = _parse_datetime(detail.get("expires_at"))
-            if expires_at is not None and now < expires_at <= horizon_end:
-                events.append(
-                    {
-                        "kind": "reset_credit_expiry",
-                        "account_label": account["label"],
-                        "at": isoformat(expires_at),
-                        "in_seconds": int((expires_at - now).total_seconds()),
-                        "capacity_points": None,
-                    }
-                )
     events.sort(key=lambda event: (event["at"], event["account_label"], event["kind"]))
     return events
+
+
+def _window_label(key: str | None) -> str | None:
+    if key == "five_hour":
+        return "Five-hour"
+    if key == "weekly":
+        return "Weekly"
+    return None
 
 
 def _warnings(
@@ -645,7 +782,13 @@ def _warnings(
 ) -> list[dict[str, Any]]:
     warnings: list[dict[str, Any]] = []
     if source_error:
-        warnings.append({"severity": "critical", "code": "source_error", "message": "Broker state refresh failed"})
+        warnings.append(
+            {
+                "severity": "critical",
+                "code": "source_error",
+                "message": "Broker state refresh failed",
+            }
+        )
     if history_error:
         warnings.append(
             {
@@ -730,7 +873,11 @@ def _warnings(
                 }
             )
         five_remaining = account["five_hour"].get("remaining_percent")
-        if status == "available" and isinstance(five_remaining, (int, float)) and five_remaining <= 20:
+        if (
+            status == "available"
+            and isinstance(five_remaining, (int, float))
+            and five_remaining <= 20
+        ):
             warnings.append(
                 {
                     "severity": "warning",
@@ -739,7 +886,14 @@ def _warnings(
                     "message": f"Only {five_remaining:g}% of the five-hour window remains",
                 }
             )
-    if sum(1 for account in accounts if account["selectable_now"] and not account["stale"]) <= 1:
+    if (
+        sum(
+            1
+            for account in accounts
+            if account["selectable_now"] and not account["stale"]
+        )
+        <= 1
+    ):
         warnings.append(
             {
                 "severity": "critical",
@@ -748,7 +902,12 @@ def _warnings(
             }
         )
     severity_rank = {"critical": 0, "warning": 1, "info": 2}
-    warnings.sort(key=lambda item: (severity_rank.get(item["severity"], 9), item.get("account_label", "")))
+    warnings.sort(
+        key=lambda item: (
+            severity_rank.get(item["severity"], 9),
+            item.get("account_label", ""),
+        )
+    )
     return warnings
 
 
@@ -762,7 +921,9 @@ def _parse_datetime(value: Any) -> datetime | None:
             return None
     if isinstance(value, str) and value.strip():
         try:
-            return datetime.fromisoformat(value.strip().replace("Z", "+00:00")).astimezone(UTC)
+            return datetime.fromisoformat(
+                value.strip().replace("Z", "+00:00")
+            ).astimezone(UTC)
         except ValueError:
             return None
     return None

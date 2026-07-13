@@ -100,9 +100,13 @@ def test_sample_store_is_bounded_root_private_and_secret_free(tmp_path: Path) ->
     assert json.loads(encoded)["schema_version"] == 1
 
 
-def test_sample_store_rejects_corrupt_history_instead_of_hiding_it(tmp_path: Path) -> None:
+def test_sample_store_rejects_corrupt_history_instead_of_hiding_it(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "samples.json"
-    path.write_text('{"schema_version":1,"samples":[{"at":"bad","accounts":{}}]}', encoding="utf-8")
+    path.write_text(
+        '{"schema_version":1,"samples":[{"at":"bad","accounts":{}}]}', encoding="utf-8"
+    )
 
     with pytest.raises(ValueError, match="invalid sample"):
         UsageSampleStore(path).read()
@@ -126,7 +130,9 @@ def test_hourly_history_has_168_points_and_preserves_provider_daily_total() -> N
     assert history["granularity"] == "hour"
     assert history["provider_granularity"] == "daily"
     assert history["point_count"] == 168
-    july_tenth = [point for point in history["combined"] if point["at"].startswith("2026-07-10")]
+    july_tenth = [
+        point for point in history["combined"] if point["at"].startswith("2026-07-10")
+    ]
     assert len(july_tenth) == 24
     assert sum(point["tokens"] for point in july_tenth) == 2_400
     assert history["reconstruction"]["daily_totals_preserved"] is True
@@ -152,14 +158,26 @@ def test_first_runout_accounts_for_reset_arrival_without_redeeming_bank() -> Non
     reset_at = NOW + timedelta(minutes=30)
     no_outage = _first_runout(
         {"operator@example.com": 10.0},
-        [{"at": reset_at, "account_label": "operator@example.com", "capacity_points": 100.0}],
+        [
+            {
+                "at": reset_at,
+                "account_label": "operator@example.com",
+                "capacity_points": 100.0,
+            }
+        ],
         now=NOW,
         horizon_end=NOW + timedelta(hours=1),
         burn_rate_per_hour=20.0,
     )
     outage = _first_runout(
         {"operator@example.com": 10.0},
-        [{"at": reset_at + timedelta(minutes=1), "account_label": "operator@example.com", "capacity_points": 100.0}],
+        [
+            {
+                "at": reset_at + timedelta(minutes=1),
+                "account_label": "operator@example.com",
+                "capacity_points": 100.0,
+            }
+        ],
         now=NOW,
         horizon_end=NOW + timedelta(hours=1),
         burn_rate_per_hour=20.0,
@@ -179,8 +197,12 @@ def test_runout_forecast_excludes_banked_resets_from_capacity() -> None:
     empty_bank = {"total_available": 0}
     large_bank = {"total_available": 99}
 
-    without_bank = build_runout_forecast([account], samples=samples, reset_bank=empty_bank, now=NOW)
-    with_bank = build_runout_forecast([account], samples=samples, reset_bank=large_bank, now=NOW)
+    without_bank = build_runout_forecast(
+        [account], samples=samples, reset_bank=empty_bank, now=NOW
+    )
+    with_bank = build_runout_forecast(
+        [account], samples=samples, reset_bank=large_bank, now=NOW
+    )
 
     assert with_bank["horizons"] == without_bank["horizons"]
     assert with_bank["banked_reset_policy"]["included_as_automatic_capacity"] is False
@@ -205,9 +227,53 @@ def test_runout_forecast_does_not_infer_zero_from_unreported_five_hour_window() 
         now=NOW,
     )
 
-    assert forecast["data_available"] is False
+    assert forecast["data_available"] is True
+    assert forecast["capacity_basis"]["key"] == "weekly"
     assert forecast["usable_accounts_now"] == 1
-    assert forecast["highest_probability_percent"] is None
-    assert all(item["probability_percent"] is None for item in forecast["horizons"])
-    assert all(item["risk"] == "unknown" for item in forecast["horizons"])
+    assert forecast["initial_capacity_points"] == 80
+    assert all(item["probability_percent"] is not None for item in forecast["horizons"])
     assert forecast["banked_reset_policy"]["included_as_automatic_capacity"] is False
+
+
+def test_weekly_burn_recovers_legacy_samples_that_were_mislabeled_five_hour() -> None:
+    legacy_reset = NOW + timedelta(days=5)
+    samples = [
+        {
+            "at": (NOW - timedelta(hours=2)).isoformat(),
+            "accounts": {
+                "operator@example.com": {
+                    "five_used_percent": 10,
+                    "five_reset_at": legacy_reset.isoformat(),
+                }
+            },
+        },
+        {
+            "at": (NOW - timedelta(hours=1)).isoformat(),
+            "accounts": {
+                "operator@example.com": {
+                    "five_used_percent": 20,
+                    "five_reset_at": legacy_reset.isoformat(),
+                }
+            },
+        },
+        {
+            "at": NOW.isoformat(),
+            "accounts": {
+                "operator@example.com": {
+                    "five_used_percent": 30,
+                    "five_reset_at": legacy_reset.isoformat(),
+                }
+            },
+        },
+    ]
+
+    burn = capacity_burn_rate(
+        [_account()],
+        samples=samples,
+        now=NOW,
+        window_key="weekly",
+    )
+
+    assert burn["source"] == "native_broker_samples"
+    assert burn["window_key"] == "weekly"
+    assert burn["capacity_points_per_hour"] == 10
