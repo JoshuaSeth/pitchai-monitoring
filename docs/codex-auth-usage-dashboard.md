@@ -36,6 +36,18 @@ One normalized capacity point equals one percentage point of the provider-window
 
 Provider window names are not stable identifiers. The dashboard classifies reported windows by duration: four to six hours is the five-hour window, and six days or longer is the weekly window. A missing five-hour window remains `null` in the API and is labeled **Provider does not expose 5h** in that specific table cell; it is never interpreted as 0% remaining or as a full five-hour window. Weekly columns, aggregate forecasts, runout estimates, and reset arrivals continue to use authoritative weekly data when available. Aggregate percentages include explicit reporting and unknown-account counts.
 
+OpenAI currently appears to have temporarily removed or disabled the five-hour
+window for some or all accounts. Treat that as a reversible provider capability
+change, not an account failure or dashboard outage. A window without an
+authoritative duration is also unclassified: field position, reset proximity,
+and historical shape must not be used to manufacture a five-hour measurement.
+The parser reevaluates every fresh response, so a restored four-to-six-hour
+window will automatically reappear without a configuration change. Until then,
+only the five-hour cells and five-hour-specific aggregate are unavailable;
+account validity, selectability, weekly headroom/resets, reset-bank inventory,
+usage history, capacity arrivals, and weekly-based forecasts remain
+operational.
+
 Capacity arrivals list automatic provider-window resets across the next eight days. Banked reset expiry dates are shown only in the separate read-only reset bank; expiry is a deadline, not an automatic capacity arrival.
 
 Banked resets use the provider's read-only reset inventory. The UI shows every grant and expiry date returned by the provider, ordered by expiry. When only a count is available, the dashboard says dated detail is unavailable rather than inventing it. Neither the broker analytics endpoint nor the dashboard implements the provider's reset-consumption action; redeeming a reset is outside this service's capability.
