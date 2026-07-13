@@ -11,6 +11,12 @@ FORBIDDEN_KEYS = ("auth_json", "access_token", "refresh_token", "admin_token", "
 def validate_capacity_payload(payload: dict[str, Any]) -> None:
     assert payload["schema_version"] == 3
     assert payload["summary"]["configured_accounts"] > 0
+    for key in ("five_hour", "weekly"):
+        aggregate = payload["summary"]["window_aggregates"][key]
+        assert aggregate["measurement_status"] in {"complete", "partial", "unavailable"}
+    for account in payload["accounts"]:
+        assert isinstance(account["five_hour"]["reported"], bool)
+        assert isinstance(account["weekly"]["reported"], bool)
     assert payload["usage_history"]["provider_granularity"] == "daily"
     assert payload["usage_history"]["granularity"] == "hour"
     assert payload["usage_history"]["point_count"] == 168

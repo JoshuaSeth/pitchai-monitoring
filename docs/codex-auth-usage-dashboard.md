@@ -34,6 +34,8 @@ One normalized capacity point equals one percentage point of a five-hour account
 - Stale, auth-invalid, disabled, and unknown accounts do not contribute usable points.
 - The broker safety floor is honored. An account at or below `AUTH_TOKEN_SERVER_MIN_FIVE_HOUR_REMAINING_PERCENT` is shown as five-hour limited even if the provider still reports a small remainder.
 
+Provider window names are not stable identifiers. The dashboard classifies reported windows by duration: four to six hours is the five-hour window, and six days or longer is the weekly window. A missing window is shown as **Not measured** and remains `null` in the API; it must never be interpreted as 0% remaining or as a full window. Aggregate percentages use only fresh, auth-valid accounts that actually report that window and include explicit reporting/unknown account counts.
+
 Banked resets use the provider's read-only reset inventory. The UI shows every grant and expiry date returned by the provider, ordered by expiry. When only a count is available, the dashboard says dated detail is unavailable rather than inventing it. Neither the broker analytics endpoint nor the dashboard implements the provider's reset-consumption action; redeeming a reset is outside this service's capability.
 
 ## Hourly history and runout forecast
@@ -42,7 +44,7 @@ The provider profile route reports historical token totals by UTC day, not hour.
 
 The production container writes a redacted sample every five minutes to `/srv/codex-usage-dashboard/usage-samples.json`. The directory is mode `700` and the atomic sample file is mode `600`, both root-owned. Samples contain account labels, quota percentages/reset times, and current-day usage counters only. They contain no broker account IDs, auth files, credentials, auth tokens, device codes, or provider response bodies. Retention is eight days. Native usage deltas progressively replace reconstructed hourly allocations, and native five-hour quota deltas provide the preferred trailing two-hour burn estimate.
 
-Runout probability uses deterministic burn-rate scenarios around the trailing two-hour sample rate. Until enough native samples exist, the UI labels a current-window average estimate and lowers confidence. Capacity is consumed earliest-reset-first; automatic five-hour resets and weekly eligibility resets are modeled. Weekly percentages remain a hard gate and are not converted into five-hour points. Banked resets never enter forecast capacity because they require a forbidden manual redemption action.
+Runout probability uses deterministic burn-rate scenarios around the trailing two-hour sample rate. Until enough native samples exist, the UI labels a current-window average estimate and lowers confidence. Capacity is consumed earliest-reset-first; automatic five-hour resets and weekly eligibility resets are modeled. If no five-hour window is reported, runout probability is **Not measured** instead of an inferred 0% or 100%. Weekly percentages remain a hard gate and are not converted into five-hour points. Banked resets never enter forecast capacity because they require a forbidden manual redemption action.
 
 ## Operations
 

@@ -46,8 +46,9 @@ def parse_account(
     email = _string(usage.get("email")) or label
     enabled = metadata.get("enabled", True) is not False
     availability = _string(state.get("availability")) or "unknown"
-    five_hour = _parse_window(rate_limit.get("primary_window"), now=now, default_seconds=18_000)
-    weekly = _parse_window(rate_limit.get("secondary_window"), now=now, default_seconds=604_800)
+    named_windows = _named_rate_limit_windows(rate_limit)
+    five_hour = _parse_window(named_windows["five_hour"], now=now, default_seconds=18_000)
+    weekly = _parse_window(named_windows["weekly"], now=now, default_seconds=604_800)
     last_probe = _parse_datetime(state.get("last_probe_at"))
     stale_seconds = None if last_probe is None else max(0, int((now - last_probe).total_seconds()))
     stale = last_probe is None or stale_seconds > stale_after_seconds
@@ -83,8 +84,15 @@ def parse_account(
         status = "five_hour_limited"
         reason = "Held at broker five-hour safety floor"
     elif availability == "rate_limited":
-        status = "unknown" if primary_reset_due or weekly_reset_due else "five_hour_limited"
-        reason = "Reset is due; awaiting a fresh provider state" if status == "unknown" else "Usage limited"
+        if primary_reset_due or weekly_reset_due:
+            status = "unknown"
+            reason = "Reset is due; awaiting a fresh provider state"
+        elif five_hour["reported"]:
+            status = "five_hour_limited"
+            reason = "Five-hour usage window limited"
+        else:
+            status = "unknown"
+            reason = "Provider reported a limit without a five-hour window"
     elif availability == "available":
         status = "available"
         reason = "Selectable now"
@@ -227,6 +235,10 @@ def build_dashboard_snapshot(
         1 for account in enabled_accounts if account["selectable_now"] and not account["stale"]
     )
     next_useful = next((event for event in events if event["kind"] in {"five_hour_reset", "weekly_reset"}), None)
+    window_aggregates = {
+        "five_hour": _window_aggregate(enabled_accounts, key="five_hour"),
+        "weekly": _window_aggregate(enabled_accounts, key="weekly"),
+    }
 
     return {
         "schema_version": 3,
@@ -251,6 +263,7 @@ def build_dashboard_snapshot(
             "enabled_accounts": len(enabled_accounts),
             "usable_now": fresh_usable_count,
             "status_counts": status_counts,
+            "window_aggregates": window_aggregates,
             "next_useful_capacity_at": next_useful["at"] if next_useful else None,
             "next_useful_capacity_label": next_useful["account_label"] if next_useful else None,
         },
@@ -263,8 +276,9 @@ def build_dashboard_snapshot(
         "accounts": accounts,
         "methodology": {
             "unit": "normalized five-hour capacity point",
-            "definition": "100 points equals one full five-hour account window; scheduled five-hour resets add 100 points.",
+            "definition": "100 points equals one full reported five-hour account window; scheduled five-hour resets add 100 points.",
             "weekly_handling": "Weekly exhaustion blocks contribution until its reset; weekly percentages are reported separately and are not converted into five-hour points.",
+            "missing_windows": "A provider window that is not reported remains unknown and is never converted to zero usage or zero remaining capacity.",
             "maximum_not_prediction": True,
             "token_history": "Provider daily totals are reconstructed into 168 hourly UTC points and progressively replaced by native sample deltas; the current hour is partial.",
             "runout_forecast": "Probabilities model recent capacity burn and automatic five-hour resets. Banked resets are excluded because redemption is manual and forbidden here.",
@@ -274,18 +288,68 @@ def build_dashboard_snapshot(
 
 
 def _parse_window(value: Any, *, now: datetime, default_seconds: int) -> dict[str, Any]:
-    window = value if isinstance(value, dict) else {}
+    reported = isinstance(value, dict)
+    window = value if reported else {}
     used = _percent(window.get("used_percent"))
     remaining = None if used is None else round(max(0.0, 100.0 - used), 2)
     reset_at = _parse_datetime(window.get("reset_at"))
     reset_in = None if reset_at is None else max(0, int((reset_at - now).total_seconds()))
-    seconds = _integer(window.get("limit_window_seconds"), minimum=1) or default_seconds
+    seconds = (_integer(window.get("limit_window_seconds"), minimum=1) or default_seconds) if reported else None
     return {
+        "reported": reported,
         "used_percent": used,
         "remaining_percent": remaining,
         "reset_at": isoformat(reset_at),
         "reset_in_seconds": reset_in,
         "window_seconds": seconds,
+    }
+
+
+def _named_rate_limit_windows(rate_limit: dict[str, Any]) -> dict[str, dict[str, Any] | None]:
+    named: dict[str, dict[str, Any] | None] = {"five_hour": None, "weekly": None}
+    unclassified: list[dict[str, Any]] = []
+    for field in ("primary_window", "secondary_window"):
+        window = rate_limit.get(field)
+        if not isinstance(window, dict):
+            continue
+        seconds = _integer(window.get("limit_window_seconds"), minimum=1)
+        if seconds is not None and 4 * 60 * 60 <= seconds <= 6 * 60 * 60 and named["five_hour"] is None:
+            named["five_hour"] = window
+        elif seconds is not None and seconds >= 6 * 24 * 60 * 60 and named["weekly"] is None:
+            named["weekly"] = window
+        else:
+            unclassified.append(window)
+
+    for key in ("five_hour", "weekly"):
+        if named[key] is None and unclassified:
+            named[key] = unclassified.pop(0)
+    return named
+
+
+def _window_aggregate(accounts: list[dict[str, Any]], *, key: str) -> dict[str, Any]:
+    measured = [
+        account
+        for account in accounts
+        if account["auth_valid"] is True
+        and not account["stale"]
+        and account[key].get("reported") is True
+        and isinstance(account[key].get("remaining_percent"), (int, float))
+    ]
+    remaining_points = sum(float(account[key]["remaining_percent"]) for account in measured)
+    maximum_points = float(len(measured) * 100)
+    if not measured:
+        measurement_status = "unavailable"
+    elif len(measured) < len(accounts):
+        measurement_status = "partial"
+    else:
+        measurement_status = "complete"
+    return {
+        "measurement_status": measurement_status,
+        "reporting_accounts": len(measured),
+        "unknown_accounts": len(accounts) - len(measured),
+        "remaining_points": round(remaining_points, 1) if measured else None,
+        "maximum_known_points": round(maximum_points, 1) if measured else None,
+        "remaining_percent": round(remaining_points / maximum_points * 100.0, 1) if measured else None,
     }
 
 
@@ -432,12 +496,19 @@ def _forecast(
     contributors: set[str] = set()
     weekly_blocked = 0
     unknown_windows = 0
+    measured_windows = 0
 
     for account in accounts:
         if not account["enabled"]:
             continue
         primary = account["five_hour"]
         weekly = account["weekly"]
+        if primary.get("reported") is not True:
+            unknown_windows += 1
+            if account["status"] == "weekly_limited":
+                weekly_blocked += 1
+            continue
+        measured_windows += 1
         primary_reset = _parse_datetime(primary.get("reset_at"))
         window_seconds = int(primary.get("window_seconds") or 18_000)
         scheduled_resets = _scheduled_resets(
@@ -473,20 +544,38 @@ def _forecast(
             reset_events += 1
             contributors.add(account["label"])
 
-    capacity_percent = 0.0 if maximum_points <= 0 else min(100.0, capacity_points / maximum_points * 100.0)
+    if measured_windows == 0:
+        capacity_payload: dict[str, float | None] = {
+            "capacity_points": None,
+            "account_equivalents": None,
+            "maximum_points": None,
+            "capacity_percent": None,
+        }
+        measurement_status = "unavailable"
+    else:
+        capacity_percent = min(100.0, capacity_points / maximum_points * 100.0)
+        capacity_payload = {
+            "capacity_points": round(capacity_points, 1),
+            "account_equivalents": round(capacity_points / 100.0, 2),
+            "maximum_points": round(maximum_points, 1),
+            "capacity_percent": round(capacity_percent, 1),
+        }
+        measurement_status = "partial" if unknown_windows else "complete"
     return {
         "key": key,
         "label": label,
         "horizon_seconds": horizon_seconds,
-        "capacity_points": round(capacity_points, 1),
-        "account_equivalents": round(capacity_points / 100.0, 2),
-        "maximum_points": round(maximum_points, 1),
-        "capacity_percent": round(capacity_percent, 1),
+        **capacity_payload,
+        "measurement_status": measurement_status,
+        "measured_window_accounts": measured_windows,
+        "unknown_window_accounts": unknown_windows,
         "usable_accounts_now": sum(1 for account in accounts if account["selectable_now"] and not account["stale"]),
         "contributing_accounts": len(contributors),
         "five_hour_resets": reset_events,
         "weekly_blocked_accounts": weekly_blocked,
-        "confidence": "partial" if unknown_windows or any(account["stale"] for account in accounts if account["enabled"]) else "high",
+        "confidence": "unavailable" if not measured_windows else (
+            "partial" if unknown_windows or any(account["stale"] for account in accounts if account["enabled"]) else "high"
+        ),
     }
 
 
@@ -516,6 +605,8 @@ def _capacity_events(accounts: list[dict[str, Any]], *, now: datetime, horizon_s
         if not account["enabled"] or account["auth_valid"] is not True:
             continue
         for kind, window in (("five_hour_reset", account["five_hour"]), ("weekly_reset", account["weekly"])):
+            if window.get("reported") is not True:
+                continue
             reset_at = _parse_datetime(window.get("reset_at"))
             if reset_at is None or not now < reset_at <= horizon_end:
                 continue
@@ -591,6 +682,22 @@ def _warnings(
                 "severity": "warning",
                 "code": "analytics_stale",
                 "message": f"Usage history or reset-bank data is stale for {analytics_stale_count} account(s)",
+            }
+        )
+    five_hour_unreported = sum(
+        1
+        for account in accounts
+        if account["enabled"]
+        and account["auth_valid"] is True
+        and not account["stale"]
+        and account["five_hour"].get("reported") is not True
+    )
+    if five_hour_unreported:
+        warnings.append(
+            {
+                "severity": "info",
+                "code": "five_hour_unreported",
+                "message": f"Provider did not report a five-hour window for {five_hour_unreported} auth-valid account(s)",
             }
         )
     for account in accounts:

@@ -110,6 +110,35 @@ def test_expired_provider_reset_is_unknown_until_fresh_probe() -> None:
     assert account["status_reason"] == "Reset is due; awaiting a fresh provider state"
 
 
+def test_single_weekly_primary_window_is_not_mislabeled_as_five_hour() -> None:
+    raw = _account("weekly-only@example.com", weekly_used=0)
+    rate_limit = raw["state"]["usage"]["rate_limit"]
+    rate_limit["primary_window"] = rate_limit.pop("secondary_window")
+
+    account = _parse(raw)
+
+    assert account["status"] == "available"
+    assert account["five_hour"]["reported"] is False
+    assert account["five_hour"]["remaining_percent"] is None
+    assert account["five_hour"]["window_seconds"] is None
+    assert account["weekly"]["reported"] is True
+    assert account["weekly"]["remaining_percent"] == 100
+
+
+def test_windows_are_classified_by_duration_when_provider_order_is_reversed() -> None:
+    raw = _account("reversed@example.com", five_used=25, weekly_used=40)
+    rate_limit = raw["state"]["usage"]["rate_limit"]
+    rate_limit["primary_window"], rate_limit["secondary_window"] = (
+        rate_limit["secondary_window"],
+        rate_limit["primary_window"],
+    )
+
+    account = _parse(raw)
+
+    assert account["five_hour"]["remaining_percent"] == 75
+    assert account["weekly"]["remaining_percent"] == 60
+
+
 def test_reset_credit_details_support_provider_field_names_and_dates() -> None:
     raw = _account(
         "credits@example.com",
@@ -164,6 +193,35 @@ def test_forecast_counts_current_headroom_and_resets_inside_horizon() -> None:
     assert hour["capacity_percent"] == 53.3
     assert hour["five_hour_resets"] == 1
     assert hour["contributing_accounts"] == 2
+
+
+def test_missing_five_hour_windows_are_unavailable_not_zero_capacity() -> None:
+    accounts = [_account("a@example.com", weekly_used=0), _account("b@example.com", weekly_used=100)]
+    for raw in accounts:
+        rate_limit = raw["state"]["usage"]["rate_limit"]
+        rate_limit["primary_window"] = rate_limit.pop("secondary_window")
+
+    snapshot = build_dashboard_snapshot(
+        accounts,
+        now=NOW,
+        stale_after_seconds=600,
+        min_five_hour_remaining_percent=10,
+    )
+
+    assert snapshot["summary"]["window_aggregates"]["five_hour"] == {
+        "measurement_status": "unavailable",
+        "reporting_accounts": 0,
+        "unknown_accounts": 2,
+        "remaining_points": None,
+        "maximum_known_points": None,
+        "remaining_percent": None,
+    }
+    assert snapshot["summary"]["window_aggregates"]["weekly"]["remaining_percent"] == 50
+    assert all(item["measurement_status"] == "unavailable" for item in snapshot["forecasts"])
+    assert all(item["capacity_percent"] is None for item in snapshot["forecasts"])
+    assert snapshot["runout_forecast"]["data_available"] is False
+    assert all(item["risk"] == "unknown" for item in snapshot["runout_forecast"]["horizons"])
+    assert any(item["code"] == "five_hour_unreported" for item in snapshot["warnings"])
 
 
 def test_stale_available_account_is_not_counted_as_usable_capacity() -> None:

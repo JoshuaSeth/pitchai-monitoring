@@ -14,7 +14,19 @@ ROOT = Path(__file__).resolve().parents[1]
 def _payload() -> dict[str, object]:
     return {
         "schema_version": 3,
-        "summary": {"configured_accounts": 8},
+        "summary": {
+            "configured_accounts": 8,
+            "window_aggregates": {
+                "five_hour": {"measurement_status": "unavailable"},
+                "weekly": {"measurement_status": "partial"},
+            },
+        },
+        "accounts": [
+            {
+                "five_hour": {"reported": False},
+                "weekly": {"reported": True},
+            }
+        ],
         "usage_history": {
             "provider_granularity": "daily",
             "granularity": "hour",

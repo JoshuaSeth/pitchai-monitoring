@@ -25,6 +25,18 @@ def build_runout_forecast(
     now: datetime,
 ) -> dict[str, Any]:
     now = now.astimezone(UTC)
+    measured_accounts = [
+        account
+        for account in accounts
+        if account.get("enabled")
+        and account.get("auth_valid") is True
+        and not account.get("stale")
+        and account.get("five_hour", {}).get("reported") is True
+        and isinstance(account.get("five_hour", {}).get("remaining_percent"), (int, float))
+    ]
+    if not measured_accounts:
+        return _unavailable_forecast(accounts, reset_bank=reset_bank, now=now)
+
     burn = capacity_burn_rate(accounts, samples=samples, now=now)
     base_rate = float(burn["capacity_points_per_hour"])
     variation = float(burn["coefficient_of_variation"])
@@ -95,6 +107,7 @@ def build_runout_forecast(
     if banked_count:
         drivers.append(f"{banked_count} banked reset{'s are' if banked_count != 1 else ' is'} excluded until manually redeemed")
     return {
+        "data_available": True,
         "generated_at": _isoformat(now),
         "burn_rate": burn,
         "initial_capacity_points": round(initial_points, 1),
@@ -118,6 +131,76 @@ def build_runout_forecast(
     }
 
 
+def _unavailable_forecast(
+    accounts: list[dict[str, Any]],
+    *,
+    reset_bank: dict[str, Any],
+    now: datetime,
+) -> dict[str, Any]:
+    usable_now = sum(
+        1
+        for account in accounts
+        if account.get("enabled") and account.get("selectable_now") and not account.get("stale")
+    )
+    weekly_blocked = sum(1 for account in accounts if account.get("status") == "weekly_limited")
+    banked_count = int(reset_bank.get("total_available") or 0)
+    horizons = [
+        {
+            "key": key,
+            "label": label,
+            "horizon_seconds": seconds,
+            "probability_percent": None,
+            "risk": "unknown",
+            "expected_runout_at": None,
+            "likely_window_start": None,
+            "likely_window_end": None,
+            "initial_capacity_points": None,
+            "scheduled_five_hour_resets": 0,
+            "scheduled_capacity_points": None,
+            "scenario_count": 0,
+        }
+        for key, label, seconds in HORIZONS
+    ]
+    drivers = [
+        "Provider five-hour capacity windows are not currently reported",
+        f"{usable_now} account{'s are' if usable_now != 1 else ' is'} selectable from broker state",
+    ]
+    if weekly_blocked:
+        drivers.append(f"{weekly_blocked} account{'s are' if weekly_blocked != 1 else ' is'} weekly blocked")
+    if banked_count:
+        drivers.append(f"{banked_count} banked reset{'s are' if banked_count != 1 else ' is'} excluded until manually redeemed")
+    return {
+        "data_available": False,
+        "generated_at": _isoformat(now),
+        "burn_rate": {
+            "capacity_points_per_hour": None,
+            "coefficient_of_variation": None,
+            "lookback_hours": 2,
+            "source": "unavailable",
+            "covered_accounts": 0,
+            "confidence": "unavailable",
+        },
+        "initial_capacity_points": None,
+        "usable_accounts_now": usable_now,
+        "horizons": horizons,
+        "highest_risk": "unknown",
+        "highest_probability_percent": None,
+        "drivers": drivers,
+        "banked_reset_policy": {
+            "available_count": banked_count,
+            "included_as_automatic_capacity": False,
+            "reason": "Banked resets require an explicit redemption action; this dashboard is read-only.",
+        },
+        "methodology": {
+            "model": "unavailable until at least one provider five-hour window is reported",
+            "scenario_count": 0,
+            "automatic_resets_included": [],
+            "weekly_handling": "Weekly percentages remain visible but cannot substitute for missing five-hour capacity data.",
+            "limitations": "Unknown five-hour capacity is not interpreted as either full or exhausted.",
+        },
+    }
+
+
 def _capacity_schedule(
     accounts: list[dict[str, Any]],
     *,
@@ -129,6 +212,8 @@ def _capacity_schedule(
     events: list[dict[str, Any]] = []
     for account in accounts:
         if not account.get("enabled") or account.get("auth_valid") is not True or account.get("stale"):
+            continue
+        if account.get("five_hour", {}).get("reported") is not True:
             continue
         label = str(account["label"])
         remaining = account.get("five_hour", {}).get("remaining_percent")
