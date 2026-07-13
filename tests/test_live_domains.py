@@ -22,9 +22,11 @@ if os.getenv("RUN_LIVE_TESTS") != "1":
 
 EXPECTED_UP = {
     "afasask.pitchai.net",
+    "afasask.gzb.nl",
     "autopar.pitchai.net",
     "cms.deplanbook.com",
     "deplanbook.com",
+    "demo.afasask.pitchai.net",
     "dpb.pitchai.net",
     "hetcis.nl",
     "skybuyfly.pitchai.net",
