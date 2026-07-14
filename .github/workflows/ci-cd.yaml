@@ -61,8 +61,8 @@ jobs:
             IMAGE_LATEST="service-monitoring:latest"
             EVENT_BUS_SECRET="${{ secrets.PITCHAI_MONITORING_EVENT_BUS_SECRET }}"
 
-            if [[ -z "${EVENT_BUS_SECRET}" ]]; then
-              echo "Missing PITCHAI_MONITORING_EVENT_BUS_SECRET"
+            if [[ "${#EVENT_BUS_SECRET}" -lt 32 ]]; then
+              echo "Missing or invalid PITCHAI_MONITORING_EVENT_BUS_SECRET"
               exit 1
             fi
 
@@ -231,14 +231,30 @@ jobs:
             echo "⏳ Waiting for startup..."
             sleep 10
 
-            for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME"; do
+            assert_container_stable() {
+              local name="$1"
+              local running restarting restart_count
               running="$(docker inspect "$name" --format '{{.State.Running}}')"
-              if [[ "$running" != "true" ]]; then
-                echo "❌ Container is not running: $name"
+              restarting="$(docker inspect "$name" --format '{{.State.Restarting}}')"
+              restart_count="$(docker inspect "$name" --format '{{.RestartCount}}')"
+              if [[ "$running" != "true" || "$restarting" != "false" || "$restart_count" != "0" ]]; then
+                echo "❌ Container failed stability check: $name"
                 docker logs "$name" --tail 200 || true
                 exit 1
               fi
+            }
+
+            for stability_check in 1 2; do
+              for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME"; do
+                assert_container_stable "$name"
+              done
+              if [[ "$stability_check" == "1" ]]; then
+                sleep 10
+              fi
             done
+
+            docker exec "$APP_NAME" python -c \
+              'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
 
             echo "✅ Containers running"
             docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}"
