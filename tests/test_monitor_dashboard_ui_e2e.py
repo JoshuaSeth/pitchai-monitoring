@@ -240,6 +240,33 @@ async def test_monitor_dashboard_entra_identity_and_renders(dashboard_server: di
             await page.wait_for_selector("[data-testid=dash-dispatch-table] tbody tr")
             text = await page.locator("[data-testid=dash-dispatch-table]").inner_text()
             assert "Root cause" in text
+
+            await page.set_viewport_size({"width": 390, "height": 844})
+            await page.reload()
+            await page.wait_for_selector("[data-testid=dash-domains-table] tbody tr")
+            viewport = await page.evaluate(
+                """() => ({
+                    innerWidth: window.innerWidth,
+                    documentWidth: document.documentElement.scrollWidth,
+                    bodyWidth: document.body.scrollWidth,
+                    overflowing: Array.from(document.querySelectorAll("body *"))
+                        .map((element) => {
+                            const rect = element.getBoundingClientRect();
+                            return {
+                                tag: element.tagName,
+                                id: element.id,
+                                className: String(element.className || ""),
+                                left: Math.round(rect.left),
+                                right: Math.round(rect.right),
+                            };
+                        })
+                        .filter((item) => item.left < 0 || item.right > window.innerWidth + 1)
+                        .slice(0, 12),
+                })"""
+            )
+            overflow_diagnostic = json.dumps(viewport, indent=2)
+            assert viewport["documentWidth"] <= viewport["innerWidth"], overflow_diagnostic
+            assert viewport["bodyWidth"] <= viewport["innerWidth"], overflow_diagnostic
         finally:
             await context.close()
             await browser.close()
