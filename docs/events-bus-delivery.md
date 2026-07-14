@@ -79,12 +79,14 @@ by the explicit internal probe command.
 2. Verify bad authentication returns 401 and readiness remains healthy.
 3. Store the same value as the monitoring repository Actions secret.
 4. Merge and deploy the monitoring producer. The workflow fails loudly when
-   the Actions secret is absent.
+   the Actions secret is absent or shorter than 32 characters.
 5. Confirm the automatic `service_started` delivery, then run one explicit
    `integration_test` probe.
 
 The deployment workflow passes the exact GitHub commit SHA into the container.
-Do not enable the producer before the matching receiver and secret are live.
+It requires two stable zero-restart observations and loads the producer
+configuration inside the container before reporting success. Do not enable the
+producer before the matching receiver and secret are live.
 
 ## Verification
 
@@ -126,6 +128,40 @@ same row plus queue state remain present.
 
 ## Production Evidence
 
-Populate this section only from merged production source after the real
-delivery and restart proof. Do not include secrets, private raw payloads, or
-client data.
+Verified on 2026-07-14 UTC:
+
+- Receiver PR 78 deployed merged SHA
+  `bbd56429e6c1e074fd7bf0bdce077b3c615793c9` as Events Bus version 0.5.0
+  before the producer was enabled. Public readiness and route discovery passed;
+  an unsigned monitoring request returned HTTP 401 and persisted no row.
+- Producer PR 11 merged as
+  `ba4dd9daef16c13659f872f384ac1e2687e531da`. Its first workflow run
+  29304853333 exposed a rollout defect: a one-character repository secret passed
+  a non-empty gate and a one-time running-state observation raced a restart.
+  The receiver stayed healthy and no invalid monitoring row was accepted.
+- The protected secret was corrected through stdin. Corrective workflow run
+  29305077980 passed the full HTTP/Playwright suite and deployed the exact
+  producer SHA. The automatic startup event and controlled internal probe both
+  returned HTTP 202 and became durable.
+- Guard PR 12 merged as
+  `d778415ab16221fc5ab4d9b5f3ec196c8ca60221`. Workflow run 29305408134 then
+  passed the full suite, minimum secret-length check, two zero-restart
+  observations, and in-container config validation. The final production image
+  is tagged with that exact SHA and remained running with restart count zero.
+- Final `service_started` row `5dacc61f-b90e-4b64-8584-d1899abdb55f`
+  was stored at `2026-07-14T04:14:39.528793Z`. The final explicit probe returned
+  HTTP 202 as row `d15364b5-0695-4cae-ae86-09ca6364af6a` at
+  `2026-07-14T04:15:33.306723Z` with delivery id
+  `monitoring-68cc62b72ba7ae9b4f8594f53958f54f86b89679343d72cc24346594f745f164`.
+- The final probe row is queued/available with zero attempts and replays. It
+  carries the final deployment SHA and retains 394 protected raw bytes with
+  SHA-256
+  `3fab139fc3a16509ac8c971bb5389309fbe20797c22ab0f3cc21cb356064bf94`.
+  Receiver logs correlate the same ids with HTTP 202; the Events Bus CLI lists
+  all four real monitoring rows.
+- A controlled receiver restart preserved the exact row digests and queue state
+  for the first real startup/probe pair, kept the SQLite inode unchanged, and
+  returned `ok` from `quick_check`. The producer state schema is version 6 and
+  its persisted outbox had zero pending entries afterward.
+
+No shared secret, raw payload, or client data is included in this evidence.

@@ -326,3 +326,5 @@ def test_production_workflow_provides_authenticated_event_bus_configuration():
     assert "{{.State.Restarting}}" in workflow
     assert "{{.RestartCount}}" in workflow
     assert "load_event_bus_config() is not None" in workflow
+    assert '"docs/**"' in workflow
+    assert '"README.md"' in workflow
