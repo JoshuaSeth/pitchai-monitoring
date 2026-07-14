@@ -70,7 +70,7 @@ class DashboardSettings:
     safe_probe_enabled: bool = True
     probe_on_startup: bool = True
     require_proxy_auth: bool = True
-    proxy_auth_header: str = "x-pitchai-operator"
+    proxy_auth_header: str = "x-pitchai-email"
     history_file: Path | None = None
     history_retention_days: int = 8
     history_sample_interval_seconds: int = 300
@@ -131,7 +131,7 @@ class DashboardSettings:
             safe_probe_enabled=safe_probe_enabled,
             probe_on_startup=_env_bool("AUTH_USAGE_PROBE_ON_STARTUP", True),
             require_proxy_auth=_env_bool("AUTH_USAGE_REQUIRE_PROXY_AUTH", True),
-            proxy_auth_header=os.getenv("AUTH_USAGE_PROXY_AUTH_HEADER", "x-pitchai-operator").strip().lower(),
+            proxy_auth_header=os.getenv("AUTH_USAGE_PROXY_AUTH_HEADER", "x-pitchai-email").strip().lower(),
             history_file=Path(
                 os.getenv("AUTH_USAGE_HISTORY_FILE", "/dashboard-data/usage-samples.json")
             ).expanduser(),

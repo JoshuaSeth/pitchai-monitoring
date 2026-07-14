@@ -250,8 +250,8 @@ The dashboard reads `state.json` from the `service-monitoring-state` docker volu
 
 Auth:
 
-- By default the dashboard requires the `E2E_REGISTRY_MONITOR_TOKEN` (or `E2E_REGISTRY_ADMIN_TOKEN`) via `/dashboard/login`.
-- This is intentionally separate from tenant API keys (external developers should not see internal monitoring signals).
+- The operator dashboard and its browser API aliases require a broker-verified PitchAI Microsoft 365 identity.
+- Existing bearer-authenticated monitoring APIs and tenant API-key UI remain separate so external automation and tenant authorization semantics do not change.
 
 ## Codex Capacity Dashboard (codexusage.pitchai.net)
 

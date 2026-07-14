@@ -81,12 +81,18 @@
   <body>
     <div class="wrap">
       <header>
-        <div class="brand"><a href="/ui/tests" data-testid="nav-home">E2E Registry</a></div>
+        <div class="brand"><a href="{% if operator_identity %}/dashboard{% else %}/ui/tests{% endif %}" data-testid="nav-home">{% if operator_identity %}PitchAI Monitoring{% else %}E2E Registry{% endif %}</a></div>
         <div class="nav">
+          {% if operator_identity %}
+          <a href="https://tools.pitchai.net" data-testid="nav-tools">Tools</a>
+          <span class="badge" data-testid="operator-identity">{{ operator_identity }}</span>
+          <a href="https://auth.pitchai.net/oauth2/sign_out" data-testid="nav-logout">Sign out</a>
+          {% else %}
           <a href="/dashboard" data-testid="nav-monitoring">Monitoring</a>
           <a href="/ui/upload" data-testid="nav-upload">Upload</a>
           <a href="/ui/tests" data-testid="nav-tests">Tests</a>
           <a href="/ui/logout" data-testid="nav-logout">Logout</a>
+          {% endif %}
         </div>
       </header>
       {% block content %}{% endblock %}

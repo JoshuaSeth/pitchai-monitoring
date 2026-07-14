@@ -19,6 +19,7 @@
           </div>
         </div>
         <div class="header-tools">
+          <a class="operator-identity" href="https://tools.pitchai.net" title="Back to PitchAI Tools">{{ actor }}</a>
           <div class="zone-control" role="group" aria-label="Time zone">
             <button class="zone-option is-active" type="button" data-zone="utc">UTC</button>
             <button class="zone-option" type="button" data-zone="local">Local</button>
@@ -26,6 +27,9 @@
           <button class="icon-button" id="refresh-button" type="button" title="Refresh broker usage" aria-label="Refresh broker usage">
             <img src="/static/icons/refresh-cw.svg" alt="" width="18" height="18" />
           </button>
+          <a class="icon-button signout-button" href="https://auth.pitchai.net/oauth2/sign_out" title="Sign out of PitchAI tools" aria-label="Sign out of PitchAI tools">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M14 8l4 4-4 4M18 12H9"/></svg>
+          </a>
         </div>
       </div>
     </header>

@@ -108,7 +108,7 @@ check_dashboard() {
   local output
   while (( attempts > 0 )); do
     if output="$(curl --fail --silent --show-error --max-time 3 \
-      --header 'X-PitchAI-Operator: deployment-check' \
+      --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
       "http://127.0.0.1:${port}/api/v1/capacity" 2>/dev/null)"; then
       if python3 "${REPO_ROOT}/auth_usage_dashboard/deployment_check.py" <<<"${output}"; then
         return 0

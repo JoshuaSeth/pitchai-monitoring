@@ -4,8 +4,8 @@
 
 ## Architecture
 
-- Nginx terminates TLS and requires the PitchAI tools HTTP Basic Auth file.
-- Nginx injects `X-PitchAI-Operator` only after successful authentication.
+- Nginx terminates TLS and delegates browser authentication to the shared PitchAI Entra broker.
+- Nginx injects a normalized `X-PitchAI-Email` only after successful Microsoft 365 authentication.
 - The dashboard listens only on `127.0.0.1:8124` and rejects UI/API requests without that trusted header.
 - The container mounts `/srv/auth-token-server/data/accounts` read-only and reads only `metadata.json` and `state.json`. It never opens `auth.json`.
 - The broker admin token is passed only to the container process so it can trigger the broker's account usage probe endpoint. It is never returned, logged, or embedded in the page.
@@ -74,7 +74,7 @@ Post-deploy checks:
 
 ```bash
 curl --fail --silent http://127.0.0.1:8124/healthz
-curl --fail --silent -H 'X-PitchAI-Operator: deployment-check' \
+curl --fail --silent -H 'X-PitchAI-Email: deployment-check@pitchai.net' \
   http://127.0.0.1:8124/api/v1/capacity | jq '.summary'
 docker inspect codex-usage-dashboard --format '{{.State.Status}} {{.State.Health.Status}}'
 ```
@@ -86,12 +86,12 @@ Do not print the full API response in shared logs. It contains account labels an
 - DNS: `codexusage.pitchai.net` A record to the public IPv4 address of `pitchai-dev`.
 - HTTP bootstrap source: `ops/codexusage.pitchai.net.bootstrap.nginx.conf`.
 - Nginx source: `ops/codexusage.pitchai.net.nginx.conf`.
-- Basic Auth file: `/etc/nginx/htpasswd-pitchai-tools-dashboard`.
+- Browser authentication: shared broker at `https://auth.pitchai.net` using the domain-wide secure SSO cookie.
 - TLS: Certbot-managed certificate for `codexusage.pitchai.net`.
 - Certificate renewal: `ops/renew_codexusage_certificate.sh` through the committed systemd service and timer.
 - External canary: the monitoring service checks the redacted `/healthz` response, DNS, TLS, and browser reachability. Docker performs the local container health check on `pitchai-dev`.
 
-The same PitchAI tools dashboard credentials provide access. Never place a password in this repository, PM notes, screenshots, logs, or Telegram.
+Only a broker-verified `@pitchai.net` Microsoft identity can reach the browser UI. The legacy Basic Auth file is not referenced by this vhost and is retained only for rollback diagnosis.
 
 For a first deployment, install and enable the HTTP bootstrap vhost, run `nginx -t`, and reload Nginx before requesting the certificate. Once the certificate exists, replace the bootstrap file with the final Nginx source, validate again, and reload. This keeps the ACME challenge reachable without making Nginx depend on a certificate that has not been issued yet.
 

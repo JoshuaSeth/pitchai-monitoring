@@ -111,9 +111,15 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
         assert denied.status_code == 401
         assert denied.headers["x-robots-tag"] == "noindex, nofollow, noarchive"
 
+        foreign_identity = client.get(
+            "/api/v1/capacity",
+            headers={"X-PitchAI-Email": "operator@example.com"},
+        )
+        assert foreign_identity.status_code == 401
+
         response = client.get(
             "/api/v1/capacity",
-            headers={"X-PitchAI-Operator": "seth"},
+            headers={"X-PitchAI-Email": "operator@pitchai.net"},
         )
         assert response.status_code == 200
         payload = response.json()
@@ -130,15 +136,23 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
             "default-src 'self'"
         )
 
+        dashboard = client.get(
+            "/",
+            headers={"X-PitchAI-Email": "OPERATOR@PITCHAI.NET"},
+        )
+        assert dashboard.status_code == 200
+        assert "operator@pitchai.net" in dashboard.text
+        assert "https://auth.pitchai.net/oauth2/sign_out" in dashboard.text
+
         missing_action = client.post(
             "/api/v1/refresh",
-            headers={"X-PitchAI-Operator": "seth"},
+            headers={"X-PitchAI-Email": "operator@pitchai.net"},
         )
         assert missing_action.status_code == 403
 
         refresh = client.post(
             "/api/v1/refresh",
-            headers={"X-PitchAI-Operator": "seth", "X-Auth-Usage-Action": "refresh"},
+            headers={"X-PitchAI-Email": "operator@pitchai.net", "X-Auth-Usage-Action": "refresh"},
         )
         assert refresh.status_code == 200
         assert refresh.json()["reason"] == "safe_probe_disabled"
@@ -157,7 +171,7 @@ def test_safe_probe_runs_on_startup_and_manual_probe_is_throttled(
         assert source.probe_count == 0
         response = client.post(
             "/api/v1/refresh",
-            headers={"X-PitchAI-Operator": "seth", "X-Auth-Usage-Action": "refresh"},
+            headers={"X-PitchAI-Email": "operator@pitchai.net", "X-Auth-Usage-Action": "refresh"},
         )
         assert response.status_code == 200
         assert response.json()["reason"] == "probe_throttled"
@@ -178,7 +192,7 @@ def test_corrupt_sample_history_is_reported_without_hiding_live_capacity(
 
     with TestClient(app) as client:
         response = client.get(
-            "/api/v1/capacity", headers={"X-PitchAI-Operator": "seth"}
+            "/api/v1/capacity", headers={"X-PitchAI-Email": "operator@pitchai.net"}
         )
 
     assert response.status_code == 200
