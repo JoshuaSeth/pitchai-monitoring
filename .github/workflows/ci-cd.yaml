@@ -3,9 +3,11 @@ name: Service Monitoring Deploy
 on:
   push:
     branches: [main]
-    # Avoid auto-deploys when only workflow files change.
+    # Avoid auto-deploys when only workflow or documentation files change.
     paths-ignore:
       - ".github/workflows/**"
+      - "docs/**"
+      - "README.md"
   workflow_dispatch: {}
 
 concurrency:
