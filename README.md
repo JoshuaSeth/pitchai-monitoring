@@ -89,6 +89,11 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
 - Optional: `PITCHAI_DISPATCH_MODEL` (e.g. `gpt-5.2-medium`, `gpt-5.2-high`)
 - Optional: `CHROMIUM_PATH` (inside Docker: `/usr/bin/chromium`)
 - Optional: `STATE_PATH` (default `/data/state.json`) to persist UP/DOWN state across restarts
+- Optional as a complete set: `PITCHAI_MONITORING_EVENT_BUS_URL` and
+  `PITCHAI_MONITORING_EVENT_BUS_SECRET` enable authenticated durable transition delivery.
+- Optional: `PITCHAI_MONITORING_ENVIRONMENT` (default `production`),
+  `PITCHAI_MONITORING_INSTANCE` (default `pitchai-main`), and
+  `PITCHAI_MONITORING_DEPLOYMENT_SHA` (40-character lowercase Git SHA).
 
 ## Run locally
 
@@ -114,9 +119,37 @@ docker run --rm \
   -e TELEGRAM_BOT_TOKEN=... \
   -e TELEGRAM_CHAT_ID=... \
   -e PITCHAI_DISPATCH_TOKEN=... \
+  -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
+  -e PITCHAI_MONITORING_EVENT_BUS_SECRET=... \
+  -e PITCHAI_MONITORING_ENVIRONMENT="production" \
+  -e PITCHAI_MONITORING_INSTANCE="pitchai-main" \
+  -e PITCHAI_MONITORING_DEPLOYMENT_SHA="<deployed-commit-sha>" \
   -e STATE_PATH="/data/state.json" \
   service-monitoring:latest
 ```
+
+## Events Bus Delivery
+
+Debounced service transitions are delivered to the PitchAI Events Bus through a
+signed HTTPS webhook. The monitor persists an at-least-once retry outbox inside
+the existing `STATE_PATH` document. A receiver-generated event id is required
+before an entry is removed; failures use bounded exponential backoff, and a
+stable delivery id makes retries idempotent at the receiver.
+
+The shared secret is memory-only and is never written into monitor state. Logs
+contain delivery id, event kind, status, receiver event id, and retry category,
+but not the secret or raw payload. A partially configured integration fails at
+startup instead of silently dropping transitions.
+
+Run the controlled internal probe from a configured container:
+
+```bash
+python -m domain_checks.event_bus --probe-label nightly-YYYYMMDD
+```
+
+The command prints only acceptance status, delivery id, event id, and HTTP
+status. The full contract, event catalog, retry procedure, and incident checks
+are in [`docs/events-bus-delivery.md`](docs/events-bus-delivery.md).
 
 ## External E2E Registry (Developer-Submitted Test Files)
 
