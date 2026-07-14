@@ -59,6 +59,12 @@ jobs:
             NET_NAME="pitchai-shared"
             IMAGE_SHA="service-monitoring:${{ github.sha }}"
             IMAGE_LATEST="service-monitoring:latest"
+            EVENT_BUS_SECRET="${{ secrets.PITCHAI_MONITORING_EVENT_BUS_SECRET }}"
+
+            if [[ -z "${EVENT_BUS_SECRET}" ]]; then
+              echo "Missing PITCHAI_MONITORING_EVENT_BUS_SECRET"
+              exit 1
+            fi
 
             echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} @ ${{ github.sha }}"
 
@@ -211,6 +217,11 @@ jobs:
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
               -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
               -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
+              -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
+              -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
+              -e PITCHAI_MONITORING_ENVIRONMENT="production" \
+              -e PITCHAI_MONITORING_INSTANCE="pitchai-main" \
+              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
               -e STATE_PATH="/data/state.json" \
               -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
               -e E2E_REGISTRY_MONITOR_TOKEN="${E2E_MONITOR_TOKEN}" \
