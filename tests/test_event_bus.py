@@ -321,3 +321,8 @@ def test_production_workflow_provides_authenticated_event_bus_configuration():
     assert "PITCHAI_MONITORING_EVENT_BUS_URL" in workflow
     assert "PITCHAI_MONITORING_EVENT_BUS_SECRET" in workflow
     assert "PITCHAI_MONITORING_DEPLOYMENT_SHA" in workflow
+    assert '[[ "${#EVENT_BUS_SECRET}" -lt 32 ]]' in workflow
+    assert "for stability_check in 1 2" in workflow
+    assert "{{.State.Restarting}}" in workflow
+    assert "{{.RestartCount}}" in workflow
+    assert "load_event_bus_config() is not None" in workflow
