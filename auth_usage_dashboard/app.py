@@ -15,6 +15,20 @@ from .source import BrokerStateSource
 
 
 ROOT = Path(__file__).resolve().parent
+_ALLOWED_IDENTITY_DOMAIN = "pitchai.net"
+_MAX_EMAIL_LENGTH = 254
+
+
+def _normalize_pitchai_email(raw_email: str | None) -> str | None:
+    if raw_email is None or raw_email != raw_email.strip() or len(raw_email) > _MAX_EMAIL_LENGTH:
+        return None
+    email = raw_email.lower()
+    local_part, separator, domain = email.rpartition("@")
+    if email.count("@") != 1 or separator != "@" or not local_part or domain != _ALLOWED_IDENTITY_DOMAIN:
+        return None
+    if any(ord(character) < 33 or ord(character) > 126 for character in email):
+        return None
+    return email
 
 
 def create_app(
@@ -70,12 +84,16 @@ def create_app(
         response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
         return response
 
-    def require_operator(request: Request) -> None:
+    def require_operator(request: Request) -> str:
         if not settings.require_proxy_auth:
-            return
-        value = (request.headers.get(settings.proxy_auth_header) or "").strip()
-        if not value:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="operator authentication required")
+            return "local-development@pitchai.net"
+        email = _normalize_pitchai_email(request.headers.get(settings.proxy_auth_header))
+        if email is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="PitchAI Entra SSO identity required",
+            )
+        return email
 
     @app.get("/healthz")
     async def healthz() -> dict[str, Any]:
@@ -87,11 +105,11 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request) -> HTMLResponse:
-        require_operator(request)
+        actor = require_operator(request)
         return app.state.templates.TemplateResponse(
             request,
             "dashboard.html",
-            {"title": "Codex Capacity"},
+            {"title": "Codex Capacity", "actor": actor},
         )
 
     @app.get("/api/v1/capacity")

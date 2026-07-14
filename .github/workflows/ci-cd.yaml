@@ -3,9 +3,11 @@ name: Service Monitoring Deploy
 on:
   push:
     branches: [main]
-    # Avoid auto-deploys when only workflow files change.
+    # Avoid auto-deploys when only workflow or documentation files change.
     paths-ignore:
       - ".github/workflows/**"
+      - "docs/**"
+      - "README.md"
   workflow_dispatch: {}
 
 concurrency:
@@ -59,6 +61,12 @@ jobs:
             NET_NAME="pitchai-shared"
             IMAGE_SHA="service-monitoring:${{ github.sha }}"
             IMAGE_LATEST="service-monitoring:latest"
+            EVENT_BUS_SECRET="${{ secrets.PITCHAI_MONITORING_EVENT_BUS_SECRET }}"
+
+            if [[ "${#EVENT_BUS_SECRET}" -lt 32 ]]; then
+              echo "Missing or invalid PITCHAI_MONITORING_EVENT_BUS_SECRET"
+              exit 1
+            fi
 
             echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} @ ${{ github.sha }}"
 
@@ -146,6 +154,20 @@ jobs:
               echo "❌ Missing E2E_REGISTRY_MONITOR_TOKEN in $E2E_ENV_FILE"
               exit 1
             fi
+            AFASASK_MONITOR_ENV_FILE="$SECRETS_DIR/afasask-monitor.env"
+            if [[ ! -f "$AFASASK_MONITOR_ENV_FILE" ]]; then
+              afasask_monitor_token="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+              {
+                echo "AFASASK_MONITOR_TOKEN=${afasask_monitor_token}"
+              } >"$AFASASK_MONITOR_ENV_FILE"
+              chmod 600 "$AFASASK_MONITOR_ENV_FILE" || true
+            fi
+            # shellcheck disable=SC1090
+            source "$AFASASK_MONITOR_ENV_FILE"
+            if [[ -z "${AFASASK_MONITOR_TOKEN:-}" ]]; then
+              echo "❌ Missing AFASASK_MONITOR_TOKEN in $AFASASK_MONITOR_ENV_FILE"
+              exit 1
+            fi
 
             echo "🚀 Starting e2e-registry..."
             docker run -d \
@@ -197,22 +219,44 @@ jobs:
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
               -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
               -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
+              -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
+              -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
+              -e PITCHAI_MONITORING_ENVIRONMENT="production" \
+              -e PITCHAI_MONITORING_INSTANCE="pitchai-main" \
+              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
               -e STATE_PATH="/data/state.json" \
               -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
               -e E2E_REGISTRY_MONITOR_TOKEN="${E2E_MONITOR_TOKEN}" \
+              -e AFASASK_MONITOR_TOKEN="${AFASASK_MONITOR_TOKEN}" \
               "$IMAGE_SHA"
 
             echo "⏳ Waiting for startup..."
             sleep 10
 
-            for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME"; do
+            assert_container_stable() {
+              local name="$1"
+              local running restarting restart_count
               running="$(docker inspect "$name" --format '{{.State.Running}}')"
-              if [[ "$running" != "true" ]]; then
-                echo "❌ Container is not running: $name"
+              restarting="$(docker inspect "$name" --format '{{.State.Restarting}}')"
+              restart_count="$(docker inspect "$name" --format '{{.RestartCount}}')"
+              if [[ "$running" != "true" || "$restarting" != "false" || "$restart_count" != "0" ]]; then
+                echo "❌ Container failed stability check: $name"
                 docker logs "$name" --tail 200 || true
                 exit 1
               fi
+            }
+
+            for stability_check in 1 2; do
+              for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME"; do
+                assert_container_stable "$name"
+              done
+              if [[ "$stability_check" == "1" ]]; then
+                sleep 10
+              fi
             done
+
+            docker exec "$APP_NAME" python -c \
+              'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
 
             echo "✅ Containers running"
             docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}"

@@ -27,6 +27,17 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/private":
+            expected = "Bearer secret-token"
+            got = self.headers.get("Authorization") or ""
+            if got != expected:
+                body = json.dumps({"status": "unauthorized"}).encode("utf-8")
+                self._send(401, {"Content-Type": "application/json"}, body)
+                return
+            body = json.dumps({"status": "ok"}).encode("utf-8")
+            self._send(200, {"Content-Type": "application/json"}, body)
+            return
+
         if self.path == "/health":
             payload = {"status": "healthy", "timestamp": "t-1", "runtime_config_version": "v1"}
             body = json.dumps(payload).encode("utf-8")
@@ -114,6 +125,65 @@ async def test_api_contract_checks_ok_and_fail(local_server_base_url: str) -> No
 
 
 @pytest.mark.asyncio
+async def test_api_contract_substitutes_header_env_without_logging_secret(
+    local_server_base_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PRIVATE_MONITOR_TOKEN", "secret-token")
+    checks = [
+        {
+            "name": "private",
+            "path": "/private",
+            "headers": {"Authorization": "Bearer ${PRIVATE_MONITOR_TOKEN}"},
+            "expected_status_codes": [200],
+            "json_paths_equal": {"status": "ok"},
+        }
+    ]
+
+    async with httpx.AsyncClient() as client:
+        res = await run_api_contract_checks(
+            http_client=client,
+            domain="svc",
+            base_url=local_server_base_url,
+            checks=checks,
+            timeout_seconds=2.0,
+        )
+
+    assert res and res[0].ok is True
+    assert "secret-token" not in json.dumps(res[0].details)
+
+
+@pytest.mark.asyncio
+async def test_api_contract_missing_header_env_fails_without_secret_value(
+    local_server_base_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("MISSING_MONITOR_TOKEN", raising=False)
+    checks = [
+        {
+            "name": "private",
+            "path": "/private",
+            "headers": {"Authorization": "Bearer ${MISSING_MONITOR_TOKEN}"},
+            "expected_status_codes": [200],
+            "json_paths_equal": {"status": "ok"},
+        }
+    ]
+
+    async with httpx.AsyncClient() as client:
+        res = await run_api_contract_checks(
+            http_client=client,
+            domain="svc",
+            base_url=local_server_base_url,
+            checks=checks,
+            timeout_seconds=2.0,
+        )
+
+    assert res and res[0].ok is False
+    assert "missing_env_secrets" in (res[0].error or "")
+    assert "Bearer" not in json.dumps(res[0].details)
+
+
+@pytest.mark.asyncio
 async def test_synthetic_transactions_basic_flow(local_server_base_url: str) -> None:
     chromium_path = find_chromium_executable()
     if not chromium_path:
@@ -146,4 +216,3 @@ async def test_synthetic_transactions_basic_flow(local_server_base_url: str) -> 
             assert res and res[0].ok is True
         finally:
             await browser.close()
-

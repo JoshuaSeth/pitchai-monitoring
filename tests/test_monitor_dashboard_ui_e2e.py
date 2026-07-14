@@ -144,7 +144,6 @@ def dashboard_server(tmp_path: Path) -> dict[str, str]:
         public_base_url="",
         monitor_state_path=str(monitor_state),
         monitor_config_path=str(monitor_cfg),
-        dashboard_require_auth=True,
         dashboard_max_points=500,
     )
     app = create_app(settings)
@@ -178,7 +177,7 @@ def dashboard_server(tmp_path: Path) -> dict[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_monitor_dashboard_login_and_renders(dashboard_server: dict[str, str]) -> None:
+async def test_monitor_dashboard_entra_identity_and_renders(dashboard_server: dict[str, str]) -> None:
     chromium_path = find_chromium_executable()
     if not chromium_path:
         pytest.skip("No chromium/chrome available for Playwright")
@@ -186,21 +185,54 @@ async def test_monitor_dashboard_login_and_renders(dashboard_server: dict[str, s
     base_url = dashboard_server["base_url"]
     token = dashboard_server["monitor_token"]
 
+    async with httpx.AsyncClient(base_url=base_url) as client:
+        assert (await client.get("/dashboard")).status_code == 401
+        assert (
+            await client.get(
+                "/dashboard",
+                headers={"X-PitchAI-Email": "operator@example.com"},
+            )
+        ).status_code == 401
+        assert (
+            await client.get(
+                "/dashboard/api/v1/monitoring/summary",
+                headers={"X-PitchAI-Email": "operator@pitchai.net"},
+            )
+        ).status_code == 200
+        assert (
+            await client.get(
+                "/dashboard/api/v1/monitoring/summary",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        ).status_code == 401
+        assert (
+            await client.get(
+                "/api/v1/monitoring/summary",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        ).status_code == 200
+        assert (
+            await client.get(
+                "/api/v1/monitoring/summary",
+                headers={"X-PitchAI-Email": "operator@pitchai.net"},
+            )
+        ).status_code == 401
+        assert (await client.get("/dashboard/login")).status_code == 404
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
             executable_path=chromium_path,
             args=["--no-sandbox", "--disable-dev-shm-usage"],
         )
-        context = await browser.new_context()
+        context = await browser.new_context(
+            extra_http_headers={"X-PitchAI-Email": "operator@pitchai.net"}
+        )
         page = await context.new_page()
         try:
             await page.goto(f"{base_url}/dashboard")
-            await page.wait_for_selector("[data-testid=dash-login-title]")
-            await page.locator("[data-testid=dash-login-key]").fill(token)
-            await page.locator("[data-testid=dash-login-submit]").click()
-
             await page.wait_for_selector("[data-testid=dash-title]")
+            assert await page.locator("[data-testid=operator-identity]").inner_text() == "operator@pitchai.net"
             await page.wait_for_selector("[data-testid=dash-domains-table] tbody tr")
             assert await page.locator("[data-testid=dash-selected-domain]").inner_text() == "a.example"
 
@@ -211,4 +243,3 @@ async def test_monitor_dashboard_login_and_renders(dashboard_server: dict[str, s
         finally:
             await context.close()
             await browser.close()
-
