@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -57,6 +59,34 @@ def _as_list(value: Any) -> list[Any]:
     return [value]
 
 
+_ENV_REF_RE = re.compile(r"\$\{([A-Z0-9_]{1,64})\}")
+
+
+def _substitute_env_refs(text: str) -> str:
+    """Replace ${VAR} references without ever logging the substituted value."""
+    s = str(text or "")
+    if "${" not in s:
+        return s
+    missing: list[str] = []
+
+    def _replace(match: re.Match[str]) -> str:
+        key = match.group(1)
+        value = os.getenv(key)
+        if value is None:
+            missing.append(key)
+            return ""
+        return value
+
+    out = _ENV_REF_RE.sub(_replace, s)
+    if missing:
+        raise ValueError(f"missing_env_secrets: {sorted(set(missing))}")
+    return out
+
+
+def _headers_with_env(headers: dict[Any, Any]) -> dict[str, str]:
+    return {str(key): _substitute_env_refs(str(value)) for key, value in headers.items()}
+
+
 async def run_api_contract_checks(
     *,
     http_client: httpx.AsyncClient,
@@ -80,6 +110,7 @@ async def run_api_contract_checks(
             if not path.startswith("/"):
                 path = "/" + path if path else ""
             url = urljoin(base.rstrip("/") + "/", path.lstrip("/"))
+        url = _substitute_env_refs(url)
         expected_statuses = [int(x) for x in _as_list(raw.get("expected_status_codes") or raw.get("expected_status") or [200])]
         expected_ct = str(raw.get("expected_content_type_contains") or "application/json").strip() or None
         json_required = [str(x) for x in _as_list(raw.get("json_paths_required")) if str(x or "").strip()]
@@ -92,6 +123,8 @@ async def run_api_contract_checks(
 
         req_json = raw.get("body_json") if isinstance(raw.get("body_json"), (dict, list)) else None
         req_data = raw.get("body_text") if isinstance(raw.get("body_text"), str) else None
+        if isinstance(req_data, str):
+            req_data = _substitute_env_refs(req_data)
         headers = raw.get("headers") if isinstance(raw.get("headers"), dict) else {}
 
         started = time.perf_counter()
@@ -107,7 +140,7 @@ async def run_api_contract_checks(
                 url,
                 json=req_json,
                 content=req_data.encode("utf-8") if isinstance(req_data, str) else None,
-                headers={str(k): str(v) for k, v in headers.items()},
+                headers=_headers_with_env(headers),
                 timeout=float(timeout_seconds),
                 follow_redirects=True,
             )
@@ -181,4 +214,3 @@ async def run_api_contract_checks(
         )
 
     return results
-

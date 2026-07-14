@@ -53,6 +53,7 @@ from domain_checks.dispatch_client import (
     run_ui_url,
     wait_for_terminal_status,
 )
+from domain_checks.event_bus import EventBusOutbox, load_event_bus_config
 from domain_checks.telegram import (
     TelegramConfig,
     redact_telegram_response,
@@ -890,7 +891,7 @@ def _coerce_optional_float(value: Any) -> float | None:
 
 def _load_monitor_state(path: Path) -> dict[str, Any]:
     default_state = {
-        "version": 5,
+        "version": 6,
         # "observed": raw per-cycle observed results (can include transient flakes).
         # "effective": debounced effective status aligned with DOWN alerting.
         "history_ok_mode": "effective",
@@ -903,6 +904,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
         "dispatch_history": [],
         "dispatch_last": {},
         "events": [],
+        "event_bus_outbox": [],
         # Last host snapshot for visibility (dashboard/heartbeats).
         "host_last_snapshot": {},
         # Browser health state (Playwright infra stability).
@@ -1032,6 +1034,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     if isinstance(dispatch_last, dict):
         state["dispatch_last"] = dispatch_last
     state["events"] = _coerce_list_of_dicts(raw.get("events"), max_items=5000)
+    state["event_bus_outbox"] = raw.get("event_bus_outbox", [])
 
     host_last_snapshot = raw.get("host_last_snapshot")
     if isinstance(host_last_snapshot, dict):
@@ -2797,6 +2800,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
         raise RuntimeError("Missing TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID env vars")
 
     telegram_cfg = TelegramConfig(bot_token=bot_token, chat_id=chat_id)
+    event_bus_config = load_event_bus_config()
+    if event_bus_config is None:
+        LOGGER.warning("PitchAI Events Bus delivery is not configured")
+    else:
+        LOGGER.info(
+            "PitchAI Events Bus delivery configured environment=%s instance=%s",
+            event_bus_config.environment,
+            event_bus_config.instance,
+        )
 
     dispatch_base_url = os.getenv("PITCHAI_DISPATCH_BASE_URL", "https://dispatch.pitchai.net").strip()
     dispatch_token = os.getenv("PITCHAI_DISPATCH_TOKEN")
@@ -3249,6 +3261,13 @@ async def run_loop(config_path: Path, once: bool) -> int:
             meta_fail_streak = _coerce_int(meta_state.get("fail_streak"), default=0)
             meta_success_streak = _coerce_int(meta_state.get("success_streak"), default=0)
             state_write_fail_streak = _coerce_int(meta_state.get("state_write_fail_streak"), default=0)
+    event_bus_outbox: EventBusOutbox | None = None
+    if event_bus_config is not None:
+        raw_outbox = disk_state.get("event_bus_outbox", [])
+        if not isinstance(raw_outbox, list):
+            raise RuntimeError("Persisted PitchAI Events Bus outbox must be a list")
+        event_bus_outbox = EventBusOutbox(event_bus_config, entries=raw_outbox)
+        LOGGER.info("Loaded PitchAI Events Bus outbox pending=%s", event_bus_outbox.pending_count)
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
     check_semaphore = asyncio.Semaphore(check_concurrency)
     browser_semaphore = asyncio.Semaphore(browser_concurrency)
@@ -3272,15 +3291,30 @@ async def run_loop(config_path: Path, once: bool) -> int:
     }
 
     def _append_event(kind: str, *, ts: float | None = None, **fields: Any) -> None:
-        try:
-            entry = {"ts": float(ts) if ts is not None else time.time(), "kind": str(kind)}
-            for k, v in fields.items():
-                entry[str(k)] = v
-            events.append(entry)
-            if len(events) > 10_000:
-                del events[: max(0, len(events) - 8000)]
-        except Exception:
-            pass
+        nonlocal state_write_fail_streak
+        entry = {"ts": float(ts) if ts is not None else time.time(), "kind": str(kind)}
+        for k, v in fields.items():
+            entry[str(k)] = v
+        if event_bus_outbox is not None:
+            event_bus_outbox.enqueue(
+                str(kind),
+                occurred_at=float(entry["ts"]),
+                details={str(k): v for k, v in fields.items()},
+            )
+        events.append(entry)
+        if len(events) > 10_000:
+            del events[: max(0, len(events) - 8000)]
+        if event_bus_outbox is not None and state_path is not None:
+            try:
+                _write_state_atomic(state_path, _build_state_payload())
+                state_write_fail_streak = 0
+            except Exception as exc:
+                state_write_fail_streak = int(state_write_fail_streak) + 1
+                LOGGER.warning(
+                    "Failed to persist PitchAI Events Bus outbox path=%s error=%s",
+                    state_path,
+                    exc,
+                )
 
     def _append_signal_sample(name: str, sample: list[Any]) -> None:
         key = str(name or "").strip()
@@ -3327,7 +3361,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
         dispatch_history_capped = dispatch_history[-500:]
         events_capped = events[-2000:]
         return {
-            "version": 5,
+            "version": 6,
             "history_ok_mode": "effective",
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "last_ok": last_ok,
@@ -3338,6 +3372,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
             "dispatch_history": dispatch_history_capped,
             "dispatch_last": dispatch_last,
             "events": events_capped,
+            "event_bus_outbox": event_bus_outbox.to_state() if event_bus_outbox else [],
             "host_last_snapshot": host_last_snapshot,
             "browser_degraded_active": bool(monitor_state.get("browser_degraded_active", False)),
             "browser_degraded_first_seen_ts": float(monitor_state.get("browser_degraded_first_seen_ts") or 0.0),
@@ -3420,7 +3455,34 @@ async def run_loop(config_path: Path, once: bool) -> int:
             },
         }
 
+    async def _flush_event_bus(http_client: httpx.AsyncClient) -> None:
+        if event_bus_outbox is None or event_bus_outbox.pending_count == 0:
+            return
+        attempts = await event_bus_outbox.flush(http_client)
+        for attempt in attempts:
+            log = LOGGER.info if attempt.success else LOGGER.warning
+            log(
+                "PitchAI Events Bus delivery success=%s delivery_id=%s status=%s "
+                "event_id=%s error=%s pending=%s",
+                attempt.success,
+                attempt.delivery_id,
+                attempt.status_code,
+                attempt.event_id,
+                attempt.error,
+                event_bus_outbox.pending_count,
+            )
+
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI Service Monitoring Bot"}) as http_client:
+        if event_bus_outbox is not None:
+            _append_event(
+                "service_started",
+                ts=time.time(),
+                interval_seconds=int(interval_seconds),
+                monitored_domains=int(len(all_domains) - len(disabled_domains)),
+            )
+            await _flush_event_bus(http_client)
+            if state_path is not None:
+                _write_state_atomic(state_path, _build_state_payload())
         async with async_playwright() as p:
             browser: Browser | None = None
 
@@ -4397,6 +4459,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                                 if alerted_down:
                                     failures = [r for r in results if not r.ok]
+                                    _append_event(
+                                        "api_contract_degraded",
+                                        ts=float(cycle_started),
+                                        domain=domain,
+                                        failures=int(len(failures)),
+                                    )
                                     api_failures_to_alert.extend(failures)
                                     api_failures_for_dispatch.extend(failures)
                                     msg = _build_api_contract_alert_message(
@@ -4412,7 +4480,14 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         redact_telegram_response(resps[-1] if resps else {}),
                                     )
                                 else:
-                                    if (not prev_effective) and bool(next_effective) and api_notify_on_recovery:
+                                    recovered = (not prev_effective) and bool(next_effective)
+                                    if recovered:
+                                        _append_event(
+                                            "api_contract_recovered",
+                                            ts=float(cycle_started),
+                                            domain=domain,
+                                        )
+                                    if recovered and api_notify_on_recovery:
                                         ok, resp = await send_telegram_message(
                                             http_client,
                                             telegram_cfg,
@@ -4731,6 +4806,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             synthetic_success_streak[spec.domain] = next_success
 
                             if alerted_down and real_failures:
+                                _append_event(
+                                    "synthetic_degraded",
+                                    ts=float(cycle_started),
+                                    domain=spec.domain,
+                                    failures=int(len(real_failures)),
+                                )
                                 msg = _build_synthetic_alert_message(
                                     failures=real_failures,
                                     down_after_failures=syn_down_after_failures,
@@ -4746,6 +4827,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 syn_failures_for_dispatch.extend(real_failures)
                             else:
                                 recovered = (not prev_effective) and bool(next_effective)
+                                if recovered:
+                                    _append_event(
+                                        "synthetic_recovered",
+                                        ts=float(cycle_started),
+                                        domain=spec.domain,
+                                    )
                                 if recovered and syn_notify_on_recovery:
                                     ok, resp = await send_telegram_message(
                                         http_client,
@@ -4862,6 +4949,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             web_vitals_success_streak[spec.domain] = next_success
 
                             if alerted_down and (not evaluated.ok):
+                                _append_event(
+                                    "web_vitals_degraded",
+                                    ts=float(cycle_started),
+                                    domain=spec.domain,
+                                    reason=str(evaluated.error or "threshold_exceeded")[:500],
+                                )
                                 msg = _build_web_vitals_alert_message(
                                     failures=[evaluated],
                                     thresholds=thresholds,
@@ -4878,6 +4971,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 wv_failures_for_dispatch.append(evaluated)
                             else:
                                 recovered = (not prev_effective) and bool(next_effective)
+                                if recovered:
+                                    _append_event(
+                                        "web_vitals_recovered",
+                                        ts=float(cycle_started),
+                                        domain=spec.domain,
+                                    )
                                 if recovered and wv_notify_on_recovery:
                                     ok, resp = await send_telegram_message(
                                         http_client,
@@ -5069,6 +5168,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     except Exception:
                         LOGGER.exception("Failed to prune signal history")
 
+                    await _flush_event_bus(http_client)
+
                     if state_path is not None:
                         try:
                             _write_state_atomic(state_path, _build_state_payload())
@@ -5178,6 +5279,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 "Meta recovery notice sent_ok=%s telegram=%s",
                                 ok,
                                 redact_telegram_response(resp),
+                            )
+
+                    await _flush_event_bus(http_client)
+                    if state_path is not None:
+                        try:
+                            _write_state_atomic(state_path, _build_state_payload())
+                            state_write_fail_streak = 0
+                        except Exception as exc:
+                            state_write_fail_streak = int(state_write_fail_streak) + 1
+                            LOGGER.warning(
+                                "Failed to write post-meta state file path=%s error=%s",
+                                state_path,
+                                exc,
                             )
 
                     sleep_for = max(0.0, interval_seconds - elapsed)
