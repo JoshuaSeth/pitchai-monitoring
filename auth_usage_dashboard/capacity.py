@@ -52,6 +52,7 @@ def parse_account(
     label = _string(metadata.get("label")) or "Unlabeled account"
     email = _string(usage.get("email")) or label
     enabled = metadata.get("enabled", True) is not False
+    routing_preferred = metadata.get("prefer_for_all_clients") is True
     availability = _string(state.get("availability")) or "unknown"
     named_windows = _named_rate_limit_windows(rate_limit)
     five_hour = _parse_window(
@@ -155,6 +156,7 @@ def parse_account(
         "label": label,
         "email": email,
         "enabled": enabled,
+        "routing_preferred": routing_preferred,
         "plan_type": _string(usage.get("plan_type")),
         "status": status,
         "status_reason": reason,
