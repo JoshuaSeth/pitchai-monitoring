@@ -231,6 +231,11 @@
     if (account.email && account.email !== account.label) {
       wrapper.appendChild(element("div", "account-alias", account.email));
     }
+    if (account.routing_preferred === true) {
+      const routingFocus = element("span", "routing-focus", "Routing focus");
+      routingFocus.title = "Preferred across broker requesters while this account remains eligible";
+      wrapper.appendChild(routingFocus);
+    }
     return wrapper;
   }
 

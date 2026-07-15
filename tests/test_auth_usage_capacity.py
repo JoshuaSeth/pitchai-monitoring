@@ -24,6 +24,7 @@ def _account(
     last_probe: datetime | None = None,
     credits: object | None = None,
     analytics: object | None = None,
+    routing_preferred: bool = False,
 ) -> dict[str, object]:
     five_reset = five_reset or NOW + timedelta(hours=3)
     weekly_reset = weekly_reset or NOW + timedelta(days=6)
@@ -63,6 +64,7 @@ def _account(
             "account_id": f"id-{label}",
             "label": label,
             "enabled": enabled,
+            "prefer_for_all_clients": routing_preferred,
             "broker_secret": "must-not-escape",
         },
         "state": state,
@@ -114,6 +116,15 @@ def test_account_status_classification(
     account = _parse(raw)
     assert account["status"] == status
     assert account["selectable_now"] is selectable
+
+
+def test_routing_preference_is_exposed_without_broker_secrets() -> None:
+    account = _parse(_account("preferred@example.com", routing_preferred=True))
+
+    assert account["routing_preferred"] is True
+    serialized = json.dumps(account)
+    assert "broker_secret" not in serialized
+    assert "must-not-escape" not in serialized
 
 
 def test_expired_provider_reset_is_unknown_until_fresh_probe() -> None:

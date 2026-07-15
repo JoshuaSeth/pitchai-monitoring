@@ -77,6 +77,8 @@ def _fixture_account(
             "account_id": f"internal-{offset_minutes}",
             "label": label,
             "enabled": True,
+            "prefer_for_all_clients": label
+            == "svxjvmk78b@privaterelay.appleid.com",
         },
         "state": {
             "availability": availability,
@@ -276,6 +278,13 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(
                 in await onboarding_row.locator("td").nth(3).inner_text()
             )
             assert "68% left" in await onboarding_row.locator("td").nth(4).inner_text()
+            relay_row = desktop.locator(
+                "[data-testid=account-table] tbody tr",
+                has_text="svxjvmk78b@privaterelay.appleid.com",
+            )
+            assert "routing focus" in (
+                await relay_row.locator("td").first.inner_text()
+            ).lower()
             assert (
                 "accounts are ready"
                 in (await desktop.locator("#decision-title").inner_text()).lower()
@@ -332,6 +341,11 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(
             assert "Provider does not expose 5h" in await onboarding_card.inner_text()
             assert "No 5h reset exposed" in await onboarding_card.inner_text()
             assert "68% left" in await onboarding_card.inner_text()
+            relay_card = mobile.locator(
+                "#mobile-account-list .mobile-account",
+                has_text="svxjvmk78b@privaterelay.appleid.com",
+            )
+            assert "routing focus" in (await relay_card.inner_text()).lower()
             assert await mobile.locator("#runout-grid .runout-cell").count() == 3
             assert await mobile.locator("#usage-chart svg .chart-line").count() == 1
             assert await mobile.locator(".table-shell").is_hidden()

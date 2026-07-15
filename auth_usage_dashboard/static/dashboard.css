@@ -1002,6 +1002,21 @@ h2 {
   line-height: 1.35;
 }
 
+.routing-focus {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 7px;
+  padding: 3px 6px;
+  border: 1px solid #a9c9bd;
+  border-radius: 3px;
+  background: #eef8f4;
+  color: #16644e;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
