@@ -104,7 +104,8 @@ run_dashboard() {
 
 check_dashboard() {
   local port="$1"
-  local attempts=60
+  # Production startup includes live broker probes and can legitimately take over 15s.
+  local attempts=240
   local output
   while (( attempts > 0 )); do
     if output="$(curl --fail --silent --show-error --max-time 3 \
