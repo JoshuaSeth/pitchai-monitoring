@@ -6,8 +6,13 @@ on:
     # Avoid auto-deploys when only workflow or documentation files change.
     paths-ignore:
       - ".github/workflows/**"
+      - ".semgrep.yml"
+      - ".semgrepignore"
       - "docs/**"
+      - "pyproject.toml"
       - "README.md"
+      - "scripts/**"
+      - "uv.lock"
   workflow_dispatch: {}
 
 concurrency:
