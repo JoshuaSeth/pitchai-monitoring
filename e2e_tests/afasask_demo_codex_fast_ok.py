@@ -7,13 +7,25 @@ import time
 import uuid
 from pathlib import Path
 
+_FAILURE_MARKERS = (
+    "afasask_demo_canary_fail",
+    "❌ mislukt",
+    "codex-modus",
+    "usage_limit_reached",
+    "hit your usage limit",
+    "http 429",
+    "refresh_token",
+    "auth failure",
+    "auth invalid",
+    "please log out",
+    "backend",
+    "geen tool-calls",
+)
+
 
 async def run(page, base_url, artifacts_dir):
     conversation_id = f"afasask-demo-monitor-codex-fast-ok-{uuid.uuid4().hex[:12]}"
-    url = (
-        base_url.rstrip("/")
-        + f"/chat/demo/{conversation_id}?floating=false&reload=true&mode=codex&intensity=fast"
-    )
+    url = base_url.rstrip("/") + f"/chat/demo/{conversation_id}?floating=false&reload=true&mode=codex&intensity=fast"
     await page.goto(url, wait_until="domcontentloaded")
     await page.wait_for_selector("[data-testid='chat-input']", timeout=30_000)
     await page.wait_for_selector("[data-testid='codex-intensity-selector']", timeout=30_000)
@@ -33,47 +45,28 @@ async def run(page, base_url, artifacts_dir):
 
     started = time.time()
     await page.wait_for_function(
-        """(assistantCountBefore) => {
+        """(state) => {
           const articles = Array.from(document.querySelectorAll('article[data-role="assistant"]'));
-          if (articles.length <= assistantCountBefore) return false;
+          if (articles.length <= state.assistantCountBefore) return false;
           const text = articles.length ? (articles[articles.length - 1].textContent || '') : '';
           const lower = text.toLowerCase();
           return (lower.includes('klaar')
               && lower.includes('afasask_demo_canary_ok')
               && /31[.,]?465/.test(text))
-            || lower.includes('❌ mislukt')
-            || lower.includes('codex-modus')
-            || lower.includes('usage_limit_reached')
-            || lower.includes('hit your usage limit')
-            || lower.includes('http 429')
-            || lower.includes('refresh_token')
-            || lower.includes('auth failure')
-            || lower.includes('auth invalid')
-            || lower.includes('backend')
-            || lower.includes('geen tool-calls');
+            || state.failureMarkers.some((marker) => lower.includes(marker));
         }""",
-        arg=assistant_count_before,
+        arg={
+            "assistantCountBefore": assistant_count_before,
+            "failureMarkers": list(_FAILURE_MARKERS),
+        },
         timeout=240_000,
     )
 
     assistant_text = await page.locator('article[data-role="assistant"]').last.inner_text(timeout=10_000)
     lower = assistant_text.lower()
-    failure_markers = [
-        "❌ mislukt",
-        "codex-modus te voltooien",
-        "usage_limit_reached",
-        "hit your usage limit",
-        "http 429",
-        "refresh_token",
-        "please log out",
-        "backend problem",
-        "geen tool-calls",
-    ]
-    for marker in failure_markers:
+    for marker in _FAILURE_MARKERS:
         assert marker not in lower, f"afasask_demo_codex_canary_failed_marker: {marker}"
-    assert "afasask_demo_canary_ok" in lower, (
-        f"afasask_demo_codex_canary_wrong_response: {assistant_text[:500]!r}"
-    )
+    assert "afasask_demo_canary_ok" in lower, f"afasask_demo_codex_canary_wrong_response: {assistant_text[:500]!r}"
     assert re.search(r"31[.,]?465", assistant_text), (
         f"afasask_demo_codex_canary_wrong_row_count: {assistant_text[:500]!r}"
     )
