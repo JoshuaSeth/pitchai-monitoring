@@ -57,3 +57,13 @@ def test_afasask_domains_are_enabled_and_check_codex_shells() -> None:
     assert any(item.selector == "#chat-input" for item in demo_spec.required_selectors_all)
     assert any(item.selector == ".chat-submit" for item in demo_spec.required_selectors_all)
     assert any(check.get("name") == "codex_no_quota_readiness" for check in demo_spec.api_contract_checks)
+
+
+def test_afasask_demo_canary_fails_fast_on_explicit_data_failure() -> None:
+    """Keep rendered canary failures out of the generic 240-second timeout path."""
+    source_path = Path(__file__).resolve().parents[1] / "e2e_tests" / "afasask_demo_codex_fast_ok.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert '"afasask_demo_canary_fail"' in source
+    assert "state.failureMarkers.some" in source
+    assert "for marker in _FAILURE_MARKERS" in source
