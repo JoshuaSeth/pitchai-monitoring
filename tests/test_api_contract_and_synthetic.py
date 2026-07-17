@@ -125,6 +125,35 @@ async def test_api_contract_checks_ok_and_fail(local_server_base_url: str) -> No
 
 
 @pytest.mark.asyncio
+async def test_api_contract_paths_resolve_from_origin_when_page_url_has_a_path(
+    local_server_base_url: str,
+) -> None:
+    page_url = f"{local_server_base_url}/chat/demo/start?floating=false&mode=codex"
+    checks = [
+        {
+            "name": "health",
+            "path": "/health",
+            "expected_status_codes": [200],
+            "expected_content_type_contains": "application/json",
+            "json_paths_equal": {"status": "healthy"},
+        }
+    ]
+
+    async with httpx.AsyncClient() as client:
+        results = await run_api_contract_checks(
+            http_client=client,
+            domain="svc",
+            base_url=page_url,
+            checks=checks,
+            timeout_seconds=2.0,
+        )
+
+    assert results and results[0].ok is True
+    assert results[0].url == f"{local_server_base_url}/health"
+    assert results[0].details["final_url"] == f"{local_server_base_url}/health"
+
+
+@pytest.mark.asyncio
 async def test_api_contract_substitutes_header_env_without_logging_secret(
     local_server_base_url: str,
     monkeypatch: pytest.MonkeyPatch,
