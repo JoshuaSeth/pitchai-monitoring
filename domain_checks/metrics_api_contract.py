@@ -109,7 +109,7 @@ async def run_api_contract_checks(
         if not url:
             if not path.startswith("/"):
                 path = "/" + path if path else ""
-            url = urljoin(base.rstrip("/") + "/", path.lstrip("/"))
+            url = urljoin(base.rstrip("/") + "/", path)
         url = _substitute_env_refs(url)
         expected_statuses = [int(x) for x in _as_list(raw.get("expected_status_codes") or raw.get("expected_status") or [200])]
         expected_ct = str(raw.get("expected_content_type_contains") or "application/json").strip() or None
