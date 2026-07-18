@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -24,6 +25,11 @@ LOGGER = logging.getLogger("e2e-runner")
 
 RESULT_PREFIX = "E2E_RESULT_JSON="
 _RESULT_LINE_RE = re.compile(r"^E2E_RESULT_JSON=(\{.*\})\s*$")
+_AFASASK_DEMO_TEST_ID = "2a267abf-42a8-47dc-9ab3-549acdf7f129"
+_AFASASK_DEMO_TENANT_ID = "7b9ba3e7-d4f1-40b7-9124-27216975d091"
+_AFASASK_DEMO_TEST_NAME = "afasask_demo_codex_fast_ok"
+_AFASASK_DEMO_BASE_URL = "https://demo.afasask.pitchai.net"
+_AFASASK_DEMO_CREDENTIAL_KEYS = ("AFASASK_DEMO_USERNAME", "AFASASK_DEMO_PASSWORD")
 
 
 def _env_int(name: str, default: int) -> int:
@@ -58,6 +64,21 @@ class RunnerConfig:
     concurrency: int
     trace_on_failure: bool
     code_exec_mode: str  # local|docker (docker requires /var/run/docker.sock)
+
+
+@dataclass(frozen=True)
+class _CodeTestInvocation:
+    kind: str
+    test_file: Path
+    base_url: str
+    artifacts_dir: Path
+    timeout_seconds: float
+    trace_on_failure: bool
+    test_id: str
+    tenant_id: str
+    test_name: str
+    source_filename: str | None
+    source_sha256: str | None
 
 
 def load_config() -> RunnerConfig:
@@ -171,7 +192,15 @@ def _build_sandbox_env(*, base_url: str, artifacts_dir: str, extra: dict[str, st
     """
     Minimize secret leakage: do not inherit the runner container's full env.
     """
-    keep_keys = {"PATH", "LANG", "TZ", "CHROMIUM_PATH", "NODE_PATH", "PUPPETEER_EXECUTABLE_PATH", "PUPPETEER_SKIP_DOWNLOAD"}
+    keep_keys = {
+        "PATH",
+        "LANG",
+        "TZ",
+        "CHROMIUM_PATH",
+        "NODE_PATH",
+        "PUPPETEER_EXECUTABLE_PATH",
+        "PUPPETEER_SKIP_DOWNLOAD",
+    }
     env: dict[str, str] = {}
     for k, v in os.environ.items():
         if k in keep_keys or k.startswith("LC_") or k.startswith("PUPPETEER_"):
@@ -185,54 +214,87 @@ def _build_sandbox_env(*, base_url: str, artifacts_dir: str, extra: dict[str, st
     return env
 
 
+def _trusted_code_test_env(
+    *,
+    cfg: RunnerConfig,
+    invocation: _CodeTestInvocation,
+) -> dict[str, str]:
+    """Return narrowly scoped secrets only for the registered AFASAsk demo canary."""
+    if (
+        invocation.test_id != _AFASASK_DEMO_TEST_ID
+        or invocation.tenant_id != _AFASASK_DEMO_TENANT_ID
+        or invocation.test_name != _AFASASK_DEMO_TEST_NAME
+        or invocation.base_url.rstrip("/") != _AFASASK_DEMO_BASE_URL
+    ):
+        return {}
+
+    resolved_file = invocation.test_file.resolve()
+    expected_parent = Path(cfg.tests_dir).resolve() / invocation.tenant_id / invocation.test_id
+    if resolved_file.parent != expected_parent or resolved_file.name != invocation.source_filename:
+        return {}
+    expected_sha = (invocation.source_sha256 or "").strip().lower()
+    if not expected_sha or hashlib.sha256(resolved_file.read_bytes()).hexdigest() != expected_sha:
+        return {}
+
+    trusted_env: dict[str, str] = {}
+    for key in _AFASASK_DEMO_CREDENTIAL_KEYS:
+        value = os.getenv(key) or ""
+        if value:
+            trusted_env[key] = value
+    return trusted_env
+
+
 async def _run_code_local(
     *,
     cfg: RunnerConfig,
-    kind: str,
-    test_file: Path,
-    base_url: str,
-    artifacts_dir: Path,
-    timeout_seconds: float,
-    trace_on_failure: bool,
+    invocation: _CodeTestInvocation,
 ) -> tuple[dict[str, Any] | None, str]:
     """
     Execute code tests as separate local processes (still isolated from runner env).
     Returns (parsed_result_json, combined_output).
     """
     cmd: list[str]
-    if kind == "playwright_python":
+    if invocation.kind == "playwright_python":
         cmd = [
             sys.executable,
             "-m",
             "e2e_sandbox.playwright_python",
             "--test-file",
-            str(test_file),
+            str(invocation.test_file),
             "--base-url",
-            str(base_url),
+            str(invocation.base_url),
             "--artifacts-dir",
-            str(artifacts_dir),
+            str(invocation.artifacts_dir),
             "--timeout-seconds",
-            str(timeout_seconds),
+            str(invocation.timeout_seconds),
         ]
-        if trace_on_failure:
+        if invocation.trace_on_failure:
             cmd.append("--trace-on-failure")
-    elif kind == "puppeteer_js":
+    elif invocation.kind == "puppeteer_js":
         cmd = [
             "node",
             "/app/e2e_sandbox/puppeteer_js_runner.js",
             "--test-file",
-            str(test_file),
+            str(invocation.test_file),
             "--base-url",
-            str(base_url),
+            str(invocation.base_url),
             "--artifacts-dir",
-            str(artifacts_dir),
+            str(invocation.artifacts_dir),
             "--timeout-seconds",
-            str(timeout_seconds),
+            str(invocation.timeout_seconds),
         ]
     else:
-        raise RuntimeError(f"unsupported_code_kind: {kind}")
+        raise RuntimeError(f"unsupported_code_kind: {invocation.kind}")
 
-    env = _build_sandbox_env(base_url=base_url, artifacts_dir=str(artifacts_dir))
+    trusted_env = _trusted_code_test_env(
+        cfg=cfg,
+        invocation=invocation,
+    )
+    env = _build_sandbox_env(
+        base_url=invocation.base_url,
+        artifacts_dir=str(invocation.artifacts_dir),
+        extra=trusted_env,
+    )
 
     proc = await asyncio.create_subprocess_exec(
         *cmd,
@@ -241,7 +303,9 @@ async def _run_code_local(
         env=env,
     )
     try:
-        out_b, err_b = await asyncio.wait_for(proc.communicate(), timeout=max(5.0, float(timeout_seconds) + 15.0))
+        out_b, err_b = await asyncio.wait_for(
+            proc.communicate(), timeout=max(5.0, float(invocation.timeout_seconds) + 15.0)
+        )
     except Exception:
         try:
             proc.kill()
@@ -256,15 +320,20 @@ async def _run_code_local(
     return parsed, combined
 
 
-async def _run_one_job(browser: Browser | None, cfg: RunnerConfig, client: httpx.AsyncClient, job: dict[str, Any]) -> None:
+async def _run_one_job(
+    browser: Browser | None, cfg: RunnerConfig, client: httpx.AsyncClient, job: dict[str, Any]
+) -> None:
     run_id = str(job.get("run_id") or "").strip()
     test_id = str(job.get("test_id") or "").strip()
     tenant_id = str(job.get("tenant_id") or "").strip()
+    test_name = str(job.get("test_name") or "").strip()
     base_url = str(job.get("base_url") or "").strip()
     timeout_seconds = float(job.get("timeout_seconds") or 45.0)
     test_kind = str(job.get("test_kind") or "stepflow").strip().lower() or "stepflow"
     definition = job.get("definition")
     source_relpath = str(job.get("source_relpath") or "").strip() or None
+    source_filename = str(job.get("source_filename") or "").strip() or None
+    source_sha256 = str(job.get("source_sha256") or "").strip() or None
 
     started_at_ts = time.time()
     artifacts: dict[str, Any] = {}
@@ -355,14 +424,22 @@ async def _run_one_job(browser: Browser | None, cfg: RunnerConfig, client: httpx
                     error_kind = "source_not_found"
                     error_message = f"missing_file: {test_file}"
                 else:
-                    parsed, combined = await _run_code_local(
-                        cfg=cfg,
+                    invocation = _CodeTestInvocation(
                         kind=test_kind,
                         test_file=test_file,
                         base_url=base_url,
                         artifacts_dir=out_dir,
                         timeout_seconds=timeout_seconds,
                         trace_on_failure=bool(cfg.trace_on_failure),
+                        test_id=test_id,
+                        tenant_id=tenant_id,
+                        test_name=test_name,
+                        source_filename=source_filename,
+                        source_sha256=source_sha256,
+                    )
+                    parsed, combined = await _run_code_local(
+                        cfg=cfg,
+                        invocation=invocation,
                     )
                     # Always persist runner stdout/stderr for debugging.
                     try:
@@ -464,7 +541,9 @@ async def run_loop(cfg: RunnerConfig) -> int:
                     backoff = min(120.0, 2.0 * (2 ** min(launch_fail_count, 6)))
                     launch_next_try_ts = now_ts + backoff
                     browser = None
-                    LOGGER.warning("Chromium launch failed; backoff_seconds=%s fail_count=%s", backoff, launch_fail_count)
+                    LOGGER.warning(
+                        "Chromium launch failed; backoff_seconds=%s fail_count=%s", backoff, launch_fail_count
+                    )
                     return None
 
             try:

@@ -27,7 +27,7 @@ def test_all_config_domains_have_check_specs() -> None:
         assert has_any_assertion, f"{spec.domain} has no browser assertions"
 
 
-def test_afasask_domains_are_enabled_and_check_codex_shells() -> None:
+def test_afasask_domains_are_enabled_and_check_expected_access_surfaces() -> None:
     config_path = Path(__file__).resolve().parents[1] / "domain_checks" / "config.yaml"
     config = load_config(config_path)
     domains = config.get("domains")
@@ -54,8 +54,13 @@ def test_afasask_domains_are_enabled_and_check_codex_shells() -> None:
     demo_spec = load_domain_spec(demo_entry)
     assert "mode=codex" in demo_spec.url
     assert "intensity=fast" in demo_spec.url
-    assert any(item.selector == "#chat-input" for item in demo_spec.required_selectors_all)
-    assert any(item.selector == ".chat-submit" for item in demo_spec.required_selectors_all)
+    assert any("login-admin" in item.selector for item in demo_spec.required_selectors_all)
+    assert not any(item.selector == "#chat-input" for item in demo_spec.required_selectors_all)
+    assert any(
+        step.get("type") == "expect_url_contains" and step.get("value") == "/login-page"
+        for transaction in demo_spec.synthetic_transactions
+        for step in transaction.get("steps", [])
+    )
     assert any(check.get("name") == "codex_no_quota_readiness" for check in demo_spec.api_contract_checks)
 
 

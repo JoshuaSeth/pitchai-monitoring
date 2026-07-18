@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import base64
+import os
 import re
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import quote
 
 _FAILURE_MARKERS = (
     "afasask_demo_canary_fail",
@@ -24,9 +27,25 @@ _FAILURE_MARKERS = (
 
 
 async def run(page, base_url, artifacts_dir):
+    username = (os.getenv("AFASASK_DEMO_USERNAME") or "").strip()
+    password = os.getenv("AFASASK_DEMO_PASSWORD") or ""
+    assert username, "missing AFASASK_DEMO_USERNAME"
+    assert password, "missing AFASASK_DEMO_PASSWORD"
+
     conversation_id = f"afasask-demo-monitor-codex-fast-ok-{uuid.uuid4().hex[:12]}"
-    url = base_url.rstrip("/") + f"/chat/demo/{conversation_id}?floating=false&reload=true&mode=codex&intensity=fast"
+    path = f"/chat/demo/{conversation_id}?floating=false&reload=true&mode=codex&intensity=fast"
+    url = base_url.rstrip("/") + path
+    basic_token = base64.b64encode(f"{username}:{password}".encode()).decode("ascii")
+    login_url = base_url.rstrip("/") + f"/login-admin?next={quote(path, safe='')}"
+    login_response = await page.context.request.get(
+        login_url,
+        headers={"Authorization": f"Basic {basic_token}"},
+        max_redirects=0,
+    )
+    assert login_response.status in {302, 307}, f"demo_login_failed: status={login_response.status}"
+
     await page.goto(url, wait_until="domcontentloaded")
+    assert "/login-page" not in page.url, "demo_login_session_not_applied"
     await page.wait_for_selector("[data-testid='chat-input']", timeout=30_000)
     await page.wait_for_selector("[data-testid='codex-intensity-selector']", timeout=30_000)
 
