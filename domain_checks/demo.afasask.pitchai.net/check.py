@@ -31,6 +31,8 @@ CHECK = {
                 "prompt_submitted": False,
                 "generation_started": False,
                 "afasask.temp_codex_home_materialized": True,
+                "afasask.broker_concurrent_sessions_nonblocking": True,
+                "afasask.broker_concurrent_session_count": 2,
                 "broker_canary.status": "ok",
                 "broker_canary.response.status": "ok",
             },
