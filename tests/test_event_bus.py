@@ -328,3 +328,14 @@ def test_production_workflow_provides_authenticated_event_bus_configuration():
     assert "load_event_bus_config() is not None" in workflow
     assert '"docs/**"' in workflow
     assert '"README.md"' in workflow
+
+
+def test_production_workflow_converges_retired_dispatcher_to_disabled():
+    workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "ci-cd.yaml").read_text(
+        encoding="utf-8"
+    )
+
+    assert workflow.count('-e E2E_REGISTRY_DISPATCH_ENABLED="0"') == 2
+    assert "sed -i 's/^E2E_REGISTRY_DISPATCH_ENABLED=.*/E2E_REGISTRY_DISPATCH_ENABLED=0/'" in workflow
+    assert "-e PITCHAI_DISPATCH_BASE_URL=" not in workflow
+    assert "-e PITCHAI_DISPATCH_TOKEN=" not in workflow
