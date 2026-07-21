@@ -9,14 +9,15 @@ import runpy
 import shutil
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, time as dt_time, timezone
+from datetime import date, datetime, timedelta, timezone
+from datetime import time as dt_time
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 import yaml
 from playwright.async_api import Browser, async_playwright
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from domain_checks.common_check import (
     DomainCheckResult,
@@ -26,6 +27,18 @@ from domain_checks.common_check import (
     http_get_check,
     load_domain_spec_from_module_dict,
 )
+from domain_checks.dispatch_client import (
+    DispatchConfig,
+    dispatch_endpoint_unavailable_reason,
+    dispatch_job,
+    extract_last_agent_message_from_exec_log,
+    extract_last_error_message_from_exec_log,
+    get_last_agent_message,
+    get_run_log_tail,
+    run_ui_url,
+    wait_for_terminal_status,
+)
+from domain_checks.event_bus import EventBusOutbox, load_event_bus_config
 from domain_checks.history import append_sample, coerce_history, prune_history
 from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
 from domain_checks.metrics_container_health import ContainerHealthIssue, check_container_health
@@ -43,24 +56,12 @@ from domain_checks.metrics_slo import SloBurnViolation, compute_slo_burn_violati
 from domain_checks.metrics_synthetic import SyntheticTransactionResult, run_synthetic_transactions
 from domain_checks.metrics_tls import TlsCertCheckResult, check_tls_certs
 from domain_checks.metrics_web_vitals import WebVitalsResult, measure_web_vitals
-from domain_checks.dispatch_client import (
-    DispatchConfig,
-    dispatch_job,
-    extract_last_agent_message_from_exec_log,
-    extract_last_error_message_from_exec_log,
-    get_last_agent_message,
-    get_run_log_tail,
-    run_ui_url,
-    wait_for_terminal_status,
-)
-from domain_checks.event_bus import EventBusOutbox, load_event_bus_config
 from domain_checks.telegram import (
     TelegramConfig,
     redact_telegram_response,
     send_telegram_message,
     send_telegram_message_chunked,
 )
-
 
 LOGGER = logging.getLogger("service-monitoring")
 
@@ -2810,7 +2811,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
             event_bus_config.instance,
         )
 
-    dispatch_base_url = os.getenv("PITCHAI_DISPATCH_BASE_URL", "https://dispatch.pitchai.net").strip()
+    dispatch_base_url = os.getenv("PITCHAI_DISPATCH_BASE_URL", "").strip()
     dispatch_token = os.getenv("PITCHAI_DISPATCH_TOKEN")
     dispatch_model = os.getenv("PITCHAI_DISPATCH_MODEL")
     dispatch_cfg: DispatchConfig | None = None
@@ -2820,7 +2821,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
         "disabled_until_monotonic": None,
         "last_notify_monotonic": 0.0,
     }
-    if dispatch_token and dispatch_token.strip():
+    dispatch_unavailable_reason = dispatch_endpoint_unavailable_reason(dispatch_base_url)
+    if dispatch_unavailable_reason:
+        LOGGER.warning("Dispatcher escalation disabled reason=%s", dispatch_unavailable_reason)
+        dispatch_state["enabled"] = False
+        dispatch_state["disabled_reason"] = dispatch_unavailable_reason
+    elif dispatch_token and dispatch_token.strip():
         dispatch_cfg = DispatchConfig(
             base_url=dispatch_base_url,
             token=dispatch_token,

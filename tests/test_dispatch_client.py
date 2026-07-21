@@ -8,7 +8,14 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pytest
 
-from domain_checks.dispatch_client import DispatchConfig, dispatch_job, get_last_agent_message, parse_dispatch_response, wait_for_terminal_status
+from domain_checks.dispatch_client import (
+    DispatchConfig,
+    dispatch_endpoint_unavailable_reason,
+    dispatch_job,
+    get_last_agent_message,
+    parse_dispatch_response,
+    wait_for_terminal_status,
+)
 from domain_checks.dispatch_client import extract_last_error_message_from_exec_log
 
 
@@ -36,6 +43,20 @@ def test_extract_last_error_message_from_exec_log_prefers_latest() -> None:
         ]
     )
     assert extract_last_error_message_from_exec_log(text) == "second"
+
+
+@pytest.mark.parametrize(
+    ("base_url", "reason"),
+    [
+        ("", "missing_base_url"),
+        ("   ", "missing_base_url"),
+        ("https://dispatch.pitchai.net", "retired_base_url"),
+        ("https://dispatch.pitchai.net/", "retired_base_url"),
+        ("https://dispatcher.example.test", None),
+    ],
+)
+def test_dispatch_endpoint_unavailable_reason(base_url: str, reason: str | None) -> None:
+    assert dispatch_endpoint_unavailable_reason(base_url) == reason
 
 
 class _FakeDispatchHandler(BaseHTTPRequestHandler):

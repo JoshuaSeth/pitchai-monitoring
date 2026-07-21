@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from e2e_registry import db as dbm
+from e2e_registry.alerts import maybe_dispatch_failure_investigation
 from e2e_registry.app import create_app
 from e2e_registry.settings import RegistrySettings
 
@@ -49,6 +50,29 @@ def _settings(tmp_path: Path, *, dispatch_base_url: str) -> RegistrySettings:
         dispatch_token="dispatch-token-in-url",
         public_base_url="https://monitoring.pitchai.test",
     )
+
+
+@pytest.mark.parametrize("dispatch_base_url", ["", "https://dispatch.pitchai.net/"])
+@pytest.mark.asyncio
+async def test_unavailable_dispatch_endpoint_never_receives_request(
+    tmp_path: Path,
+    dispatch_base_url: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings = _settings(tmp_path, dispatch_base_url=dispatch_base_url)
+
+    def reject_request(request: httpx.Request) -> httpx.Response:
+        pytest.fail(f"unexpected Dispatcher request: {request.method} {request.url}")
+
+    caplog.set_level(logging.WARNING, logger="e2e-registry")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(reject_request)) as client:
+        await maybe_dispatch_failure_investigation(
+            http_client=client,
+            settings=settings,
+            prompt="read-only diagnosis",
+        )
+
+    assert "Dispatcher endpoint unavailable; skipping dispatch" in caplog.text
 
 
 @pytest.mark.asyncio
