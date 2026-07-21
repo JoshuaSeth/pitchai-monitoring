@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -54,7 +55,9 @@ def _settings(tmp_path: Path, *, dispatch_base_url: str) -> RegistrySettings:
 async def test_runner_completion_remains_successful_when_dispatch_is_sso_redirected(
     tmp_path: Path,
     sso_redirect_base_url: str,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    caplog.set_level(logging.ERROR, logger="e2e-registry")
     settings = _settings(tmp_path, dispatch_base_url=sso_redirect_base_url)
     tenant = dbm.create_tenant(settings, name="AFASAsk monitoring")
     test = dbm.insert_test(
@@ -108,3 +111,5 @@ async def test_runner_completion_remains_successful_when_dispatch_is_sso_redirec
     assert "302" in records[0]["error_message"]
     assert "dispatch-token-in-url" not in records[0]["error_message"]
     assert "<redacted>" in records[0]["error_message"]
+    assert "dispatch-token-in-url" not in caplog.text
+    assert "<redacted>" in caplog.text

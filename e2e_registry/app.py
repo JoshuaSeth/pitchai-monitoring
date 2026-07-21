@@ -1339,7 +1339,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                             error_detail.replace(dispatch_token, "<redacted>") if dispatch_token else error_detail
                         )
                         error_detail = error_detail[:5_000]
-                        LOGGER.exception("Dispatcher triage request failed error=%s", error_detail)
+                        LOGGER.error("Dispatcher triage request failed error=%s", error_detail)
                         await asyncio.to_thread(
                             dbm.insert_dispatch_run,
                             runtime_settings,
