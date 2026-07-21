@@ -177,7 +177,8 @@ def _load_monitored_allowlist_hosts(settings: RegistrySettings) -> set[str]:
 
 def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     app = FastAPI(title="PitchAI E2E Registry", version="0.1.0")
-    app.state.settings = settings or RegistrySettings()
+    runtime_settings = settings or RegistrySettings()
+    app.state.settings = runtime_settings
     app.state.monitor_cache = {"loaded_at_ts": 0.0, "state_mtime": None, "config_mtime": None, "data": None}
 
     templates_dir = Path(__file__).parent / "templates"
@@ -1316,19 +1317,48 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                         error_message=req.error_message,
                         artifacts=req.artifacts,
                     )
-                    await maybe_dispatch_failure_investigation(
-                        http_client=http_client,
-                        settings=app.state.settings,
-                        prompt=prompt,
-                        context={
-                            "tenant_id": outcome.tenant_id,
-                            "test_id": outcome.test_id,
-                            "test_name": outcome.test_name,
-                            "test_kind": test_kind,
-                            "base_url": str(cfg.get("base_url") or "") if isinstance(cfg, dict) else "",
-                            "run_id": run_id,
-                        },
-                    )
+                    dispatch_context = {
+                        "tenant_id": outcome.tenant_id,
+                        "test_id": outcome.test_id,
+                        "test_name": outcome.test_name,
+                        "test_kind": test_kind,
+                        "base_url": str(cfg.get("base_url") or ""),
+                        "run_id": run_id,
+                    }
+                    try:
+                        await maybe_dispatch_failure_investigation(
+                            http_client=http_client,
+                            settings=runtime_settings,
+                            prompt=prompt,
+                            context=dispatch_context,
+                        )
+                    except (httpx.HTTPError, TimeoutError, ValueError) as exc:
+                        error_detail = f"{type(exc).__name__}: {exc}"
+                        dispatch_token = runtime_settings.dispatch_token
+                        error_detail = (
+                            error_detail.replace(dispatch_token, "<redacted>") if dispatch_token else error_detail
+                        )
+                        error_detail = error_detail[:5_000]
+                        LOGGER.exception("Dispatcher triage request failed error=%s", error_detail)
+                        await asyncio.to_thread(
+                            dbm.insert_dispatch_run,
+                            runtime_settings,
+                            state_key="e2e-registry.failure",
+                            bundle=None,
+                            ui_url=None,
+                            queue_state="dispatch_error",
+                            agent_message=None,
+                            error_message=error_detail,
+                            context=dispatch_context,
+                        )
+                        await maybe_send_failure_alert(
+                            http_client=http_client,
+                            settings=runtime_settings,
+                            msg=(
+                                "Dispatcher triage unavailable state=dispatch_error\n"
+                                f"Error: {error_detail[:500]}"
+                            ),
+                        )
 
             if outcome.recovered_up and outcome.updated and outcome.test_id and outcome.test_name:
                 cfg = await asyncio.to_thread(
