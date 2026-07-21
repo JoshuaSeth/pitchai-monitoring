@@ -84,8 +84,8 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
-- `PITCHAI_DISPATCH_TOKEN`
-- Optional: `PITCHAI_DISPATCH_BASE_URL` (default `https://dispatch.pitchai.net`)
+- Optional together: `PITCHAI_DISPATCH_BASE_URL` and `PITCHAI_DISPATCH_TOKEN` enable Dispatcher escalation.
+  The retired `dispatch.pitchai.net` endpoint is rejected; leave both unset until a supported endpoint is configured.
 - Optional: `PITCHAI_DISPATCH_MODEL` (e.g. `gpt-5.2-medium`, `gpt-5.2-high`)
 - Optional: `CHROMIUM_PATH` (inside Docker: `/usr/bin/chromium`)
 - Optional: `STATE_PATH` (default `/data/state.json`) to persist UP/DOWN state across restarts

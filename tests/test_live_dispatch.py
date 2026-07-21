@@ -30,7 +30,9 @@ async def test_dispatcher_live_smoke() -> None:
     if not token:
         pytest.skip("Missing PITCHAI_DISPATCH_TOKEN", allow_module_level=False)
 
-    base_url = (os.getenv("PITCHAI_DISPATCH_BASE_URL") or "https://dispatch.pitchai.net").strip()
+    base_url = (os.getenv("PITCHAI_DISPATCH_BASE_URL") or "").strip()
+    if not base_url:
+        pytest.skip("Missing PITCHAI_DISPATCH_BASE_URL", allow_module_level=False)
     model = os.getenv("PITCHAI_DISPATCH_MODEL")
 
     cfg = DispatchConfig(

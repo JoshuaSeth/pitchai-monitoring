@@ -78,9 +78,7 @@ class RegistrySettings:
 
     # Optional Dispatcher escalation on test failures (read-only rules).
     dispatch_enabled: bool = field(default_factory=lambda: _env_bool("E2E_REGISTRY_DISPATCH_ENABLED", False))
-    dispatch_base_url: str = field(
-        default_factory=lambda: os.getenv("PITCHAI_DISPATCH_BASE_URL", "https://dispatch.pitchai.net").strip()
-    )
+    dispatch_base_url: str = field(default_factory=lambda: os.getenv("PITCHAI_DISPATCH_BASE_URL", "").strip())
     dispatch_token: str = field(default_factory=lambda: os.getenv("PITCHAI_DISPATCH_TOKEN", "").strip())
     dispatch_model: str = field(default_factory=lambda: os.getenv("PITCHAI_DISPATCH_MODEL", "").strip())
 

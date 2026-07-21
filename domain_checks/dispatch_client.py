@@ -5,8 +5,11 @@ import json
 import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
+
+_RETIRED_DISPATCH_HOSTS = frozenset({"dispatch.pitchai.net"})
 
 
 @dataclass(frozen=True)
@@ -17,6 +20,17 @@ class DispatchConfig:
     poll_interval_seconds: float = 5.0
     max_wait_seconds: float = 30 * 60
     log_tail_bytes: int = 250_000
+
+
+def dispatch_endpoint_unavailable_reason(base_url: str) -> str | None:
+    """Return why a Dispatcher endpoint must not receive requests."""
+    normalized = str(base_url or "").strip()
+    if not normalized:
+        return "missing_base_url"
+    hostname = (urlparse(normalized).hostname or "").lower()
+    if hostname in _RETIRED_DISPATCH_HOSTS:
+        return "retired_base_url"
+    return None
 
 
 def parse_dispatch_response(text: str) -> tuple[str, str]:

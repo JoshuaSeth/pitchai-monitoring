@@ -7,12 +7,19 @@ from typing import Any
 
 import httpx
 
-from domain_checks.dispatch_client import DispatchConfig, dispatch_job, run_ui_url, wait_for_terminal_status, get_run_log_tail
-from domain_checks.dispatch_client import extract_last_agent_message_from_exec_log, extract_last_error_message_from_exec_log
+from domain_checks.dispatch_client import (
+    DispatchConfig,
+    dispatch_endpoint_unavailable_reason,
+    dispatch_job,
+    extract_last_agent_message_from_exec_log,
+    extract_last_error_message_from_exec_log,
+    get_run_log_tail,
+    run_ui_url,
+    wait_for_terminal_status,
+)
 from domain_checks.telegram import TelegramConfig, send_telegram_message_chunked
 from e2e_registry import db as dbm
 from e2e_registry.settings import RegistrySettings
-
 
 LOGGER = logging.getLogger("e2e-registry")
 
@@ -172,6 +179,10 @@ async def maybe_dispatch_failure_investigation(
     context: dict[str, Any] | None = None,
 ) -> None:
     if not settings.dispatch_enabled:
+        return
+    unavailable_reason = dispatch_endpoint_unavailable_reason(settings.dispatch_base_url)
+    if unavailable_reason:
+        LOGGER.warning("Dispatcher endpoint unavailable; skipping dispatch reason=%s", unavailable_reason)
         return
     if not settings.dispatch_token:
         LOGGER.warning("Dispatcher token missing; skipping dispatch")

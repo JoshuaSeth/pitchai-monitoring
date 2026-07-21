@@ -138,7 +138,7 @@ jobs:
                 echo "E2E_ARTIFACTS_DIR=/artifacts"
                 echo "E2E_TESTS_DIR=/data/e2e-tests"
                 echo "E2E_REGISTRY_ALERTS_ENABLED=1"
-                echo "E2E_REGISTRY_DISPATCH_ENABLED=1"
+                echo "E2E_REGISTRY_DISPATCH_ENABLED=0"
                 echo "E2E_REGISTRY_STRICT_BASE_URL_POLICY=1"
                 echo "E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=1"
               } >"$E2E_ENV_FILE"
@@ -190,11 +190,10 @@ jobs:
               -v e2e-registry-data:/data \
               -v e2e-artifacts:/artifacts \
               --env-file "$E2E_ENV_FILE" \
+              -e E2E_REGISTRY_DISPATCH_ENABLED="0" \
               -e SERVICE_MONITOR_STATE_PATH="/monitor_state/state.json" \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
-              -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
               "$IMAGE_SHA" \
               python -m e2e_registry.server
 
@@ -228,8 +227,6 @@ jobs:
               -v /var/log/nginx:/var/log/nginx:ro \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
-              -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
               -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
               -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
               -e PITCHAI_MONITORING_ENVIRONMENT="production" \
