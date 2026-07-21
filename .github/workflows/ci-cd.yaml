@@ -154,6 +154,13 @@ jobs:
             if ! grep -qE '^E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=' "$E2E_ENV_FILE"; then
               echo "E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=1" >>"$E2E_ENV_FILE"
             fi
+            # Converge hosts created by older deployments.  Leaving this set to
+            # 1 is misleading now that the Dispatcher endpoint has been retired.
+            if grep -qE '^E2E_REGISTRY_DISPATCH_ENABLED=' "$E2E_ENV_FILE"; then
+              sed -i 's/^E2E_REGISTRY_DISPATCH_ENABLED=.*/E2E_REGISTRY_DISPATCH_ENABLED=0/' "$E2E_ENV_FILE"
+            else
+              echo "E2E_REGISTRY_DISPATCH_ENABLED=0" >>"$E2E_ENV_FILE"
+            fi
             E2E_MONITOR_TOKEN="$(grep -E '^E2E_REGISTRY_MONITOR_TOKEN=' "$E2E_ENV_FILE" | head -n1 | cut -d= -f2-)"
             if [[ -z "${E2E_MONITOR_TOKEN}" ]]; then
               echo "❌ Missing E2E_REGISTRY_MONITOR_TOKEN in $E2E_ENV_FILE"
@@ -209,6 +216,7 @@ jobs:
               --env-file "$E2E_ENV_FILE" \
               --env-file "$AFASASK_MONITOR_ENV_FILE" \
               -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
+              -e E2E_REGISTRY_DISPATCH_ENABLED="0" \
               -e E2E_RUNNER_POLL_SECONDS="5" \
               -e E2E_RUNNER_CONCURRENCY="1" \
               -e E2E_RUNNER_TRACE_ON_FAILURE="0" \
