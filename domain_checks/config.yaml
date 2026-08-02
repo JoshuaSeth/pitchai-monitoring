@@ -164,6 +164,7 @@ container_health:
     - "^skybuyfly-quick-chat$"
     - "^deplanbook-play$"
     - "^deplanbook-cms$"
+    - "^twofa-server-prod$"
   exclude_name_patterns: []
   timeout_seconds: 3
   down_after_failures: 2
@@ -228,6 +229,7 @@ domains:
   - domain: demo.afasask.pitchai.net
   - domain: skybuyfly.pitchai.net
   - domain: deplanbook.com
+  - domain: 2fa-server.37.27.67.52.nip.io
   - domain: cms.deplanbook.com
   - domain: dpb.pitchai.net
   - domain: hetcis.nl
