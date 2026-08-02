@@ -1,3 +1,5 @@
+"""Public health and event-outbox readiness checks for PitchAI 2FA Server."""
+
 CHECK = {
     "domain": "2fa-server.37.27.67.52.nip.io",
     "url": "https://2fa-server.37.27.67.52.nip.io/healthz",
