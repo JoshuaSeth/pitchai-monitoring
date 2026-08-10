@@ -13,6 +13,7 @@ readonly SERVICE_FILE="/etc/systemd/system/pitchai-auth-reset-guardian.service"
 readonly TIMER_FILE="/etc/systemd/system/pitchai-auth-reset-guardian.timer"
 readonly BROKER_ENV="/etc/auth-token-server/auth-token-server.env"
 readonly TELEGRAM_REPO="/root/code/telegram_agent_server"
+readonly LOCK_WAIT_SECONDS="300"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
 
@@ -131,7 +132,10 @@ trap cleanup_validation EXIT
   --simulate "${CURRENT_LINK}/fixtures/auth-reset-guardian-expiring.json" \
   --now 2026-08-11T19:30:00Z \
   --no-notify >/dev/null
-"${RUNNER}" --audit-db "${AUDIT_DB}" run --dry-run --no-notify >/dev/null
+"${RUNNER}" \
+  --audit-db "${AUDIT_DB}" \
+  --lock-wait-seconds "${LOCK_WAIT_SECONDS}" \
+  run --dry-run --no-notify >/dev/null
 
 rollback() {
   systemctl disable --now pitchai-auth-reset-guardian.timer >/dev/null 2>&1 || true

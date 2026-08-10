@@ -38,6 +38,7 @@ from auth_reset_guardian.models import (
 
 
 UTC = timezone.utc
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class MutableClock:
@@ -142,6 +143,17 @@ def test_exclusive_lock_still_fails_loudly_after_wait_timeout(tmp_path: Path) ->
     finally:
         fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)
+
+
+def test_deployment_live_dry_run_waits_for_quarter_hour_service() -> None:
+    script = (ROOT / "ops" / "deploy_auth_reset_guardian.sh").read_text()
+
+    assert 'readonly LOCK_WAIT_SECONDS="300"' in script
+    assert (
+        '--audit-db "${AUDIT_DB}" \\\n'
+        '  --lock-wait-seconds "${LOCK_WAIT_SECONDS}" \\\n'
+        "  run --dry-run --no-notify"
+    ) in script
 
 
 def test_schema_v1_migrates_warning_scope_without_losing_marks(tmp_path: Path) -> None:

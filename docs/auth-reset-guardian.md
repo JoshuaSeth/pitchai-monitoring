@@ -53,7 +53,7 @@ The deployment:
 - installs and enables `pitchai-auth-reset-guardian.timer`;
 - starts one immediate live pass and verifies the persistent audit database.
 
-The systemd timer runs on each UTC quarter-hour, survives reboots, and catches missed calendar runs. Its service is a locked one-shot, so overlapping invocations cannot make concurrent consume decisions. A systemd invocation waits up to five minutes for a direct deployment/manual run to release the audit lock; a quarter-hour trigger that lands during deployment validation is therefore serialized instead of briefly reporting the service as failed.
+The systemd timer runs on each UTC quarter-hour, survives reboots, and catches missed calendar runs. Its service is a locked one-shot, so overlapping invocations cannot make concurrent consume decisions. Both the systemd invocation and the deployment's live dry-run wait up to five minutes for the persistent audit lock. Whichever starts second is therefore serialized whether the quarter-hour pass or deployment validation acquired the lock first, instead of briefly reporting either operation as failed.
 
 ## Inspecting health, logs, and audit history
 
