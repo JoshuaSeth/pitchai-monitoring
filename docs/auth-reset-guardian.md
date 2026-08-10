@@ -19,7 +19,7 @@ The provider can return `nothing_to_reset` when no usage window is exhausted. Th
 
 Warning deduplication, notification identity, and resumable redemption attempts are all scoped by the broker account reference together with the credit reference and expiry. Audit schema version 2 transactionally migrates existing version-1 warning marks into that account-scoped key without discarding history.
 
-Raw access/refresh tokens, broker account IDs, provider credit IDs, Authorization headers, and provider response bodies never enter logs or SQLite. Account and credit identities are stored as SHA-256 references; human-readable broker labels and expiry times remain available to operators.
+Raw access/refresh tokens, broker account IDs, provider credit IDs, Authorization headers, and provider response bodies never enter logs or SQLite. Account and credit identities are stored as SHA-256 references; human-readable broker labels and expiry times remain available to operators. The runner exports only the one broker admin value needed by the guardian, removes the broker's other secret variables before `exec`, and starts the Telegram notifier with only `HOME`, `LANG`, and a fixed system `PATH`; the notifier never inherits broker or OpenAI credentials.
 
 ## Warning and redemption timing
 

@@ -39,7 +39,7 @@ curl --fail --silent --show-error --max-time 5 http://127.0.0.1:38188/healthz >/
 [[ -r "${TELEGRAM_REPO}/main.py" ]] || { printf 'Canonical Telegram helper is unavailable.\n' >&2; exit 1; }
 (
   cd "${TELEGRAM_REPO}"
-  python3 - <<'PY'
+  /usr/bin/env -i HOME=/root PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 - <<'PY'
 from telegram_agent_server.config import load_settings
 settings = load_settings()
 if "seth-ori" not in settings.route_registry.private:

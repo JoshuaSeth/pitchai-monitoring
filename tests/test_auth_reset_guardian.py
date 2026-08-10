@@ -4,6 +4,7 @@ import fcntl
 import json
 import os
 import sqlite3
+import sys
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -27,7 +28,13 @@ from auth_reset_guardian.guardian import (
     NotificationError,
     _alert_batches,
 )
-from auth_reset_guardian.models import utc_iso
+from auth_reset_guardian.models import (
+    AccountDescriptor,
+    AccountObservation,
+    ProviderCredentials,
+    ResetCredit,
+    utc_iso,
+)
 
 
 UTC = timezone.utc
@@ -463,6 +470,49 @@ def test_same_credit_id_with_changed_expiry_fails_loudly_without_consuming(tmp_p
     assert mismatch_events[0]["severity"] == "error"
 
 
+def test_recheck_error_notification_is_scoped_by_expected_expiry(tmp_path: Path) -> None:
+    now = datetime(2026, 8, 11, 20, 0, tzinfo=UTC)
+
+    class RecordingNotifier:
+        def __init__(self) -> None:
+            self.messages: list[str] = []
+
+        def notify(self, message: str) -> None:
+            self.messages.append(message)
+
+    notifier = RecordingNotifier()
+    db_path = tmp_path / "audit.sqlite3"
+    expiries = (now + timedelta(hours=1), now + timedelta(hours=1, minutes=15))
+    for expiry in expiries:
+        fixture = _fixture(expires_at=expiry, credit_id="reused-provider-id")
+        fixture["accounts"][0]["fail_on_refresh"] = 2
+        source = SimulationSource(fixture, clock=lambda: now)
+        with AuditStore(db_path) as audit:
+            summary = Guardian(
+                source=source,
+                audit=audit,
+                notifier=notifier,  # type: ignore[arg-type]
+                clock=lambda: now,
+            ).run(mode="live", dry_run=True)
+        assert summary.redemption_attempt_count == 0
+        assert summary.error_count == 1
+
+    assert len(notifier.messages) == 2
+    assert all("fresh redemption recheck failed" in message for message in notifier.messages)
+    with sqlite3.connect(db_path) as connection:
+        keys = connection.execute(
+            "SELECT notification_key FROM notifications "
+            "WHERE notification_key LIKE 'recheck-error:%' ORDER BY notification_key"
+        ).fetchall()
+        event_expiries = connection.execute(
+            "SELECT expires_at FROM events "
+            "WHERE event_type = 'redemption_recheck_failed' ORDER BY expires_at"
+        ).fetchall()
+    assert len(keys) == 2
+    assert len({row[0] for row in keys}) == 2
+    assert [row[0] for row in event_expiries] == sorted(utc_iso(expiry) for expiry in expiries)
+
+
 def test_nothing_to_reset_is_retried_with_a_new_logical_idempotency_key(tmp_path: Path) -> None:
     now = datetime(2026, 8, 11, 20, 0, tzinfo=UTC)
     clock = MutableClock(now)
@@ -706,6 +756,57 @@ def test_live_source_uses_only_broker_oauth_and_targets_exact_credit() -> None:
         assert "fixture-refresh" not in serialized
 
 
+def test_invalid_consume_result_is_ambiguous_and_reuses_exact_idempotency_key() -> None:
+    expiry = datetime(2026, 8, 11, 21, 8, 33, tzinfo=UTC)
+
+    class InvalidResultHttp:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def request(self, **kwargs):  # type: ignore[no-untyped-def]
+            self.calls.append(kwargs)
+            assert kwargs["endpoint"] == "provider_consume_reset_credit"
+            return {"code": "unsupported-provider-result", "windows_reset": 0}
+
+    http = InvalidResultHttp()
+    source = BrokerProviderSource(
+        broker_url="http://broker.invalid",
+        broker_admin_token="broker-admin-secret",
+        provider_base_url="https://provider.invalid/backend-api",
+        http=http,  # type: ignore[arg-type]
+    )
+    descriptor = AccountDescriptor(
+        broker_account_id="broker-account-secret",
+        label="info@pitchai.net",
+        enabled=True,
+    )
+    credit = ResetCredit.from_provider(
+        _credit(credit_id="provider-credit-secret", expires_at=expiry)
+    )
+    observation = AccountObservation(
+        descriptor=descriptor,
+        captured_at=expiry - timedelta(hours=1),
+        broker_state={"availability": "available"},
+        usage_state={},
+        available_count=1,
+        credits=(credit,),
+        credentials=ProviderCredentials(
+            access_token="fixture-oauth",
+            account_id="chatgpt-account-secret",
+        ),
+    )
+
+    with pytest.raises(RemoteCallError) as captured:
+        source.consume_credit(observation, credit, "durable-key")
+    assert captured.value.ambiguous is True
+    assert captured.value.error_code == "invalid_result_payload"
+    assert len(http.calls) == 2
+    assert {call["payload"]["redeem_request_id"] for call in http.calls} == {"durable-key"}
+    assert {call["payload"]["credit_id"] for call in http.calls} == {
+        "provider-credit-secret"
+    }
+
+
 def test_live_source_stops_after_broker_reports_auth_invalid() -> None:
     class FakeHttp:
         def __init__(self) -> None:
@@ -775,6 +876,36 @@ def test_command_notifier_requires_verified_requester_private_receipt(monkeypatc
         assert exc.error_code == "invalid_private_receipt"
     else:
         raise AssertionError("broad receipt must fail requester-private verification")
+
+
+def test_command_notifier_child_does_not_inherit_broker_or_openai_secrets(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    secret_names = (
+        "AUTH_RESET_GUARDIAN_BROKER_ADMIN_TOKEN",
+        "AUTH_TOKEN_SERVER_ADMIN_TOKEN",
+        "AUTH_TOKEN_SERVER_ADMIN_TOKEN_ALIASES",
+        "AUTH_TOKEN_SERVER_CLIENT_TOKEN",
+        "AUTH_TOKEN_SERVER_CLIENT_TOKEN_ALIASES",
+        "OPENAI_API_KEY",
+    )
+    for name in secret_names:
+        monkeypatch.setenv(name, f"secret-{name.lower()}")
+    receipt = {
+        "status": "sent",
+        "policy": "personal-first",
+        "route_kind": "private",
+        "requester_key": "seth-ori",
+        "destination_ref": "seth-ori",
+    }
+    child_code = (
+        "import json, os; "
+        f"names = {secret_names!r}; "
+        "assert not any(os.environ.get(name) for name in names); "
+        f"print(json.dumps({receipt!r}))"
+    )
+
+    CommandNotifier([sys.executable, "-c", child_code]).notify("safe message")
 
 
 def test_alert_batches_never_mark_unreported_overflow_as_sent() -> None:

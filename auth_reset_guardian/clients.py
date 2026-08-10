@@ -264,7 +264,18 @@ class BrokerProviderSource(GuardianSource):
                     payload=payload,
                     ambiguous_on_failure=True,
                 )
-                return ConsumeResult.from_provider(response)
+                try:
+                    return ConsumeResult.from_provider(response)
+                except PayloadError:
+                    # The POST reached the provider and returned HTTP success, so
+                    # an unsupported result body cannot prove whether it consumed.
+                    # Retry only with the same idempotency key and leave the final
+                    # failure marked ambiguous for restart reconciliation.
+                    last_error = RemoteCallError(
+                        endpoint="provider_consume_reset_credit",
+                        error_code="invalid_result_payload",
+                        ambiguous=True,
+                    )
             except RemoteCallError as exc:
                 last_error = exc
                 if not exc.ambiguous:

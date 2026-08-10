@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
@@ -73,6 +74,11 @@ class CommandNotifier:
         self.require_private_receipt = require_private_receipt
 
     def notify(self, message: str) -> None:
+        child_environment = {
+            "HOME": os.environ.get("HOME", "/root"),
+            "LANG": os.environ.get("LANG", "C.UTF-8"),
+            "PATH": os.defpath,
+        }
         try:
             result = subprocess.run(
                 [*self.command, "--message", message],
@@ -82,7 +88,7 @@ class CommandNotifier:
                 text=True,
                 timeout=self.timeout_seconds,
                 check=False,
-                env=None,
+                env=child_environment,
             )
         except subprocess.TimeoutExpired:
             raise NotificationError("timeout") from None
@@ -465,6 +471,7 @@ class Guardian:
         alerts: list[Alert],
         enforce_horizon: bool,
     ) -> None:
+        assert expected.expires_at is not None
         try:
             fresh = self.source.refresh_account(descriptor)
             self.audit.record_snapshot(run_id=run_id, phase="pre_redemption_recheck", observation=fresh)
@@ -485,7 +492,7 @@ class Guardian:
                 Alert(
                     key=(
                         f"recheck-error:{descriptor.account_ref}:{expected.credit_ref}:"
-                        f"{_safe_error_code(exc)}"
+                        f"{utc_iso(expected.expires_at)}:{_safe_error_code(exc)}"
                     ),
                     line=f"ERROR {html.escape(descriptor.label)} fresh redemption recheck failed.",
                 )
@@ -509,7 +516,6 @@ class Guardian:
             )
             return
         assert exact.expires_at is not None
-        assert expected.expires_at is not None
         if exact.expires_at != expected.expires_at:
             summary.error_count += 1
             self.audit.record_event(
