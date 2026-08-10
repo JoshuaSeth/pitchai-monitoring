@@ -1,0 +1,12 @@
+[Unit]
+Description=Check Codex reset credits every 15 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00/15:00 UTC
+AccuracySec=20s
+RandomizedDelaySec=20s
+Persistent=true
+Unit=pitchai-auth-reset-guardian.service
+
+[Install]
+WantedBy=timers.target

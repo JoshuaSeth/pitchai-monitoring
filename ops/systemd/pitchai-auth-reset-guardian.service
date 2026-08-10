@@ -1,0 +1,29 @@
+[Unit]
+Description=Protect expiring broker-managed Codex reset credits
+Documentation=file:///opt/pitchai-auth-reset-guardian/current/docs/auth-reset-guardian.md
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+ConditionPathExists=/etc/auth-token-server/auth-token-server.env
+ConditionPathExists=/opt/pitchai-auth-reset-guardian/current/auth_reset_guardian
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/pitchai-auth-reset-guardian/current
+EnvironmentFile=/etc/pitchai-auth-reset-guardian.env
+ExecStart=/usr/local/sbin/pitchai-auth-reset-guardian run --require-notifier
+TimeoutStartSec=10min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/pitchai-auth-reset-guardian
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
