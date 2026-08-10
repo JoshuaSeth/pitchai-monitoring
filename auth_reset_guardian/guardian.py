@@ -494,6 +494,37 @@ class Guardian:
             )
             return
         assert exact.expires_at is not None
+        assert expected.expires_at is not None
+        if exact.expires_at != expected.expires_at:
+            summary.error_count += 1
+            self.audit.record_event(
+                run_id=run_id,
+                now=self.clock(),
+                event_type="redemption_skipped_expiry_mismatch",
+                severity="error",
+                account_ref=descriptor.account_ref,
+                account_label=descriptor.label,
+                credit_ref=expected.credit_ref,
+                expires_at=expected.expires_at,
+                details={
+                    "reason": "exact_credit_expiry_changed_on_fresh_recheck",
+                    "expected_expires_at": utc_iso(expected.expires_at),
+                    "fresh_expires_at": utc_iso(exact.expires_at),
+                },
+            )
+            alerts.append(
+                Alert(
+                    key=(
+                        f"expiry-mismatch:{expected.credit_ref}:"
+                        f"{utc_iso(expected.expires_at)}:{utc_iso(exact.expires_at)}"
+                    ),
+                    line=(
+                        f"ERROR {html.escape(descriptor.label)} exact credit expiry changed during "
+                        "the fresh redemption recheck; no consume was attempted."
+                    ),
+                )
+            )
+            return
         remaining = exact.expires_at - self.clock()
         if remaining <= timedelta(0):
             summary.error_count += 1

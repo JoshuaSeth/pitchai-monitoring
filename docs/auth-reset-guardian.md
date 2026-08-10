@@ -11,7 +11,7 @@ One production pass performs these steps for every broker account, including dis
 1. `POST /v1/admin/accounts/{account}/analytics-probe` makes the broker validate or refresh its own OAuth state and persist redacted provider analytics.
 2. `GET /v1/admin/accounts/{account}/auth.json` exports the latest broker-owned auth state into process memory. Only `tokens.access_token` and `tokens.account_id` are used. `OPENAI_API_KEY`, if present in that file, is ignored.
 3. Direct authenticated reads of `/wham/usage` and `/wham/rate-limit-reset-credits` obtain the authoritative usage state, every opaque credit ID, status, and expiry. The broker's redacted cached count is not trusted for redemption decisions.
-4. For a credit inside the two-hour horizon, the full broker probe/export/provider-read sequence is repeated. The service proceeds only if the same exact credit ID is still available with a future expiry.
+4. For a credit inside the two-hour horizon, the full broker probe/export/provider-read sequence is repeated. The service proceeds only if the same account still exposes the same exact credit ID with the exact originally selected expiry and that expiry remains in the future. An expiry mismatch is a loud audited error and suppresses the consume call.
 5. `POST /wham/rate-limit-reset-credits/consume` receives both a durable idempotency key and that exact credit ID. The service never issues an untargeted consume request, so a racing operator cannot cause it to fall through to another credit.
 6. A final broker-managed refresh proves whether that exact credit remains available. `reset` and `already_redeemed` count as success only when the post-state confirms the credit is absent or no longer redeemable. Ambiguous transports reuse the same SQLite-backed idempotency key after restart.
 
@@ -131,7 +131,7 @@ For a manual exact-credit operation, first copy the expiry timestamp from `statu
   --no-notify
 ```
 
-Remove `--dry-run --no-notify` only after reviewing the fresh-recheck event. The live command uses the same idempotent exact-ID path and post-state verification as automation. Never use an untargeted consume call while multiple credits exist.
+Remove `--dry-run --no-notify` only after reviewing the fresh-recheck event. The live command uses the same idempotent account + exact-ID + exact-expiry path and post-state verification as automation. Never use an untargeted consume call while multiple credits exist.
 
 ## First live handling
 

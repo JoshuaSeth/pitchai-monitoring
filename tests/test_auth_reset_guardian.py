@@ -186,6 +186,48 @@ def test_credit_removed_between_inventory_and_recheck_is_not_replaced_by_another
     )
 
 
+def test_same_credit_id_with_changed_expiry_fails_loudly_without_consuming(tmp_path: Path) -> None:
+    now = datetime(2026, 8, 11, 20, 0, tzinfo=UTC)
+    selected_expiry = now + timedelta(hours=1)
+    changed_expiry = selected_expiry + timedelta(minutes=15)
+
+    class ExpiryChangedSource(SimulationSource):
+        def refresh_account(self, descriptor):  # type: ignore[no-untyped-def]
+            observation = super().refresh_account(descriptor)
+            if self.refresh_calls[descriptor.account_ref] == 1:
+                account = self._find(descriptor)
+                account["credit_inventory"]["credits"][0]["expires_at"] = utc_iso(
+                    changed_expiry
+                )
+            return observation
+
+    source = ExpiryChangedSource(
+        _fixture(
+            expires_at=selected_expiry,
+            credit_id="same-opaque-credit",
+            outcome="reset",
+        ),
+        clock=lambda: now,
+    )
+    db_path = tmp_path / "audit.sqlite3"
+    with AuditStore(db_path) as audit:
+        summary = Guardian(source=source, audit=audit, clock=lambda: now).run(
+            mode="simulation", dry_run=False
+        )
+
+    assert summary.redemption_attempt_count == 0
+    assert summary.redemption_count == 0
+    assert summary.error_count == 1
+    assert source.consume_calls == []
+    mismatch_events = [
+        event
+        for event in _events(db_path)
+        if event["event_type"] == "redemption_skipped_expiry_mismatch"
+    ]
+    assert len(mismatch_events) == 1
+    assert mismatch_events[0]["severity"] == "error"
+
+
 def test_nothing_to_reset_is_retried_with_a_new_logical_idempotency_key(tmp_path: Path) -> None:
     now = datetime(2026, 8, 11, 20, 0, tzinfo=UTC)
     clock = MutableClock(now)
