@@ -251,6 +251,65 @@ def test_all_required_warning_thresholds_are_persisted_across_time(tmp_path: Pat
     assert thresholds == [48, 24, 6, 2, 1]
 
 
+def test_failed_live_warning_notification_retries_without_duplicate_warning(
+    tmp_path: Path,
+) -> None:
+    now = datetime(2026, 8, 10, 21, 15, tzinfo=UTC)
+    source = SimulationSource(
+        _fixture(expires_at=now + timedelta(hours=23, minutes=53)),
+        clock=lambda: now,
+    )
+
+    class FlakyNotifier:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def notify(self, message: str) -> None:
+            self.calls += 1
+            assert "24h threshold" in message
+            if self.calls == 1:
+                raise NotificationError("temporary_failure")
+
+    notifier = FlakyNotifier()
+    db_path = tmp_path / "audit.sqlite3"
+    with AuditStore(db_path) as audit:
+        first = Guardian(
+            source=source,
+            audit=audit,
+            notifier=notifier,  # type: ignore[arg-type]
+            clock=lambda: now,
+        ).run(mode="live", dry_run=True)
+    with AuditStore(db_path) as audit:
+        second = Guardian(
+            source=source,
+            audit=audit,
+            notifier=notifier,  # type: ignore[arg-type]
+            clock=lambda: now,
+        ).run(mode="live", dry_run=True)
+
+    assert first.warning_count == 2
+    assert first.notification_error_count == 1
+    assert first.status == "degraded"
+    assert second.warning_count == 0
+    assert second.notification_error_count == 0
+    assert second.status == "ok"
+    assert notifier.calls == 2
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute("SELECT count(*) FROM warning_marks").fetchone()[0] == 2
+        assert connection.execute(
+            "SELECT count(*) FROM events WHERE event_type = 'expiry_warning'"
+        ).fetchone()[0] == 2
+        assert connection.execute(
+            "SELECT count(*) FROM notifications WHERE status = 'sent' AND attempts = 2"
+        ).fetchone()[0] == 2
+        assert connection.execute(
+            "SELECT count(*) FROM events WHERE event_type = 'notification_failed'"
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT count(*) FROM events WHERE event_type = 'notification_sent'"
+        ).fetchone()[0] == 1
+
+
 def test_same_credit_id_and_expiry_are_scoped_per_account_for_warnings(
     tmp_path: Path,
 ) -> None:

@@ -401,48 +401,56 @@ class Guardian:
         for threshold_hours in WARNING_THRESHOLDS_HOURS:
             if remaining > timedelta(hours=threshold_hours):
                 continue
-            if not self.audit.claim_warning(
+            alert = Alert(
+                key=(
+                    f"warning:{observation.descriptor.account_ref}:{credit.credit_ref}:"
+                    f"{utc_iso(credit.expires_at)}:{threshold_hours}h"
+                ),
+                line=(
+                    f"WARNING {html.escape(observation.descriptor.label)} credit reaches the "
+                    f"{threshold_hours}h threshold; expires "
+                    f"{html.escape(utc_iso(credit.expires_at))}."
+                ),
+            )
+            claimed = self.audit.claim_warning(
                 run_id=run_id,
                 mode=mode,
                 now=self.clock(),
                 account_ref=observation.descriptor.account_ref,
                 credit=credit,
                 threshold_hours=threshold_hours,
-            ):
-                continue
-            emitted = True
-            summary.warning_count += 1
-            late_by = max(0, int(timedelta(hours=threshold_hours).total_seconds() - remaining.total_seconds()))
-            self.audit.record_event(
-                run_id=run_id,
-                now=self.clock(),
-                event_type="expiry_warning",
-                severity="warning",
-                account_ref=observation.descriptor.account_ref,
-                account_label=observation.descriptor.label,
-                credit_ref=credit.credit_ref,
-                expires_at=credit.expires_at,
-                threshold_hours=threshold_hours,
-                details={
-                    "remaining_seconds": int(remaining.total_seconds()),
-                    "late_by_seconds": late_by,
-                    "usage_state": observation.usage_state,
-                },
             )
-            if mode == "live":
-                alerts.append(
-                    Alert(
-                        key=(
-                            f"warning:{observation.descriptor.account_ref}:{credit.credit_ref}:"
-                            f"{utc_iso(credit.expires_at)}:"
-                            f"{threshold_hours}h"
-                        ),
-                        line=(
-                            f"WARNING {html.escape(observation.descriptor.label)} credit reaches the "
-                            f"{threshold_hours}h threshold; expires {html.escape(utc_iso(credit.expires_at))}."
-                        ),
-                    )
+            if claimed:
+                emitted = True
+                summary.warning_count += 1
+                late_by = max(
+                    0,
+                    int(
+                        timedelta(hours=threshold_hours).total_seconds()
+                        - remaining.total_seconds()
+                    ),
                 )
+                self.audit.record_event(
+                    run_id=run_id,
+                    now=self.clock(),
+                    event_type="expiry_warning",
+                    severity="warning",
+                    account_ref=observation.descriptor.account_ref,
+                    account_label=observation.descriptor.label,
+                    credit_ref=credit.credit_ref,
+                    expires_at=credit.expires_at,
+                    threshold_hours=threshold_hours,
+                    details={
+                        "remaining_seconds": int(remaining.total_seconds()),
+                        "late_by_seconds": late_by,
+                        "usage_state": observation.usage_state,
+                    },
+                )
+            if mode == "live":
+                # Reconstruct every due live alert on each run. The notification
+                # outbox suppresses receipts already marked sent and retries any
+                # pending/failed threshold after a crash or transient send error.
+                alerts.append(alert)
         return emitted
 
     def _recheck_and_redeem(

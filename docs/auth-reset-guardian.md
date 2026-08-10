@@ -33,7 +33,7 @@ Each available, plan-supported `codex_rate_limits` credit is warned once as it c
 
 If the machine was down at a threshold, `Persistent=true` starts the missed timer and the next pass records every crossed-but-unreported threshold. Starting at two hours before expiry, every 15-minute pass performs the mandatory fresh recheck and may attempt the exact credit. Fifteen minutes is deliberately more frequent than the requested two-hour cadence so a transient broker/provider failure still leaves several retries.
 
-Production warnings, account-check failures, verified redemptions, and verification failures use the canonical requester-private Telegram route `seth-ori`. There is no group route in the service configuration. Every decision and notification result is also durable in SQLite and journald.
+Production warnings, account-check failures, verified redemptions, and verification failures use the canonical requester-private Telegram route `seth-ori`. There is no group route in the service configuration. Every decision and notification result is also durable in SQLite and journald. A threshold event is recorded exactly once, while a pending or failed Telegram delivery is reconstructed from that durable threshold on later passes and retried until the private sent receipt is recorded.
 
 ## Production installation
 
