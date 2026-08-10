@@ -17,6 +17,8 @@ One production pass performs these steps for every broker account, including dis
 
 The provider can return `nothing_to_reset` when no usage window is exhausted. That outcome does not consume the credit. The guardian records it and tries again on the next 15-minute pass until the credit is handled or expires.
 
+Warning deduplication, notification identity, and resumable redemption attempts are all scoped by the broker account reference together with the credit reference and expiry. Audit schema version 2 transactionally migrates existing version-1 warning marks into that account-scoped key without discarding history.
+
 Raw access/refresh tokens, broker account IDs, provider credit IDs, Authorization headers, and provider response bodies never enter logs or SQLite. Account and credit identities are stored as SHA-256 references; human-readable broker labels and expiry times remain available to operators.
 
 ## Warning and redemption timing

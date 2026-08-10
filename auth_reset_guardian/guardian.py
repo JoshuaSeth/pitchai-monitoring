@@ -334,7 +334,10 @@ class Guardian:
                 )
                 alerts.append(
                     Alert(
-                        key=f"expired:{credit.credit_ref}:{utc_iso(credit.expires_at)}",
+                        key=(
+                            f"expired:{descriptor.account_ref}:{credit.credit_ref}:"
+                            f"{utc_iso(credit.expires_at)}"
+                        ),
                         line=(
                             f"ERROR {html.escape(descriptor.label)} credit was still listed after expiry "
                             f"{html.escape(utc_iso(credit.expires_at))}."
@@ -430,7 +433,8 @@ class Guardian:
                 alerts.append(
                     Alert(
                         key=(
-                            f"warning:{credit.credit_ref}:{utc_iso(credit.expires_at)}:"
+                            f"warning:{observation.descriptor.account_ref}:{credit.credit_ref}:"
+                            f"{utc_iso(credit.expires_at)}:"
                             f"{threshold_hours}h"
                         ),
                         line=(
@@ -471,7 +475,10 @@ class Guardian:
             )
             alerts.append(
                 Alert(
-                    key=f"recheck-error:{expected.credit_ref}:{_safe_error_code(exc)}",
+                    key=(
+                        f"recheck-error:{descriptor.account_ref}:{expected.credit_ref}:"
+                        f"{_safe_error_code(exc)}"
+                    ),
                     line=f"ERROR {html.escape(descriptor.label)} fresh redemption recheck failed.",
                 )
             )
@@ -515,7 +522,7 @@ class Guardian:
             alerts.append(
                 Alert(
                     key=(
-                        f"expiry-mismatch:{expected.credit_ref}:"
+                        f"expiry-mismatch:{descriptor.account_ref}:{expected.credit_ref}:"
                         f"{utc_iso(expected.expires_at)}:{utc_iso(exact.expires_at)}"
                     ),
                     line=(

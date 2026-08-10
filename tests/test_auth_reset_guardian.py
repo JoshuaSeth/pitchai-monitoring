@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from auth_reset_guardian.audit import AuditStore
+from auth_reset_guardian.audit import SCHEMA_VERSION, AuditStore
 from auth_reset_guardian.cli import _exclusive_lock
 from auth_reset_guardian.clients import (
     AccountScanError,
@@ -137,6 +137,73 @@ def test_exclusive_lock_still_fails_loudly_after_wait_timeout(tmp_path: Path) ->
         os.close(descriptor)
 
 
+def test_schema_v1_migrates_warning_scope_without_losing_marks(tmp_path: Path) -> None:
+    db_path = tmp_path / "audit.sqlite3"
+    with sqlite3.connect(db_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE runs (
+                run_id TEXT PRIMARY KEY,
+                mode TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                status TEXT NOT NULL,
+                account_count INTEGER NOT NULL DEFAULT 0,
+                credit_count INTEGER NOT NULL DEFAULT 0,
+                warning_count INTEGER NOT NULL DEFAULT 0,
+                redemption_count INTEGER NOT NULL DEFAULT 0,
+                error_count INTEGER NOT NULL DEFAULT 0,
+                summary_json TEXT
+            );
+            CREATE TABLE warning_marks (
+                mode TEXT NOT NULL,
+                account_ref TEXT NOT NULL,
+                credit_ref TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                threshold_hours INTEGER NOT NULL,
+                first_run_id TEXT NOT NULL REFERENCES runs(run_id),
+                first_observed_at TEXT NOT NULL,
+                PRIMARY KEY(mode, credit_ref, expires_at, threshold_hours)
+            );
+            INSERT INTO runs(run_id, mode, started_at, status)
+            VALUES ('old-run', 'live', '2026-08-10T19:00:00Z', 'ok');
+            INSERT INTO warning_marks(
+                mode, account_ref, credit_ref, expires_at, threshold_hours,
+                first_run_id, first_observed_at
+            ) VALUES (
+                'live', 'account-a', 'credit-a', '2026-08-11T21:08:33Z', 48,
+                'old-run', '2026-08-10T19:00:00Z'
+            );
+            PRAGMA user_version = 1;
+            """
+        )
+
+    with AuditStore(db_path):
+        pass
+
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+        table_info = connection.execute("PRAGMA table_info(warning_marks)").fetchall()
+        primary_key = [row[1] for row in sorted(table_info, key=lambda row: row[5]) if row[5]]
+        assert primary_key == [
+            "mode",
+            "account_ref",
+            "credit_ref",
+            "expires_at",
+            "threshold_hours",
+        ]
+        retained = connection.execute(
+            "SELECT mode, account_ref, credit_ref, expires_at, threshold_hours "
+            "FROM warning_marks"
+        ).fetchall()
+        assert retained == [("live", "account-a", "credit-a", "2026-08-11T21:08:33Z", 48)]
+        index_columns = [
+            row[2]
+            for row in connection.execute("PRAGMA index_info(redemption_open_idx)").fetchall()
+        ]
+        assert index_columns[:3] == ["account_ref", "credit_ref", "expires_at"]
+
+
 def test_warning_thresholds_are_emitted_once_per_mode_across_restarts(tmp_path: Path) -> None:
     now = datetime(2026, 8, 10, 19, 0, tzinfo=UTC)
     clock = MutableClock(now)
@@ -158,6 +225,70 @@ def test_warning_thresholds_are_emitted_once_per_mode_across_restarts(tmp_path: 
     assert third.warning_count == 1
     thresholds = [event["threshold_hours"] for event in _events(db_path) if event["event_type"] == "expiry_warning"]
     assert thresholds == [48, 24]
+
+
+def test_all_required_warning_thresholds_are_persisted_across_time(tmp_path: Path) -> None:
+    initial = datetime(2026, 8, 10, 0, 0, tzinfo=UTC)
+    expiry = initial + timedelta(hours=49)
+    clock = MutableClock(initial)
+    source = SimulationSource(_fixture(expires_at=expiry), clock=clock)
+    db_path = tmp_path / "audit.sqlite3"
+
+    for remaining_hours in (47, 23, 5, 1.5, 0.5):
+        clock.now = expiry - timedelta(hours=remaining_hours)
+        with AuditStore(db_path) as audit:
+            summary = Guardian(source=source, audit=audit, clock=clock).run(
+                mode="threshold_coverage", dry_run=True
+            )
+        assert summary.warning_count == 1
+        assert summary.redemption_attempt_count == 0
+
+    thresholds = [
+        event["threshold_hours"]
+        for event in _events(db_path)
+        if event["event_type"] == "expiry_warning"
+    ]
+    assert thresholds == [48, 24, 6, 2, 1]
+
+
+def test_same_credit_id_and_expiry_are_scoped_per_account_for_warnings(
+    tmp_path: Path,
+) -> None:
+    now = datetime(2026, 8, 11, 12, 0, tzinfo=UTC)
+    fixture = _fixture(expires_at=now + timedelta(hours=5), credit_id="shared-provider-id")
+    second = json.loads(json.dumps(fixture["accounts"][0]))
+    second["label"] = "support@pitchai.net"
+    fixture["accounts"].append(second)
+    source = SimulationSource(fixture, clock=lambda: now)
+
+    class RecordingNotifier:
+        def __init__(self) -> None:
+            self.messages: list[str] = []
+
+        def notify(self, message: str) -> None:
+            self.messages.append(message)
+
+    notifier = RecordingNotifier()
+    db_path = tmp_path / "audit.sqlite3"
+    with AuditStore(db_path) as audit:
+        summary = Guardian(
+            source=source,
+            audit=audit,
+            notifier=notifier,  # type: ignore[arg-type]
+            clock=lambda: now,
+        ).run(mode="live", dry_run=True)
+
+    assert summary.warning_count == 6
+    assert summary.redemption_attempt_count == 0
+    assert len(notifier.messages) == 1
+    assert "info@pitchai.net" in notifier.messages[0]
+    assert "support@pitchai.net" in notifier.messages[0]
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute("SELECT count(*) FROM warning_marks").fetchone()[0] == 6
+        assert connection.execute(
+            "SELECT count(DISTINCT account_ref) FROM warning_marks"
+        ).fetchone()[0] == 2
+        assert connection.execute("SELECT count(*) FROM notifications").fetchone()[0] == 6
 
 
 def test_simulation_redeems_exact_credit_after_fresh_recheck(tmp_path: Path) -> None:
@@ -294,6 +425,57 @@ def test_nothing_to_reset_is_retried_with_a_new_logical_idempotency_key(tmp_path
     assert first.redemption_attempt_count == second.redemption_attempt_count == 1
     assert len(source.consume_calls) == 2
     assert source.consume_calls[0]["idempotency_key"] != source.consume_calls[1]["idempotency_key"]
+
+
+def test_same_credit_id_and_expiry_do_not_resume_another_accounts_attempt(tmp_path: Path) -> None:
+    now = datetime(2026, 8, 11, 20, 0, tzinfo=UTC)
+    fixture = _fixture(
+        expires_at=now + timedelta(hours=1),
+        credit_id="shared-provider-id",
+        outcome="reset",
+    )
+    second = json.loads(json.dumps(fixture["accounts"][0]))
+    second["label"] = "support@pitchai.net"
+    fixture["accounts"].append(second)
+
+    class FirstAccountAmbiguousSource(SimulationSource):
+        def consume_credit(self, observation, credit, idempotency_key):  # type: ignore[no-untyped-def]
+            if observation.descriptor.label == "info@pitchai.net":
+                self.consume_calls.append(
+                    {
+                        "account_ref": observation.descriptor.account_ref,
+                        "credit_ref": credit.credit_ref,
+                        "provider_id": credit.provider_id,
+                        "idempotency_key": idempotency_key,
+                    }
+                )
+                raise RemoteCallError(
+                    endpoint="provider_consume_reset_credit",
+                    error_code="transport_timeout",
+                    ambiguous=True,
+                )
+            return super().consume_credit(observation, credit, idempotency_key)
+
+    source = FirstAccountAmbiguousSource(fixture, clock=lambda: now)
+    db_path = tmp_path / "audit.sqlite3"
+    with AuditStore(db_path) as audit:
+        summary = Guardian(source=source, audit=audit, clock=lambda: now).run(
+            mode="simulation", dry_run=False
+        )
+
+    assert summary.redemption_attempt_count == 2
+    assert summary.redemption_count == 1
+    assert summary.error_count == 1
+    assert len(source.consume_calls) == 2
+    assert len({call["account_ref"] for call in source.consume_calls}) == 2
+    assert len({call["idempotency_key"] for call in source.consume_calls}) == 2
+    with sqlite3.connect(db_path) as connection:
+        rows = connection.execute(
+            "SELECT account_ref, idempotency_key FROM redemption_attempts"
+        ).fetchall()
+    assert len(rows) == 2
+    assert len({row[0] for row in rows}) == 2
+    assert len({row[1] for row in rows}) == 2
 
 
 def test_ambiguous_attempt_resumes_the_same_idempotency_key(tmp_path: Path) -> None:

@@ -12,7 +12,7 @@ from uuid import uuid4
 from .models import AccountObservation, ResetCredit, utc_iso
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _json(value: object) -> str:
@@ -53,7 +53,7 @@ class AuditStore:
 
     def _initialize(self) -> None:
         version = int(self._connection.execute("PRAGMA user_version").fetchone()[0])
-        if version not in {0, SCHEMA_VERSION}:
+        if version not in {0, 1, SCHEMA_VERSION}:
             raise RuntimeError(f"unsupported reset guardian audit schema version: {version}")
         self._connection.executescript(
             """
@@ -108,7 +108,7 @@ class AuditStore:
                 threshold_hours INTEGER NOT NULL,
                 first_run_id TEXT NOT NULL REFERENCES runs(run_id),
                 first_observed_at TEXT NOT NULL,
-                PRIMARY KEY(mode, credit_ref, expires_at, threshold_hours)
+                PRIMARY KEY(mode, account_ref, credit_ref, expires_at, threshold_hours)
             );
 
             CREATE TABLE IF NOT EXISTS redemption_attempts (
@@ -130,7 +130,7 @@ class AuditStore:
                 details_json TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS redemption_open_idx
-                ON redemption_attempts(credit_ref, expires_at, status, updated_at);
+                ON redemption_attempts(account_ref, credit_ref, expires_at, status, updated_at);
 
             CREATE TABLE IF NOT EXISTS notifications (
                 notification_key TEXT PRIMARY KEY,
@@ -143,6 +143,37 @@ class AuditStore:
             );
             """
         )
+        if version == 1:
+            self._connection.executescript(
+                """
+                BEGIN IMMEDIATE;
+                CREATE TABLE warning_marks_v2 (
+                    mode TEXT NOT NULL,
+                    account_ref TEXT NOT NULL,
+                    credit_ref TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    threshold_hours INTEGER NOT NULL,
+                    first_run_id TEXT NOT NULL REFERENCES runs(run_id),
+                    first_observed_at TEXT NOT NULL,
+                    PRIMARY KEY(mode, account_ref, credit_ref, expires_at, threshold_hours)
+                );
+                INSERT INTO warning_marks_v2(
+                    mode, account_ref, credit_ref, expires_at, threshold_hours,
+                    first_run_id, first_observed_at
+                )
+                SELECT mode, account_ref, credit_ref, expires_at, threshold_hours,
+                       first_run_id, first_observed_at
+                  FROM warning_marks;
+                DROP TABLE warning_marks;
+                ALTER TABLE warning_marks_v2 RENAME TO warning_marks;
+                DROP INDEX IF EXISTS redemption_open_idx;
+                CREATE INDEX redemption_open_idx
+                    ON redemption_attempts(
+                        account_ref, credit_ref, expires_at, status, updated_at
+                    );
+                COMMIT;
+                """
+            )
         self._connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._connection.commit()
 
@@ -285,10 +316,15 @@ class AuditStore:
             """
             SELECT attempt_id, idempotency_key
               FROM redemption_attempts
-             WHERE credit_ref = ? AND expires_at = ? AND status IN ('started', 'uncertain')
+             WHERE account_ref = ? AND credit_ref = ? AND expires_at = ?
+               AND status IN ('started', 'uncertain')
              ORDER BY started_at ASC LIMIT 1
             """,
-            (credit.credit_ref, utc_iso(credit.expires_at)),
+            (
+                observation.descriptor.account_ref,
+                credit.credit_ref,
+                utc_iso(credit.expires_at),
+            ),
         ).fetchone()
         if row is not None:
             with self._connection:
