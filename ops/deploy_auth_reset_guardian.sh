@@ -49,18 +49,42 @@ if not settings.bot_token:
 PY
 )
 
-source_hash="$({
-  find "${REPO_ROOT}/auth_reset_guardian" -type f -name '*.py' -print0
-  printf '%s\0' \
-    "${REPO_ROOT}/fixtures/auth-reset-guardian-expiring.json" \
-    "${REPO_ROOT}/docs/auth-reset-guardian.md" \
-    "${REPO_ROOT}/ops/run_auth_reset_guardian.sh" \
-    "${REPO_ROOT}/ops/auth-reset-guardian.env" \
-    "${REPO_ROOT}/ops/systemd/pitchai-auth-reset-guardian.service" \
-    "${REPO_ROOT}/ops/systemd/pitchai-auth-reset-guardian.timer"
-} | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
-git_sha="$(git -C "${REPO_ROOT}" rev-parse --short=12 HEAD)"
-release_id="${git_sha}-${source_hash:0:12}"
+mapfile -d '' -t source_files < <(
+  cd "${REPO_ROOT}"
+  {
+    find auth_reset_guardian -type f -name '*.py' -print0
+    printf '%s\0' \
+      fixtures/auth-reset-guardian-expiring.json \
+      docs/auth-reset-guardian.md \
+      ops/run_auth_reset_guardian.sh \
+      ops/deploy_auth_reset_guardian.sh \
+      ops/auth-reset-guardian.env \
+      ops/systemd/pitchai-auth-reset-guardian.service \
+      ops/systemd/pitchai-auth-reset-guardian.timer
+  } | LC_ALL=C sort -z
+)
+for relative_path in "${source_files[@]}"; do
+  if ! committed_blob="$(
+    git -C "${REPO_ROOT}" rev-parse --verify "HEAD:${relative_path}" 2>/dev/null
+  )"; then
+    printf 'Refusing deployment: %s is not present in HEAD.\n' "${relative_path}" >&2
+    exit 1
+  fi
+  working_blob="$(git -C "${REPO_ROOT}" hash-object -- "${relative_path}")"
+  if [[ "${working_blob}" != "${committed_blob}" ]]; then
+    printf 'Refusing deployment: %s differs from HEAD.\n' "${relative_path}" >&2
+    exit 1
+  fi
+done
+source_hash="$(
+  cd "${REPO_ROOT}"
+  printf '%s\0' "${source_files[@]}" \
+    | xargs -0 sha256sum \
+    | sha256sum \
+    | cut -d' ' -f1
+)"
+git_sha="$(git -C "${REPO_ROOT}" rev-parse --verify HEAD)"
+release_id="${git_sha:0:12}-${source_hash:0:12}"
 release_dir="${RELEASES_DIR}/${release_id}"
 
 install -d -m 755 -o root -g root "${RELEASES_DIR}"

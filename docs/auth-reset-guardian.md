@@ -43,7 +43,7 @@ Run from the repository root on `pitchai-dev` as root:
 
 The deployment:
 
-- fingerprints the exact source and installs an immutable release below `/opt/pitchai-auth-reset-guardian/releases/`;
+- refuses deployment if any shipped file differs from `HEAD`, records the full commit SHA and a path-independent source digest, and installs an immutable release below `/opt/pitchai-auth-reset-guardian/releases/`;
 - atomically points `/opt/pitchai-auth-reset-guardian/current` at that release;
 - reads the broker secret only from `/etc/auth-token-server/auth-token-server.env` at run time;
 - validates the canonical Telegram helper's requester-private Seth route;
