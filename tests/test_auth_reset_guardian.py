@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import fcntl
 import json
+import os
 import sqlite3
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from auth_reset_guardian.audit import AuditStore
+from auth_reset_guardian.cli import _exclusive_lock
 from auth_reset_guardian.clients import (
     AccountScanError,
     BrokerProviderSource,
@@ -90,6 +97,44 @@ def _events(db_path: Path) -> list[dict]:
     with sqlite3.connect(db_path) as connection:
         connection.row_factory = sqlite3.Row
         return [dict(row) for row in connection.execute("SELECT * FROM events ORDER BY event_id")]
+
+
+def _hold_audit_lock(db_path: Path) -> int:
+    lock_path = db_path.with_suffix(db_path.suffix + ".lock")
+    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return descriptor
+
+
+def test_exclusive_lock_waits_for_a_colliding_run_instead_of_failing(tmp_path: Path) -> None:
+    db_path = tmp_path / "audit.sqlite3"
+    descriptor = _hold_audit_lock(db_path)
+
+    def release() -> None:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+    timer = threading.Timer(0.05, release)
+    timer.start()
+    started = time.monotonic()
+    with _exclusive_lock(db_path, wait_seconds=0.5):
+        pass
+    elapsed = time.monotonic() - started
+    timer.join()
+
+    assert elapsed >= 0.04
+
+
+def test_exclusive_lock_still_fails_loudly_after_wait_timeout(tmp_path: Path) -> None:
+    db_path = tmp_path / "audit.sqlite3"
+    descriptor = _hold_audit_lock(db_path)
+    try:
+        with pytest.raises(SystemExit, match="held the audit lock beyond"):
+            with _exclusive_lock(db_path, wait_seconds=0.02):
+                pass
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
 
 
 def test_warning_thresholds_are_emitted_once_per_mode_across_restarts(tmp_path: Path) -> None:
