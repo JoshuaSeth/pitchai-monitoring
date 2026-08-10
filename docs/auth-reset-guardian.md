@@ -15,7 +15,7 @@ One production pass performs these steps for every broker account, including dis
 5. `POST /wham/rate-limit-reset-credits/consume` receives both a durable idempotency key and that exact credit ID. The service never issues an untargeted consume request, so a racing operator cannot cause it to fall through to another credit.
 6. A final broker-managed refresh proves whether that exact credit remains available. `reset` and `already_redeemed` count as success only when the post-state confirms the credit is absent or no longer redeemable. Ambiguous transports reuse the same SQLite-backed idempotency key after restart.
 
-The provider can return `nothing_to_reset` when no usage window is exhausted. That outcome does not consume the credit. The guardian records it and tries again on the next 15-minute pass until the credit is handled or expires.
+The provider can return `nothing_to_reset` when no usage window is exhausted. That outcome does not consume the credit. The guardian records it, emits one account + credit + expiry-scoped requester-private warning while the exact credit remains available, and tries again on the next 15-minute pass until the credit is handled or expires. Later retries do not repeat the same warning.
 
 Warning deduplication, notification identity, and resumable redemption attempts are all scoped by the broker account reference together with the credit reference and expiry. Audit schema version 2 transactionally migrates existing version-1 warning marks into that account-scoped key without discarding history.
 
@@ -33,7 +33,7 @@ Each available, plan-supported `codex_rate_limits` credit is warned once as it c
 
 If the machine was down at a threshold, `Persistent=true` starts the missed timer and the next pass records every crossed-but-unreported threshold. Starting at two hours before expiry, every 15-minute pass performs the mandatory fresh recheck and may attempt the exact credit. Fifteen minutes is deliberately more frequent than the requested two-hour cadence so a transient broker/provider failure still leaves several retries.
 
-Production warnings, account-check failures, verified redemptions, and verification failures use the canonical requester-private Telegram route `seth-ori`. There is no group route in the service configuration. Every decision and notification result is also durable in SQLite and journald. A threshold event is recorded exactly once, while a pending or failed Telegram delivery is reconstructed from that durable threshold on later passes and retried until the private sent receipt is recorded.
+Production warnings, non-consuming `nothing_to_reset` outcomes, account-check failures, verified redemptions, and verification failures use the canonical requester-private Telegram route `seth-ori`. There is no group route in the service configuration. Every decision and notification result is also durable in SQLite and journald. A threshold event is recorded exactly once, while a pending or failed Telegram delivery is reconstructed from that durable threshold on later passes and retried until the private sent receipt is recorded.
 
 ## Production installation
 

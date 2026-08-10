@@ -785,6 +785,22 @@ class Guardian:
                     ),
                 )
             )
+        elif result.code == "nothing_to_reset" and still_available:
+            assert credit.expires_at is not None
+            alerts.append(
+                Alert(
+                    key=(
+                        f"redemption-waiting:{observation.descriptor.account_ref}:"
+                        f"{credit.credit_ref}:{utc_iso(credit.expires_at)}:nothing_to_reset"
+                    ),
+                    line=(
+                        f"WARNING {html.escape(observation.descriptor.label)} provider returned "
+                        "nothing_to_reset; the exact credit expiring "
+                        f"{html.escape(utc_iso(credit.expires_at))} remains available. "
+                        "Automatic retries continue every 15 minutes."
+                    ),
+                )
+            )
         elif severity == "error":
             alerts.append(
                 Alert(

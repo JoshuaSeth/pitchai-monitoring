@@ -533,19 +533,43 @@ def test_nothing_to_reset_is_retried_with_a_new_logical_idempotency_key(tmp_path
         {"code": "nothing_to_reset", "windows_reset": 0}
     )
     source = SimulationSource(fixture, clock=clock)
+
+    class RecordingNotifier:
+        def __init__(self) -> None:
+            self.messages: list[str] = []
+
+        def notify(self, message: str) -> None:
+            self.messages.append(message)
+
+    notifier = RecordingNotifier()
     db_path = tmp_path / "audit.sqlite3"
     with AuditStore(db_path) as audit:
-        first = Guardian(source=source, audit=audit, clock=clock).run(
-            mode="simulation", dry_run=False
-        )
+        first = Guardian(
+            source=source,
+            audit=audit,
+            notifier=notifier,  # type: ignore[arg-type]
+            clock=clock,
+        ).run(mode="simulation", dry_run=False)
     clock.now += timedelta(minutes=15)
     with AuditStore(db_path) as audit:
-        second = Guardian(source=source, audit=audit, clock=clock).run(
-            mode="simulation", dry_run=False
-        )
+        second = Guardian(
+            source=source,
+            audit=audit,
+            notifier=notifier,  # type: ignore[arg-type]
+            clock=clock,
+        ).run(mode="simulation", dry_run=False)
     assert first.redemption_attempt_count == second.redemption_attempt_count == 1
     assert len(source.consume_calls) == 2
     assert source.consume_calls[0]["idempotency_key"] != source.consume_calls[1]["idempotency_key"]
+    assert len(notifier.messages) == 1
+    assert "nothing_to_reset" in notifier.messages[0]
+    assert "Automatic retries continue every 15 minutes" in notifier.messages[0]
+    with sqlite3.connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT status, attempts FROM notifications "
+            "WHERE notification_key LIKE 'redemption-waiting:%'"
+        ).fetchone()
+    assert row == ("sent", 1)
 
 
 def test_same_credit_id_and_expiry_do_not_resume_another_accounts_attempt(tmp_path: Path) -> None:
