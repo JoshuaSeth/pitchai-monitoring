@@ -1,5 +1,7 @@
 # PitchAI Service Monitoring
 
+Operations documentation: [Codex reset-credit guardian](docs/auth-reset-guardian.md).
+
 Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
 
 ## What it does
