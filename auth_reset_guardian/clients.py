@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from .models import (
     AccountDescriptor,
@@ -64,6 +64,22 @@ class GuardianSource(ABC):
         idempotency_key: str,
     ) -> ConsumeResult:
         raise NotImplementedError
+
+
+class JsonHttpTransport(Protocol):
+    """Typed JSON request boundary used by broker/provider sources."""
+
+    def request(
+        self,
+        *,
+        method: str,
+        url: str,
+        endpoint: str,
+        headers: dict[str, str],
+        payload: dict[str, Any] | None = None,
+        ambiguous_on_failure: bool = False,
+    ) -> dict[str, Any]:
+        """Return one decoded JSON object or raise ``RemoteCallError``."""
 
 
 class JsonHttpClient:
@@ -137,7 +153,7 @@ class BrokerProviderSource(GuardianSource):
         broker_admin_token: str,
         provider_base_url: str = "https://chatgpt.com/backend-api",
         timeout_seconds: float = 20.0,
-        http: JsonHttpClient | None = None,
+        http: JsonHttpTransport | None = None,
     ):
         if not broker_admin_token.strip():
             raise ValueError("broker admin token must not be empty")

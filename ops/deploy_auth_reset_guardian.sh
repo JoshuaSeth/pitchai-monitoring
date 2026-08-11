@@ -109,7 +109,17 @@ if [[ ! -d "${release_dir}" ]]; then
   trap - EXIT
 fi
 
-previous_target="$(readlink -f "${CURRENT_LINK}" 2>/dev/null || true)"
+if [[ -L "${CURRENT_LINK}" ]]; then
+  if ! previous_target="$(readlink -f -- "${CURRENT_LINK}")" || [[ ! -d "${previous_target}" ]]; then
+    printf 'Refusing deployment: current release link does not resolve.\n' >&2
+    exit 1
+  fi
+elif [[ -e "${CURRENT_LINK}" ]]; then
+  printf 'Refusing deployment: current release path exists but is not a symlink.\n' >&2
+  exit 1
+else
+  previous_target=""
+fi
 temporary_link="${INSTALL_BASE}/.current-${release_id}-$$"
 ln -s "${release_dir}" "${temporary_link}"
 mv -Tf "${temporary_link}" "${CURRENT_LINK}"
@@ -138,22 +148,43 @@ trap cleanup_validation EXIT
   run --dry-run --no-notify >/dev/null
 
 rollback() {
-  systemctl disable --now pitchai-auth-reset-guardian.timer >/dev/null 2>&1 || true
+  local rollback_status=0
+  if ! systemctl disable --now pitchai-auth-reset-guardian.timer >/dev/null 2>&1; then
+    printf 'Rollback failed to disable the guardian timer.\n' >&2
+    rollback_status=1
+  fi
   if [[ -n "${previous_target}" && -d "${previous_target}" ]]; then
     rollback_link="${INSTALL_BASE}/.rollback-$$"
-    ln -s "${previous_target}" "${rollback_link}"
-    mv -Tf "${rollback_link}" "${CURRENT_LINK}"
-  else
-    rm -f -- "${CURRENT_LINK}"
+    if ! ln -s "${previous_target}" "${rollback_link}"; then
+      printf 'Rollback failed to create the previous-release link.\n' >&2
+      rollback_status=1
+    elif ! mv -Tf "${rollback_link}" "${CURRENT_LINK}"; then
+      printf 'Rollback failed to restore the previous release.\n' >&2
+      rollback_status=1
+    fi
+  elif ! rm -f -- "${CURRENT_LINK}"; then
+    printf 'Rollback failed to remove the newly installed release link.\n' >&2
+    rollback_status=1
   fi
+  return "${rollback_status}"
 }
 if ! systemctl enable --now pitchai-auth-reset-guardian.timer; then
-  rollback
+  if ! rollback; then
+    printf 'Guardian timer enable failed and rollback was incomplete.\n' >&2
+  fi
   exit 1
 fi
 if ! systemctl start pitchai-auth-reset-guardian.service; then
-  journalctl -u pitchai-auth-reset-guardian.service -n 100 --no-pager >&2 || true
-  rollback
+  if command -v journalctl >/dev/null; then
+    if ! journalctl -u pitchai-auth-reset-guardian.service -n 100 --no-pager >&2; then
+      printf 'Guardian journal diagnostics were unavailable; mandatory rollback continues.\n' >&2
+    fi
+  else
+    printf 'journalctl is unavailable; mandatory rollback continues without start diagnostics.\n' >&2
+  fi
+  if ! rollback; then
+    printf 'Guardian service start failed and rollback was incomplete.\n' >&2
+  fi
   exit 1
 fi
 systemctl is-active --quiet pitchai-auth-reset-guardian.timer
