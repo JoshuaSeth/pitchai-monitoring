@@ -61,6 +61,10 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: PitchAI Codex Status iPhone Development
     dependencies:
       - target: CodexStatusWidget
         embed: true
@@ -96,6 +100,10 @@ targets:
         PRODUCT_NAME: CodexStatusWidget
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: PitchAI Codex Status Widget Development
 
   CodexStatusWatch:
     type: application
@@ -126,6 +134,10 @@ targets:
         PRODUCT_NAME: CodexStatusWatch
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: PitchAI Codex Status Watch Development
     dependencies:
       - target: CodexStatusWatchWidget
         embed: true
@@ -157,6 +169,10 @@ targets:
         PRODUCT_NAME: CodexStatusWatchWidget
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: PitchAI Codex Status Watch Widget Development
 
   CodexStatusTests:
     type: bundle.unit-test

@@ -49,8 +49,11 @@ Run the simulator app with `-CodexStatusFixture` only for sanitized UI evidence.
 The normal app has no fixture fallback: it fails clearly when App Attest or the
 live service is unavailable.
 
-Physical builds use automatic signing for Apple team `ZM6568G5FX`. The required
-capabilities are App Attest in the development environment, the
-`group.com.pitchai.codexstatus` App Group, Background Tasks, WatchConnectivity,
-and WidgetKit. Open the server enrollment gate only while registering the
-intended physical installation, then close it immediately.
+Release builds use automatic signing for Apple team `ZM6568G5FX`. Debug device
+builds pin the four target-specific development profiles named in `project.yml`
+so a trusted deployment Mac does not need a logged-in Xcode account. Those
+profiles must contain App Attest in the development environment and the
+`group.com.pitchai.codexstatus` App Group; the project also uses Background
+Tasks, WatchConnectivity, and WidgetKit. Open the server enrollment gate only
+while registering the intended physical installation, then close it
+immediately.
