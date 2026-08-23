@@ -256,7 +256,7 @@ def test_app_attest_registry_enforces_counter_and_persists_privately(
     )
 
     request_data = b"canonical request"
-    assertion = fixture.assertion(request_data, counter=1)
+    assertion = fixture.assertion(request_data, counter=1, flags=0x40)
     assert (
         registry.verify_assertion(
             key_id=fixture.key_id,
@@ -278,8 +278,8 @@ def test_app_attest_registry_enforces_counter_and_persists_privately(
     assert "test-only" not in persisted
 
 
-@pytest.mark.parametrize("flags", [0x00, 0x01, 0x04, 0x05])
-def test_app_attest_assertion_accepts_optional_user_presence_and_verification_flags(
+@pytest.mark.parametrize("flags", [0x00, 0x40])
+def test_app_attest_assertion_accepts_supported_apple_flag_values(
     tmp_path: Path,
     flags: int,
 ) -> None:
@@ -302,7 +302,10 @@ def test_app_attest_assertion_accepts_optional_user_presence_and_verification_fl
     )
 
 
-@pytest.mark.parametrize("flags", [0x02, 0x08, 0x10, 0x20, 0x40, 0x80])
+@pytest.mark.parametrize(
+    "flags",
+    [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x41, 0x44, 0x80, 0xFF],
+)
 def test_app_attest_assertion_rejects_all_other_authenticator_flags(
     tmp_path: Path,
     flags: int,

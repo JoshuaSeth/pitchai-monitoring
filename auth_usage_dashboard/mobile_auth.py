@@ -34,9 +34,7 @@ ALLOWED_PURPOSES = frozenset({"attest", "capacity", "refresh"})
 MAX_KEY_ID_BYTES = 128
 MAX_ATTESTATION_BYTES = 64 * 1024
 MAX_ASSERTION_BYTES = 16 * 1024
-ASSERTION_USER_PRESENT_FLAG = 0x01
-ASSERTION_USER_VERIFIED_FLAG = 0x04
-ASSERTION_ALLOWED_FLAGS_MASK = ASSERTION_USER_PRESENT_FLAG | ASSERTION_USER_VERIFIED_FLAG
+ASSERTION_SUPPORTED_FLAGS = frozenset({0x00, 0x40})
 LOGGER = logging.getLogger(__name__)
 
 
@@ -370,7 +368,7 @@ def verify_assertion(
         raise MobileAuthError("assertion_invalid", "App Attest authenticator data is invalid")
     rp_id_hash = auth_data[:32]
     counter = struct.unpack(">I", auth_data[33:37])[0]
-    if auth_data[32] & ~ASSERTION_ALLOWED_FLAGS_MASK:
+    if auth_data[32] not in ASSERTION_SUPPORTED_FLAGS:
         LOGGER.warning(
             "App Attest assertion rejected unsupported authenticator flags=0x%02x",
             auth_data[32],
