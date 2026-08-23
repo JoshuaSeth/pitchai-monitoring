@@ -9,6 +9,7 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
     @Published private(set) var message: String?
 
     private let fixtureMode: Bool
+    private var lastSnapshotRequestAt: Date?
 
     override init() {
         fixtureMode = ProcessInfo.processInfo.arguments.contains("-CodexStatusFixture")
@@ -69,6 +70,14 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
         let context = session.receivedApplicationContext
         Task { @MainActor [weak self] in
             self?.apply(context: context)
+            self?.requestLatestSnapshot()
+        }
+    }
+
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        guard session.isReachable else { return }
+        Task { @MainActor [weak self] in
+            self?.requestLatestSnapshot()
         }
     }
 
@@ -79,6 +88,46 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
         Task { @MainActor [weak self] in
             self?.apply(context: applicationContext)
         }
+    }
+
+    nonisolated func session(
+        _ session: WCSession,
+        didReceiveUserInfo userInfo: [String: Any] = [:]
+    ) {
+        Task { @MainActor [weak self] in
+            self?.apply(context: userInfo)
+        }
+    }
+
+    private func requestLatestSnapshot() {
+        guard WCSession.default.isReachable else { return }
+        if let lastSnapshotRequestAt,
+           Date().timeIntervalSince(lastSnapshotRequestAt) < 30 {
+            return
+        }
+        lastSnapshotRequestAt = Date()
+        WCSession.default.sendMessage(
+            ["action": "snapshot"],
+            replyHandler: { [weak self] reply in
+                Task { @MainActor in
+                    guard reply["accepted"] as? Bool == true,
+                          let data = reply["snapshot_v1"] as? Data else {
+                        if self?.snapshot == nil {
+                            self?.message = "The iPhone has not loaded a capacity snapshot yet."
+                        }
+                        return
+                    }
+                    self?.apply(snapshotData: data)
+                }
+            },
+            errorHandler: { [weak self] _ in
+                Task { @MainActor in
+                    if self?.snapshot == nil {
+                        self?.message = "Open Codex Status on the paired iPhone to load data."
+                    }
+                }
+            }
+        )
     }
 
     private func apply(context: [String: Any]) {

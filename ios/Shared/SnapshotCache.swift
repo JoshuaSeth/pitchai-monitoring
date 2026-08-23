@@ -17,44 +17,49 @@ enum SnapshotCacheError: LocalizedError {
 enum SnapshotCache {
     static let appGroup = "group.com.pitchai.codexstatus"
     static let snapshotKey = "codex-status.snapshot.v1"
+    static let snapshotFileName = "codex-status-snapshot-v1.json"
 
-    static func sharedDefaults() throws -> UserDefaults {
-        guard let defaults = UserDefaults(suiteName: appGroup) else {
+    static func sharedContainerURL() throws -> URL {
+        guard let url = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: appGroup
+        ) else {
             throw SnapshotCacheError.appGroupUnavailable
         }
-        return defaults
+        return url
     }
 
     static func load(from defaults: UserDefaults? = nil) -> CodexSnapshot? {
-        let resolved: UserDefaults
         if let defaults {
-            resolved = defaults
-        } else {
-            guard let shared = try? sharedDefaults() else { return nil }
-            resolved = shared
+            guard let data = defaults.data(forKey: snapshotKey) else { return nil }
+            return try? JSONDecoder().decode(CodexSnapshot.self, from: data)
         }
-        guard let data = resolved.data(forKey: snapshotKey) else { return nil }
+        guard let container = try? sharedContainerURL(),
+              let data = try? Data(
+                  contentsOf: container.appendingPathComponent(snapshotFileName)
+              ) else { return nil }
         return try? JSONDecoder().decode(CodexSnapshot.self, from: data)
     }
 
     static func save(_ snapshot: CodexSnapshot, to defaults: UserDefaults? = nil) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(snapshot) else {
-            throw SnapshotCacheError.encodingFailed
-        }
-        let resolved: UserDefaults
+        let data = try encoded(snapshot)
         if let defaults {
-            resolved = defaults
-        } else {
-            resolved = try sharedDefaults()
+            defaults.set(data, forKey: snapshotKey)
+            return
         }
-        resolved.set(data, forKey: snapshotKey)
+        let destination = try sharedContainerURL().appendingPathComponent(snapshotFileName)
+        try data.write(
+            to: destination,
+            options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+        )
     }
 
     static func encoded(_ snapshot: CodexSnapshot) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        return try encoder.encode(snapshot)
+        do {
+            return try encoder.encode(snapshot)
+        } catch {
+            throw SnapshotCacheError.encodingFailed
+        }
     }
 }
