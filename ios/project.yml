@@ -189,6 +189,21 @@ targets:
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/CodexStatus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CodexStatus
         BUNDLE_LOADER: $(TEST_HOST)
 
+  CodexStatusWatchUITests:
+    type: bundle.ui-testing
+    platform: watchOS
+    sources:
+      - path: UITests/Watch
+    dependencies:
+      - target: CodexStatusWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pitchai.codexstatus.watchuitests
+        PRODUCT_NAME: CodexStatusWatchUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: CodexStatusWatch
+        CODE_SIGN_STYLE: Automatic
+
 schemes:
   CodexStatus:
     build:
@@ -212,7 +227,12 @@ schemes:
     build:
       targets:
         CodexStatusWatch: all
+        CodexStatusWatchUITests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - CodexStatusWatchUITests
     analyze:
       config: Debug
