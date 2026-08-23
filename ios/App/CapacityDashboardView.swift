@@ -35,6 +35,15 @@ struct CapacityDashboardView: View {
                             )
                         }
 
+                        if snapshot.summary.usableNow == 0 {
+                            ServiceMessageCard(
+                                symbol: "person.crop.circle.badge.exclamationmark",
+                                title: "No accounts available",
+                                message: "The broker currently has no selectable Codex account. Review warnings or wait for the next reset.",
+                                tint: .red
+                            )
+                        }
+
                         WarningStrip(warnings: snapshot.warnings)
 
                         VStack(alignment: .leading, spacing: 10) {

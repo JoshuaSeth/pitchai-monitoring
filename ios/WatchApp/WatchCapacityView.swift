@@ -10,6 +10,27 @@ struct WatchCapacityView: View {
                     if let snapshot = store.snapshot {
                         WatchHero(snapshot: snapshot)
 
+                        Label(
+                            CapacityFormatting.relative(snapshot.summary.nextUsefulCapacityAt),
+                            systemImage: "clock.arrow.circlepath"
+                        )
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+
+                        if snapshot.summary.usableNow == 0 {
+                            WatchAttentionCard(
+                                text: "No account can be selected now",
+                                tint: .red
+                            )
+                        } else if snapshot.importantWarningCount > 0 {
+                            WatchAttentionCard(
+                                text: "\(snapshot.importantWarningCount) broker warning\(snapshot.importantWarningCount == 1 ? "" : "s")",
+                                tint: .orange
+                            )
+                        }
+
                         if let message = store.message {
                             Label(message, systemImage: "info.circle.fill")
                                 .font(.caption2)
@@ -60,6 +81,25 @@ private struct WatchHero: View {
         snapshot.selectedAggregate?.remainingPercent ?? 0
     }
 
+    private var stateText: String {
+        if snapshot.isStale { return "Stale" }
+        if snapshot.summary.usableNow == 0 { return "No capacity" }
+        if snapshot.importantWarningCount > 0 { return "Attention" }
+        return "Verified"
+    }
+
+    private var stateSymbol: String {
+        if snapshot.isStale { return "clock.badge.exclamationmark" }
+        if snapshot.requiresAttention { return "exclamationmark.triangle.fill" }
+        return "checkmark.shield.fill"
+    }
+
+    private var stateTint: Color {
+        if snapshot.summary.usableNow == 0 { return .red }
+        if snapshot.requiresAttention { return .orange }
+        return .green
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             Gauge(value: min(max(percentage, 0), 100), in: 0 ... 100) {
@@ -81,11 +121,11 @@ private struct WatchHero: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Label(
-                    snapshot.isStale ? "Stale" : "Verified",
-                    systemImage: snapshot.isStale ? "clock.badge.exclamationmark" : "checkmark.shield.fill"
+                    stateText,
+                    systemImage: stateSymbol
                 )
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(snapshot.isStale ? .orange : .green)
+                .foregroundStyle(stateTint)
             }
             Spacer(minLength: 0)
         }
@@ -98,6 +138,20 @@ private struct WatchHero: View {
             ),
             in: RoundedRectangle(cornerRadius: 14)
         )
+    }
+}
+
+private struct WatchAttentionCard: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        Label(text, systemImage: "exclamationmark.triangle.fill")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
     }
 }
 

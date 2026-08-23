@@ -34,6 +34,25 @@ struct WatchCapacityWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: WatchCapacityEntry
 
+    private func stateText(for snapshot: CodexSnapshot) -> String {
+        if snapshot.isStale { return "stale" }
+        if snapshot.summary.usableNow == 0 { return "no capacity" }
+        if snapshot.importantWarningCount > 0 { return "attention" }
+        return "verified"
+    }
+
+    private func stateSymbol(for snapshot: CodexSnapshot) -> String {
+        snapshot.requiresAttention
+            ? "exclamationmark.triangle.fill"
+            : "checkmark.shield.fill"
+    }
+
+    private func stateTint(for snapshot: CodexSnapshot) -> Color {
+        if snapshot.summary.usableNow == 0 { return .red }
+        if snapshot.requiresAttention { return .orange }
+        return .green
+    }
+
     var body: some View {
         if let snapshot = entry.snapshot {
             switch family {
@@ -49,21 +68,31 @@ struct WatchCapacityWidgetView: View {
                         .monospacedDigit()
                 }
                 .gaugeStyle(.accessoryCircularCapacity)
+                .tint(stateTint(for: snapshot))
             case .accessoryInline:
-                Text("Codex \(snapshot.summary.usableNow)/\(snapshot.summary.enabledAccounts) ready")
+                Label(
+                    "Codex \(snapshot.summary.usableNow)/\(snapshot.summary.enabledAccounts) ready",
+                    systemImage: stateSymbol(for: snapshot)
+                )
             default:
                 VStack(alignment: .leading, spacing: 3) {
                     Label(
-                        snapshot.isStale ? "Codex · stale" : "Codex · verified",
-                        systemImage: snapshot.isStale ? "clock.badge.exclamationmark" : "checkmark.shield.fill"
+                        "Codex · \(stateText(for: snapshot))",
+                        systemImage: stateSymbol(for: snapshot)
                     )
                     .font(.headline)
+                    .foregroundStyle(stateTint(for: snapshot))
                     Text("\(snapshot.summary.usableNow) of \(snapshot.summary.enabledAccounts) accounts ready")
                         .font(.caption)
-                    ProgressView(value: min(max((snapshot.selectedAggregate?.remainingPercent ?? 0) / 100, 0), 1))
                     Text(CapacityFormatting.percent(snapshot.selectedAggregate?.remainingPercent) + " capacity left")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                    Label(
+                        CapacityFormatting.relative(snapshot.summary.nextUsefulCapacityAt),
+                        systemImage: "clock.arrow.circlepath"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 }
             }
         } else {

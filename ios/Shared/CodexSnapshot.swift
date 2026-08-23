@@ -37,6 +37,16 @@ struct CodexSnapshot: Codable, Equatable, Sendable {
         }
     }
 
+    var importantWarningCount: Int {
+        warnings.filter { warning in
+            warning.severity == "critical" || warning.severity == "warning"
+        }.count
+    }
+
+    var requiresAttention: Bool {
+        isStale || summary.usableNow == 0 || importantWarningCount > 0
+    }
+
     static var fixture: CodexSnapshot {
         let now = Date()
         return CodexSnapshot(

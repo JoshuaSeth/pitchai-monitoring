@@ -109,6 +109,8 @@ final class CodexStatusTests: XCTestCase {
         XCTAssertNil(snapshot.accounts[0].fiveHour.remainingPercent)
         XCTAssertFalse(snapshot.accounts[0].fiveHour.reported)
         XCTAssertEqual(snapshot.warnings[0].accountLabel, "Primary")
+        XCTAssertEqual(snapshot.importantWarningCount, 1)
+        XCTAssertTrue(snapshot.requiresAttention)
     }
 
     func testCanonicalAssertionDataMatchesServerContract() throws {
