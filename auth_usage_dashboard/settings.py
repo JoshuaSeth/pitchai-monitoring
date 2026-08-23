@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
+
+
+ROOT = Path(__file__).resolve().parent
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -74,6 +78,21 @@ class DashboardSettings:
     history_file: Path | None = None
     history_retention_days: int = 8
     history_sample_interval_seconds: int = 300
+    mobile_enabled: bool = False
+    mobile_app_id_prefix: str = ""
+    mobile_bundle_id: str = ""
+    mobile_app_attest_environment: str = "development"
+    mobile_app_attest_registry_file: Path = Path(
+        "/dashboard-data/mobile-app-attest.json"
+    )
+    mobile_app_attest_root_certificate: Path = (
+        ROOT / "certs" / "apple-app-attestation-root-ca.crt"
+    )
+    mobile_app_attest_enrollment_enabled: bool = False
+    mobile_app_attest_max_keys: int = 2
+    mobile_challenge_ttl_seconds: int = 120
+    mobile_challenge_max_pending: int = 128
+    mobile_background_refresh_seconds: int = 900
 
     @classmethod
     def from_env(cls) -> "DashboardSettings":
@@ -97,6 +116,31 @@ class DashboardSettings:
         ).strip()
         if safe_probe_enabled and not admin_token:
             raise RuntimeError("AUTH_USAGE_BROKER_ADMIN_TOKEN or AUTH_TOKEN_SERVER_ADMIN_TOKEN is required")
+
+        mobile_enabled = _env_bool("AUTH_USAGE_MOBILE_ENABLED", False)
+        mobile_app_id_prefix = os.getenv(
+            "AUTH_USAGE_MOBILE_APP_ID_PREFIX", ""
+        ).strip()
+        mobile_bundle_id = os.getenv("AUTH_USAGE_MOBILE_BUNDLE_ID", "").strip()
+        mobile_environment = os.getenv(
+            "AUTH_USAGE_MOBILE_APP_ATTEST_ENVIRONMENT", "development"
+        ).strip().lower()
+        if mobile_environment not in {"development", "production"}:
+            raise RuntimeError(
+                "AUTH_USAGE_MOBILE_APP_ATTEST_ENVIRONMENT must be development or production"
+            )
+        if mobile_enabled:
+            if re.fullmatch(r"[A-Z0-9]{10}", mobile_app_id_prefix) is None:
+                raise RuntimeError(
+                    "AUTH_USAGE_MOBILE_APP_ID_PREFIX must be a 10-character Apple App ID prefix"
+                )
+            if (
+                re.fullmatch(r"[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)+", mobile_bundle_id)
+                is None
+            ):
+                raise RuntimeError(
+                    "AUTH_USAGE_MOBILE_BUNDLE_ID must be an explicit bundle identifier"
+                )
 
         return cls(
             broker_data_dir=Path(os.getenv("AUTH_USAGE_BROKER_DATA_DIR", "/broker-data")).expanduser(),
@@ -140,5 +184,45 @@ class DashboardSettings:
             ),
             history_sample_interval_seconds=_env_int(
                 "AUTH_USAGE_HISTORY_SAMPLE_INTERVAL_SECONDS", 300, minimum=60, maximum=1800
+            ),
+            mobile_enabled=mobile_enabled,
+            mobile_app_id_prefix=mobile_app_id_prefix,
+            mobile_bundle_id=mobile_bundle_id,
+            mobile_app_attest_environment=mobile_environment,
+            mobile_app_attest_registry_file=Path(
+                os.getenv(
+                    "AUTH_USAGE_MOBILE_APP_ATTEST_REGISTRY_FILE",
+                    "/dashboard-data/mobile-app-attest.json",
+                )
+            ).expanduser(),
+            mobile_app_attest_root_certificate=Path(
+                os.getenv(
+                    "AUTH_USAGE_MOBILE_APP_ATTEST_ROOT_CERTIFICATE",
+                    str(ROOT / "certs" / "apple-app-attestation-root-ca.crt"),
+                )
+            ).expanduser(),
+            mobile_app_attest_enrollment_enabled=_env_bool(
+                "AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED", False
+            ),
+            mobile_app_attest_max_keys=_env_int(
+                "AUTH_USAGE_MOBILE_APP_ATTEST_MAX_KEYS", 2, minimum=1, maximum=8
+            ),
+            mobile_challenge_ttl_seconds=_env_int(
+                "AUTH_USAGE_MOBILE_CHALLENGE_TTL_SECONDS",
+                120,
+                minimum=30,
+                maximum=300,
+            ),
+            mobile_challenge_max_pending=_env_int(
+                "AUTH_USAGE_MOBILE_CHALLENGE_MAX_PENDING",
+                128,
+                minimum=8,
+                maximum=1024,
+            ),
+            mobile_background_refresh_seconds=_env_int(
+                "AUTH_USAGE_MOBILE_BACKGROUND_REFRESH_SECONDS",
+                900,
+                minimum=900,
+                maximum=86400,
             ),
         )

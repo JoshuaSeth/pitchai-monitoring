@@ -11,6 +11,24 @@
 - The broker admin token is passed only to the container process so it can trigger the broker's account usage probe endpoint. It is never returned, logged, or embedded in the page.
 - `/healthz` is intentionally unauthenticated and exposes only service health, generation time, and a stale boolean. All account-bearing routes require authentication.
 
+The personal Codex Status iPhone app uses a separate, narrow mobile API under
+`/api/v1/mobile/`. That location bypasses browser SSO because native background
+refresh cannot complete an interactive Entra flow, but it does not use a bearer
+token, cookie, password, or embedded broker credential. Every account-bearing
+request instead requires a one-time challenge and a monotonic assertion from an
+Apple App Attest key registered for `ZM6568G5FX.com.pitchai.codexstatus`.
+Nginx clears browser identity, authorization, and cookie headers before proxying
+the location, limits request bodies, and rate-limits challenge traffic. The API
+returns a deliberate subset of the dashboard snapshot: labels, current states,
+remaining percentages, reset times, warnings, and freshness only. Emails,
+broker IDs, token analytics, reset inventory, and credentials are excluded.
+
+The Watch app never calls the service. The signed iPhone app sends the redacted
+native snapshot through WatchConnectivity, and both WidgetKit extensions read
+the same App Group cache. The opaque App Attest key identifier is the only
+authentication-related value stored by the app; the private key remains in
+Apple's App Attest service and cannot be exported.
+
 The broker state files are root-only (`0600`). The production container therefore runs as container root with all Linux capabilities dropped, `no-new-privileges`, a read-only root filesystem, a small temporary filesystem, and only the broker accounts directory mounted read-only. The app has no endpoint that reads arbitrary files.
 
 ## Freshness and probe cost
@@ -68,6 +86,24 @@ Build and deploy the container from the repository root:
 sudo ops/deploy_codex_usage_dashboard.sh
 ```
 
+New mobile keys are closed by default. For a deliberate first-device enrollment,
+deploy once with the enrollment gate open, launch the signed app on that device,
+verify the registry contains the new key, and immediately redeploy the same image
+with the gate closed:
+
+```bash
+AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED=1 \
+  sudo ops/deploy_codex_usage_dashboard.sh
+AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED=0 \
+  sudo ops/deploy_codex_usage_dashboard.sh codex-usage-dashboard:<git-sha>
+```
+
+The registry lives at
+`/srv/codex-usage-dashboard/mobile-app-attest.json` as `0600 root:root` and
+contains public keys, Apple receipts, assertion counters, and timestamps only.
+Do not print or copy it into task logs. Reinstallation or device replacement
+requires an operator to reopen this enrollment gate intentionally.
+
 The script is intentionally host-locked to `pitchai-dev`. It validates the broker service and root-only credential source, builds an immutable Git-SHA image, starts a read-only canary on loopback without probing, checks the redacted API, and then replaces the production container with automatic rollback to the previous image if the post-check fails.
 
 Post-deploy checks:
@@ -110,6 +146,7 @@ For an Nginx rollback, restore the timestamped backup beside `/etc/nginx/sites-a
 ## Data safety invariants
 
 - No `auth.json`, access token, refresh token, broker token, password, device code, callback code, or mailbox code may enter the API, DOM, logs, screenshots, tests, or repository.
+- Mobile account data requires a verified App Attest assertion; the public mobile location accepts no browser SSO identity or reusable application credential.
 - Token history and reset-bank collection is GET-only at the provider boundary. Reset redemption is forbidden and has no dashboard route or control.
 - The dashboard-owned history mount is the only writable persistent path in the read-only container.
 - Active requester/session counts are informational telemetry only. They never reduce account availability.

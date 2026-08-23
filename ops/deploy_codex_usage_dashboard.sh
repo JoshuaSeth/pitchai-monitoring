@@ -9,8 +9,11 @@ readonly BROKER_ACCOUNTS="/srv/auth-token-server/data/accounts"
 readonly DASHBOARD_DATA="/srv/codex-usage-dashboard"
 readonly PROD_PORT="8124"
 readonly CANARY_PORT="18124"
+readonly MOBILE_APP_ID_PREFIX="ZM6568G5FX"
+readonly MOBILE_BUNDLE_ID="com.pitchai.codexstatus"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
+mobile_enrollment_enabled="${AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED:-0}"
 
 if [[ "$(hostname -s)" != "${EXPECTED_HOST}" ]]; then
   printf 'Refusing deployment: expected host %s, found %s\n' "${EXPECTED_HOST}" "$(hostname -s)" >&2
@@ -26,6 +29,15 @@ done
 [[ -r "${BROKER_ENV}" ]] || { printf 'Broker environment is not readable.\n' >&2; exit 1; }
 [[ -d "${BROKER_ACCOUNTS}" ]] || { printf 'Broker account inventory is unavailable.\n' >&2; exit 1; }
 install -d -m 700 -o root -g root "${DASHBOARD_DATA}"
+if [[ "${mobile_enrollment_enabled}" != "0" && "${mobile_enrollment_enabled}" != "1" ]]; then
+  printf 'AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED must be 0 or 1.\n' >&2
+  exit 1
+fi
+if [[ -e "${DASHBOARD_DATA}/mobile-app-attest.json" ]] &&
+  [[ "$(stat -c '%a:%U:%G' "${DASHBOARD_DATA}/mobile-app-attest.json")" != "600:root:root" ]]; then
+  printf 'Mobile App Attest registry permissions are not 600 root:root.\n' >&2
+  exit 1
+fi
 [[ "$(stat -c '%a:%U:%G' "${BROKER_ENV}")" == "600:root:root" ]] || {
   printf 'Broker environment permissions are not 600 root:root.\n' >&2
   exit 1
@@ -98,6 +110,14 @@ run_dashboard() {
     --env AUTH_USAGE_HISTORY_RETENTION_DAYS=8 \
     --env AUTH_USAGE_HISTORY_SAMPLE_INTERVAL_SECONDS=300 \
     --env AUTH_USAGE_REQUIRE_PROXY_AUTH=1 \
+    --env AUTH_USAGE_MOBILE_ENABLED=1 \
+    --env "AUTH_USAGE_MOBILE_APP_ID_PREFIX=${MOBILE_APP_ID_PREFIX}" \
+    --env "AUTH_USAGE_MOBILE_BUNDLE_ID=${MOBILE_BUNDLE_ID}" \
+    --env AUTH_USAGE_MOBILE_APP_ATTEST_ENVIRONMENT=development \
+    --env AUTH_USAGE_MOBILE_APP_ATTEST_REGISTRY_FILE=/dashboard-data/mobile-app-attest.json \
+    --env "AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED=${mobile_enrollment_enabled}" \
+    --env AUTH_USAGE_MOBILE_APP_ATTEST_MAX_KEYS=2 \
+    --env AUTH_USAGE_MOBILE_BACKGROUND_REFRESH_SECONDS=900 \
     "${health_args[@]}" \
     "${image}" >/dev/null
 }
@@ -112,7 +132,15 @@ check_dashboard() {
       --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
       "http://127.0.0.1:${port}/api/v1/capacity" 2>/dev/null)"; then
       if python3 "${REPO_ROOT}/auth_usage_dashboard/deployment_check.py" <<<"${output}"; then
-        return 0
+        local mobile_status
+        mobile_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+          --max-time 3 \
+          --header 'Content-Type: application/json' \
+          --data '{"purpose":"capacity","key_id":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}' \
+          "http://127.0.0.1:${port}/api/v1/mobile/challenge" 2>/dev/null || true)"
+        if [[ "${mobile_status}" == "401" ]]; then
+          return 0
+        fi
       fi
     fi
     attempts=$((attempts - 1))
