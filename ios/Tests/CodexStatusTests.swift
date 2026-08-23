@@ -168,4 +168,33 @@ final class CodexStatusTests: XCTestCase {
         let protectedData = try Data(contentsOf: destination)
         XCTAssertEqual(try JSONDecoder().decode(CodexSnapshot.self, from: protectedData), fixture)
     }
+
+#if DEBUG
+    func testDiagnosticSnapshotArgumentDecodesNativeSnapshot() throws {
+        let fixture = CodexSnapshot.fixture
+        let encoded = try SnapshotCache.encoded(fixture)
+        let decoded = try SnapshotCache.diagnosticSnapshot(
+            arguments: [
+                "CodexStatusWatch",
+                SnapshotCache.diagnosticSnapshotArgument,
+                encoded.base64EncodedString(),
+            ]
+        )
+
+        XCTAssertEqual(decoded, fixture)
+    }
+
+    func testDiagnosticSnapshotArgumentFailsLoudlyWhenPayloadIsMissing() {
+        XCTAssertThrowsError(
+            try SnapshotCache.diagnosticSnapshot(
+                arguments: ["CodexStatusWatch", SnapshotCache.diagnosticSnapshotArgument]
+            )
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                SnapshotCacheError.diagnosticPayloadMissing.localizedDescription
+            )
+        }
+    }
+#endif
 }

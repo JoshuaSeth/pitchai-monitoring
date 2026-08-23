@@ -59,6 +59,12 @@ Run the simulator app with `-CodexStatusFixture` only for sanitized UI evidence.
 The normal app has no fixture fallback: it fails clearly when App Attest or the
 live service is unavailable.
 
+Debug Watch builds also accept `-CodexStatusDiagnosticSnapshotBase64` for
+sanitized real-device diagnostics. The payload must decode as the native
+snapshot contract and is written through the same protected App Group cache as
+production data. The argument is absent from Release builds and diagnostic
+evidence does not replace phone-to-Watch WatchConnectivity proof.
+
 Release builds use automatic signing for Apple team `ZM6568G5FX`. Debug device
 builds pin the four target-specific development profiles named in `project.yml`
 so a trusted deployment Mac does not need a logged-in Xcode account. Those

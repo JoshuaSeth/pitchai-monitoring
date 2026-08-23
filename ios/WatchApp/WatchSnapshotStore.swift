@@ -13,7 +13,22 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
 
     override init() {
         fixtureMode = ProcessInfo.processInfo.arguments.contains("-CodexStatusFixture")
+#if DEBUG
+        do {
+            if let diagnosticSnapshot = try SnapshotCache.diagnosticSnapshot(
+                arguments: ProcessInfo.processInfo.arguments
+            ) {
+                try SnapshotCache.save(diagnosticSnapshot)
+                snapshot = diagnosticSnapshot
+            } else {
+                snapshot = fixtureMode ? .fixture : SnapshotCache.load()
+            }
+        } catch {
+            preconditionFailure("Invalid Watch diagnostic snapshot: \(error.localizedDescription)")
+        }
+#else
         snapshot = fixtureMode ? .fixture : SnapshotCache.load()
+#endif
         super.init()
         guard !fixtureMode, WCSession.isSupported() else { return }
         WCSession.default.delegate = self

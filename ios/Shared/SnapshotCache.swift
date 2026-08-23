@@ -3,6 +3,10 @@ import Foundation
 enum SnapshotCacheError: LocalizedError {
     case appGroupUnavailable
     case encodingFailed
+#if DEBUG
+    case diagnosticPayloadMissing
+    case diagnosticPayloadInvalid
+#endif
 
     var errorDescription: String? {
         switch self {
@@ -10,6 +14,12 @@ enum SnapshotCacheError: LocalizedError {
             "The private shared snapshot container is unavailable."
         case .encodingFailed:
             "The capacity snapshot could not be encoded."
+#if DEBUG
+        case .diagnosticPayloadMissing:
+            "The diagnostic snapshot argument is missing its payload."
+        case .diagnosticPayloadInvalid:
+            "The diagnostic snapshot payload is invalid."
+#endif
         }
     }
 }
@@ -18,6 +28,9 @@ enum SnapshotCache {
     static let appGroup = "group.com.pitchai.codexstatus"
     static let snapshotKey = "codex-status.snapshot.v1"
     static let snapshotFileName = "codex-status-snapshot-v1.json"
+#if DEBUG
+    static let diagnosticSnapshotArgument = "-CodexStatusDiagnosticSnapshotBase64"
+#endif
 
     static func sharedContainerURL() throws -> URL {
         guard let url = FileManager.default.containerURL(
@@ -84,4 +97,22 @@ enum SnapshotCache {
             throw SnapshotCacheError.encodingFailed
         }
     }
+
+#if DEBUG
+    static func diagnosticSnapshot(arguments: [String]) throws -> CodexSnapshot? {
+        guard let argumentIndex = arguments.firstIndex(of: diagnosticSnapshotArgument) else {
+            return nil
+        }
+        let payloadIndex = arguments.index(after: argumentIndex)
+        guard arguments.indices.contains(payloadIndex) else {
+            throw SnapshotCacheError.diagnosticPayloadMissing
+        }
+        guard let data = Data(base64Encoded: arguments[payloadIndex]),
+              let snapshot = try? JSONDecoder().decode(CodexSnapshot.self, from: data)
+        else {
+            throw SnapshotCacheError.diagnosticPayloadInvalid
+        }
+        return snapshot
+    }
+#endif
 }
