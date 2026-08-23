@@ -33,11 +33,33 @@ enum SnapshotCache {
             guard let data = defaults.data(forKey: snapshotKey) else { return nil }
             return try? JSONDecoder().decode(CodexSnapshot.self, from: data)
         }
-        guard let container = try? sharedContainerURL(),
-              let data = try? Data(
-                  contentsOf: container.appendingPathComponent(snapshotFileName)
-              ) else { return nil }
-        return try? JSONDecoder().decode(CodexSnapshot.self, from: data)
+        guard let container = try? sharedContainerURL() else { return nil }
+        let destination = container.appendingPathComponent(snapshotFileName)
+        if FileManager.default.fileExists(atPath: destination.path) {
+            guard let data = try? Data(contentsOf: destination) else { return nil }
+            return try? JSONDecoder().decode(CodexSnapshot.self, from: data)
+        }
+        guard let legacyDefaults = UserDefaults(suiteName: appGroup) else { return nil }
+        return migrateLegacySnapshot(from: legacyDefaults, to: destination)
+    }
+
+    static func migrateLegacySnapshot(
+        from defaults: UserDefaults,
+        to destination: URL
+    ) -> CodexSnapshot? {
+        guard let data = defaults.data(forKey: snapshotKey),
+              let snapshot = try? JSONDecoder().decode(CodexSnapshot.self, from: data)
+        else { return nil }
+        do {
+            try data.write(
+                to: destination,
+                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+            )
+            defaults.removeObject(forKey: snapshotKey)
+            return snapshot
+        } catch {
+            return nil
+        }
     }
 
     static func save(_ snapshot: CodexSnapshot, to defaults: UserDefaults? = nil) throws {

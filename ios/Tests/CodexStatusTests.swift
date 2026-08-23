@@ -143,4 +143,29 @@ final class CodexStatusTests: XCTestCase {
         XCTAssertFalse(text.contains("refresh_token"))
         XCTAssertFalse(text.contains("admin_token"))
     }
+
+    func testPrivateSnapshotCacheMigratesLegacyDefaultsIntoProtectedFile() throws {
+        let suite = "CodexStatusTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexStatusTests.\(UUID().uuidString)", isDirectory: true)
+        let destination = directory.appendingPathComponent(SnapshotCache.snapshotFileName)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        let fixture = CodexSnapshot.fixture
+        try SnapshotCache.save(fixture, to: defaults)
+
+        let migrated = try XCTUnwrap(
+            SnapshotCache.migrateLegacySnapshot(from: defaults, to: destination)
+        )
+
+        XCTAssertEqual(migrated, fixture)
+        XCTAssertNil(defaults.data(forKey: SnapshotCache.snapshotKey))
+        let protectedData = try Data(contentsOf: destination)
+        XCTAssertEqual(try JSONDecoder().decode(CodexSnapshot.self, from: protectedData), fixture)
+    }
 }

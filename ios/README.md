@@ -17,6 +17,9 @@ WidgetKit/Smart Stack surfaces.
 - The iPhone and both widgets share only the redacted snapshot through
   `group.com.pitchai.codexstatus`. The app's standard defaults contain only the
   opaque App Attest key identifier; Apple retains the private key.
+- Installations upgraded from the initial prototype migrate the former App
+  Group preference value once into the protected snapshot file, then remove the
+  preference value only after the file write succeeds.
 - Failure and stale states remain visible. The app never replaces missing quota
   windows with invented capacity.
 

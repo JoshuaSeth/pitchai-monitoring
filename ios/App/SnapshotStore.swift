@@ -40,6 +40,9 @@ final class SnapshotStore: ObservableObject {
             state = .loaded
             return
         }
+        if let snapshot {
+            WatchSnapshotBridge.shared.publish(snapshot)
+        }
         foregroundRefreshTask = Task { [weak self] in
             guard let self else { return }
             await refresh(manual: false)
