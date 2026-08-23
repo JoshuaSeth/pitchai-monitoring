@@ -23,6 +23,7 @@ from auth_usage_dashboard.mobile_auth import (
     ChallengeStore,
     MobileAuthError,
     canonical_client_data,
+    verify_assertion as verify_app_attest_assertion,
 )
 from auth_usage_dashboard.settings import DashboardSettings
 
@@ -195,10 +196,10 @@ class AttestationFixture:
             )
         ).decode("ascii")
 
-    def assertion(self, client_data: bytes, *, counter: int) -> str:
+    def assertion(self, client_data: bytes, *, counter: int, flags: int = 0) -> str:
         auth_data = (
             hashlib.sha256(APP_ID.encode("utf-8")).digest()
-            + b"\x00"
+            + bytes([flags])
             + struct.pack(">I", counter)
         )
         nonce = hashlib.sha256(auth_data + hashlib.sha256(client_data).digest()).digest()
@@ -275,6 +276,42 @@ def test_app_attest_registry_enforces_counter_and_persists_privately(
     persisted = path.read_text(encoding="utf-8")
     assert "private-account" not in persisted
     assert "test-only" not in persisted
+
+
+@pytest.mark.parametrize("flags", [0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80])
+def test_app_attest_assertion_accepts_only_optional_user_presence_flag(
+    tmp_path: Path,
+    flags: int,
+) -> None:
+    fixture = AttestationFixture(tmp_path)
+    client_data = b"canonical request"
+
+    assert (
+        verify_app_attest_assertion(
+            assertion_object=fixture.assertion(
+                client_data,
+                counter=1,
+                flags=0x01,
+            ),
+            client_data=client_data,
+            app_id=APP_ID,
+            public_key=fixture.attested_key.public_key(),
+            previous_counter=0,
+        )
+        == 1
+    )
+    with pytest.raises(MobileAuthError, match="flags are invalid"):
+        verify_app_attest_assertion(
+            assertion_object=fixture.assertion(
+                client_data,
+                counter=1,
+                flags=flags,
+            ),
+            client_data=client_data,
+            app_id=APP_ID,
+            public_key=fixture.attested_key.public_key(),
+            previous_counter=0,
+        )
 
 
 def test_attestation_is_bound_to_challenge_and_app(tmp_path: Path) -> None:

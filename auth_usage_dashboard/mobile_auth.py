@@ -33,6 +33,7 @@ ALLOWED_PURPOSES = frozenset({"attest", "capacity", "refresh"})
 MAX_KEY_ID_BYTES = 128
 MAX_ATTESTATION_BYTES = 64 * 1024
 MAX_ASSERTION_BYTES = 16 * 1024
+ASSERTION_ALLOWED_FLAGS_MASK = 0x01
 
 
 class MobileAuthError(Exception):
@@ -365,7 +366,7 @@ def verify_assertion(
         raise MobileAuthError("assertion_invalid", "App Attest authenticator data is invalid")
     rp_id_hash = auth_data[:32]
     counter = struct.unpack(">I", auth_data[33:37])[0]
-    if auth_data[32] != 0:
+    if auth_data[32] & ~ASSERTION_ALLOWED_FLAGS_MASK:
         raise MobileAuthError("assertion_invalid", "App Attest assertion flags are invalid")
     expected_rp_id = hashlib.sha256(app_id.encode("utf-8")).digest()
     if not secrets.compare_digest(rp_id_hash, expected_rp_id):
