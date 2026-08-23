@@ -278,8 +278,8 @@ def test_app_attest_registry_enforces_counter_and_persists_privately(
     assert "test-only" not in persisted
 
 
-@pytest.mark.parametrize("flags", [0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80])
-def test_app_attest_assertion_accepts_only_optional_user_presence_flag(
+@pytest.mark.parametrize("flags", [0x00, 0x01, 0x04, 0x05])
+def test_app_attest_assertion_accepts_optional_user_presence_and_verification_flags(
     tmp_path: Path,
     flags: int,
 ) -> None:
@@ -291,7 +291,7 @@ def test_app_attest_assertion_accepts_only_optional_user_presence_flag(
             assertion_object=fixture.assertion(
                 client_data,
                 counter=1,
-                flags=0x01,
+                flags=flags,
             ),
             client_data=client_data,
             app_id=APP_ID,
@@ -300,6 +300,16 @@ def test_app_attest_assertion_accepts_only_optional_user_presence_flag(
         )
         == 1
     )
+
+
+@pytest.mark.parametrize("flags", [0x02, 0x08, 0x10, 0x20, 0x40, 0x80])
+def test_app_attest_assertion_rejects_all_other_authenticator_flags(
+    tmp_path: Path,
+    flags: int,
+) -> None:
+    fixture = AttestationFixture(tmp_path)
+    client_data = b"canonical request"
+
     with pytest.raises(MobileAuthError, match="flags are invalid"):
         verify_app_attest_assertion(
             assertion_object=fixture.assertion(
