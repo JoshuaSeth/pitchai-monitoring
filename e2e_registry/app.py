@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from e2e_registry import db as dbm
@@ -184,6 +185,12 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     templates_dir = Path(__file__).parent / "templates"
     templates = Jinja2Templates(directory=str(templates_dir))
     app.state.templates = templates
+    dashboard_assets_dir = Path(__file__).parent / "static"
+    app.mount(
+        "/dashboard/assets",
+        StaticFiles(directory=str(dashboard_assets_dir)),
+        name="dashboard-assets",
+    )
 
     @app.on_event("startup")
     def _startup() -> None:

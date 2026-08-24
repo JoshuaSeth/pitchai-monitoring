@@ -144,7 +144,6 @@ def dashboard_server(tmp_path: Path) -> dict[str, str]:
         public_base_url="",
         monitor_state_path=str(monitor_state),
         monitor_config_path=str(monitor_cfg),
-        dashboard_require_auth=True,
         dashboard_max_points=500,
     )
     app = create_app(settings)
@@ -178,7 +177,7 @@ def dashboard_server(tmp_path: Path) -> dict[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_monitor_dashboard_login_and_renders(dashboard_server: dict[str, str]) -> None:
+async def test_monitor_dashboard_entra_identity_and_renders(dashboard_server: dict[str, str]) -> None:
     chromium_path = find_chromium_executable()
     if not chromium_path:
         pytest.skip("No chromium/chrome available for Playwright")
@@ -186,29 +185,127 @@ async def test_monitor_dashboard_login_and_renders(dashboard_server: dict[str, s
     base_url = dashboard_server["base_url"]
     token = dashboard_server["monitor_token"]
 
+    async with httpx.AsyncClient(base_url=base_url) as client:
+        assert (await client.get("/dashboard")).status_code == 401
+        assert (
+            await client.get(
+                "/dashboard",
+                headers={"X-PitchAI-Email": "operator@example.com"},
+            )
+        ).status_code == 401
+        summary_response = await client.get(
+                "/dashboard/api/v1/monitoring/summary",
+                headers={"X-PitchAI-Email": "operator@pitchai.net"},
+            )
+        assert summary_response.status_code == 200
+        summary = summary_response.json()
+        assert summary["freshness"]["status"] == "fresh"
+        assert summary["service_health"] == {
+            "enabled": 1,
+            "healthy": 1,
+            "down": 0,
+            "unknown": 0,
+            "disabled": 1,
+        }
+        assert summary["e2e"]["total_tests"] == 0
+        assert summary["incidents"] == []
+        assert summary["daily_status"]["observations"] == 3
+        assert summary["daily_status"]["problem_events"] == 1
+        assert summary["daily_status"]["recoveries"] == 1
+        assert (
+            await client.get(
+                "/dashboard/api/v1/monitoring/summary",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        ).status_code == 401
+        assert (
+            await client.get(
+                "/api/v1/monitoring/summary",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        ).status_code == 200
+        assert (
+            await client.get(
+                "/api/v1/monitoring/summary",
+                headers={"X-PitchAI-Email": "operator@pitchai.net"},
+            )
+        ).status_code == 401
+        assert (await client.get("/dashboard/login")).status_code == 404
+        dashboard_html = await client.get(
+            "/dashboard",
+            headers={"X-PitchAI-Email": "operator@pitchai.net"},
+        )
+        assert "cdn.jsdelivr.net" not in dashboard_html.text
+        assert "/dashboard/assets/monitoring-dashboard.js" in dashboard_html.text
+        assert (await client.get("/dashboard/assets/monitoring-dashboard.css")).status_code == 200
+        assert (await client.get("/dashboard/assets/monitoring-dashboard.js")).status_code == 200
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
             executable_path=chromium_path,
             args=["--no-sandbox", "--disable-dev-shm-usage"],
         )
-        context = await browser.new_context()
+        context = await browser.new_context(
+            extra_http_headers={"X-PitchAI-Email": "operator@pitchai.net"}
+        )
         page = await context.new_page()
+        console_errors: list[str] = []
+        page_errors: list[str] = []
+        failed_requests: list[str] = []
+        page.on(
+            "console",
+            lambda message: console_errors.append(message.text) if message.type == "error" else None,
+        )
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
+        page.on("requestfailed", lambda request: failed_requests.append(request.url))
         try:
             await page.goto(f"{base_url}/dashboard")
-            await page.wait_for_selector("[data-testid=dash-login-title]")
-            await page.locator("[data-testid=dash-login-key]").fill(token)
-            await page.locator("[data-testid=dash-login-submit]").click()
-
             await page.wait_for_selector("[data-testid=dash-title]")
+            assert await page.locator("[data-testid=operator-identity]").inner_text() == "operator@pitchai.net"
             await page.wait_for_selector("[data-testid=dash-domains-table] tbody tr")
+            await page.wait_for_function("document.querySelector('#kpi-services').textContent === '1/1'")
             assert await page.locator("[data-testid=dash-selected-domain]").inner_text() == "a.example"
+            assert await page.locator("[data-testid=dash-incidents]").inner_text() == (
+                "No current incidents. All latest effective checks are healthy."
+            )
+            assert await page.locator("[data-testid=dash-chart-domain-ok] path").count() == 2
 
             # Dispatcher/agent conclusion should be visible.
-            await page.wait_for_selector("[data-testid=dash-dispatch-table] tbody tr")
+            await page.wait_for_selector("[data-testid=dash-dispatch-table] .diagnostic")
             text = await page.locator("[data-testid=dash-dispatch-table]").inner_text()
             assert "Root cause" in text
+
+            await page.set_viewport_size({"width": 390, "height": 844})
+            await page.reload()
+            await page.wait_for_selector("[data-testid=dash-domains-table] tbody tr")
+            viewport = await page.evaluate(
+                """() => ({
+                    innerWidth: window.innerWidth,
+                    documentWidth: document.documentElement.scrollWidth,
+                    bodyWidth: document.body.scrollWidth,
+                    overflowing: Array.from(document.querySelectorAll("body *"))
+                        .map((element) => {
+                            const rect = element.getBoundingClientRect();
+                            return {
+                                tag: element.tagName,
+                                id: element.id,
+                                className: String(element.className || ""),
+                                left: Math.round(rect.left),
+                                right: Math.round(rect.right),
+                            };
+                        })
+                        .filter((item) => item.left < 0 || item.right > window.innerWidth + 1)
+                        .slice(0, 12),
+                })"""
+            )
+            overflow_diagnostic = json.dumps(viewport, indent=2)
+            assert viewport["documentWidth"] <= viewport["innerWidth"], overflow_diagnostic
+            assert viewport["bodyWidth"] <= viewport["innerWidth"], overflow_diagnostic
+            assert viewport["overflowing"] == [], overflow_diagnostic
+            assert console_errors == []
+            assert page_errors == []
+            assert failed_requests == []
         finally:
             await context.close()
             await browser.close()
-
