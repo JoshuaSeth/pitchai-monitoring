@@ -13,7 +13,9 @@ import yaml
 from playwright.async_api import async_playwright
 
 from domain_checks.common_check import find_chromium_executable
+from domain_checks.main import load_config
 from e2e_registry.app import create_app
+from e2e_registry.monitor_dashboard import MonitorData, build_dashboard_summary
 from e2e_registry.settings import RegistrySettings
 
 
@@ -122,9 +124,50 @@ def dashboard_server(tmp_path: Path) -> dict[str, str]:
                 "interval_seconds": 60,
                 "history": {"retention_days": 14},
                 "performance": {"http_elapsed_ms_max": 1500, "browser_elapsed_ms_max": 4000},
+                "inventory": {
+                    "version": 1,
+                    "reviewed_at": "2026-08-24",
+                    "authoritative_sources": ["test fixture"],
+                },
+                "domain_groups": {
+                    "core": {
+                        "label": "PitchAI core",
+                        "description": "Primary platform routes",
+                        "order": 10,
+                    },
+                    "clients": {
+                        "label": "Client systems",
+                        "description": "Client-owned deployments",
+                        "order": 20,
+                    },
+                },
                 "domains": [
-                    {"domain": "a.example"},
-                    {"domain": "b.example", "disabled": True, "disabled_reason": "temporary"},
+                    {
+                        "domain": "a.example",
+                        "label": "Primary test route",
+                        "group": "core",
+                        "environment": "production",
+                        "kind": "application",
+                        "sources": ["test fixture"],
+                    },
+                    {
+                        "domain": "b.example",
+                        "label": "Disabled client route",
+                        "group": "clients",
+                        "environment": "staging",
+                        "kind": "application",
+                        "sources": ["test fixture"],
+                        "disabled": True,
+                        "disabled_reason": "temporary",
+                    },
+                ],
+                "retired_domains": [
+                    {
+                        "domain": "old.example",
+                        "classification": "retired",
+                        "reason": "test-only retired route",
+                        "sources": ["test fixture"],
+                    }
                 ],
             },
             sort_keys=False,
@@ -207,6 +250,9 @@ async def test_monitor_dashboard_entra_identity_and_renders(dashboard_server: di
             "unknown": 0,
             "disabled": 1,
         }
+        assert [group["id"] for group in summary["domain_groups"]] == ["core", "clients"]
+        assert summary["inventory"]["active_domains"] == 2
+        assert summary["inventory"]["retired_domains"] == 1
         assert summary["e2e"]["total_tests"] == 0
         assert summary["incidents"] == []
         assert summary["daily_status"]["observations"] == 3
@@ -263,12 +309,20 @@ async def test_monitor_dashboard_entra_identity_and_renders(dashboard_server: di
             await page.goto(f"{base_url}/dashboard")
             await page.wait_for_selector("[data-testid=dash-title]")
             assert await page.locator("[data-testid=operator-identity]").inner_text() == "operator@pitchai.net"
-            await page.wait_for_selector("[data-testid=dash-domains-table] tbody tr")
+            await page.wait_for_selector("[data-testid=dash-domains-table] tbody tr[data-domain]")
             await page.wait_for_function("document.querySelector('#kpi-services').textContent === '1/1'")
             assert await page.locator("[data-testid=dash-selected-domain]").inner_text() == "a.example"
+            assert await page.locator("[data-testid=dash-domain-groups] button").count() == 3
+            assert "2 monitored domains" in await page.locator("#domain-inventory-note").inner_text()
+            await page.locator("#domain-group-grid button[data-group='clients']").click()
+            await page.wait_for_selector("tr[data-domain='b.example']")
+            assert "DISABLED" in await page.locator("tr[data-domain='b.example']").inner_text()
+            await page.locator("#domain-group-grid button[data-group='core']").click()
+            await page.wait_for_selector("tr[data-domain='a.example']")
             assert await page.locator("[data-testid=dash-incidents]").inner_text() == (
                 "No current incidents. All latest effective checks are healthy."
             )
+            await page.wait_for_selector("[data-testid=dash-chart-domain-ok] path")
             assert await page.locator("[data-testid=dash-chart-domain-ok] path").count() == 2
 
             # Dispatcher/agent conclusion should be visible.
@@ -278,7 +332,7 @@ async def test_monitor_dashboard_entra_identity_and_renders(dashboard_server: di
 
             await page.set_viewport_size({"width": 390, "height": 844})
             await page.reload()
-            await page.wait_for_selector("[data-testid=dash-domains-table] tbody tr")
+            await page.wait_for_selector("[data-testid=dash-domains-table] tbody tr[data-domain]")
             viewport = await page.evaluate(
                 """() => ({
                     innerWidth: window.innerWidth,
@@ -303,6 +357,119 @@ async def test_monitor_dashboard_entra_identity_and_renders(dashboard_server: di
             assert viewport["documentWidth"] <= viewport["innerWidth"], overflow_diagnostic
             assert viewport["bodyWidth"] <= viewport["innerWidth"], overflow_diagnostic
             assert viewport["overflowing"] == [], overflow_diagnostic
+            assert console_errors == []
+            assert page_errors == []
+            assert failed_requests == []
+        finally:
+            await context.close()
+            await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_renders_the_complete_production_inventory(
+    dashboard_server: dict[str, str],
+) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    now = time.time()
+    config_path = Path(__file__).resolve().parents[1] / "domain_checks" / "config.yaml"
+    config = load_config(config_path)
+    domain_names = [str(entry["domain"]) for entry in config["domains"]]
+    state = {
+        "updated_at": now,
+        "last_ok": {domain: True for domain in domain_names},
+        "fail_streak": {domain: 0 for domain in domain_names},
+        "success_streak": {domain: 3 for domain in domain_names},
+        "history": {
+            domain: [[now - 60, True, 100.0, 250.0, 200], [now, True, 90.0, 230.0, 200]]
+            for domain in domain_names
+        },
+    }
+    summary = build_dashboard_summary(
+        data=MonitorData(
+            state=state,
+            config=config,
+            state_path="/monitor/state.json",
+            config_path=str(config_path),
+            loaded_at_ts=now,
+            state_error=None,
+        ),
+        now_ts=now,
+        e2e_status_summary=None,
+        e2e_dispatch_runs=[],
+    )
+    assert summary["inventory"]["active_domains"] == 58
+    assert summary["inventory"]["groups"] == 14
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        context = await browser.new_context(
+            extra_http_headers={"X-PitchAI-Email": "operator@pitchai.net"}
+        )
+        page = await context.new_page()
+        console_errors: list[str] = []
+        page_errors: list[str] = []
+        failed_requests: list[str] = []
+        page.on(
+            "console",
+            lambda message: console_errors.append(message.text) if message.type == "error" else None,
+        )
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
+        page.on("requestfailed", lambda request: failed_requests.append(request.url))
+
+        async def serve_monitor_data(route) -> None:
+            if "/monitoring/summary" in route.request.url:
+                await route.fulfill(json=summary)
+                return
+            await route.fulfill(
+                json={
+                    "ok": True,
+                    "domain": "fixture",
+                    "samples": [
+                        {"ts": now - 60, "ok": True, "http_ms": 100.0, "browser_ms": 250.0},
+                        {"ts": now, "ok": True, "http_ms": 90.0, "browser_ms": 230.0},
+                    ],
+                }
+            )
+
+        await page.route("**/dashboard/api/v1/monitoring/**", serve_monitor_data)
+        try:
+            await page.goto(f"{dashboard_server['base_url']}/dashboard")
+            await page.wait_for_function("document.querySelector('#kpi-services').textContent === '58/58'")
+            assert await page.locator("[data-testid=dash-domain-groups] button").count() == 15
+            assert "58 monitored domains" in await page.locator("#domain-inventory-note").inner_text()
+
+            await page.locator("[data-testid=dash-domain-filter]").fill("Formatief Toetsen")
+            await page.wait_for_function(
+                "document.querySelectorAll('[data-testid=dash-domains-table] tr[data-domain]').length === 3"
+            )
+            rendered_dft = set(
+                await page.locator("[data-testid=dash-domains-table] tr[data-domain]").evaluate_all(
+                    "rows => rows.map(row => row.dataset.domain)"
+                )
+            )
+            assert rendered_dft == {
+                "formatief-toetsen.pitchai.net",
+                "staging.formatief-toetsen.pitchai.net",
+                "dft-marketing-staging.pitchai.net",
+            }
+
+            await page.set_viewport_size({"width": 390, "height": 844})
+            viewport = await page.evaluate(
+                """() => ({
+                    innerWidth: window.innerWidth,
+                    documentWidth: document.documentElement.scrollWidth,
+                    bodyWidth: document.body.scrollWidth,
+                })"""
+            )
+            assert viewport["documentWidth"] <= viewport["innerWidth"]
+            assert viewport["bodyWidth"] <= viewport["innerWidth"]
             assert console_errors == []
             assert page_errors == []
             assert failed_requests == []

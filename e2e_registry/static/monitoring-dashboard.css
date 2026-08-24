@@ -638,6 +638,69 @@ body.operator-shell {
   font-size: 13px;
 }
 
+.domain-scope {
+  padding: 16px 20px 15px;
+  border-bottom: 1px solid var(--ops-line-soft);
+  background: #fbfdfc;
+}
+
+.domain-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 8px;
+}
+
+.domain-group-card {
+  display: flex;
+  min-width: 0;
+  min-height: 60px;
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--ops-line);
+  border-radius: 10px;
+  background: white;
+  color: var(--ops-ink-strong);
+  cursor: pointer;
+  text-align: left;
+}
+
+.domain-group-card:hover,
+.domain-group-card[aria-pressed="true"] {
+  border-color: rgba(8, 119, 94, 0.46);
+  box-shadow: inset 0 0 0 1px rgba(8, 119, 94, 0.12);
+  background: #f4fbf8;
+}
+
+.domain-group-card strong {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 11px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.domain-group-card span {
+  color: var(--ops-faint);
+  font-family: var(--ops-mono);
+  font-size: 9px;
+}
+
+.domain-group-card.is-critical span {
+  color: var(--ops-critical);
+}
+
+.domain-inventory-note {
+  margin: 10px 2px 0;
+  color: var(--ops-faint);
+  font-family: var(--ops-mono);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
 .domain-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.55fr);
@@ -681,6 +744,85 @@ body.operator-shell {
 
 .domain-table tbody tr {
   cursor: pointer;
+}
+
+.domain-table tbody .domain-group-row {
+  cursor: default;
+}
+
+.domain-table .domain-group-row td {
+  padding: 0;
+  background: #f7faf9;
+}
+
+.domain-group-toggle {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 0;
+  background: transparent;
+  color: var(--ops-ink-strong);
+  cursor: pointer;
+  text-align: left;
+}
+
+.domain-group-toggle:hover {
+  background: #f1f7f5;
+}
+
+.domain-group-toggle__chevron {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid var(--ops-line);
+  border-radius: 50%;
+  color: var(--ops-accent);
+  font-family: var(--ops-mono);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.domain-group-toggle__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.domain-group-toggle__copy strong {
+  font-family: Inter, ui-sans-serif, sans-serif;
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.domain-group-toggle__copy small {
+  overflow: hidden;
+  color: var(--ops-faint);
+  font-family: Inter, ui-sans-serif, sans-serif;
+  font-size: 9px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.domain-group-toggle__status {
+  color: var(--ops-faint);
+  font-family: var(--ops-mono);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.domain-group-toggle__status.is-critical {
+  color: var(--ops-critical);
+}
+
+.domain-group-toggle__status.is-healthy {
+  color: var(--ops-healthy);
 }
 
 .domain-table tbody tr:hover td,
@@ -760,6 +902,14 @@ body.operator-shell {
   font-weight: 740;
   letter-spacing: -0.025em;
   overflow-wrap: anywhere;
+}
+
+.domain-detail__meta {
+  margin: 5px 0 0;
+  color: var(--ops-faint);
+  font-family: var(--ops-mono);
+  font-size: 9px;
+  line-height: 1.5;
 }
 
 .chart-block + .chart-block {
@@ -1072,6 +1222,19 @@ body.operator-shell {
     width: 100%;
   }
 
+  .domain-scope {
+    padding: 14px 16px;
+  }
+
+  .domain-group-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .domain-group-card {
+    min-width: 0;
+  }
+
   .incident,
   .event,
   .diagnostic,
@@ -1112,6 +1275,24 @@ body.operator-shell {
     grid-template-columns: 1fr 1fr;
     padding: 12px 16px;
     border-bottom: 1px solid var(--ops-line-soft);
+  }
+
+  .domain-table tbody tr.domain-group-row {
+    display: block;
+    padding: 0;
+  }
+
+  .domain-table .domain-group-row td {
+    display: block;
+    padding: 0;
+  }
+
+  .domain-table .domain-group-row td::before {
+    content: none;
+  }
+
+  .domain-group-toggle {
+    padding: 12px 16px;
   }
 
   .domain-table tbody tr.is-selected {

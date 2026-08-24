@@ -41,9 +41,9 @@ def test_normalize_domain_entries_handles_disabled_flags() -> None:
     assert by_domain["d"].is_disabled(now_ts) is False
 
 
-def test_dispatch_domain_is_forced_disabled() -> None:
+def test_remote_domain_is_not_silently_disabled() -> None:
     entries = _normalize_domain_entries(["dispatch.pitchai.net"])
     assert len(entries) == 1
     assert entries[0].domain == "dispatch.pitchai.net"
-    assert entries[0].disabled is True
-    assert entries[0].disabled_reason
+    assert entries[0].disabled is False
+    assert entries[0].disabled_reason is None
