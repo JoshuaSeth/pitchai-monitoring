@@ -63,9 +63,49 @@ Validation on that exact source state:
   production `main` (89 before, 89 after);
 - pull request: [#33 — Fix false AutoPAR downtime signal](https://github.com/JoshuaSeth/pitchai-monitoring/pull/33).
 
+## Production deployment and recovery proof
+
+Pull request #33 merged to production `main` as commit
+`7d3978602068007412d2ead4751f1786b74645f5`. GitHub Actions run
+[#32762229516](https://github.com/JoshuaSeth/pitchai-monitoring/actions/runs/32762229516)
+completed successfully: the exact HTTP + Playwright image test job passed, then
+the production deployment job passed.
+
+Production started `service-monitoring`, `e2e-registry`, and `e2e-runner` from
+image `service-monitoring:7d3978602068007412d2ead4751f1786b74645f5` at
+18:26:39 UTC. All three containers were running with zero restarts after the
+deployment. The first two production AutoPAR cycles returned `ok=True`:
+
+```text
+18:26:43 UTC  302 / -> 200 /login-page  title=AutoPAR  browser=507ms
+18:27:54 UTC  302 / -> 200 /login-page  title=AutoPAR  browser=2.304s
+```
+
+After the configured two-success recovery threshold, the dashboard API at
+18:29 UTC reported:
+
+```text
+services: enabled=10 healthy=10 down=0 unknown=0 disabled=1
+AutoPAR:  current_ok=true success_streak=2 fail_streak=0 status_code=200
+```
+
+Every other enabled domain remained `current_ok=true`, matching the pre-deploy
+baseline in which AutoPAR was the only down domain. The headed browser showed
+`10/10`, `no current outage`, and an AutoPAR row and selected-service badge both
+labelled `Healthy`; it also showed the recorded `DOMAIN UP` recovery event.
+
+![Monitoring dashboard after the fix](monitoring-dashboard-after.png)
+
+The rolling 24-hour percentage still contains the false historical samples and
+will age out normally. Monitoring history was deliberately not rewritten. The
+four unrelated global incidents visible in both the pre-existing monitor state
+and the after screenshot (host health, SLO, RED, and container health) were not
+introduced by this deployment and do not mark AutoPAR down.
+
 ## Evidence integrity
 
 ```text
 bd00eafae53d2faaf469ecd1a56b5ea7c363d723b1251a5f195cb22bf309eb37  autopar-login-before.png
 91c2f61e9c8d1e8334a3daf3e5d891bae13bbf8df926cefabf3c5155646d4dbf  monitoring-dashboard-before.png
+3a8bc96029686cb02b57c75bc0a2d37f7b6e2c242342255925e7765f6e9b3b9d  monitoring-dashboard-after.png
 ```
