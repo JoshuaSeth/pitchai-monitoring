@@ -19,6 +19,9 @@
     range: "24h",
     summary: null,
     selectedDomain: null,
+    groupFilter: null,
+    collapsedGroups: new Set(),
+    groupStateInitialized: false,
     requestSequence: 0,
   };
 
@@ -254,11 +257,98 @@
     row.append(cell);
   }
 
+  function groupState(group) {
+    if (group.down) return { label: `${formatCount(group.down)} down`, className: "is-critical" };
+    if (group.unknown) return { label: `${formatCount(group.unknown)} unknown`, className: "is-attention" };
+    return { label: `${formatCount(group.healthy)}/${formatCount(group.enabled)} healthy`, className: "is-healthy" };
+  }
+
+  function renderDomainGroups(summary) {
+    const container = byId("domain-group-grid");
+    const groups = Array.isArray(summary.domain_groups) ? summary.domain_groups : [];
+    const inventory = summary.inventory || {};
+    container.replaceChildren();
+
+    const makeButton = ({ id, label, detail, status }) => {
+      const button = createElement("button", `domain-group-card ${statusClass(status)}`);
+      button.type = "button";
+      button.dataset.group = id || "all";
+      button.setAttribute("aria-pressed", String((model.groupFilter || "all") === (id || "all")));
+      button.append(createElement("strong", "", label));
+      button.append(createElement("span", "", detail));
+      button.addEventListener("click", () => {
+        model.groupFilter = id || null;
+        if (id) model.collapsedGroups.delete(id);
+        renderDomainGroups(summary);
+        renderDomains(summary);
+        const visible = (summary.domains || []).find((domain) => !id || domain.group === id);
+        const selected = (summary.domains || []).find((domain) => domain.domain === model.selectedDomain);
+        if (visible && (!selected || (id && selected.group !== id))) selectDomain(visible.domain);
+      });
+      return button;
+    };
+
+    container.append(makeButton({
+      id: null,
+      label: "All groups",
+      detail: `${formatCount(inventory.active_domains)} active checks`,
+      status: groups.some((group) => group.down) ? "critical" : "healthy",
+    }));
+    groups.forEach((group) => {
+      const state = groupState(group);
+      container.append(makeButton({ id: group.id, label: group.label, detail: state.label, status: state.className.replace("is-", "") }));
+    });
+
+    const reviewed = inventory.reviewed_at ? `reviewed ${inventory.reviewed_at}` : "review date unavailable";
+    const orphaned = numberOrNull(inventory.orphaned_state_domains) || 0;
+    const orphanedNote = orphaned ? ` · ${formatCount(orphaned)} historical state rows excluded` : "";
+    byId("domain-inventory-note").textContent = `${formatCount(inventory.active_domains)} monitored domains · ${formatCount(inventory.groups)} groups · ${formatCount(inventory.retired_domains)} classified exclusions${orphanedNote} · ${reviewed}`;
+  }
+
+  function groupMatchesQuery(domain, query) {
+    if (!query) return true;
+    return [domain.domain, domain.label, domain.group_label, domain.environment, domain.kind]
+      .some((value) => String(value || "").toLowerCase().includes(query));
+  }
+
+  function appendDomainRow(tbody, domain) {
+    const row = createElement("tr", domain.domain === model.selectedDomain ? "is-selected" : "");
+    row.tabIndex = 0;
+    row.dataset.domain = domain.domain;
+    row.dataset.group = domain.group || "unconfigured";
+    row.setAttribute("aria-label", `Inspect ${domain.domain}`);
+    if (domain.domain === model.selectedDomain) row.setAttribute("aria-current", "true");
+
+    const state = domainState(domain);
+    addCell(row, "Status", createElement("span", `health-state ${state.className}`, state.label));
+
+    const domainCell = createElement("span");
+    domainCell.append(createElement("span", "domain-name", domain.domain));
+    const note = domain.disabled_reason || [domain.label !== domain.domain ? domain.label : null, domain.environment].filter(Boolean).join(" · ");
+    if (note) domainCell.append(createElement("span", "domain-note", note));
+    addCell(row, "Domain", domainCell);
+    addCell(row, "HTTP", formatMilliseconds(domain.last && domain.last.http_ms));
+    addCell(row, "Browser", formatMilliseconds(domain.last && domain.last.browser_ms));
+    addCell(row, "24h", formatPercent(domain.availability_24h && domain.availability_24h.ok_pct, 2));
+    addCell(row, "HTTP p95", formatMilliseconds(domain.latency_24h && domain.latency_24h.http_p95_ms));
+
+    const select = () => selectDomain(domain.domain);
+    row.addEventListener("click", select);
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        select();
+      }
+    });
+    tbody.append(row);
+  }
+
   function renderDomains(summary) {
     const tbody = byId("domains-body");
     const query = byId("domain-filter").value.trim().toLowerCase();
-    const domains = (Array.isArray(summary.domains) ? summary.domains : []).filter((domain) =>
-      String(domain.domain || "").toLowerCase().includes(query)
+    const allDomains = Array.isArray(summary.domains) ? summary.domains : [];
+    const domains = allDomains.filter((domain) =>
+      groupMatchesQuery(domain, query) && (query || !model.groupFilter || domain.group === model.groupFilter)
     );
     tbody.replaceChildren();
 
@@ -271,34 +361,34 @@
       return;
     }
 
-    domains.forEach((domain) => {
-      const row = createElement("tr", domain.domain === model.selectedDomain ? "is-selected" : "");
-      row.tabIndex = 0;
-      row.dataset.domain = domain.domain;
-      row.setAttribute("aria-label", `Inspect ${domain.domain}`);
-      if (domain.domain === model.selectedDomain) row.setAttribute("aria-current", "true");
-
-      const state = domainState(domain);
-      addCell(row, "Status", createElement("span", `health-state ${state.className}`, state.label));
-
-      const domainCell = createElement("span");
-      domainCell.append(createElement("span", "domain-name", domain.domain));
-      if (domain.disabled_reason) domainCell.append(createElement("span", "domain-note", domain.disabled_reason));
-      addCell(row, "Domain", domainCell);
-      addCell(row, "HTTP", formatMilliseconds(domain.last && domain.last.http_ms));
-      addCell(row, "Browser", formatMilliseconds(domain.last && domain.last.browser_ms));
-      addCell(row, "24h", formatPercent(domain.availability_24h && domain.availability_24h.ok_pct, 2));
-      addCell(row, "HTTP p95", formatMilliseconds(domain.latency_24h && domain.latency_24h.http_p95_ms));
-
-      const select = () => selectDomain(domain.domain);
-      row.addEventListener("click", select);
-      row.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          select();
-        }
+    const groups = Array.isArray(summary.domain_groups) ? summary.domain_groups : [];
+    groups.forEach((group) => {
+      const members = domains.filter((domain) => domain.group === group.id);
+      if (!members.length) return;
+      const collapsed = !query && model.collapsedGroups.has(group.id);
+      const groupRow = createElement("tr", "domain-group-row");
+      groupRow.dataset.group = group.id;
+      const cell = createElement("td");
+      cell.colSpan = 6;
+      const toggle = createElement("button", "domain-group-toggle");
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+      toggle.append(createElement("span", "domain-group-toggle__chevron", collapsed ? "+" : "−"));
+      const copy = createElement("span", "domain-group-toggle__copy");
+      copy.append(createElement("strong", "", group.label));
+      copy.append(createElement("small", "", group.description || `${formatCount(group.total)} monitored domains`));
+      toggle.append(copy);
+      const state = groupState(group);
+      toggle.append(createElement("span", `domain-group-toggle__status ${state.className}`, state.label));
+      toggle.addEventListener("click", () => {
+        if (model.collapsedGroups.has(group.id)) model.collapsedGroups.delete(group.id);
+        else model.collapsedGroups.add(group.id);
+        renderDomains(summary);
       });
-      tbody.append(row);
+      cell.append(toggle);
+      groupRow.append(cell);
+      tbody.append(groupRow);
+      if (!collapsed) members.forEach((domain) => appendDomainRow(tbody, domain));
     });
   }
 
@@ -397,6 +487,7 @@
     if (!domain) return;
 
     byId("domain-detail-title").textContent = domainName;
+    byId("selected-domain-meta").textContent = `${domain.group_label || "Unconfigured"} · ${titleCase(domain.environment)} · ${titleCase(domain.kind)}`;
     const state = domainState(domain);
     setStatusLabel(byId("selected-domain-status"), state.label, state.label.toLowerCase());
     byId("selected-domain-availability").textContent = formatPercent(domain.availability_24h && domain.availability_24h.ok_pct, 2);
@@ -562,6 +653,17 @@
       const preferred = domains.find((domain) => !domain.disabled) || domains[0];
       model.selectedDomain = preferred ? preferred.domain : null;
     }
+    if (!model.groupStateInitialized) {
+      const groups = Array.isArray(summary.domain_groups) ? summary.domain_groups : [];
+      const attention = groups.find((group) => group.down || group.unknown);
+      const preferredDomain = domains.find((domain) => domain.domain === model.selectedDomain);
+      model.groupFilter = attention ? attention.id : (preferredDomain ? preferredDomain.group : (groups[0] && groups[0].id));
+      groups
+        .filter((group) => group.id !== model.groupFilter && !group.down && !group.unknown)
+        .forEach((group) => model.collapsedGroups.add(group.id));
+      model.groupStateInitialized = true;
+    }
+    renderDomainGroups(summary);
     renderDomains(summary);
     if (model.selectedDomain) selectDomain(model.selectedDomain);
     else {

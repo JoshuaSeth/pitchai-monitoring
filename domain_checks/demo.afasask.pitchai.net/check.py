@@ -4,12 +4,11 @@ CHECK = {
     "http_timeout_seconds": 30.0,
     "browser_timeout_seconds": 60.0,
     "allowed_status_codes": [200],
-    "expected_title_contains": "Demo - Chat",
+    "expected_title_contains": "PitchAI Chat",
     "required_selectors_all": [
-        {"selector": "#chat-input", "state": "visible"},
-        {"selector": ".chat-submit", "state": "visible"},
-        {"selector": "text=/Demo Assistant/i", "state": "visible"},
-        {"selector": "text=/Fast/i", "state": "visible"},
+        {"selector": "#main", "state": "visible"},
+        {"selector": "text=/Welkom bij PitchAI Chat/i", "state": "visible"},
+        {"selector": "text=/Login with AFAS/i", "state": "visible"},
     ],
     "api_contract_checks": [
         {
@@ -46,12 +45,12 @@ CHECK = {
     ],
     "synthetic_transactions": [
         {
-            "name": "codex_fast_shell_ready",
+            "name": "authenticated_demo_entry_ready",
             "steps": [
                 {"type": "goto"},
-                {"type": "wait_for_selector", "selector": "#chat-input", "state": "visible"},
-                {"type": "wait_for_selector", "selector": ".chat-submit", "state": "visible"},
-                {"type": "wait_for_selector", "selector": "[data-testid='codex-intensity-selector']", "state": "visible"},
+                {"type": "wait_for_selector", "selector": "#main", "state": "visible"},
+                {"type": "expect_text", "text": "Welkom bij PitchAI Chat"},
+                {"type": "expect_text", "text": "Login with AFAS"},
             ],
         }
     ],

@@ -1,7 +1,7 @@
 interval_seconds: 60
 # Limits overall parallelism across domains (HTTP + browser). Helps avoid false positives during load spikes.
 check_concurrency: 25
-browser_concurrency: 1
+browser_concurrency: 4
 
 # Reduce noise from transient network/browser hiccups:
 # - Mark a domain DOWN only after N consecutive failing cycles.
@@ -151,19 +151,40 @@ container_health:
   monitor_all: false
   include_name_patterns:
     - "^service-monitoring$"
-    - "^pitchai-codex-dispatcher$"
     - "^e2e-registry$"
     - "^e2e-runner$"
-    - "^autopar$"
-    - "^autopar-auth$"
+    - "^registry$"
     - "^afasask$"
     - "^afasask-demo$"
-    - "^afasask-quick-chat$"
-    - "^aipc$"
-    - "^aipc-stable$"
+    - "^afasask-quick-chat(?:-staging)?$"
+    - "^afas-sync$"
+    - "^pgbouncer-(?:afasask|autopar|potaito)$"
+    - "^autopar$"
+    - "^autopar-auth$"
+    - "^codex-cowork-webapp$"
+    - "^apologetica-wagtail-staging(?:-db)?$"
+    - "^potaito-web-harvest$"
+    - "^potai-staging$"
+    - "^aipc-(?:skybuyfly-(?:primary|backup)|crawler|match-dependent-ops|product-image-refresher|qdrant-sync|search-derived-fields|meilisync)$"
+    - "^(?:qdrant|meilisearch|pgbouncer-aipc)$"
     - "^skybuyfly-quick-chat$"
     - "^deplanbook-play$"
     - "^deplanbook-cms$"
+    - "^deplanbook-(?:libretranslate|db-proxy)$"
+    - "^pgbouncer-deplanbook$"
+    - "^dft-web-app(?:-green|-staging|-staging-spend-enabled)?$"
+    - "^staging-temp-web$"
+    - "^dft-worker-(?:green|staging|staging-spend-enabled)$"
+    - "^dft-batch-progress-redis(?:-main-candidate|-staging|-staging-spend-enabled|-staging-temp-bas)?$"
+    - "^dft-llm-mock-openai-staging$"
+    - "^meilisearch-formatief-toetsen$"
+    - "^meilisync-formatief-toetsen(?:-staging)?$"
+    - "^pgbouncer-dft(?:-staging)?$"
+    - "^orthoparse-(?:web-app(?:-green)?|ceph-worker|worker-green)$"
+    - "^pgbouncer-orthoparse$"
+    - "^pitchai-onboarding-course-onboarding-course-1$"
+    - "^pitchai-breakglass-web-terminal$"
+    - "^quickchat-rsr-demo$"
   exclude_name_patterns: []
   timeout_seconds: 3
   down_after_failures: 2
@@ -217,18 +238,743 @@ external_e2e:
   monitor_token: ""
   timeout_seconds: 8
 
-# Domains to check every minute.
-# For each domain, add `domain_checks/<domain>/check.py` defining the element checks.
+# Reviewed domain inventory. This is the single source consumed by the minute
+# monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
+inventory:
+  version: 1
+  reviewed_at: "2026-08-24"
+  authoritative_sources:
+    - "domain-engineer-namecheap-dns lane handoff (2026-08-24)"
+    - "Namecheap authoritative zone snapshot: 65 records, no wildcard"
+    - "pitchai-main, pitchai-dev, file-storage, Jeff, AX41 and DFT ingress/runtime"
+    - "repository proxy/deployment configuration and PM deployment records"
+    - "PitchAI live-agent/app-server registry and tools portal routing"
+    - "live public DNS, TLS and HTTP contract probes (2026-08-24)"
+    - "known client deployment zones"
+
+domain_groups:
+  corporate:
+    label: "PitchAI public web"
+    description: "Corporate website and public asset edge"
+    order: 10
+  platform-apps:
+    label: "Platform apps"
+    description: "PitchAI chat, navigation and document applications"
+    order: 20
+  operations:
+    label: "Operations & identity"
+    description: "SSO portals, internal tools and operator surfaces"
+    order: 30
+  infrastructure:
+    label: "Platform infrastructure"
+    description: "Health, privacy, storage, registry and owned service routes"
+    order: 40
+  afasask:
+    label: "AFASAsk"
+    description: "Production, demo, staging and GZB deployments"
+    order: 50
+  autopar:
+    label: "AutoPAR"
+    description: "Production and staging application/authentication routes"
+    order: 60
+  dft:
+    label: "Formatief Toetsen (DFT)"
+    description: "Canonical production, staging and marketing routes"
+    order: 70
+  potaito:
+    label: "Potaito"
+    description: "Protected production and staging deployments"
+    order: 80
+  skybuyfly:
+    label: "SkyBuyFly"
+    description: "Primary and stable production lanes"
+    order: 90
+  deplanbook:
+    label: "DePlanbook"
+    description: "PitchAI aliases, public app and CMS"
+    order: 100
+  hetcis:
+    label: "HetCIS"
+    description: "Public production site and PitchAI staging service"
+    order: 110
+  learning-demos:
+    label: "Learning & demos"
+    description: "Courses, demos and staging content applications"
+    order: 120
+  jeff-internal:
+    label: "Jeff internal"
+    description: "Jeff environment service aliases"
+    order: 130
+  market-insights:
+    label: "Market insights"
+    description: "Protected client-facing price services"
+    order: 140
+
+check_profiles:
+  html_200: &html_200
+    allowed_status_codes: [200]
+    required_selectors_all:
+      - selector: body
+        state: attached
+  json_200: &json_200
+    allowed_status_codes: [200]
+    required_selectors_all:
+      - selector: body
+        state: visible
+  sso_edge: &sso_edge
+    allowed_status_codes: [200]
+    expected_final_host_suffix: login.microsoftonline.com
+    required_selectors_all:
+      - selector: body
+        state: attached
+  protected_401: &protected_401
+    allowed_status_codes: [401]
+    browser_enabled: false
+    required_selectors_all:
+      - selector: body
+        state: attached
+  edge_403: &edge_403
+    allowed_status_codes: [403]
+    required_selectors_all:
+      - selector: body
+        state: attached
+
 domains:
+  - domain: pitchai.net
+    label: "PitchAI website"
+    group: corporate
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://pitchai.net/
+      required_text_all: [PitchAI]
+  - domain: www.pitchai.net
+    label: "PitchAI website alias"
+    group: corporate
+    environment: production
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://www.pitchai.net/
+      expected_final_host_suffix: pitchai.net
+      required_text_all: [PitchAI]
+  - domain: assets.pitchai.net
+    label: "PitchAI asset edge"
+    group: corporate
+    environment: production
+    kind: infrastructure
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *edge_403
+      url: https://assets.pitchai.net/
+
+  - domain: chat.pitchai.net
+    label: "PitchAI Chat"
+    group: platform-apps
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://chat.pitchai.net/health
+      required_text_all: [status, ok]
+  - domain: staging.chat.pitchai.net
+    label: "PitchAI Chat staging"
+    group: platform-apps
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://staging.chat.pitchai.net/health
+      required_text_all: [status, ok]
+  - domain: navigation.pitchai.net
+    label: "Navigation"
+    group: platform-apps
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://navigation.pitchai.net/healthz
+      required_text_all: [ok, db_ok]
+  - domain: orthoparse.pitchai.net
+    label: "Orthoparse"
+    group: platform-apps
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://orthoparse.pitchai.net/healthz
+      required_text_all: [ok, db_ok]
+
+  - domain: auth.pitchai.net
+    label: "PitchAI SSO"
+    group: operations
+    environment: internal
+    kind: auth
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://auth.pitchai.net/
+  - domain: tools.pitchai.net
+    label: "Tools portal"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, tools-portal-routing, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://tools.pitchai.net/
+  - domain: dispatch.pitchai.net
+    label: "PitchAI Dispatcher"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, app-server-registry, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://dispatch.pitchai.net/
+      api_contract_checks:
+        - name: api_health_18440
+          url: https://dispatch.pitchai.net:18440/healthz
+          expected_status_codes: [200]
+          expected_content_type_contains: text/plain
+        - name: web_ui_8443
+          url: https://dispatch.pitchai.net:8443/
+          expected_status_codes: [200]
+          expected_content_type_contains: text/html
+        - name: web_ui_18441
+          url: https://dispatch.pitchai.net:18441/
+          expected_status_codes: [200]
+          expected_content_type_contains: text/html
+        - name: protected_service_18442
+          url: https://dispatch.pitchai.net:18442/
+          expected_status_codes: [401]
+          expected_content_type_contains: text/html
+        - name: active_service_24021
+          url: https://dispatch.pitchai.net:24021/
+          expected_status_codes: [200]
+          expected_content_type_contains: null
+  - domain: suggestions.pitchai.net
+    label: "Suggestions"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://suggestions.pitchai.net/
+  - domain: filedrop.pitchai.net
+    label: "FileDrop"
+    group: operations
+    environment: internal
+    kind: storage
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://filedrop.pitchai.net/
+  - domain: codex-voice.pitchai.net
+    label: "Codex Voice"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://codex-voice.pitchai.net/
+      api_contract_checks:
+        - name: sso_edge_8443
+          url: https://codex-voice.pitchai.net:8443/
+          expected_status_codes: [200]
+          expected_content_type_contains: text/html
   - domain: codexusage.pitchai.net
+    label: "Codex Usage"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+  - domain: codex-cowork.pitchai.net
+    label: "Codex Cowork"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://codex-cowork.pitchai.net/healthz
+      required_text_all: [status, ok]
+  - domain: monitoring.pitchai.net
+    label: "Monitoring dashboard"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://monitoring.pitchai.net/health
+      required_text_all: [ok]
+  - domain: breakglass.pitchai.net
+    label: "Break-glass access"
+    group: operations
+    environment: internal
+    kind: auth
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://breakglass.pitchai.net/
+  - domain: wiki.pitchai.net
+    label: "Internal wiki"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://wiki.pitchai.net/
+
+  - domain: route-anchor.pitchai.net
+    label: "Route Anchor"
+    group: infrastructure
+    environment: production
+    kind: api
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://route-anchor.pitchai.net/healthz
+      required_text_all: [status, ok]
+  - domain: privacy-gateway.pitchai.net
+    label: "Privacy Gateway"
+    group: infrastructure
+    environment: production
+    kind: api
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://privacy-gateway.pitchai.net/ready
+      required_text_all: [status, ready]
+  - domain: privacy-gateway-staging.pitchai.net
+    label: "Privacy Gateway staging"
+    group: infrastructure
+    environment: staging
+    kind: api
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://privacy-gateway-staging.pitchai.net/ready
+      required_text_all: [status, ready]
+  - domain: storage.pitchai.net
+    label: "PitchAI storage"
+    group: infrastructure
+    environment: internal
+    kind: storage
+    sources: [namecheap-zone-2026-08-24, file-storage-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://storage.pitchai.net/status
+  - domain: onboarding-course.pitchai.net
+    label: "Onboarding course"
+    group: infrastructure
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://onboarding-course.pitchai.net/
+  - domain: registry.pitchai.net
+    label: "Container registry"
+    group: infrastructure
+    environment: internal
+    kind: infrastructure
+    sources: [namecheap-zone-2026-08-24, ax41-registry-runtime, live-probe-2026-08-24]
+    check:
+      allowed_status_codes: [401]
+      browser_enabled: false
+      url: https://registry.pitchai.net:5000/v2/
+      required_selectors_all:
+        - selector: body
+          state: attached
+      required_text_all: [UNAUTHORIZED]
+  - domain: agentcloud.pitchai.net
+    label: "AgentCloud"
+    group: infrastructure
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, pm-deployment-records, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://agentcloud.pitchai.net/healthz
+      required_text_all: [status]
+  - domain: dashboards.pitchai.net
+    label: "Dashboards"
+    group: infrastructure
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, pm-deployment-records, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://dashboards.pitchai.net/
+  - domain: support.pitchai.net
+    label: "Support portal"
+    group: infrastructure
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, pm-deployment-records, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://support.pitchai.net/
+
   - domain: afasask.pitchai.net
-    disabled: true
-    disabled_reason: 'temporary disable (requested)'
-  - domain: autopar.pitchai.net
-  - domain: afasask.gzb.nl
+    label: "AFASAsk production"
+    group: afasask
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
   - domain: demo.afasask.pitchai.net
+    label: "AFASAsk demo"
+    group: afasask
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: staging.afasask.pitchai.net
+    label: "AFASAsk staging"
+    group: afasask
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, pm-deployment-records, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://staging.afasask.pitchai.net/
+  - domain: afasask.gzb.nl
+    label: "AFASAsk for GZB"
+    group: afasask
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+
+  - domain: autopar.pitchai.net
+    label: "AutoPAR production"
+    group: autopar
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: auth.autopar.pitchai.net
+    label: "AutoPAR auth compatibility"
+    group: autopar
+    environment: production
+    kind: auth
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://auth.autopar.pitchai.net/
+      required_text_all: [AutoPAR]
+  - domain: staging.autopar.pitchai.net
+    label: "AutoPAR staging"
+    group: autopar
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://staging.autopar.pitchai.net/
+      required_text_all: [AutoPAR]
+
+  - domain: formatief-toetsen.pitchai.net
+    label: "DFT production"
+    group: dft
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, dft-production-runtime, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://formatief-toetsen.pitchai.net/healthz
+      required_text_all: [ok, db_ok]
+  - domain: staging.formatief-toetsen.pitchai.net
+    label: "DFT staging"
+    group: dft
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, dft-staging-runtime, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://staging.formatief-toetsen.pitchai.net/healthz
+      required_text_all: [ok, db_ok]
+  - domain: dft-marketing-staging.pitchai.net
+    label: "DFT marketing staging"
+    group: dft
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, dft-staging-runtime, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://dft-marketing-staging.pitchai.net/
+
+  - domain: potaito.pitchai.net
+    label: "Potaito production"
+    group: potaito
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://potaito.pitchai.net/
+  - domain: staging.potaito.pitchai.net
+    label: "Potaito staging"
+    group: potaito
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://staging.potaito.pitchai.net/
+
   - domain: skybuyfly.pitchai.net
-  - domain: deplanbook.com
-  - domain: cms.deplanbook.com
+    label: "SkyBuyFly production"
+    group: skybuyfly
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: stable.skybuyfly.pitchai.net
+    label: "SkyBuyFly stable"
+    group: skybuyfly
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://stable.skybuyfly.pitchai.net/
+      required_text_all: [SkyBuyFly]
+
+  - domain: deplanbook.pitchai.net
+    label: "DePlanBook PitchAI alias"
+    group: deplanbook
+    environment: production
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://deplanbook.pitchai.net/
+      expected_final_host_suffix: deplanbook.com
+      required_text_all: [Deplanbook]
   - domain: dpb.pitchai.net
+    label: "DePlanBook short alias"
+    group: deplanbook
+    environment: production
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: deplanbook.com
+    label: "DePlanBook application"
+    group: deplanbook
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: cms.deplanbook.com
+    label: "DePlanBook CMS"
+    group: deplanbook
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+
   - domain: hetcis.nl
+    label: "HetCIS public site"
+    group: hetcis
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: www.hetcis.nl
+    label: "HetCIS production alias"
+    group: hetcis
+    environment: production
+    kind: alias
+    sources: [client-zone-dns-and-tls, cisnl-runtime-contract, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://www.hetcis.nl/
+      expected_title_contains: "Centrum voor Israëlstudies"
+      required_text_all: ["Centrum voor Israëlstudies"]
+  - domain: staging.hetcis.pitchai.net
+    label: "HetCIS staging"
+    group: hetcis
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://staging.hetcis.pitchai.net/healthz
+      required_text_all: [status, ok]
+
+  - domain: cursussen.pitchai.net
+    label: "PitchAI courses"
+    group: learning-demos
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://cursussen.pitchai.net/
+  - domain: aigenda-rules.demos.pitchai.net
+    label: "AIGENDA rules demo"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://aigenda-rules.demos.pitchai.net/readyz
+      required_text_all: [status, ready, database]
+  - domain: digibeat.demos.pitchai.net
+    label: "DigiBeat demo"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://digibeat.demos.pitchai.net/
+  - domain: studentenreisproduct.demos.pitchai.net
+    label: "Studentenreisproduct demo"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://studentenreisproduct.demos.pitchai.net/
+  - domain: apologetica-wagtail-staging.pitchai.net
+    label: "Apologetica Wagtail staging"
+    group: learning-demos
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://apologetica-wagtail-staging.pitchai.net/
+
+  - domain: jeff-codex-voice.pitchai.net
+    label: "Jeff Codex Voice"
+    group: jeff-internal
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://jeff-codex-voice.pitchai.net/
+  - domain: jeff-dispatch.pitchai.net
+    label: "Jeff Dispatcher"
+    group: jeff-internal
+    environment: internal
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://jeff-dispatch.pitchai.net/
+  - domain: jeff-work-inbox.pitchai.net
+    label: "Jeff work inbox"
+    group: jeff-internal
+    environment: internal
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://jeff-work-inbox.pitchai.net/
+
+  - domain: aardappelprijs.nl
+    label: "Aardappelprijs"
+    group: market-insights
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://aardappelprijs.nl/
+  - domain: akkerbouwprijs.nl
+    label: "Akkerbouwprijs"
+    group: market-insights
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://akkerbouwprijs.nl/
+
+retired_domains:
+  - domain: n8n.pitchai.net
+    classification: retired
+    reason: "Decommissioned automation route; no live service contract"
+    sources: [namecheap-zone-2026-08-24, pm-decommission-record]
+  - domain: quickchat.pitchai.net
+    classification: historical
+    reason: "Historical repository check; hostname is NXDOMAIN"
+    sources: [repository-config, authoritative-dns-probe-2026-08-24]
+  - domain: digibead.demos.pitchai.net
+    classification: historical
+    reason: "Misspelled historical demo hostname; NXDOMAIN"
+    sources: [domain-engineer-namecheap-dns, authoritative-dns-probe-2026-08-24]
+  - domain: apologetica-react-staging.pitchai.net
+    classification: pending
+    reason: "Firebase handoff is pending and hostname is currently NXDOMAIN"
+    sources: [domain-engineer-namecheap-dns, authoritative-dns-probe-2026-08-24]
+  - domain: chat-staging.pitchai.net
+    classification: replaced
+    reason: "Replaced by canonical staging.chat.pitchai.net"
+    sources: [namecheap-zone-2026-08-24, active-ingress]
+  - domain: cowork.pitchai.net
+    classification: replaced
+    reason: "Replaced by canonical codex-cowork.pitchai.net"
+    sources: [namecheap-zone-2026-08-24, active-ingress]
+  - domain: www.afasask.pitchai.net
+    classification: replaced
+    reason: "Non-canonical alias; monitor afasask.pitchai.net"
+    sources: [namecheap-zone-2026-08-24, active-ingress]
+  - domain: www.demo.afasask.pitchai.net
+    classification: replaced
+    reason: "Non-canonical alias; monitor demo.afasask.pitchai.net"
+    sources: [namecheap-zone-2026-08-24, active-ingress]
+  - domain: jeff.codex-voice.pitchai.net
+    classification: invalid-alias
+    reason: "DNS exists without a matching Caddy route or TLS identity"
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, tls-probe-2026-08-24]
+  - domain: jeff.dispatch.pitchai.net
+    classification: invalid-alias
+    reason: "DNS exists without a matching Caddy route or TLS identity"
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, tls-probe-2026-08-24]
+  - domain: jeff.work-inbox.pitchai.net
+    classification: invalid-alias
+    reason: "DNS exists without a matching Caddy route or TLS identity"
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, tls-probe-2026-08-24]
+  - domain: autodiscover.pitchai.net
+    classification: non-http
+    reason: "Mail autodiscovery record, not an application health target"
+    sources: [namecheap-zone-2026-08-24, domain-engineer-namecheap-dns]
+  - domain: demos.pitchai.net
+    classification: namespace
+    reason: "Namespace parent with no wildcard or standalone service contract"
+    sources: [namecheap-zone-2026-08-24, domain-engineer-namecheap-dns]
+  - domain: www.afasask.gzb.nl
+    classification: invalid-alias
+    reason: "No DNS record; canonical client deployment is afasask.gzb.nl"
+    sources: [client-zone-dns-probe-2026-08-24, domain-engineer-namecheap-dns]
+  - domain: app.doorstroomtoets.nl
+    classification: not-owned
+    reason: "Explicitly confirmed not owned or operated by PitchAI/DFT"
+    sources: [domain-engineer-namecheap-dns, external-zone-probe-2026-08-24]
+  - domain: app-staging-no-spend.doorstroomtoets.nl
+    classification: not-owned
+    reason: "Explicitly confirmed not owned or operated by PitchAI/DFT"
+    sources: [domain-engineer-namecheap-dns, external-zone-probe-2026-08-24]
+  - domain: cms.hetcis.nl
+    classification: replaced
+    reason: "Inactive DNS residue; current HetCIS CMS is embedded at /dashboard on the main site"
+    sources: [domain-engineer-namecheap-dns, cisnl-runtime-contract, live-probe-2026-08-24]
+  - domain: weblog.hetcis.nl
+    classification: historical
+    reason: "Archived WordPress deployment was removed; current response is a Hostnet parking page"
+    sources: [domain-engineer-namecheap-dns, operations-archive-record, live-probe-2026-08-24]
+  - domain: hetcis.pitchai.net
+    classification: historical
+    reason: "Unprovisioned historical candidate with no DNS, ingress or deployment"
+    sources: [domain-engineer-namecheap-dns, authoritative-dns-probe-2026-08-24]
