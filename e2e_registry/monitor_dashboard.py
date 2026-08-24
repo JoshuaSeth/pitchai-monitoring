@@ -37,6 +37,29 @@ def _safe_int(value: Any) -> int | None:
         return None
 
 
+def _safe_timestamp(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        timestamp = float(value)
+        return timestamp if timestamp > 0 else None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    try:
+        timestamp = float(raw)
+    except ValueError:
+        iso_value = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+        try:
+            parsed = datetime.fromisoformat(iso_value)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        timestamp = parsed.timestamp()
+    return timestamp if timestamp > 0 else None
+
+
 def _downsample(items: list[Any], *, max_points: int) -> list[Any]:
     max_points = max(1, int(max_points))
     n = len(items)
@@ -241,7 +264,13 @@ def summarize_domains(
         items = history_by_domain.get(dom) or []
         last_sample = items[-1] if items else None
         last_ts = _safe_float(last_sample[0]) if isinstance(last_sample, list) and len(last_sample) >= 1 else None
-        last_ok = bool(last_sample[1]) if isinstance(last_sample, list) and len(last_sample) >= 2 else bool((state.get("last_ok") or {}).get(dom, True))
+        last_ok_state = state.get("last_ok") if isinstance(state.get("last_ok"), dict) else {}
+        if isinstance(last_sample, list) and len(last_sample) >= 2:
+            last_ok: bool | None = bool(last_sample[1])
+        elif dom in last_ok_state:
+            last_ok = bool(last_ok_state.get(dom))
+        else:
+            last_ok = None
         last_http_ms = _safe_float(last_sample[2]) if isinstance(last_sample, list) and len(last_sample) >= 3 else None
         last_browser_ms = _safe_float(last_sample[3]) if isinstance(last_sample, list) and len(last_sample) >= 4 else None
         last_status_code = _safe_int(last_sample[4]) if isinstance(last_sample, list) and len(last_sample) >= 5 else None
@@ -268,7 +297,7 @@ def summarize_domains(
                 "disabled_until_ts": disabled_info.get("disabled_until_ts"),
                 "last": {
                     "ts": last_ts,
-                    "ok": bool(last_ok),
+                    "ok": last_ok,
                     "http_ms": last_http_ms,
                     "browser_ms": last_browser_ms,
                     "status_code": last_status_code,
@@ -317,24 +346,300 @@ def summarize_domains(
 
 def summarize_signals(*, data: MonitorData) -> dict[str, Any]:
     s = data.state or {}
-    return {
+    signal_history = s.get("signal_history") if isinstance(s.get("signal_history"), dict) else {}
+    signals = {
         "browser": {
             "degraded_active": bool(s.get("browser_degraded_active", False)),
             "degraded_first_seen_ts": _safe_float(s.get("browser_degraded_first_seen_ts")),
             "last_notice_ts": _safe_float(s.get("browser_degraded_last_notice_ts")),
             "launch_last_error": s.get("browser_launch_last_error"),
         },
-        "host_health": s.get("host_health") or {},
-        "host_last_snapshot": s.get("host_last_snapshot") or {},
-        "performance": s.get("performance") or {},
-        "slo": s.get("slo") or {},
-        "red": s.get("red") or {},
-        "tls": s.get("tls") or {},
-        "dns": s.get("dns") or {},
-        "container_health": s.get("container_health") or {},
-        "proxy": s.get("proxy") or {},
-        "meta": s.get("meta") or {},
+        "host_health": dict(s.get("host_health")) if isinstance(s.get("host_health"), dict) else {},
+        "host_last_snapshot": dict(s.get("host_last_snapshot")) if isinstance(s.get("host_last_snapshot"), dict) else {},
+        "performance": dict(s.get("performance")) if isinstance(s.get("performance"), dict) else {},
+        "slo": dict(s.get("slo")) if isinstance(s.get("slo"), dict) else {},
+        "red": dict(s.get("red")) if isinstance(s.get("red"), dict) else {},
+        "tls": dict(s.get("tls")) if isinstance(s.get("tls"), dict) else {},
+        "dns": dict(s.get("dns")) if isinstance(s.get("dns"), dict) else {},
+        "container_health": dict(s.get("container_health")) if isinstance(s.get("container_health"), dict) else {},
+        "proxy": dict(s.get("proxy")) if isinstance(s.get("proxy"), dict) else {},
+        "meta": dict(s.get("meta")) if isinstance(s.get("meta"), dict) else {},
     }
+    for key, signal in signals.items():
+        if key in {"browser", "host_last_snapshot"} or not isinstance(signal, dict):
+            continue
+        history = signal_history.get(key) if isinstance(signal_history.get(key), list) else []
+        if history and isinstance(history[-1], list) and history[-1]:
+            signal["observed_at_ts"] = _safe_timestamp(history[-1][0])
+    return signals
+
+
+def _event_kind_is_problem(kind: str) -> bool:
+    normalized = str(kind or "").strip().lower()
+    return normalized.endswith(("_down", "_degraded", "_failed", "_failure", "_error", "_unhealthy"))
+
+
+def _event_kind_is_recovery(kind: str) -> bool:
+    normalized = str(kind or "").strip().lower()
+    return normalized.endswith(("_up", "_recovered", "_healthy"))
+
+
+def _signal_display_name(signal: str) -> str:
+    return {
+        "host_health": "Host health",
+        "performance": "Performance",
+        "slo": "SLO",
+        "red": "RED metrics",
+        "tls": "TLS",
+        "dns": "DNS",
+        "container_health": "Container health",
+        "proxy": "Reverse proxy",
+        "meta": "Monitor integrity",
+        "browser": "Browser checks",
+    }.get(signal, signal.replace("_", " ").title())
+
+
+def _summarize_freshness(
+    *,
+    data: MonitorData,
+    now_ts: float,
+    history_max_ts: float | None,
+) -> dict[str, Any]:
+    state_updated_at_ts = _safe_timestamp((data.state or {}).get("updated_at"))
+    source = "state.updated_at"
+    if state_updated_at_ts is None:
+        state_updated_at_ts = history_max_ts
+        source = "history.max_ts" if history_max_ts is not None else "unavailable"
+
+    interval_seconds = _safe_int((data.config or {}).get("interval_seconds"))
+    if interval_seconds is None or interval_seconds <= 0:
+        interval_seconds = 60
+    stale_after_seconds = max(180, interval_seconds * 3)
+
+    if state_updated_at_ts is None:
+        return {
+            "status": "unknown",
+            "state_updated_at_ts": None,
+            "age_seconds": None,
+            "interval_seconds": interval_seconds,
+            "stale_after_seconds": stale_after_seconds,
+            "source": source,
+        }
+
+    age_seconds = max(0.0, float(now_ts) - state_updated_at_ts)
+    return {
+        "status": "fresh" if age_seconds <= stale_after_seconds else "stale",
+        "state_updated_at_ts": state_updated_at_ts,
+        "age_seconds": age_seconds,
+        "interval_seconds": interval_seconds,
+        "stale_after_seconds": stale_after_seconds,
+        "source": source,
+    }
+
+
+def _summarize_e2e(e2e_status_summary: dict[str, Any] | None, *, now_ts: float) -> dict[str, Any]:
+    if not isinstance(e2e_status_summary, dict) or e2e_status_summary.get("ok") is not True:
+        return {
+            "status": "unavailable",
+            "total_tests": None,
+            "passing_tests": None,
+            "failing_tests": None,
+            "disabled_tests": None,
+            "latest_run_at_ts": None,
+            "latest_run_age_seconds": None,
+            "problems": [],
+        }
+
+    tests = e2e_status_summary.get("tests") if isinstance(e2e_status_summary.get("tests"), list) else []
+    enabled_tests = [test for test in tests if isinstance(test, dict) and int(test.get("enabled", 1) or 0) == 1]
+    problems: list[dict[str, Any]] = []
+    latest_run_at_ts = None
+    for test in enabled_tests:
+        finished_at_ts = _safe_timestamp(test.get("last_finished_at_ts"))
+        if finished_at_ts is not None:
+            latest_run_at_ts = (
+                finished_at_ts if latest_run_at_ts is None else max(latest_run_at_ts, finished_at_ts)
+            )
+        try:
+            effective_ok = int(test.get("effective_ok", 1) if test.get("effective_ok") is not None else 1)
+        except (TypeError, ValueError):
+            effective_ok = 1
+        if effective_ok != 0:
+            continue
+        problems.append(
+            {
+                "test_id": str(test.get("test_id") or ""),
+                "test_name": str(test.get("test_name") or "Unnamed E2E test"),
+                "base_url": str(test.get("base_url") or ""),
+                "fail_streak": _safe_int(test.get("fail_streak")) or 0,
+                "last_status": str(test.get("last_status") or "unknown"),
+                "last_finished_at_ts": finished_at_ts,
+            }
+        )
+
+    total_tests = len(enabled_tests)
+    failing_tests = len(problems)
+    passing_tests = max(0, total_tests - failing_tests)
+    latest_run_age_seconds = (
+        max(0.0, float(now_ts) - latest_run_at_ts) if latest_run_at_ts is not None else None
+    )
+    return {
+        "status": "attention" if failing_tests else "healthy",
+        "total_tests": total_tests,
+        "passing_tests": passing_tests,
+        "failing_tests": failing_tests,
+        "disabled_tests": max(0, len(tests) - total_tests),
+        "latest_run_at_ts": latest_run_at_ts,
+        "latest_run_age_seconds": latest_run_age_seconds,
+        "problems": problems,
+    }
+
+
+def _summarize_service_health(domains: list[dict[str, Any]]) -> dict[str, int]:
+    enabled_domains = [domain for domain in domains if not bool(domain.get("disabled"))]
+    down_domains = [domain for domain in enabled_domains if (domain.get("last") or {}).get("ok") is False]
+    unknown_domains = [domain for domain in enabled_domains if (domain.get("last") or {}).get("ok") is None]
+    return {
+        "enabled": len(enabled_domains),
+        "healthy": len(enabled_domains) - len(down_domains) - len(unknown_domains),
+        "down": len(down_domains),
+        "unknown": len(unknown_domains),
+        "disabled": len(domains) - len(enabled_domains),
+    }
+
+
+def _summarize_daily_status(
+    *,
+    domains: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    open_problem_count: int,
+    now_ts: float,
+) -> dict[str, Any]:
+    observations = 0
+    successful_observations = 0
+    for domain in domains:
+        if bool(domain.get("disabled")):
+            continue
+        availability = domain.get("availability_24h") if isinstance(domain.get("availability_24h"), dict) else {}
+        observations += _safe_int(availability.get("total")) or 0
+        successful_observations += _safe_int(availability.get("ok")) or 0
+
+    availability_pct = (
+        (successful_observations / observations) * 100.0 if observations > 0 else None
+    )
+    since_ts = float(now_ts) - 86400.0
+    daily_events = []
+    for event in events:
+        event_ts = _safe_timestamp(event.get("ts"))
+        if event_ts is not None and since_ts <= event_ts <= float(now_ts):
+            daily_events.append(event)
+
+    problem_events = [
+        event
+        for event in daily_events
+        if _event_kind_is_problem(str(event.get("kind") or ""))
+    ]
+    recovery_events = [
+        event
+        for event in daily_events
+        if _event_kind_is_recovery(str(event.get("kind") or ""))
+    ]
+    latest_event_at_ts = None
+    for event in daily_events:
+        event_ts = _safe_timestamp(event.get("ts"))
+        if event_ts is not None:
+            latest_event_at_ts = event_ts if latest_event_at_ts is None else max(latest_event_at_ts, event_ts)
+
+    if observations == 0:
+        status = "unknown"
+    elif open_problem_count > 0:
+        status = "attention"
+    else:
+        status = "healthy"
+    return {
+        "period_seconds": 86400,
+        "status": status,
+        "observations": observations,
+        "successful_observations": successful_observations,
+        "availability_pct": availability_pct,
+        "problem_events": len(problem_events),
+        "recoveries": len(recovery_events),
+        "latest_event_at_ts": latest_event_at_ts,
+    }
+
+
+def _build_incidents(
+    *,
+    down_domains: list[dict[str, Any]],
+    unknown_domains: list[dict[str, Any]],
+    degraded_signals: list[str],
+    freshness: dict[str, Any],
+    e2e: dict[str, Any],
+    signals: dict[str, Any],
+) -> list[dict[str, Any]]:
+    incidents: list[dict[str, Any]] = []
+    if freshness.get("status") in {"stale", "unknown"}:
+        incidents.append(
+            {
+                "kind": "monitor_freshness",
+                "severity": "critical" if freshness.get("status") == "stale" else "warning",
+                "title": "Monitoring state is stale" if freshness.get("status") == "stale" else "Monitoring freshness is unavailable",
+                "detail": "The minute monitor has not produced a current state snapshot.",
+                "observed_at_ts": freshness.get("state_updated_at_ts"),
+            }
+        )
+    for domain in down_domains:
+        last = domain.get("last") if isinstance(domain.get("last"), dict) else {}
+        incidents.append(
+            {
+                "kind": "domain_down",
+                "severity": "critical",
+                "title": f"{domain.get('domain')} is down",
+                "detail": f"Effective monitor status is down after {int((domain.get('streaks') or {}).get('fail', 0))} failing cycles.",
+                "domain": domain.get("domain"),
+                "status_code": last.get("status_code"),
+                "observed_at_ts": last.get("ts"),
+            }
+        )
+    for domain in unknown_domains:
+        incidents.append(
+            {
+                "kind": "domain_unknown",
+                "severity": "warning",
+                "title": f"{domain.get('domain')} has no current result",
+                "detail": "The domain is enabled but has not produced a health result.",
+                "domain": domain.get("domain"),
+                "observed_at_ts": None,
+            }
+        )
+    for signal in degraded_signals:
+        signal_state = signals.get(signal) if isinstance(signals.get(signal), dict) else {}
+        failure_count = _safe_int(signal_state.get("fail_streak"))
+        detail = "The latest debounced global signal is not healthy."
+        if failure_count is not None:
+            detail = f"The signal has failed {failure_count:,} consecutive monitor cycles."
+        incidents.append(
+            {
+                "kind": "signal_degraded",
+                "severity": "warning",
+                "title": f"{_signal_display_name(signal)} is degraded",
+                "detail": detail,
+                "signal": signal,
+                "observed_at_ts": signal_state.get("observed_at_ts"),
+            }
+        )
+    for problem in e2e.get("problems") or []:
+        incidents.append(
+            {
+                "kind": "e2e_failure",
+                "severity": "warning",
+                "title": f"E2E: {problem.get('test_name')}",
+                "detail": f"{problem.get('base_url')} · {int(problem.get('fail_streak') or 0)} effective failures",
+                "test_id": problem.get("test_id"),
+                "observed_at_ts": problem.get("last_finished_at_ts"),
+            }
+        )
+    return incidents
 
 
 def build_dashboard_summary(
@@ -351,7 +656,16 @@ def build_dashboard_summary(
     signals = summarize_signals(data=data)
 
     # Count warnings.
-    down_domains = [d for d in domains if (not d.get("disabled")) and (not bool((d.get("last") or {}).get("ok", True)))]
+    down_domains = [
+        domain
+        for domain in domains
+        if not domain.get("disabled") and (domain.get("last") or {}).get("ok") is False
+    ]
+    unknown_domains = [
+        domain
+        for domain in domains
+        if not domain.get("disabled") and (domain.get("last") or {}).get("ok") is None
+    ]
     degraded_signals = []
     for key in ("host_health", "performance", "slo", "red", "tls", "dns", "container_health", "proxy", "meta"):
         v = signals.get(key) if isinstance(signals.get(key), dict) else {}
@@ -359,6 +673,26 @@ def build_dashboard_summary(
             degraded_signals.append(key)
     if signals.get("browser", {}).get("degraded_active"):
         degraded_signals.append("browser")
+
+    events = state.get("events") if isinstance(state.get("events"), list) else []
+    normalized_events = [event for event in events if isinstance(event, dict)]
+    freshness = _summarize_freshness(data=data, now_ts=float(now_ts), history_max_ts=max_ts)
+    service_health = _summarize_service_health(domains)
+    e2e = _summarize_e2e(e2e_status_summary, now_ts=float(now_ts))
+    incidents = _build_incidents(
+        down_domains=down_domains,
+        unknown_domains=unknown_domains,
+        degraded_signals=degraded_signals,
+        freshness=freshness,
+        e2e=e2e,
+        signals=signals,
+    )
+    daily_status = _summarize_daily_status(
+        domains=domains,
+        events=normalized_events,
+        open_problem_count=len(incidents),
+        now_ts=float(now_ts),
+    )
 
     return {
         "ok": True,
@@ -368,6 +702,11 @@ def build_dashboard_summary(
         "loaded_at_ts": float(data.loaded_at_ts),
         "error": data.state_error,
         "history_range": {"min_ts": min_ts, "max_ts": max_ts},
+        "freshness": freshness,
+        "service_health": service_health,
+        "e2e": e2e,
+        "incidents": incidents,
+        "daily_status": daily_status,
         "domains": domains,
         "signals": signals,
         "warnings": {
@@ -378,7 +717,7 @@ def build_dashboard_summary(
             "last_by_key": state.get("dispatch_last") if isinstance(state.get("dispatch_last"), dict) else {},
             "recent": state.get("dispatch_history") if isinstance(state.get("dispatch_history"), list) else [],
         },
-        "events": state.get("events") if isinstance(state.get("events"), list) else [],
+        "events": normalized_events,
         "external_e2e": e2e_status_summary,
         "e2e_registry_dispatch": e2e_dispatch_runs or [],
     }

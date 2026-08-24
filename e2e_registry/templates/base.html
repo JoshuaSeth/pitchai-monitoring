@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ title or "E2E Registry" }}</title>
+    {% if operator_identity %}
+    <meta name="theme-color" content="#f4f7f5" />
+    <link rel="icon" type="image/svg+xml" href="/dashboard/assets/monitoring-favicon.svg" />
+    <link rel="stylesheet" href="/dashboard/assets/monitoring-dashboard.css" />
+    {% endif %}
     <style>
       :root {
         --bg: #0b1020;
@@ -16,6 +21,7 @@
         --warn: #fbbf24;
         --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       }
+      *, *::before, *::after { box-sizing: border-box; }
       body {
         margin: 0;
         font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
@@ -24,18 +30,18 @@
                     var(--bg);
         color: var(--text);
       }
-      .wrap { max-width: 1100px; margin: 0 auto; padding: 22px; }
+      .wrap { width: 100%; max-width: 1100px; margin: 0 auto; padding: 22px; }
       header { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
       header a { color: var(--text); text-decoration: none; }
       header .brand { font-weight: 700; letter-spacing: 0.3px; }
-      header .nav { display: flex; gap: 12px; align-items: center; }
+      header .nav { display: flex; min-width: 0; gap: 12px; align-items: center; }
       header .nav a { color: var(--muted); }
       header .nav a:hover { color: var(--text); }
-      .panel { background: rgba(18,26,51,0.82); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; backdrop-filter: blur(8px); }
+      .panel { min-width: 0; background: rgba(18,26,51,0.82); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; backdrop-filter: blur(8px); }
       h1 { margin: 0 0 12px 0; font-size: 20px; }
       h2 { margin: 18px 0 10px 0; font-size: 16px; color: var(--muted); font-weight: 600; }
       .muted { color: var(--muted); }
-      .mono { font-family: var(--mono); }
+      .mono { font-family: var(--mono); overflow-wrap: anywhere; }
       .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; border: 1px solid rgba(255,255,255,0.10); }
       .badge.ok { color: var(--ok); border-color: rgba(52,211,153,0.35); background: rgba(52,211,153,0.08); }
       .badge.fail { color: var(--danger); border-color: rgba(251,113,133,0.35); background: rgba(251,113,133,0.08); }
@@ -45,7 +51,7 @@
       th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
       tr:hover td { background: rgba(255,255,255,0.03); }
       .row { display: flex; gap: 16px; flex-wrap: wrap; }
-      .row .col { flex: 1 1 320px; }
+      .row .col { min-width: 0; flex: 1 1 320px; }
       input[type="text"], input[type="password"], input[type="number"], textarea {
         width: 100%;
         padding: 10px 12px;
@@ -76,10 +82,41 @@
       .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
       .actions form { margin: 0; }
       .code { white-space: pre-wrap; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); padding: 12px; border-radius: 12px; font-family: var(--mono); font-size: 12px; }
+      @media (max-width: 600px) {
+        .wrap { padding: 16px; }
+        header { align-items: flex-start; }
+        header .nav { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+        header .nav .badge { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      }
     </style>
   </head>
-  <body>
+  <body{% if operator_identity %} class="operator-shell"{% endif %}>
     <div class="wrap">
+      {% if operator_identity %}
+      <header class="operator-header">
+        <a class="operator-brand" href="/dashboard" data-testid="nav-home" aria-label="PitchAI Monitoring home">
+          <span class="operator-brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40">
+              <path d="M20 4.5 33.5 12v16L20 35.5 6.5 28V12Z"></path>
+              <path d="m13.5 20 4.2 4.2 9-9.3"></path>
+            </svg>
+          </span>
+          <span class="operator-brand__name">PitchAI</span>
+          <span class="operator-brand__rule" aria-hidden="true"></span>
+          <span class="operator-brand__section">System monitoring</span>
+        </a>
+        <nav class="operator-nav" aria-label="Operator navigation">
+          <a href="https://tools.pitchai.net/" data-testid="nav-tools">All tools</a>
+          <span class="operator-identity" data-testid="operator-identity" title="{{ operator_identity }}">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4.5 20a7.5 7.5 0 0 1 15 0"></path>
+            </svg>
+            <span>{{ operator_identity }}</span>
+          </span>
+          <a href="https://auth.pitchai.net/oauth2/sign_out" data-testid="nav-logout">Sign out</a>
+        </nav>
+      </header>
+      {% else %}
       <header>
         <div class="brand"><a href="/ui/tests" data-testid="nav-home">E2E Registry</a></div>
         <div class="nav">
@@ -89,7 +126,11 @@
           <a href="/ui/logout" data-testid="nav-logout">Logout</a>
         </div>
       </header>
+      {% endif %}
       {% block content %}{% endblock %}
     </div>
+    {% if operator_identity %}
+    <script src="/dashboard/assets/monitoring-dashboard.js" defer></script>
+    {% endif %}
   </body>
 </html>

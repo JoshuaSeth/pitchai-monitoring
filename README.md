@@ -244,14 +244,17 @@ Spec and API details: `specs/external-e2e-tests-registry.md`
 The `e2e-registry` service also serves a monitoring dashboard for the main uptime/signal monitor:
 
 - Dashboard UI: `/dashboard`
-- Backing API: `/api/v1/monitoring/*`
+- Browser API: `/dashboard/api/v1/monitoring/*`
+- Machine API: `/api/v1/monitoring/*`
 
 The dashboard reads `state.json` from the `service-monitoring-state` docker volume (mounted read-only into the `e2e-registry` container).
 
-Auth:
+Authentication and authorization are deliberately separated:
 
-- By default the dashboard requires the `E2E_REGISTRY_MONITOR_TOKEN` (or `E2E_REGISTRY_ADMIN_TOKEN`) via `/dashboard/login`.
-- This is intentionally separate from tenant API keys (external developers should not see internal monitoring signals).
+- `/dashboard` and `/dashboard/api/*` require the PitchAI Microsoft 365 identity asserted by the loopback-only Entra edge.
+- `/api/v1/*` keeps its existing admin/monitor bearer-token contract for machine integrations and never accepts the browser identity header.
+- `/ui/*` keeps tenant API-key authorization; staff SSO does not grant access to another tenant.
+- The retired `/dashboard/login` token form no longer exists, so the Entra session is the only browser authentication path.
 
 ## Live Tests (Real Domains / Real Services)
 
