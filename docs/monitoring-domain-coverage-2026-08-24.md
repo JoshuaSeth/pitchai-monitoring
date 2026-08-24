@@ -16,6 +16,8 @@ Both handoffs were appended by the lane to PM task `MONITORING-DOMAIN-COVERAGE-2
 
 During production-base reconciliation, current `main` also supplied the already-deployed `2fa-server.37.27.67.52.nip.io` health/readiness plugin and `twofa-server-prod` container selector. The same domain-engineer lane rechecked that route live and classified it as an active PitchAI-operated exception whose `nip.io` parent is not PitchAI-owned; it remains monitored but is not counted among the 58 owned hostnames.
 
+I asked the lane once more after the first production-shaped DFT deep-check cycle saw a single staging `502`. The lane matched it to a deployment startup window: Nginx recorded one upstream reset at 19:27:47 UTC, after the replacement container started at 19:27:26 UTC and before all 32 Uvicorn workers finished startup at 19:27:52–19:27:55 UTC. It then observed no recurrence, zero restarts or OOMs, and 12 public plus 12 loopback probes returning `200 {"ok":true,"db_ok":true}`. The DFT staging monitor therefore remains enabled and strict; nothing was suppressed or reclassified.
+
 ## Authoritative source reconciliation
 
 | Source | Evidence used | Reconciliation result |
@@ -90,3 +92,22 @@ Preserved visual evidence:
 - [Grouped desktop dashboard](evidence/monitoring-domain-coverage-local-desktop.png)
 - [DFT-filtered desktop dashboard](evidence/monitoring-domain-coverage-local-dft.png)
 - [DFT-filtered mobile dashboard](evidence/monitoring-domain-coverage-local-mobile-dft.png)
+
+## Production release and verification
+
+- Staging integration landed through [PR #35](https://github.com/JoshuaSeth/pitchai-monitoring/pull/35) at squash commit `f7c8df61c2ae69b24a1b2700443944ad5a53fc10`.
+- The current-production reconciliation landed through [PR #36](https://github.com/JoshuaSeth/pitchai-monitoring/pull/36) at squash commit `aee53fc7dfd1b45d70d800b20756ed810bcf51aa`.
+- [Production deploy run 32768831031](https://github.com/JoshuaSeth/pitchai-monitoring/actions/runs/32768831031) passed the complete Dockerized HTTP/Playwright test job and the SSH/Docker production deployment job.
+- `e2e-registry`, `e2e-runner`, and `service-monitoring` were all running the exact `aee53fc7dfd1b45d70d800b20756ed810bcf51aa` image with zero restarts after deployment.
+- The public `https://monitoring.pitchai.net/dashboard` edge returned the expected Entra SSO redirect with production TLS/security headers. A headed Chrome session attached over CDP then exercised the deployed registry directly through an SSH-bound loopback and the same trusted identity header supplied by that edge.
+- The live summary returned `ok=true`, 59 enabled checks, 14 groups, 19 classified exclusions, zero orphaned state domains, zero disabled checks, zero unknown checks, and fresh one-minute state.
+- Every configured domain had real retained production observations; the minimum was three samples. The three DFT checks were all `200`, healthy, at 100% availability with three retained samples each. The 2FA operational exception was `200`, healthy, and its API contract was passing.
+- The grouped UI rendered 15 scope controls (All groups plus 14 project/system groups), exactly three DFT rows, a healthy DFT selected-service chart, current incidents, system signals, E2E status, and rolling metrics.
+- Desktop and 390-pixel mobile checks found no horizontal overflow. The production browser run recorded no console errors, page errors, request failures, or HTTP error responses from dashboard requests.
+- The effective live service rollup was 50/59 healthy, with nine checks requiring attention: Dispatch and registry effective subchecks, the five primary incidents identified before deployment, and the existing DePlanBook `dpb.pitchai.net`/`deplanbook.com` E2E failures. These remain visible and alertable rather than being excluded to improve the headline.
+
+Production visual evidence:
+
+- [Production grouped desktop dashboard](evidence/monitoring-domain-coverage-production-desktop.png)
+- [Production DFT-filtered desktop dashboard](evidence/monitoring-domain-coverage-production-dft.png)
+- [Production DFT-filtered mobile dashboard](evidence/monitoring-domain-coverage-production-mobile-dft.png)
