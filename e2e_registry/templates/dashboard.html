@@ -129,6 +129,11 @@
         </label>
       </header>
 
+      <div class="domain-scope" aria-label="Domain groups">
+        <div class="domain-group-grid" id="domain-group-grid" data-testid="dash-domain-groups"></div>
+        <p class="domain-inventory-note" id="domain-inventory-note">Loading the monitored inventory…</p>
+      </div>
+
       <div class="domain-layout">
         <div class="table-wrap">
           <table class="domain-table" data-testid="dash-domains-table">
@@ -151,6 +156,7 @@
             <div>
               <p class="section-kicker">Selected service</p>
               <h3 id="domain-detail-title" data-testid="dash-selected-domain">Select a domain</h3>
+              <p class="domain-detail__meta" id="selected-domain-meta">Group and environment unavailable</p>
             </div>
             <span class="status-label" id="selected-domain-status">—</span>
           </header>

@@ -271,9 +271,10 @@ async def _run_code_local(
         if invocation.trace_on_failure:
             cmd.append("--trace-on-failure")
     elif invocation.kind == "puppeteer_js":
+        js_runner = Path(__file__).resolve().parent.parent / "e2e_sandbox" / "puppeteer_js_runner.js"
         cmd = [
             "node",
-            "/app/e2e_sandbox/puppeteer_js_runner.js",
+            str(js_runner),
             "--test-file",
             str(invocation.test_file),
             "--base-url",
