@@ -53,6 +53,17 @@ class _Handler(BaseHTTPRequestHandler):
                 {"Content-Type": "text/plain; charset=utf-8"},
                 "Bad Gateway",
             ),
+            "/login-page": (
+                200,
+                {"Content-Type": "text/html; charset=utf-8"},
+                (
+                    "<!doctype html><html><head><title>AutoPAR</title></head>"
+                    "<body><h1>Veilig aanmelden</h1><form action='/login-token' method='post'>"
+                    "<input name='token' aria-label='Zescijferige toegangscode'>"
+                    "<button type='submit'>Aanmelden met toegangscode</button>"
+                    "</form></body></html>"
+                ),
+            ),
         }
 
         if self.path == "/redirect":
@@ -61,8 +72,14 @@ class _Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
+        if self.path == "/protected":
+            self.send_response(302)
+            self.send_header("Location", "/login-page?next=/protected")
+            self.end_headers()
+            return
+
         status, headers, body = routes.get(
-            self.path,
+            self.path.split("?", 1)[0],
             (404, {"Content-Type": "text/plain; charset=utf-8"}, "Not Found"),
         )
         body_bytes = body.encode("utf-8")
@@ -111,6 +128,47 @@ async def test_http_get_redirect_is_ok(local_server_base_url: str) -> None:
     assert str(details["final_url"]).endswith("/ok")
     assert isinstance(details.get("http_elapsed_ms"), (int, float))
     assert float(details["http_elapsed_ms"]) >= 0
+
+
+@pytest.mark.asyncio
+async def test_http_get_protected_login_redirect_matches_expected_boundary(
+    local_server_base_url: str,
+) -> None:
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/protected",
+        allowed_status_codes=[200],
+        expected_final_host_suffix="127.0.0.1",
+        expected_final_path="/login-page",
+        http_timeout_seconds=5.0,
+    )
+    async with httpx.AsyncClient() as client:
+        ok, details = await http_get_check(spec, client)
+
+    assert ok is True
+    assert details["final_path"] == "/login-page"
+    assert details["final_path_ok"] is True
+    assert [item["status_code"] for item in details["redirect_chain"]] == [302, 200]
+    assert details["redirect_chain"][0]["location"] == f"{local_server_base_url}/login-page"
+    assert details["redirect_chain"][1]["location"] is None
+
+
+@pytest.mark.asyncio
+async def test_http_get_protected_login_redirect_rejects_wrong_boundary(
+    local_server_base_url: str,
+) -> None:
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/protected",
+        expected_final_path="/unexpected-login",
+        http_timeout_seconds=5.0,
+    )
+    async with httpx.AsyncClient() as client:
+        ok, details = await http_get_check(spec, client)
+
+    assert ok is False
+    assert details["final_path"] == "/login-page"
+    assert details["final_path_ok"] is False
 
 
 @pytest.mark.asyncio
@@ -225,6 +283,49 @@ async def test_browser_check_ok(local_server_base_url: str) -> None:
     assert details["missing_selectors_all"] == []
     assert isinstance(details.get("browser_elapsed_ms"), (int, float))
     assert float(details["browser_elapsed_ms"]) >= 0
+
+
+@pytest.mark.asyncio
+async def test_browser_check_protected_login_redirect_is_healthy(
+    local_server_base_url: str,
+) -> None:
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    spec = DomainCheckSpec(
+        domain="local",
+        url=f"{local_server_base_url}/protected",
+        allowed_status_codes=[200],
+        expected_title_contains="AutoPAR",
+        expected_final_host_suffix="127.0.0.1",
+        expected_final_path="/login-page",
+        required_selectors_all=[
+            SelectorCheck(
+                selector="form[action='/login-token'] input[name='token']",
+                state="visible",
+            )
+        ],
+        browser_timeout_seconds=5.0,
+    )
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        try:
+            ok, details = await browser_check(spec, browser)
+        finally:
+            await browser.close()
+
+    assert ok is True
+    assert details["http_status"] == 200
+    assert details["title"] == "AutoPAR"
+    assert details["final_path"] == "/login-page"
+    assert details["final_path_ok"] is True
+    assert details["missing_selectors_all"] == []
 
 
 @pytest.mark.asyncio

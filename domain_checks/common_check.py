@@ -5,9 +5,9 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from urllib.parse import urlsplit, urlunsplit
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 from playwright.async_api import Browser, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
@@ -39,6 +39,7 @@ class DomainCheckSpec:
     allowed_status_codes: list[int] | None = None
     expected_title_contains: str | None = None
     expected_final_host_suffix: str | None = None
+    expected_final_path: str | None = None
     required_selectors_all: list[SelectorCheck] = field(default_factory=list)
     required_selectors_any: list[SelectorCheck] = field(default_factory=list)
     required_text_all: list[str] = field(default_factory=list)
@@ -160,18 +161,41 @@ async def http_get_check(spec: DomainCheckSpec, client: httpx.AsyncClient) -> tu
     if expected_suffix:
         final_host_ok = bool(final_host) and final_host.endswith(expected_suffix)
 
+    final_path = urlsplit(str(resp.url)).path or "/"
+    expected_path = (spec.expected_final_path or "").strip()
+    final_path_ok = not expected_path or final_path == expected_path
+
+    redirect_chain = []
+    for redirect_response in [*resp.history, resp]:
+        raw_location = redirect_response.headers.get("location")
+        redirect_chain.append(
+            {
+                "status_code": int(redirect_response.status_code),
+                "url": _safe_url(str(redirect_response.url)),
+                "location": (
+                    _safe_url(urljoin(str(redirect_response.url), raw_location))
+                    if raw_location
+                    else None
+                ),
+            }
+        )
+
     if spec.allowed_status_codes is not None:
         status_ok = resp.status_code in spec.allowed_status_codes
     else:
         status_ok = 200 <= resp.status_code < 300
 
-    ok = status_ok and not forbidden_hits and final_host_ok
+    ok = status_ok and not forbidden_hits and final_host_ok and final_path_ok
     return ok, {
         "status_code": resp.status_code,
         "final_url": _safe_url(str(resp.url)),
         "final_host": final_host,
         "expected_final_host_suffix": expected_suffix or None,
         "final_host_ok": final_host_ok,
+        "final_path": final_path,
+        "expected_final_path": expected_path or None,
+        "final_path_ok": final_path_ok,
+        "redirect_chain": redirect_chain,
         "forbidden_hits": forbidden_hits,
         "captured_headers": captured_headers,
         "http_elapsed_ms": round(elapsed_ms, 3),
@@ -226,12 +250,25 @@ def load_domain_spec_from_module_dict(module_vars: dict[str, Any]) -> DomainChec
             raise ValueError("allowed_status_codes must be a non-empty list of ints")
         allowed_status_codes = [int(x) for x in allowed_status_codes_raw]
 
+    expected_final_path_raw = cfg.get("expected_final_path")
+    expected_final_path: str | None = None
+    if expected_final_path_raw is not None:
+        expected_final_path = str(expected_final_path_raw).strip()
+        if (
+            not expected_final_path.startswith("/")
+            or "?" in expected_final_path
+            or "#" in expected_final_path
+        ):
+            error_message = "expected_final_path must be an absolute URL path without query or fragment"
+            raise ValueError(error_message)
+
     return DomainCheckSpec(
         domain=str(cfg["domain"]),
         url=str(cfg["url"]),
         allowed_status_codes=allowed_status_codes,
         expected_title_contains=cfg.get("expected_title_contains"),
         expected_final_host_suffix=cfg.get("expected_final_host_suffix"),
+        expected_final_path=expected_final_path,
         required_selectors_all=required_all,
         required_selectors_any=required_any,
         required_text_all=[str(t) for t in cfg.get("required_text_all", [])],
@@ -336,6 +373,8 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
         if expected_suffix:
             final_host_ok = bool(final_host) and final_host.endswith(expected_suffix)
 
+        final_path = urlsplit(page.url).path or "/"
+
         body_text = _normalize_text(await page.evaluate("() => document.body?.innerText || ''"))
         forbidden_hits = [kw for kw in spec.forbidden_text_any if kw and kw.lower() in body_text]
 
@@ -403,6 +442,7 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
             status_ok
             and title_ok
             and final_host_ok
+            and (not spec.expected_final_path or final_path == spec.expected_final_path)
             and not forbidden_hits
             and not missing_all
             and any_ok
@@ -415,6 +455,9 @@ async def browser_check(spec: DomainCheckSpec, browser: Browser) -> tuple[bool, 
             "final_host": final_host,
             "expected_final_host_suffix": expected_suffix or None,
             "final_host_ok": final_host_ok,
+            "final_path": final_path,
+            "expected_final_path": spec.expected_final_path,
+            "final_path_ok": not spec.expected_final_path or final_path == spec.expected_final_path,
             "http_status": status,
             "title": title,
             "title_ok": title_ok,

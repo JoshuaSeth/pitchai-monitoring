@@ -72,3 +72,39 @@ def test_afasask_demo_canary_fails_fast_on_explicit_data_failure() -> None:
     assert '"afasask_demo_canary_fail"' in source
     assert "state.failureMarkers.some" in source
     assert "for marker in _FAILURE_MARKERS" in source
+
+
+def test_autopar_contract_models_the_protected_login_boundary() -> None:
+    config_path = Path(__file__).resolve().parents[1] / "domain_checks" / "config.yaml"
+    config = load_config(config_path)
+    domains = config.get("domains")
+    assert isinstance(domains, list)
+
+    entry = next(
+        (item for item in domains if isinstance(item, dict) and item.get("domain") == "autopar.pitchai.net"),
+        None,
+    )
+    assert entry is not None
+
+    spec = load_domain_spec(entry)
+    assert spec.url == "https://autopar.pitchai.net"
+    assert spec.allowed_status_codes == [200]
+    assert spec.expected_title_contains == "AutoPAR"
+    assert spec.expected_final_host_suffix == "autopar.pitchai.net"
+    assert spec.expected_final_path == "/login-page"
+    assert [item.selector for item in spec.required_selectors_all] == [
+        "form[action='/login-token'] input[name='token']"
+    ]
+
+    health = next(check for check in spec.api_contract_checks if check.get("name") == "health")
+    assert health["path"] == "/health"
+    assert health["expected_status_codes"] == [200]
+    assert health["json_paths_equal"] == {"status": "healthy"}
+
+    transaction = next(
+        item for item in spec.synthetic_transactions if item.get("name") == "token_login_landing"
+    )
+    steps = transaction["steps"]
+    assert {"type": "expect_url_contains", "value": "/login-page"} in steps
+    assert {"type": "expect_title_contains", "value": "AutoPAR"} in steps
+    assert all("script#wss-connection" not in str(step) for step in steps)
