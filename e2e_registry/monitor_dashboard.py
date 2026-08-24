@@ -108,7 +108,18 @@ def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
             d = entry.strip()
             if not d:
                 continue
-            out.append({"domain": d, "disabled": False, "disabled_reason": None, "disabled_until_ts": None})
+            out.append(
+                {
+                    "domain": d,
+                    "label": d,
+                    "group": "ungrouped",
+                    "environment": "unspecified",
+                    "kind": "application",
+                    "disabled": False,
+                    "disabled_reason": None,
+                    "disabled_until_ts": None,
+                }
+            )
             continue
         if isinstance(entry, dict):
             d = str(entry.get("domain") or "").strip()
@@ -144,6 +155,10 @@ def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
             out.append(
                 {
                     "domain": d,
+                    "label": str(entry.get("label") or d).strip(),
+                    "group": str(entry.get("group") or "ungrouped").strip(),
+                    "environment": str(entry.get("environment") or "unspecified").strip(),
+                    "kind": str(entry.get("kind") or "application").strip(),
                     "disabled": disabled,
                     "disabled_reason": str(entry.get("disabled_reason") or "").strip() or None,
                     "disabled_until_ts": _parse_until(entry.get("disabled_until")),
@@ -160,6 +175,29 @@ def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
         seen.add(d)
         deduped.append(it)
     return deduped
+
+
+def _normalize_domain_groups(groups_cfg: Any) -> list[dict[str, Any]]:
+    if not isinstance(groups_cfg, dict):
+        return []
+    groups: list[dict[str, Any]] = []
+    for group_id, raw in groups_cfg.items():
+        cleaned_id = str(group_id or "").strip()
+        if not cleaned_id or not isinstance(raw, dict):
+            continue
+        try:
+            order = int(raw.get("order", 1000))
+        except (TypeError, ValueError):
+            order = 1000
+        groups.append(
+            {
+                "id": cleaned_id,
+                "label": str(raw.get("label") or cleaned_id.replace("-", " ").title()).strip(),
+                "description": str(raw.get("description") or "").strip() or None,
+                "order": order,
+            }
+        )
+    return sorted(groups, key=lambda group: (int(group["order"]), str(group["label"]).lower()))
 
 
 @dataclass(frozen=True)
@@ -243,21 +281,24 @@ def summarize_domains(
     state = data.state or {}
     history_by_domain: dict[str, list[Sample]] = state.get("history") if isinstance(state.get("history"), dict) else {}
     domains_cfg = _normalize_domain_entries(cfg.get("domains"))
+    groups_cfg = _normalize_domain_groups(cfg.get("domain_groups"))
+    groups_by_id = {str(group["id"]): group for group in groups_cfg}
 
     perf_cfg = cfg.get("performance") if isinstance(cfg.get("performance"), dict) else {}
     http_slow_max = _safe_float(perf_cfg.get("http_elapsed_ms_max"))
     browser_slow_max = _safe_float(perf_cfg.get("browser_elapsed_ms_max"))
 
-    # Include domains we have state for, even if config is missing or incomplete.
+    # The configured inventory is authoritative. Historical state for a removed
+    # hostname must not silently turn that hostname back into a live check.
     known_domains = set(history_by_domain.keys()) | set((state.get("last_ok") or {}).keys())
     if domains_cfg:
         ordered = [str(it.get("domain") or "") for it in domains_cfg]
-        all_domains = [d for d in ordered if d] + sorted(d for d in known_domains if d not in set(ordered))
+        all_domains = [domain for domain in ordered if domain]
     else:
         all_domains = sorted(known_domains)
 
     # Fast lookup for disabled status.
-    disabled_map = {str(it.get("domain") or ""): it for it in domains_cfg}
+    config_map = {str(it.get("domain") or ""): it for it in domains_cfg}
 
     out: list[dict[str, Any]] = []
     for dom in all_domains:
@@ -288,19 +329,61 @@ def summarize_domains(
         if w24 and browser_slow_max is not None:
             browser_slow_24 = sum(1 for s in w24 if len(s) >= 4 and s[3] is not None and float(s[3]) > float(browser_slow_max))
 
-        disabled_info = disabled_map.get(dom) or {}
+        synthetic_last_ok = (state.get("synthetic", {}).get("last_ok", {}) or {}).get(dom)
+        api_contract_last_ok = (state.get("api_contract", {}).get("last_ok", {}) or {}).get(dom)
+        synthetic_last_run_ts = _safe_timestamp(
+            (state.get("synthetic", {}).get("last_run_ts", {}) or {}).get(dom)
+        )
+        api_contract_last_run_ts = _safe_timestamp(
+            (state.get("api_contract", {}).get("last_run_ts", {}) or {}).get(dom)
+        )
+        failure_sources: list[str] = []
+        if last_ok is False:
+            failure_sources.append("primary")
+        if api_contract_last_ok is False:
+            failure_sources.append("api_contract")
+        if synthetic_last_ok is False:
+            failure_sources.append("synthetic")
+        effective_last_ok = False if failure_sources else last_ok
+        effective_timestamps = [
+            timestamp
+            for timestamp in (last_ts, api_contract_last_run_ts, synthetic_last_run_ts)
+            if timestamp is not None
+        ]
+        effective_last_ts = max(effective_timestamps) if effective_timestamps else None
+        effective_status_code = last_status_code if last_ok is False or not failure_sources else None
+
+        domain_info = config_map.get(dom) or {}
+        group_id = str(domain_info.get("group") or "unconfigured")
+        group_info = groups_by_id.get(group_id) or {
+            "id": group_id,
+            "label": group_id.replace("-", " ").title(),
+            "description": None,
+            "order": 9999,
+        }
         out.append(
             {
                 "domain": dom,
-                "disabled": bool(disabled_info.get("disabled", False)),
-                "disabled_reason": disabled_info.get("disabled_reason"),
-                "disabled_until_ts": disabled_info.get("disabled_until_ts"),
+                "label": str(domain_info.get("label") or dom),
+                "group": group_id,
+                "group_label": group_info.get("label"),
+                "group_description": group_info.get("description"),
+                "group_order": group_info.get("order"),
+                "environment": str(domain_info.get("environment") or "unspecified"),
+                "kind": str(domain_info.get("kind") or "application"),
+                "disabled": bool(domain_info.get("disabled", False)),
+                "disabled_reason": domain_info.get("disabled_reason"),
+                "disabled_until_ts": domain_info.get("disabled_until_ts"),
                 "last": {
-                    "ts": last_ts,
-                    "ok": last_ok,
+                    "ts": effective_last_ts,
+                    "primary_ts": last_ts,
+                    "ok": effective_last_ok,
+                    "primary_ok": last_ok,
+                    "failure_sources": failure_sources,
                     "http_ms": last_http_ms,
                     "browser_ms": last_browser_ms,
-                    "status_code": last_status_code,
+                    "status_code": effective_status_code,
+                    "primary_status_code": last_status_code,
                 },
                 "streaks": {
                     "fail": int((state.get("fail_streak") or {}).get(dom, 0)),
@@ -322,10 +405,10 @@ def summarize_domains(
                     "browser_threshold_ms": browser_slow_max,
                 },
                 "synthetic": {
-                    "last_ok": (state.get("synthetic", {}).get("last_ok", {}) or {}).get(dom),
+                    "last_ok": synthetic_last_ok,
                     "fail_streak": (state.get("synthetic", {}).get("fail_streak", {}) or {}).get(dom),
                     "success_streak": (state.get("synthetic", {}).get("success_streak", {}) or {}).get(dom),
-                    "last_run_ts": (state.get("synthetic", {}).get("last_run_ts", {}) or {}).get(dom),
+                    "last_run_ts": synthetic_last_run_ts,
                 },
                 "web_vitals": {
                     "last_ok": (state.get("web_vitals", {}).get("last_ok", {}) or {}).get(dom),
@@ -334,14 +417,45 @@ def summarize_domains(
                     "last_run_ts": (state.get("web_vitals", {}).get("last_run_ts", {}) or {}).get(dom),
                 },
                 "api_contract": {
-                    "last_ok": (state.get("api_contract", {}).get("last_ok", {}) or {}).get(dom),
+                    "last_ok": api_contract_last_ok,
                     "fail_streak": (state.get("api_contract", {}).get("fail_streak", {}) or {}).get(dom),
                     "success_streak": (state.get("api_contract", {}).get("success_streak", {}) or {}).get(dom),
-                    "last_run_ts": (state.get("api_contract", {}).get("last_run_ts", {}) or {}).get(dom),
+                    "last_run_ts": api_contract_last_run_ts,
                 },
             }
         )
     return out
+
+
+def summarize_domain_groups(*, domains: list[dict[str, Any]], config: dict[str, Any]) -> list[dict[str, Any]]:
+    configured_groups = _normalize_domain_groups(config.get("domain_groups"))
+    definitions = {str(group["id"]): dict(group) for group in configured_groups}
+    for domain in domains:
+        group_id = str(domain.get("group") or "unconfigured")
+        definitions.setdefault(
+            group_id,
+            {
+                "id": group_id,
+                "label": str(domain.get("group_label") or group_id.replace("-", " ").title()),
+                "description": domain.get("group_description"),
+                "order": domain.get("group_order") or 9999,
+            },
+        )
+
+    summaries: list[dict[str, Any]] = []
+    for group_id, definition in definitions.items():
+        members = [domain for domain in domains if str(domain.get("group") or "unconfigured") == group_id]
+        if not members:
+            continue
+        health = _summarize_service_health(members)
+        if health["down"]:
+            status = "attention"
+        elif health["unknown"]:
+            status = "unknown"
+        else:
+            status = "healthy"
+        summaries.append({**definition, **health, "total": len(members), "status": status})
+    return sorted(summaries, key=lambda group: (int(group.get("order") or 9999), str(group.get("label") or "").lower()))
 
 
 def summarize_signals(*, data: MonitorData) -> dict[str, Any]:
@@ -590,25 +704,46 @@ def _build_incidents(
         )
     for domain in down_domains:
         last = domain.get("last") if isinstance(domain.get("last"), dict) else {}
+        group_label = str(domain.get("group_label") or "Unconfigured")
+        failure_sources = [str(source) for source in (last.get("failure_sources") or [])]
+        source_labels = {
+            "primary": "page/readiness check",
+            "api_contract": "API/service subcheck",
+            "synthetic": "end-to-end transaction",
+        }
+        failing_checks = ", ".join(source_labels.get(source, source) for source in failure_sources)
+        failure_streaks = [int((domain.get("streaks") or {}).get("fail", 0))]
+        if "api_contract" in failure_sources:
+            failure_streaks.append(int((domain.get("api_contract") or {}).get("fail_streak") or 0))
+        if "synthetic" in failure_sources:
+            failure_streaks.append(int((domain.get("synthetic") or {}).get("fail_streak") or 0))
         incidents.append(
             {
                 "kind": "domain_down",
                 "severity": "critical",
                 "title": f"{domain.get('domain')} is down",
-                "detail": f"Effective monitor status is down after {int((domain.get('streaks') or {}).get('fail', 0))} failing cycles.",
+                "detail": (
+                    f"{group_label} · {failing_checks or 'health check'} is down after "
+                    f"{max(failure_streaks)} failing cycles."
+                ),
                 "domain": domain.get("domain"),
+                "group": domain.get("group"),
+                "group_label": group_label,
                 "status_code": last.get("status_code"),
                 "observed_at_ts": last.get("ts"),
             }
         )
     for domain in unknown_domains:
+        group_label = str(domain.get("group_label") or "Unconfigured")
         incidents.append(
             {
                 "kind": "domain_unknown",
                 "severity": "warning",
                 "title": f"{domain.get('domain')} has no current result",
-                "detail": "The domain is enabled but has not produced a health result.",
+                "detail": f"{group_label} · the domain is enabled but has not produced a health result.",
                 "domain": domain.get("domain"),
+                "group": domain.get("group"),
+                "group_label": group_label,
                 "observed_at_ts": None,
             }
         )
@@ -678,6 +813,15 @@ def build_dashboard_summary(
     normalized_events = [event for event in events if isinstance(event, dict)]
     freshness = _summarize_freshness(data=data, now_ts=float(now_ts), history_max_ts=max_ts)
     service_health = _summarize_service_health(domains)
+    domain_groups = summarize_domain_groups(domains=domains, config=data.config or {})
+    retired_cfg = data.config.get("retired_domains") if isinstance(data.config.get("retired_domains"), list) else []
+    inventory_cfg = data.config.get("inventory") if isinstance(data.config.get("inventory"), dict) else {}
+    configured_domains = {
+        str(entry.get("domain") or "")
+        for entry in _normalize_domain_entries(data.config.get("domains"))
+        if str(entry.get("domain") or "")
+    }
+    state_domains = set(history_by_domain.keys()) | set((state.get("last_ok") or {}).keys())
     e2e = _summarize_e2e(e2e_status_summary, now_ts=float(now_ts))
     incidents = _build_incidents(
         down_domains=down_domains,
@@ -704,6 +848,15 @@ def build_dashboard_summary(
         "history_range": {"min_ts": min_ts, "max_ts": max_ts},
         "freshness": freshness,
         "service_health": service_health,
+        "domain_groups": domain_groups,
+        "inventory": {
+            "version": inventory_cfg.get("version"),
+            "reviewed_at": inventory_cfg.get("reviewed_at"),
+            "active_domains": len(domains),
+            "groups": len(domain_groups),
+            "retired_domains": len(retired_cfg),
+            "orphaned_state_domains": len(state_domains - configured_domains),
+        },
         "e2e": e2e,
         "incidents": incidents,
         "daily_status": daily_status,

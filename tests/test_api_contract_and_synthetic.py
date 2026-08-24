@@ -154,6 +154,27 @@ async def test_api_contract_paths_resolve_from_origin_when_page_url_has_a_path(
 
 
 @pytest.mark.asyncio
+async def test_api_contract_can_explicitly_skip_content_type_validation(local_server_base_url: str) -> None:
+    async with httpx.AsyncClient() as client:
+        result = await run_api_contract_checks(
+            http_client=client,
+            domain="svc",
+            base_url=local_server_base_url,
+            checks=[
+                {
+                    "name": "plain_page",
+                    "path": "/page",
+                    "expected_status_codes": [200],
+                    "expected_content_type_contains": None,
+                }
+            ],
+            timeout_seconds=2.0,
+        )
+
+    assert result and result[0].ok is True
+
+
+@pytest.mark.asyncio
 async def test_api_contract_substitutes_header_env_without_logging_secret(
     local_server_base_url: str,
     monkeypatch: pytest.MonkeyPatch,

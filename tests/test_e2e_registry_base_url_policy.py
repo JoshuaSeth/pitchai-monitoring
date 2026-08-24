@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from e2e_registry.app import create_app
+from e2e_registry.app import _load_monitored_allowlist_hosts, create_app
 from e2e_registry.settings import RegistrySettings
 
 
@@ -49,6 +49,25 @@ def _simple_playwright_py() -> bytes:
         "async def run(page, base_url, artifacts_dir):\n"
         "    await page.goto(base_url.rstrip('/') + '/', wait_until='domcontentloaded')\n"
     ).encode("utf-8")
+
+
+def test_production_inventory_expands_e2e_allowlist_and_excludes_retired_domains() -> None:
+    config_path = Path(__file__).resolve().parents[1] / "domain_checks" / "config.yaml"
+    settings = RegistrySettings(
+        base_url_allow_monitored_domains=True,
+        monitor_config_path=str(config_path),
+    )
+
+    hosts = _load_monitored_allowlist_hosts(settings)
+
+    assert len(hosts) == 59
+    assert {
+        "formatief-toetsen.pitchai.net",
+        "staging.formatief-toetsen.pitchai.net",
+        "dft-marketing-staging.pitchai.net",
+    } <= hosts
+    assert "n8n.pitchai.net" not in hosts
+    assert "quickchat.pitchai.net" not in hosts
 
 
 def test_upload_rejects_reserved_example_domain(tmp_path: Path) -> None:

@@ -21,15 +21,20 @@ if os.getenv("RUN_LIVE_TESTS") != "1":
 
 
 EXPECTED_UP = {
+    "2fa-server.37.27.67.52.nip.io",
     "afasask.pitchai.net",
     "afasask.gzb.nl",
     "autopar.pitchai.net",
     "cms.deplanbook.com",
+    "codexusage.pitchai.net",
     "deplanbook.com",
     "demo.afasask.pitchai.net",
     "dpb.pitchai.net",
     "hetcis.nl",
+    "www.hetcis.nl",
     "skybuyfly.pitchai.net",
+    "formatief-toetsen.pitchai.net",
+    "staging.formatief-toetsen.pitchai.net",
 }
 
 

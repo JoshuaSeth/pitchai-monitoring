@@ -40,6 +40,7 @@ from domain_checks.dispatch_client import (
 )
 from domain_checks.event_bus import EventBusOutbox, load_event_bus_config
 from domain_checks.history import append_sample, coerce_history, prune_history
+from domain_checks.inventory import validate_domain_inventory
 from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
 from domain_checks.metrics_container_health import ContainerHealthIssue, check_container_health
 from domain_checks.metrics_dns import DnsCheckResult, check_dns
@@ -156,28 +157,13 @@ def _parse_disabled_until_ts(value: Any) -> float | None:
 
 def _normalize_domain_entries(domains_cfg: list[Any]) -> list[DomainEntryConfig]:
     entries: list[DomainEntryConfig] = []
-    forced_disabled = {
-        # Dispatcher runs on a different server and is not an app/site we want uptime/UI checks for.
-        # Keeping it here prevents accidental addition causing alert noise.
-        "dispatch.pitchai.net",
-    }
 
     for idx, entry in enumerate(domains_cfg):
         if isinstance(entry, str):
             domain = entry.strip()
             if not domain:
                 raise ValueError(f"domains[{idx}] is empty")
-            if domain in forced_disabled:
-                entries.append(
-                    DomainEntryConfig(
-                        domain=domain,
-                        raw_entry=domain,
-                        disabled=True,
-                        disabled_reason="excluded from monitoring (dispatcher runs elsewhere)",
-                    )
-                )
-            else:
-                entries.append(DomainEntryConfig(domain=domain, raw_entry=domain))
+            entries.append(DomainEntryConfig(domain=domain, raw_entry=domain))
             continue
 
         if not isinstance(entry, dict):
@@ -190,11 +176,6 @@ def _normalize_domain_entries(domains_cfg: list[Any]) -> list[DomainEntryConfig]
         disabled = bool(entry.get("disabled")) or (entry.get("enabled") is False)
         disabled_reason = str(entry.get("disabled_reason") or "").strip() or None
         disabled_until_ts = _parse_disabled_until_ts(entry.get("disabled_until"))
-
-        if domain in forced_disabled:
-            disabled = True
-            if not disabled_reason:
-                disabled_reason = "excluded from monitoring (dispatcher runs elsewhere)"
 
         entries.append(
             DomainEntryConfig(
@@ -2740,6 +2721,19 @@ async def check_one_domain(
             details=http_details,
         )
 
+    if not spec.browser_enabled:
+        return DomainCheckResult(
+            domain=spec.domain,
+            ok=True,
+            reason="browser_not_applicable",
+            details={
+                **http_details,
+                "browser_skipped": True,
+                "browser_skip_reason": "explicit_http_contract",
+                "browser_elapsed_ms": None,
+            },
+        )
+
     if browser is None:
         return DomainCheckResult(
             domain=spec.domain,
@@ -2781,6 +2775,7 @@ async def check_one_domain(
 
 async def run_loop(config_path: Path, once: bool) -> int:
     config = load_config(config_path)
+    validate_domain_inventory(config)
     interval_seconds = int(config.get("interval_seconds", 60))
     tolerance_seconds = max(120, interval_seconds * 2)
     browser_concurrency = max(1, int(config.get("browser_concurrency", 3)))
