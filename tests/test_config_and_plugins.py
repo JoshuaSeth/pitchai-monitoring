@@ -24,6 +24,7 @@ EXPECTED_ACTIVE_DOMAINS = set(
     codexusage.pitchai.net
     cursussen.pitchai.net
     dispatch.pitchai.net
+    whatsapp.pitchai.net
     filedrop.pitchai.net
     monitoring.pitchai.net
     navigation.pitchai.net
@@ -109,7 +110,7 @@ def test_authoritative_active_inventory_is_exact_and_dft_is_enabled() -> None:
     actual = {str(entry["domain"]) for entry in domains}
 
     assert actual == EXPECTED_ACTIVE_DOMAINS
-    assert len(domains) == len(actual) == 59
+    assert len(domains) == len(actual) == 60
     assert len(config["domain_groups"]) == 14
     assert not [entry for entry in domains if entry.get("disabled") or entry.get("enabled") is False]
 
@@ -268,3 +269,26 @@ def test_autopar_contract_models_the_protected_login_boundary() -> None:
     assert {"type": "expect_url_contains", "value": "/login-page"} in steps
     assert {"type": "expect_title_contains", "value": "AutoPAR"} in steps
     assert all("script#wss-connection" not in str(step) for step in steps)
+
+
+def test_whatsapp_bridge_has_an_independent_operator_and_readiness_contract() -> None:
+    config = _production_config()
+    domains = config["domains"]
+    whatsapp_entry = next(entry for entry in domains if entry["domain"] == "whatsapp.pitchai.net")
+    dispatch_entry = next(entry for entry in domains if entry["domain"] == "dispatch.pitchai.net")
+
+    whatsapp_spec = load_domain_spec(whatsapp_entry)
+    dispatch_spec = load_domain_spec(dispatch_entry)
+
+    assert whatsapp_spec.url == "https://whatsapp.pitchai.net/readyz"
+    assert whatsapp_spec.allowed_status_codes == [200]
+    assert whatsapp_spec.browser_enabled is False
+    assert whatsapp_spec.required_text_all == ["ok", "ready"]
+
+    auth_boundary = next(
+        check for check in whatsapp_spec.api_contract_checks if check["name"] == "operator_auth_boundary"
+    )
+    assert auth_boundary["url"] == "https://whatsapp.pitchai.net/operator"
+    assert auth_boundary["expected_status_codes"] == [401]
+
+    assert not any("18442" in str(check.get("url", "")) for check in dispatch_spec.api_contract_checks)
