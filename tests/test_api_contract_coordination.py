@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 
 import httpx
 import pytest
@@ -12,7 +13,7 @@ from domain_checks.api_contract_coordination import ApiContractCoordinator
 from domain_checks.main import _update_effective_ok
 from domain_checks.metrics_api_contract import (
     ApiContractCheckResult,
-    api_contract_alert_batch_key,
+    group_api_contract_alert_failures,
     run_api_contract_checks,
 )
 
@@ -213,7 +214,7 @@ async def test_zero_capacity_fails_closed_once_and_recovers_after_restoration() 
         "afasask.gzb.nl": (True, 0, 0),
         "demo.afasask.pitchai.net": (True, 0, 0),
     }
-    degradation_batches: dict[str, list[ApiContractCheckResult]] = {}
+    degradation_failures: list[ApiContractCheckResult] = []
     async with httpx.AsyncClient(transport=transport) as client:
         for cycle in range(4):
             if cycle == 2:
@@ -235,12 +236,12 @@ async def test_zero_capacity_fails_closed_once_and_recovers_after_restoration() 
                 )
                 states[result.domain] = (next_ok, next_fail, next_success)
                 if alerted:
-                    batch_key = api_contract_alert_batch_key(result.domain, [result])
-                    degradation_batches.setdefault(batch_key, []).append(result)
+                    degradation_failures.append(result)
 
             expected_effective_ok = cycle < 1 or cycle == 3
             assert all(state[0] is expected_effective_ok for state in states.values())
 
+    degradation_batches = group_api_contract_alert_failures(degradation_failures)
     assert len(degradation_batches) == 1
     degradation = degradation_batches["resource:afasask_auth_broker_readiness"]
     assert {result.domain for result in degradation} == set(states)
@@ -248,3 +249,31 @@ async def test_zero_capacity_fails_closed_once_and_recovers_after_restoration() 
     assert broker.no_capacity_failures == 4
     assert broker.active_leases == 0
     assert broker.available_accounts == 1
+
+
+def test_alert_grouping_keeps_unrelated_failure_domain_scoped() -> None:
+    shared_resource_failure = ApiContractCheckResult(
+        domain="afasask.gzb.nl",
+        name="codex_no_quota_readiness",
+        ok=False,
+        url="https://afasask.gzb.nl/internal/monitor/codex-readiness",
+        status_code=503,
+        elapsed_ms=1.0,
+        error="unexpected_status",
+        details={},
+        coordination_key="afasask_auth_broker_readiness",
+    )
+    unrelated_failure = replace(
+        shared_resource_failure,
+        name="unrelated_api_contract",
+        coordination_key=None,
+    )
+
+    batches = group_api_contract_alert_failures([shared_resource_failure, unrelated_failure])
+
+    assert set(batches) == {
+        "resource:afasask_auth_broker_readiness",
+        "domain:afasask.gzb.nl",
+    }
+    assert batches["resource:afasask_auth_broker_readiness"] == [shared_resource_failure]
+    assert batches["domain:afasask.gzb.nl"] == [unrelated_failure]

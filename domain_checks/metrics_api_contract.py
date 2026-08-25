@@ -237,14 +237,15 @@ async def run_api_contract_checks(
     return results
 
 
-def api_contract_alert_batch_key(
-    domain: str,
+def group_api_contract_alert_failures(
     failures: list[ApiContractCheckResult],
-) -> str:
-    """Group only failures that share one explicit scarce-resource key."""
-    coordination_keys: set[str | None] = set()
+) -> dict[str, list[ApiContractCheckResult]]:
+    """Group each failure by its explicit resource key or owning domain."""
+    batches: dict[str, list[ApiContractCheckResult]] = {}
     for failure in failures:
-        coordination_keys.add(failure.coordination_key)
-    if len(coordination_keys) == 1 and None not in coordination_keys:
-        return f"resource:{coordination_keys.pop()}"
-    return f"domain:{domain}"
+        if failure.coordination_key is None:
+            batch_key = f"domain:{failure.domain}"
+        else:
+            batch_key = f"resource:{failure.coordination_key}"
+        batches.setdefault(batch_key, []).append(failure)
+    return batches

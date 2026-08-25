@@ -31,7 +31,7 @@ from domain_checks.history import append_sample, coerce_history, prune_history
 from domain_checks.inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from domain_checks.metrics_api_contract import (
     ApiContractCheckResult,
-    api_contract_alert_batch_key,
+    group_api_contract_alert_failures,
     run_api_contract_checks,
 )
 from domain_checks.metrics_container_health import ContainerHealthIssue, check_container_health
@@ -4541,7 +4541,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # ------------------------------
                     # API contract checks (per-domain)
                     # ------------------------------
-                    api_alert_batches: dict[str, list[ApiContractCheckResult]] = {}
+                    api_failures_to_alert: list[ApiContractCheckResult] = []
                     api_failures_for_dispatch: list[ApiContractCheckResult] = []
                     if api_enabled and enabled_specs:
                         now_ts = time.time()
@@ -4594,8 +4594,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         alert_policy=domain_entry.alert_policy.telegram,
                                     )
                                     if domain_entry.routes_telegram:
-                                        alert_batch_key = api_contract_alert_batch_key(domain, failures)
-                                        api_alert_batches.setdefault(alert_batch_key, []).extend(failures)
+                                        api_failures_to_alert.extend(failures)
                                         api_failures_for_dispatch.extend(failures)
                                 else:
                                     recovered = (not prev_effective) and bool(next_effective)
@@ -4622,6 +4621,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             domain,
                                         )
 
+                            api_alert_batches = group_api_contract_alert_failures(api_failures_to_alert)
                             for alert_batch_key, alert_failures in api_alert_batches.items():
                                 if not all(
                                     entries_by_domain[result.domain].routes_telegram
