@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import replace
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, TypeAlias, cast, final
+from urllib.parse import urlsplit
 
-import httpx
 import pytest
 
 from domain_checks.api_contract_coordination import ApiContractCoordinator
@@ -17,7 +19,65 @@ from domain_checks.metrics_api_contract import (
     run_api_contract_checks,
 )
 
+if TYPE_CHECKING:
+    import httpx
 
+JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
+
+
+@dataclass(frozen=True)
+class _FixtureUrl:
+    value: str
+
+    @property
+    def host(self) -> str:
+        return urlsplit(self.value).hostname or ""
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True)
+class _FixtureRequest:
+    url: _FixtureUrl
+
+
+@final
+class _FixtureResponse:
+    def __init__(self, status_code: int, request: _FixtureRequest, payload: dict[str, JsonValue]) -> None:
+        self.status_code = status_code
+        self.headers = {"content-type": "application/json"}
+        self.url = request.url
+        self._payload = payload
+
+    def json(self) -> dict[str, JsonValue]:
+        return self._payload
+
+
+@final
+class _FixtureClient:
+    def __init__(
+        self,
+        handler: Callable[[_FixtureRequest], Awaitable[_FixtureResponse]],
+    ) -> None:
+        self._handler = handler
+
+    async def request(
+        self,
+        _method: str,
+        url: str,
+        *,
+        json: dict[str, JsonValue] | list[JsonValue] | None,
+        content: bytes | None,
+        headers: dict[str, str],
+        timeout: float,
+        follow_redirects: bool,
+    ) -> _FixtureResponse:
+        del json, content, headers, timeout, follow_redirects
+        return await self._handler(_FixtureRequest(url=_FixtureUrl(url)))
+
+
+@final
 class _OneAccountBroker:
     def __init__(self, *, available_accounts: int = 1, manual_release: bool = True) -> None:
         self.available_accounts = available_accounts
@@ -32,7 +92,7 @@ class _OneAccountBroker:
         self._release_lease = asyncio.Event()
         self._state_lock = asyncio.Lock()
 
-    async def handle(self, request: httpx.Request) -> httpx.Response:
+    async def handle(self, request: _FixtureRequest) -> _FixtureResponse:
         async with self._state_lock:
             if self.available_accounts == 0:
                 if self.active_leases:
@@ -40,10 +100,10 @@ class _OneAccountBroker:
                     self.contention_observed.set()
                 else:
                     self.no_capacity_failures += 1
-                return httpx.Response(
+                return _FixtureResponse(
                     503,
-                    request=request,
-                    json={"status": "fail", "pool": {"selectable_accounts": 0}},
+                    request,
+                    {"status": "fail", "pool": {"selectable_accounts": 0}},
                 )
             self.available_accounts -= 1
             self.active_leases += 1
@@ -58,10 +118,10 @@ class _OneAccountBroker:
             self.available_accounts += 1
             host = request.url.host
             self.successes_by_host[host] = self.successes_by_host.get(host, 0) + 1
-        return httpx.Response(
+        return _FixtureResponse(
             200,
-            request=request,
-            json={
+            request,
+            {
                 "status": "ok",
                 "quota_used": False,
                 "prompt_submitted": False,
@@ -142,10 +202,11 @@ async def _run_pair(
 @pytest.mark.asyncio
 async def test_uncoordinated_scheduler_has_one_winner_and_one_loser() -> None:
     broker = _OneAccountBroker()
-    transport = httpx.MockTransport(broker.handle)
+    client = cast("httpx.AsyncClient", cast(object, _FixtureClient(broker.handle)))
     coordinator = ApiContractCoordinator()
-    async with httpx.AsyncClient(transport=transport) as client:
-        tasks = [
+    tasks: list[asyncio.Task[list[ApiContractCheckResult]]] = []
+    for domain in ("afasask.gzb.nl", "demo.afasask.pitchai.net"):
+        tasks.append(
             asyncio.create_task(
                 _run_readiness(
                     client,
@@ -154,14 +215,13 @@ async def test_uncoordinated_scheduler_has_one_winner_and_one_loser() -> None:
                     domain=domain,
                 )
             )
-            for domain in ("afasask.gzb.nl", "demo.afasask.pitchai.net")
-        ]
-        try:
-            await asyncio.wait_for(broker.first_lease_acquired.wait(), timeout=1.0)
-            await asyncio.wait_for(broker.contention_observed.wait(), timeout=1.0)
-        finally:
-            broker.release_lease()
-        results_by_domain = await asyncio.gather(*tasks)
+        )
+    try:
+        await asyncio.wait_for(broker.first_lease_acquired.wait(), timeout=1.0)
+        await asyncio.wait_for(broker.contention_observed.wait(), timeout=1.0)
+    finally:
+        broker.release_lease()
+    results_by_domain = await asyncio.gather(*tasks)
     results = [domain_results[0] for domain_results in results_by_domain]
     assert sorted(result.status_code for result in results if result.status_code is not None) == [200, 503]
     assert sum(result.ok for result in results) == 1
@@ -175,26 +235,25 @@ async def test_uncoordinated_scheduler_has_one_winner_and_one_loser() -> None:
 async def test_coordinated_one_account_fixture_passes_100_paired_cycles() -> None:
     broker = _OneAccountBroker(manual_release=False)
     coordinator = ApiContractCoordinator()
-    transport = httpx.MockTransport(broker.handle)
-    async with httpx.AsyncClient(transport=transport) as client:
-        for _cycle in range(100):
-            results = await _run_pair(
-                client,
-                coordinator,
-                coordination_key="afasask_auth_broker_readiness",
-            )
-            assert all(result.ok for result in results)
-            assert [result.domain for result in results] == [
-                "afasask.gzb.nl",
-                "demo.afasask.pitchai.net",
-            ]
-            assert {result.coordination_key for result in results} == {"afasask_auth_broker_readiness"}
-            assert all(
-                set(result.details) == {"content_type", "coordination_wait_ms", "final_url"}
-                for result in results
-            )
-            assert broker.active_leases == 0
-            assert broker.available_accounts == 1
+    client = cast("httpx.AsyncClient", cast(object, _FixtureClient(broker.handle)))
+    for _cycle in range(100):
+        results = await _run_pair(
+            client,
+            coordinator,
+            coordination_key="afasask_auth_broker_readiness",
+        )
+        assert all(result.ok for result in results)
+        assert [result.domain for result in results] == [
+            "afasask.gzb.nl",
+            "demo.afasask.pitchai.net",
+        ]
+        assert {result.coordination_key for result in results} == {"afasask_auth_broker_readiness"}
+        assert all(
+            set(result.details) == {"content_type", "coordination_wait_ms", "final_url"}
+            for result in results
+        )
+        assert broker.active_leases == 0
+        assert broker.available_accounts == 1
 
     assert broker.contention_failures == 0
     assert broker.no_capacity_failures == 0
@@ -209,37 +268,36 @@ async def test_coordinated_one_account_fixture_passes_100_paired_cycles() -> Non
 async def test_zero_capacity_fails_closed_once_and_recovers_after_restoration() -> None:
     broker = _OneAccountBroker(available_accounts=0, manual_release=False)
     coordinator = ApiContractCoordinator()
-    transport = httpx.MockTransport(broker.handle)
+    client = cast("httpx.AsyncClient", cast(object, _FixtureClient(broker.handle)))
     states = {
         "afasask.gzb.nl": (True, 0, 0),
         "demo.afasask.pitchai.net": (True, 0, 0),
     }
     degradation_failures: list[ApiContractCheckResult] = []
-    async with httpx.AsyncClient(transport=transport) as client:
-        for cycle in range(4):
-            if cycle == 2:
-                broker.restore_one_account()
-            results = await _run_pair(
-                client,
-                coordinator,
-                coordination_key="afasask_auth_broker_readiness",
+    for cycle in range(4):
+        if cycle == 2:
+            broker.restore_one_account()
+        results = await _run_pair(
+            client,
+            coordinator,
+            coordination_key="afasask_auth_broker_readiness",
+        )
+        for result in results:
+            prev_ok, fail_streak, success_streak = states[result.domain]
+            next_ok, next_fail, next_success, alerted = _update_effective_ok(
+                prev_effective_ok=prev_ok,
+                observed_ok=result.ok,
+                fail_streak=fail_streak,
+                success_streak=success_streak,
+                down_after_failures=2,
+                up_after_successes=2,
             )
-            for result in results:
-                prev_ok, fail_streak, success_streak = states[result.domain]
-                next_ok, next_fail, next_success, alerted = _update_effective_ok(
-                    prev_effective_ok=prev_ok,
-                    observed_ok=result.ok,
-                    fail_streak=fail_streak,
-                    success_streak=success_streak,
-                    down_after_failures=2,
-                    up_after_successes=2,
-                )
-                states[result.domain] = (next_ok, next_fail, next_success)
-                if alerted:
-                    degradation_failures.append(result)
+            states[result.domain] = (next_ok, next_fail, next_success)
+            if alerted:
+                degradation_failures.append(result)
 
-            expected_effective_ok = cycle < 1 or cycle == 3
-            assert all(state[0] is expected_effective_ok for state in states.values())
+        expected_effective_ok = cycle < 1 or cycle == 3
+        assert all(state[0] is expected_effective_ok for state in states.values())
 
     degradation_batches = group_api_contract_alert_failures(degradation_failures)
     assert len(degradation_batches) == 1
