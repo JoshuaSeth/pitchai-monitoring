@@ -9,6 +9,7 @@ import httpx
 import pytest
 from playwright.async_api import async_playwright
 
+from domain_checks.api_contract_coordination import ApiContractCoordinator
 from domain_checks.common_check import find_chromium_executable
 from domain_checks.metrics_api_contract import run_api_contract_checks
 from domain_checks.metrics_synthetic import run_synthetic_transactions
@@ -109,6 +110,7 @@ async def test_api_contract_checks_ok_and_fail(local_server_base_url: str) -> No
             domain="svc",
             base_url=local_server_base_url,
             checks=checks_ok,
+            coordinator=ApiContractCoordinator(),
             timeout_seconds=2.0,
         )
         assert ok_res and ok_res[0].ok is True
@@ -118,10 +120,22 @@ async def test_api_contract_checks_ok_and_fail(local_server_base_url: str) -> No
             domain="svc",
             base_url=local_server_base_url,
             checks=checks_bad,
+            coordinator=ApiContractCoordinator(),
             timeout_seconds=2.0,
         )
         assert bad_res and bad_res[0].ok is False
         assert bad_res[0].error in {"missing_json_paths", "json_value_mismatch"} or (bad_res[0].error or "").startswith("missing_json_paths")
+
+        invalid_key_res = await run_api_contract_checks(
+            http_client=client,
+            domain="svc",
+            base_url=local_server_base_url,
+            checks=[{"name": "invalid_key", "path": "/health", "coordination_key": "not SAFE"}],
+            coordinator=ApiContractCoordinator(),
+            timeout_seconds=2.0,
+        )
+        assert invalid_key_res and invalid_key_res[0].ok is False
+        assert (invalid_key_res[0].error or "").startswith("InvalidCoordinationKeyError:")
 
 
 @pytest.mark.asyncio
@@ -132,6 +146,7 @@ async def test_api_contract_root_path_is_not_nested_under_page_url(local_server_
             domain="svc",
             base_url=f"{local_server_base_url}/page?mode=demo",
             checks=[{"name": "health", "path": "/health", "json_paths_equal": {"status": "healthy"}}],
+            coordinator=ApiContractCoordinator(),
             timeout_seconds=2.0,
         )
 
@@ -154,6 +169,7 @@ async def test_api_contract_can_explicitly_skip_content_type_validation(local_se
                     "expected_content_type_contains": None,
                 }
             ],
+            coordinator=ApiContractCoordinator(),
             timeout_seconds=2.0,
         )
 
@@ -182,6 +198,7 @@ async def test_api_contract_substitutes_header_env_without_logging_secret(
             domain="svc",
             base_url=local_server_base_url,
             checks=checks,
+            coordinator=ApiContractCoordinator(),
             timeout_seconds=2.0,
         )
 
@@ -211,6 +228,7 @@ async def test_api_contract_missing_header_env_fails_without_secret_value(
             domain="svc",
             base_url=local_server_base_url,
             checks=checks,
+            coordinator=ApiContractCoordinator(),
             timeout_seconds=2.0,
         )
 

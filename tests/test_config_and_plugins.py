@@ -289,3 +289,18 @@ def test_afasask_domains_are_enabled_and_check_current_user_surfaces() -> None:
     assert any(item.selector == "#main" for item in demo_spec.required_selectors_all)
     assert any(item.selector == "text=/Login with AFAS/i" for item in demo_spec.required_selectors_all)
     assert any(check.get("name") == "codex_no_quota_readiness" for check in demo_spec.api_contract_checks)
+
+    readiness_checks = [
+        next(check for check in item.api_contract_checks if check.get("name") == "codex_no_quota_readiness")
+        for item in (spec, demo_spec)
+    ]
+    assert [check.get("coordination_key") for check in readiness_checks] == [
+        "afasask_auth_broker_readiness",
+        "afasask_auth_broker_readiness",
+    ]
+    assert all(
+        "coordination_key" not in check
+        for item in (spec, demo_spec)
+        for check in item.api_contract_checks
+        if check.get("name") != "codex_no_quota_readiness"
+    )

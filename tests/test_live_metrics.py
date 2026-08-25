@@ -10,6 +10,7 @@ import httpx
 import pytest
 from playwright.async_api import async_playwright
 
+from domain_checks.api_contract_coordination import ApiContractCoordinator
 from domain_checks.common_check import DomainCheckResult, DomainCheckSpec, find_chromium_executable, http_get_check
 from domain_checks.history import append_sample
 from domain_checks.main import _normalize_domain_entries, check_one_domain, load_config, load_domain_spec
@@ -147,6 +148,7 @@ async def test_live_api_contract_checks_ok(http_client: httpx.AsyncClient) -> No
             domain=spec.domain,
             base_url=spec.url,
             checks=spec.api_contract_checks,
+            coordinator=ApiContractCoordinator(),
             timeout_seconds=10.0,
         )
         failures.extend([r for r in results if not r.ok])
@@ -161,6 +163,7 @@ async def test_live_api_contract_failure_httpstat_500(http_client: httpx.AsyncCl
         domain="httpstat.us",
         base_url="https://httpstat.us",
         checks=[{"name": "expect_200_but_500", "method": "GET", "path": "/500", "expected_status_codes": [200]}],
+        coordinator=ApiContractCoordinator(),
         timeout_seconds=10.0,
     )
     assert results and results[0].ok is False

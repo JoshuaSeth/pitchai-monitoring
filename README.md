@@ -75,6 +75,11 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
     - `red.enabled`, `red.window_minutes`, `red.error_rate_max_percent`, `red.http_p95_ms_max`, `red.browser_p95_ms_max`
   - API contract checks (per-domain):
     - `api_contract.enabled` and per-domain `CHECK.api_contract_checks`
+    - Optional `coordination_key`: checks with the same explicit scarce-resource key wait in a fair,
+      process-local queue. Every check still runs and retains its own domain result, state, and alert
+      attribution; unrelated and unkeyed checks remain concurrent. Endpoint latency excludes queue wait,
+      while keyed results report `coordination_wait_ms` for operational visibility. Malformed keys fail
+      the contract check instead of falling back to uncoordinated execution.
   - Synthetic transactions (per-domain):
     - `synthetic.enabled` and per-domain `CHECK.synthetic_transactions`
   - Web vitals:

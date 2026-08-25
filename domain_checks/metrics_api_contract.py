@@ -9,6 +9,8 @@ from urllib.parse import urljoin
 
 import httpx
 
+from domain_checks.api_contract_coordination import ApiContractCoordinator, InvalidCoordinationKeyError
+
 
 @dataclass(frozen=True)
 class ApiContractCheckResult:
@@ -20,6 +22,7 @@ class ApiContractCheckResult:
     elapsed_ms: float | None
     error: str | None
     details: dict[str, Any]
+    coordination_key: str | None = None
 
 
 def _get_path(obj: Any, path: str) -> tuple[bool, Any]:
@@ -93,6 +96,7 @@ async def run_api_contract_checks(
     domain: str,
     base_url: str,
     checks: list[dict[str, Any]],
+    coordinator: ApiContractCoordinator,
     timeout_seconds: float = 10.0,
 ) -> list[ApiContractCheckResult]:
     results: list[ApiContractCheckResult] = []
@@ -131,25 +135,36 @@ async def run_api_contract_checks(
             req_data = _substitute_env_refs(req_data)
         headers = raw.get("headers") if isinstance(raw.get("headers"), dict) else {}
 
-        started = time.perf_counter()
+        operation_started = time.perf_counter()
+        request_started = None
         status_code = None
         elapsed_ms = None
         err = None
         details: dict[str, Any] = {}
         ok = True
+        coordination_key = None
 
         try:
-            resp = await http_client.request(
-                method,
-                url,
-                json=req_json,
-                content=req_data.encode("utf-8") if isinstance(req_data, str) else None,
-                headers=_headers_with_env(headers),
-                timeout=float(timeout_seconds),
-                follow_redirects=True,
-            )
+            raw_coordination_key = raw.get("coordination_key")
+            if raw_coordination_key is not None and not isinstance(raw_coordination_key, str):
+                raise InvalidCoordinationKeyError
+            wait_started = time.perf_counter()
+            async with coordinator.request_slot(raw_coordination_key) as validated_key:
+                coordination_key = validated_key
+                request_started = time.perf_counter()
+                if coordination_key is not None:
+                    details["coordination_wait_ms"] = round((request_started - wait_started) * 1000.0, 3)
+                resp = await http_client.request(
+                    method,
+                    url,
+                    json=req_json,
+                    content=req_data.encode("utf-8") if isinstance(req_data, str) else None,
+                    headers=_headers_with_env(headers),
+                    timeout=float(timeout_seconds),
+                    follow_redirects=True,
+                )
             status_code = int(resp.status_code)
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            elapsed_ms = (time.perf_counter() - request_started) * 1000.0
             details["content_type"] = resp.headers.get("content-type")
             details["final_url"] = str(resp.url)
 
@@ -200,7 +215,8 @@ async def run_api_contract_checks(
                 ok = False
                 err = f"slow_api: elapsed_ms={elapsed_ms:.1f} > {max_elapsed_ms_f:.1f}"
         except Exception as exc:
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            timing_start = request_started if request_started is not None else operation_started
+            elapsed_ms = (time.perf_counter() - timing_start) * 1000.0
             ok = False
             err = f"{type(exc).__name__}: {exc}"
 
@@ -214,7 +230,21 @@ async def run_api_contract_checks(
                 elapsed_ms=(round(float(elapsed_ms), 3) if elapsed_ms is not None else None),
                 error=err,
                 details=details,
+                coordination_key=coordination_key,
             )
         )
 
     return results
+
+
+def api_contract_alert_batch_key(
+    domain: str,
+    failures: list[ApiContractCheckResult],
+) -> str:
+    """Group only failures that share one explicit scarce-resource key."""
+    coordination_keys: set[str | None] = set()
+    for failure in failures:
+        coordination_keys.add(failure.coordination_key)
+    if len(coordination_keys) == 1 and None not in coordination_keys:
+        return f"resource:{coordination_keys.pop()}"
+    return f"domain:{domain}"
