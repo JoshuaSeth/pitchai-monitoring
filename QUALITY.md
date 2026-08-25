@@ -1,9 +1,16 @@
 # Python Quality Gate
 
-Run the repository's complete fail-closed Python gate with:
+From the repository root, run the complete fail-closed Python gate with:
 
 ```sh
-uv run --project quality --python 3.12 --frozen check
+uv run check
+```
+
+The root project is only an entrypoint for the locked `quality` package. CI
+uses the equivalent explicit command:
+
+```sh
+uv run --project quality --python 3.12.12 --frozen check
 ```
 
 The aggregate runs the anti-bypass policy, all five PitchAI Python preference
@@ -18,15 +25,46 @@ push branch. It intentionally has no branch-name filter, so repositories whose
 default branch is `main`, `master`, `staging`, or another project-specific name
 cannot silently skip the gate.
 
+## Immediate ratchet
+
+The workflow separates the still-red full gate from the merge-blocking
+`Quality ratchet` job. The ratchet runs the same ten gates and compares their
+machine-readable diagnostics with
+`quality/baselines/python-strict-activation-f4b541b.json`. It fails when a gate
+has a new fingerprint, a higher fingerprint multiplicity, a higher aggregate
+violation count, or any violation attached to a Python file changed by the
+candidate. Moving unchanged code between paths or line numbers does not create
+a new identity: ordinary fingerprints use the gate, rule, normalized message,
+and source-line digest, while locations remain separate evidence. Pylint's
+duplicate-code excerpts are nondeterministic even with a single worker, so
+those fingerprints use the complete sorted participant-module set and record
+each participant's owned source location. The raw Pylint finding count remains
+the aggregate ratchet counter.
+
+The activation snapshot is anchored to commit
+`f4b541b13fa19551178855963fac089d4898a6ea`, tree
+`1019fdd41f254f85e48abdb6b393a33b3164b125`, and the failed GitHub run at
+<https://github.com/JoshuaSeth/pitchai-monitoring/actions/runs/32884704525>.
+`quality/baselines/python-strict-historical-88722fb.json` separately preserves
+the requested July evidence at commit
+`88722fb26fce1939d2b71c883ca02cae79998309`; it is not accepted as the active
+enforcement baseline.
+
+The ratchet also verifies its comparison logic before each run and uploads the
+complete candidate report even when the comparison fails. Branch protection
+must require `Quality ratchet`; the full gate stays visible and becomes the
+release gate only after every counter reaches zero.
+
 The read-only GitHub workflow is the external CI trust root. Before installing
 or executing the quality project, it compares the anti-bypass verifier with an
 exact SHA-256 digest committed in the workflow and fails loudly on a mismatch.
 The verifier hardcodes the exact digest of the required-file manifest. The
-manifest, in turn, hashes the runner, all five preference checkers, every
-semantic helper, the complete-source resolver, `strict_policy.py`, locked
-dependencies, tool configuration, Semgrep policy, and this documentation. The
-workflow, verifier, and manifest are intentionally excluded from the manifest
-to keep the digest chain acyclic.
+manifest, in turn, hashes both lockfiles, the root command contract, both
+baseline artifacts, the ratchet and its tests, the runner, all five preference
+checkers, every semantic helper, the complete-source resolver,
+`strict_policy.py`, tool configuration, Semgrep policy, and this documentation.
+The workflow, verifier, and manifest are intentionally excluded from the
+manifest to keep the digest chain acyclic.
 
 The verifier rejects missing or unexpected portable files, altered manifest
 membership, and every manifested-file hash mismatch. It also validates the
@@ -38,10 +76,11 @@ identified and judged in code review. Repository-local files cannot
 self-authenticate such a coordinated change, this design makes no claim of
 mutually authenticated local files, and it uses no operational signing secret.
 
-Ruff always receives `--config quality/pyproject.toml`, BasedPyright receives
+Python is pinned to 3.12.12. Ruff always receives
+`--config quality/pyproject.toml`, BasedPyright receives
 `--project quality/pyproject.toml`, Pylint receives
-`--rcfile quality/pyproject.toml`, and Semgrep receives the absolute strict
-config path. Installation and execution both select the frozen `quality`
+`--rcfile quality/pyproject.toml` and one deterministic worker, and Semgrep
+receives the absolute strict config path. Installation and execution both select the frozen `quality`
 project. Consequently root dependency files cannot change the quality
 environment, and root tool configs cannot weaken these invocations. The
 anti-bypass gate also rejects alternate root tool configs and any other GitHub

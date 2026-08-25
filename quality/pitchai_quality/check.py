@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +13,7 @@ import anyio
 
 from pitchai_quality.source_files import PYTHON_SUFFIXES, REPOSITORY_ROOT, RUNTIME_PYTHON_SUFFIXES, iter_python_files
 from pitchai_quality.strict_policy import EXPECTED_GATES, RUFF_ARGUMENTS, SEMGREP_ARGUMENTS
+from pitchai_quality.tool_environment import locked_tool_environment
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -138,6 +138,7 @@ def _gates(paths: Sequence[Path]) -> dict[str, _Gate]:
                 _tool_command(
                     "semgrep",
                     (
+                        "scan",
                         "--config",
                         str(REPOSITORY_ROOT / "quality" / ".semgrep.yml"),
                         *SEMGREP_ARGUMENTS,
@@ -217,8 +218,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print_gate(gate)
         return 0
 
-    env = dict(os.environ)
-    env.setdefault("SEMGREP_SEND_METRICS", "off")
+    env = locked_tool_environment(Path(sys.prefix))
     failures = anyio.run(_run_selected, selected, env)
     if failures:
         sys.stderr.write(f"\nFAILED static gates: {', '.join(failures)}\n")
