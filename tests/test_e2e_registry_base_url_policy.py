@@ -60,7 +60,7 @@ def test_production_inventory_expands_e2e_allowlist_and_excludes_retired_domains
 
     hosts = _load_monitored_allowlist_hosts(settings)
 
-    assert len(hosts) == 59
+    assert len(hosts) == 60
     assert {
         "formatief-toetsen.pitchai.net",
         "staging.formatief-toetsen.pitchai.net",
