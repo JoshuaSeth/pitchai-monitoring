@@ -243,7 +243,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-08-24"
+  reviewed_at: "2026-08-25"
   authoritative_sources:
     - "domain-engineer-namecheap-dns lane handoff (2026-08-24)"
     - "Namecheap authoritative zone snapshot: 65 records, no wildcard"
@@ -251,7 +251,7 @@ inventory:
     - "repository proxy/deployment configuration and PM deployment records"
     - "current production monitoring routes and deep-check plugins"
     - "PitchAI live-agent/app-server registry and tools portal routing"
-    - "live public DNS, TLS and HTTP contract probes (2026-08-24)"
+    - "live public DNS, TLS and HTTP contract probes (2026-08-25)"
     - "known client deployment zones"
 
 domain_groups:
@@ -454,14 +454,26 @@ domains:
           url: https://dispatch.pitchai.net:18441/
           expected_status_codes: [200]
           expected_content_type_contains: text/html
-        - name: protected_service_18442
-          url: https://dispatch.pitchai.net:18442/
-          expected_status_codes: [401]
-          expected_content_type_contains: text/html
         - name: active_service_24021
           url: https://dispatch.pitchai.net:24021/
           expected_status_codes: [200]
           expected_content_type_contains: null
+  - domain: whatsapp.pitchai.net
+    label: "WhatsApp Bridge operator"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-25, pitchai-dev-ingress, whatsapp-bridge-runtime, live-probe-2026-08-25]
+    check:
+      <<: *json_200
+      url: https://whatsapp.pitchai.net/readyz
+      browser_enabled: false
+      required_text_all: [ok, ready]
+      api_contract_checks:
+        - name: operator_auth_boundary
+          url: https://whatsapp.pitchai.net/operator
+          expected_status_codes: [401]
+          expected_content_type_contains: text/html
   - domain: suggestions.pitchai.net
     label: "Suggestions"
     group: operations
