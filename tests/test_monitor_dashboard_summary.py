@@ -101,6 +101,8 @@ def test_operator_summary_reports_real_staleness_incidents_and_rolling_day() -> 
         "enabled": 1,
         "healthy": 0,
         "down": 1,
+        "alertable_down": 1,
+        "expected_down": 0,
         "unknown": 0,
         "disabled": 0,
     }
@@ -113,6 +115,8 @@ def test_operator_summary_reports_real_staleness_incidents_and_rolling_day() -> 
             "enabled": 1,
             "healthy": 0,
             "down": 1,
+            "alertable_down": 1,
+            "expected_down": 0,
             "unknown": 0,
             "disabled": 0,
             "total": 1,
@@ -218,3 +222,100 @@ def test_service_health_rolls_failing_api_subcheck_into_domain_and_group_status(
     assert summary["domain_groups"][0]["status"] == "attention"
     assert summary["incidents"][0]["kind"] == "domain_down"
     assert "API/service subcheck" in summary["incidents"][0]["detail"]
+
+
+def test_dashboard_distinguishes_expected_down_from_alertable_down() -> None:
+    now = 2_000_000_000.0
+    domains = ["agentcloud.pitchai.net", "pitchai.net"]
+    data = MonitorData(
+        state={
+            "updated_at": now,
+            "history": {
+                domain: [[now, False, 250.0, 400.0, 502]] for domain in domains
+            },
+            "last_ok": {domain: False for domain in domains},
+            "fail_streak": {domain: 3 for domain in domains},
+            "success_streak": {domain: 0 for domain in domains},
+        },
+        config={
+            "interval_seconds": 60,
+            "inventory": {
+                "version": 1,
+                "reviewed_at": "2026-08-25",
+                "authoritative_sources": ["test fixture"],
+            },
+            "domain_groups": {
+                "core": {
+                    "label": "PitchAI core",
+                    "description": "Critical production",
+                    "order": 10,
+                },
+                "infrastructure": {
+                    "label": "Infrastructure",
+                    "description": "Internal services",
+                    "order": 20,
+                },
+            },
+            "domains": [
+                {
+                    "domain": "agentcloud.pitchai.net",
+                    "label": "AgentCloud",
+                    "group": "infrastructure",
+                    "environment": "internal",
+                    "kind": "application",
+                    "sources": ["test fixture"],
+                    "alert_policy": {
+                        "telegram": "dashboard-only",
+                        "reason": "Not actively used right now.",
+                    },
+                },
+                {
+                    "domain": "pitchai.net",
+                    "label": "PitchAI website",
+                    "group": "core",
+                    "environment": "production",
+                    "kind": "application",
+                    "sources": ["test fixture"],
+                },
+            ],
+            "retired_domains": [],
+        },
+        state_path="/monitor/state.json",
+        config_path="/monitor/config.yaml",
+        loaded_at_ts=now,
+        state_error=None,
+    )
+
+    summary = build_dashboard_summary(
+        data=data,
+        now_ts=now,
+        e2e_status_summary=None,
+        e2e_dispatch_runs=[],
+    )
+
+    assert summary["service_health"] == {
+        "enabled": 2,
+        "healthy": 0,
+        "down": 2,
+        "alertable_down": 1,
+        "expected_down": 1,
+        "unknown": 0,
+        "disabled": 0,
+    }
+    by_domain = {domain["domain"]: domain for domain in summary["domains"]}
+    assert by_domain["agentcloud.pitchai.net"]["last"]["ok"] is False
+    assert by_domain["agentcloud.pitchai.net"]["alert_policy"] == {
+        "telegram": "dashboard-only",
+        "telegram_enabled": False,
+        "reason": "Not actively used right now.",
+    }
+    incidents = {
+        incident["domain"]: incident
+        for incident in summary["incidents"]
+        if incident.get("kind") == "domain_down"
+    }
+    assert incidents["agentcloud.pitchai.net"]["severity"] == "expected"
+    assert incidents["agentcloud.pitchai.net"]["telegram_alert"] is False
+    assert "no Telegram alert is routed" in incidents["agentcloud.pitchai.net"]["detail"]
+    assert incidents["pitchai.net"]["severity"] == "critical"
+    assert incidents["pitchai.net"]["telegram_alert"] is True

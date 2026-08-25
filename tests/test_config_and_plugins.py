@@ -8,7 +8,14 @@ import pytest
 
 import domain_checks.main as monitoring
 from domain_checks.inventory import validate_domain_inventory
-from domain_checks.main import check_one_domain, load_config, load_domain_spec
+from domain_checks.main import (
+    _normalize_domain_entries,
+    _route_domain_telegram_alert,
+    check_one_domain,
+    load_config,
+    load_domain_spec,
+)
+from domain_checks.telegram import TelegramConfig
 
 
 EXPECTED_ACTIVE_DOMAINS = set(
@@ -76,6 +83,14 @@ EXPECTED_ACTIVE_DOMAINS = set(
     """.split()
 )
 
+EXPECTED_DASHBOARD_ONLY_DOMAINS = {
+    "registry.pitchai.net",
+    "agentcloud.pitchai.net",
+    "dashboards.pitchai.net",
+    "support.pitchai.net",
+    "cursussen.pitchai.net",
+}
+
 
 def _production_config() -> dict:
     config_path = Path(__file__).resolve().parents[1] / "domain_checks" / "config.yaml"
@@ -122,6 +137,64 @@ def test_authoritative_active_inventory_is_exact_and_dft_is_enabled() -> None:
     }
     assert dft["formatief-toetsen.pitchai.net"].url.endswith("/healthz")
     assert dft["staging.formatief-toetsen.pitchai.net"].url.endswith("/healthz")
+
+
+def test_alert_policy_has_only_the_five_explicit_dashboard_only_domains() -> None:
+    config = _production_config()
+    entries = _normalize_domain_entries(config["domains"])
+    entries_by_domain = {entry.domain: entry for entry in entries}
+
+    assert {entry.domain for entry in entries if not entry.routes_telegram} == (
+        EXPECTED_DASHBOARD_ONLY_DOMAINS
+    )
+    assert all(
+        entry.alert_policy.reason
+        for entry in entries
+        if entry.domain in EXPECTED_DASHBOARD_ONLY_DOMAINS
+    )
+    assert entries_by_domain["pitchai.net"].routes_telegram is True
+    assert entries_by_domain["dispatch.pitchai.net"].routes_telegram is True
+    assert entries_by_domain["aardappelprijs.nl"].routes_telegram is True
+
+    inventory_by_domain = {str(entry["domain"]): entry for entry in config["domains"]}
+    assert inventory_by_domain["aardappelprijs.nl"]["group"] == "potaito"
+
+
+@pytest.mark.asyncio
+async def test_domain_telegram_router_suppresses_dashboard_only_and_routes_critical(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entries = {
+        entry.domain: entry for entry in _normalize_domain_entries(_production_config()["domains"])
+    }
+    sent: list[str] = []
+
+    async def fake_send(_client, _telegram_cfg, message: str):
+        sent.append(message)
+        return True, [{"ok": True}]
+
+    monkeypatch.setattr(monitoring, "send_telegram_message_chunked", fake_send)
+    telegram_cfg = TelegramConfig(bot_token="test-token", chat_id="test-chat")
+
+    for domain in sorted(EXPECTED_DASHBOARD_ONLY_DOMAINS):
+        routed = await _route_domain_telegram_alert(
+            http_client=object(),
+            telegram_cfg=telegram_cfg,
+            entry=entries[domain],
+            message=f"down: {domain}",
+        )
+        assert routed is None
+
+    assert sent == []
+
+    routed = await _route_domain_telegram_alert(
+        http_client=object(),
+        telegram_cfg=telegram_cfg,
+        entry=entries["pitchai.net"],
+        message="down: pitchai.net",
+    )
+    assert routed == (True, [{"ok": True}])
+    assert sent == ["down: pitchai.net"]
 
 
 def test_container_health_patterns_cover_every_socket_visible_runtime_dependency() -> None:
