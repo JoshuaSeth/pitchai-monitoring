@@ -71,7 +71,7 @@ The production monitor runs on `pitchai-main` and can inspect only that host thr
 
 ## Expected attention signals at implementation time
 
-The expanded monitor intentionally reports current failures instead of suppressing them: `agentcloud.pitchai.net`, `dashboards.pitchai.net`, `staging.afasask.pitchai.net`, and `support.pitchai.net` return 502; `cursussen.pitchai.net` returns 404 without a designated functional path; Dispatch port `24021` returns 502; and `stable.skybuyfly.pitchai.net` visibly reports that current airport products are temporarily unavailable despite returning HTTP 200. The container snapshot also found three restarting sync workers. These are operational findings, not inventory omissions.
+The expanded monitor intentionally keeps current failures visible. A 2026-08-25 policy follow-up classifies exactly `registry.pitchai.net`, `agentcloud.pitchai.net`, `dashboards.pitchai.net`, `support.pitchai.net`, and `cursussen.pitchai.net` as dashboard-only: their checks, history, and down/expected labels remain visible, but their domain-scoped failures do not route Telegram alerts or Dispatcher investigations. Other failures—including `staging.afasask.pitchai.net`, Dispatch port `24021`, and critical production domains—remain alertable. `aardappelprijs.nl` belongs to the `potaito` project group.
 
 ## Pre-deployment validation
 

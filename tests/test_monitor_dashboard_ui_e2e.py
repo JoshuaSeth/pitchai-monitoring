@@ -247,6 +247,8 @@ async def test_monitor_dashboard_entra_identity_and_renders(dashboard_server: di
             "enabled": 1,
             "healthy": 1,
             "down": 0,
+            "alertable_down": 0,
+            "expected_down": 0,
             "unknown": 0,
             "disabled": 1,
         }
@@ -379,11 +381,15 @@ async def test_dashboard_renders_the_complete_production_inventory(
     domain_names = [str(entry["domain"]) for entry in config["domains"]]
     state = {
         "updated_at": now,
-        "last_ok": {domain: True for domain in domain_names},
-        "fail_streak": {domain: 0 for domain in domain_names},
-        "success_streak": {domain: 3 for domain in domain_names},
+        "last_ok": {domain: domain != "agentcloud.pitchai.net" for domain in domain_names},
+        "fail_streak": {domain: 3 if domain == "agentcloud.pitchai.net" else 0 for domain in domain_names},
+        "success_streak": {domain: 0 if domain == "agentcloud.pitchai.net" else 3 for domain in domain_names},
         "history": {
-            domain: [[now - 60, True, 100.0, 250.0, 200], [now, True, 90.0, 230.0, 200]]
+            domain: (
+                [[now - 60, False, 100.0, 250.0, 502], [now, False, 90.0, 230.0, 502]]
+                if domain == "agentcloud.pitchai.net"
+                else [[now - 60, True, 100.0, 250.0, 200], [now, True, 90.0, 230.0, 200]]
+            )
             for domain in domain_names
         },
     }
@@ -441,9 +447,23 @@ async def test_dashboard_renders_the_complete_production_inventory(
         await page.route("**/dashboard/api/v1/monitoring/**", serve_monitor_data)
         try:
             await page.goto(f"{dashboard_server['base_url']}/dashboard")
-            await page.wait_for_function("document.querySelector('#kpi-services').textContent === '58/58'")
+            await page.wait_for_function("document.querySelector('#kpi-services').textContent === '57/58'")
             assert await page.locator("[data-testid=dash-domain-groups] button").count() == 15
             assert "58 monitored domains" in await page.locator("#domain-inventory-note").inner_text()
+            assert "1 expected" in await page.locator("#kpi-services-detail").inner_text()
+
+            await page.locator("[data-testid=dash-domain-filter]").fill("AgentCloud")
+            await page.wait_for_selector("tr[data-domain='agentcloud.pitchai.net']")
+            agentcloud_row = await page.locator("tr[data-domain='agentcloud.pitchai.net']").inner_text()
+            assert "DOWN" in agentcloud_row
+            assert "EXPECTED · NO ALERTS" in agentcloud_row
+            await page.locator("tr[data-domain='agentcloud.pitchai.net']").click()
+            assert "Dashboard only · no Telegram alerts" in await page.locator(
+                "#selected-domain-meta"
+            ).inner_text()
+            incident_text = await page.locator("[data-testid=dash-incidents]").inner_text()
+            assert "expected / dashboard only" in incident_text.lower()
+            assert "no Telegram alert is routed" in incident_text
 
             await page.locator("[data-testid=dash-domain-filter]").fill("Formatief Toetsen")
             await page.wait_for_function(

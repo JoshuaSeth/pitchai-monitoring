@@ -864,6 +864,29 @@ body.operator-shell {
   white-space: nowrap;
 }
 
+.health-state-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.alert-policy-state {
+  display: inline-flex;
+  padding: 3px 6px;
+  border: 1px solid rgba(154, 101, 20, 0.24);
+  border-radius: 999px;
+  background: var(--ops-warning-soft);
+  color: var(--ops-warning);
+  font-family: Inter, ui-sans-serif, sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .health-state::before {
   width: 7px;
   height: 7px;
