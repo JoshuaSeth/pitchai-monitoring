@@ -441,9 +441,9 @@ async def test_dashboard_renders_the_complete_production_inventory(
         await page.route("**/dashboard/api/v1/monitoring/**", serve_monitor_data)
         try:
             await page.goto(f"{dashboard_server['base_url']}/dashboard")
-            await page.wait_for_function("document.querySelector('#kpi-services').textContent === '59/59'")
+            await page.wait_for_function("document.querySelector('#kpi-services').textContent === '60/60'")
             assert await page.locator("[data-testid=dash-domain-groups] button").count() == 15
-            assert "59 monitored domains" in await page.locator("#domain-inventory-note").inner_text()
+            assert "60 monitored domains" in await page.locator("#domain-inventory-note").inner_text()
 
             await page.locator("[data-testid=dash-domain-filter]").fill("Formatief Toetsen")
             await page.wait_for_function(
