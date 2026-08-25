@@ -40,7 +40,7 @@ from domain_checks.dispatch_client import (
 )
 from domain_checks.event_bus import EventBusOutbox, load_event_bus_config
 from domain_checks.history import append_sample, coerce_history, prune_history
-from domain_checks.inventory import validate_domain_inventory
+from domain_checks.inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
 from domain_checks.metrics_container_health import ContainerHealthIssue, check_container_health
 from domain_checks.metrics_dns import DnsCheckResult, check_dns
@@ -105,6 +105,7 @@ def load_config(path: Path) -> dict[str, Any]:
 class DomainEntryConfig:
     domain: str
     raw_entry: Any
+    alert_policy: DomainAlertPolicy = DomainAlertPolicy(telegram="critical")
     disabled: bool = False
     disabled_reason: str | None = None
     disabled_until_ts: float | None = None
@@ -115,6 +116,29 @@ class DomainEntryConfig:
         if self.disabled_until_ts is not None and now_ts < float(self.disabled_until_ts):
             return True
         return False
+
+    @property
+    def routes_telegram(self) -> bool:
+        return self.alert_policy.telegram_enabled
+
+
+async def _route_domain_telegram_alert(
+    *,
+    http_client: httpx.AsyncClient,
+    telegram_cfg: TelegramConfig,
+    entry: DomainEntryConfig,
+    message: str,
+) -> tuple[bool, list[dict[str, Any]]] | None:
+    """Route a domain-scoped alert according to its inventory policy."""
+    if not entry.routes_telegram:
+        LOGGER.info(
+            "Telegram alert suppressed by inventory policy domain=%s mode=%s reason=%s",
+            entry.domain,
+            entry.alert_policy.telegram,
+            entry.alert_policy.reason,
+        )
+        return None
+    return await send_telegram_message_chunked(http_client, telegram_cfg, message)
 
 
 def _parse_disabled_until_ts(value: Any) -> float | None:
@@ -176,11 +200,13 @@ def _normalize_domain_entries(domains_cfg: list[Any]) -> list[DomainEntryConfig]
         disabled = bool(entry.get("disabled")) or (entry.get("enabled") is False)
         disabled_reason = str(entry.get("disabled_reason") or "").strip() or None
         disabled_until_ts = _parse_disabled_until_ts(entry.get("disabled_until"))
+        alert_policy = parse_domain_alert_policy(entry, path=f"domains[{idx}]")
 
         entries.append(
             DomainEntryConfig(
                 domain=domain,
                 raw_entry=entry,
+                alert_policy=alert_policy,
                 disabled=disabled,
                 disabled_reason=disabled_reason,
                 disabled_until_ts=disabled_until_ts,
@@ -599,6 +625,7 @@ def _build_heartbeat_message(
     scheduled_label: str,
     started_at: datetime,
     results: dict[str, DomainCheckResult],
+    domain_entries: dict[str, DomainEntryConfig] | None = None,
     disabled_lines: list[str] | None = None,
     host_snap: dict[str, Any] | None = None,
     host_violations: list[str] | None = None,
@@ -725,6 +752,8 @@ def _build_heartbeat_message(
 
     for domain in sorted(results.keys()):
         result = results[domain]
+        entry = (domain_entries or {}).get(domain)
+        dashboard_only = bool(entry is not None and not entry.routes_telegram)
         details = result.details or {}
         http_status = details.get("status_code")
         http_ms = _format_ms(details.get("http_elapsed_ms"))
@@ -732,6 +761,8 @@ def _build_heartbeat_message(
 
         if result.ok:
             status_part = f"UP ({http_status})" if http_status is not None else "UP"
+            if dashboard_only:
+                status_part += " · dashboard only (no Telegram alerts)"
             lines.append(f"- {domain}: {status_part} {http_ms} / {browser_ms}")
             continue
 
@@ -741,6 +772,8 @@ def _build_heartbeat_message(
         status_part = f"DOWN ({reason})"
         if http_status is not None:
             status_part = f"DOWN ({http_status}, {reason})"
+        if dashboard_only:
+            status_part += " · expected/dashboard only (no Telegram alert)"
         lines.append(f"- {domain}: {status_part} {http_ms} / {browser_ms}")
 
     if disabled_lines:
@@ -2833,6 +2866,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
         dispatch_state["disabled_reason"] = "missing_token"
 
     domain_entries = _normalize_domain_entries(domains_cfg)
+    entries_by_domain = {entry.domain: entry for entry in domain_entries}
+    alertable_domains = {entry.domain for entry in domain_entries if entry.routes_telegram}
     specs_by_domain: dict[str, DomainCheckSpec] = {
         entry.domain: load_domain_spec(entry.raw_entry) for entry in domain_entries
     }
@@ -3656,6 +3691,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         recovered = (not prev_effective) and bool(next_effective)
 
                         if alerted_down:
+                            domain_entry = entries_by_domain[domain]
                             det = result.details or {}
                             _append_event(
                                 "domain_down",
@@ -3665,6 +3701,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 status_code=det.get("status_code"),
                                 error=(det.get("error")[:800] if isinstance(det.get("error"), str) else None),
                                 fail_streak=int(next_fail),
+                                telegram_alert=domain_entry.routes_telegram,
+                                alert_policy=domain_entry.alert_policy.telegram,
                             )
                             # Transition UP -> DOWN (debounced), or startup DOWN after threshold.
                             enriched = DomainCheckResult(
@@ -3678,18 +3716,29 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 },
                             )
                             msg = _build_down_alert_message(enriched)
-                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                            resp = resps[-1] if resps else {}
-                            LOGGER.warning(
-                                "Alert attempt domain=%s sent_ok=%s reason=%s telegram=%s details=%s",
-                                domain,
-                                ok_all,
-                                result.reason,
-                                redact_telegram_response(resp),
-                                enriched.details,
+                            routed = await _route_domain_telegram_alert(
+                                http_client=http_client,
+                                telegram_cfg=telegram_cfg,
+                                entry=domain_entry,
+                                message=msg,
                             )
+                            if routed is not None:
+                                ok_all, resps = routed
+                                resp = resps[-1] if resps else {}
+                                LOGGER.warning(
+                                    "Alert attempt domain=%s sent_ok=%s reason=%s telegram=%s details=%s",
+                                    domain,
+                                    ok_all,
+                                    result.reason,
+                                    redact_telegram_response(resp),
+                                    enriched.details,
+                                )
 
-                            if dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                            if (
+                                domain_entry.routes_telegram
+                                and dispatch_cfg
+                                and _dispatch_is_enabled(dispatch_cfg, dispatch_state)
+                            ):
                                 if domain in active_dispatch_tasks and not active_dispatch_tasks[domain].done():
                                     LOGGER.info("Dispatch already running for domain=%s; skipping new dispatch", domain)
                                 else:
@@ -3707,8 +3756,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     )
                             else:
                                 LOGGER.info(
-                                    "Dispatch not scheduled domain=%s enabled=%s reason=%s",
+                                    "Dispatch not scheduled domain=%s alertable=%s enabled=%s reason=%s",
                                     domain,
+                                    domain_entry.routes_telegram,
                                     bool(dispatch_cfg and dispatch_state.get("enabled")),
                                     dispatch_state.get("disabled_reason"),
                                 )
@@ -3807,6 +3857,16 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             LOGGER.exception("SLO burn computation failed")
                             slo_violations = []
 
+                        suppressed_slo_domains = sorted(
+                            {v.domain for v in slo_violations if v.domain not in alertable_domains}
+                        )
+                        if suppressed_slo_domains:
+                            LOGGER.info(
+                                "SLO violations retained in domain history but excluded from Telegram routing domains=%s",
+                                suppressed_slo_domains,
+                            )
+                        slo_violations = [v for v in slo_violations if v.domain in alertable_domains]
+
                         slo_observed_ok = not bool(slo_violations)
                         prev_effective = bool(slo_last_ok)
                         slo_last_ok, slo_fail_streak, slo_success_streak, slo_alerted_down = _update_effective_ok(
@@ -3894,6 +3954,16 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         except Exception:
                             LOGGER.exception("RED computation failed")
                             red_violations = []
+
+                        suppressed_red_domains = sorted(
+                            {v.domain for v in red_violations if v.domain not in alertable_domains}
+                        )
+                        if suppressed_red_domains:
+                            LOGGER.info(
+                                "RED violations retained in domain history but excluded from Telegram routing domains=%s",
+                                suppressed_red_domains,
+                            )
+                        red_violations = [v for v in red_violations if v.domain in alertable_domains]
 
                         red_observed_ok = not bool(red_violations)
                         prev_effective = bool(red_last_ok)
@@ -4106,6 +4176,21 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             browser_elapsed_ms_max=perf_browser_elapsed_ms_max,
                             per_domain_overrides=perf_overrides,
                         )
+                        suppressed_perf_domains = sorted(
+                            {
+                                str(item.get("domain"))
+                                for item in perf_slow
+                                if str(item.get("domain")) not in alertable_domains
+                            }
+                        )
+                        if suppressed_perf_domains:
+                            LOGGER.info(
+                                "Performance violations retained in domain history but excluded from Telegram routing domains=%s",
+                                suppressed_perf_domains,
+                            )
+                        perf_slow = [
+                            item for item in perf_slow if str(item.get("domain")) in alertable_domains
+                        ]
                         perf_observed_ok = not bool(perf_slow)
                         prev_effective = bool(perf_last_ok)
                         perf_last_ok, perf_fail_streak, perf_success_streak, perf_alerted_down = _update_effective_ok(
@@ -4212,7 +4297,24 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     )
                                 ]
 
-                            tls_observed_ok = all(r.ok for r in (tls_results or []))
+                            suppressed_tls_domains = sorted(
+                                {
+                                    r.domain
+                                    for r in (tls_results or [])
+                                    if not r.ok and r.domain in entries_by_domain and r.domain not in alertable_domains
+                                }
+                            )
+                            if suppressed_tls_domains:
+                                LOGGER.info(
+                                    "TLS failures excluded from Telegram routing domains=%s",
+                                    suppressed_tls_domains,
+                                )
+                            tls_alert_results = [
+                                r
+                                for r in (tls_results or [])
+                                if r.domain not in entries_by_domain or r.domain in alertable_domains
+                            ]
+                            tls_observed_ok = all(r.ok for r in tls_alert_results)
                             prev_effective = bool(tls_last_ok)
                             tls_last_ok, tls_fail_streak, tls_success_streak, tls_alerted_down = _update_effective_ok(
                                 prev_effective_ok=prev_effective,
@@ -4224,7 +4326,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             )
                             tls_fail_count = 0
                             try:
-                                tls_fail_count = sum(1 for r in (tls_results or []) if not bool(getattr(r, "ok", False)))
+                                tls_fail_count = sum(
+                                    1 for r in tls_alert_results if not bool(getattr(r, "ok", False))
+                                )
                             except Exception:
                                 tls_fail_count = 0
                             _append_signal_sample(
@@ -4232,15 +4336,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 [float(cycle_started), 1 if bool(tls_last_ok) else 0, int(tls_fail_count)],
                             )
 
-                            if tls_alerted_down and tls_results and (not tls_observed_ok):
+                            if tls_alerted_down and tls_alert_results and (not tls_observed_ok):
                                 _append_event(
                                     "tls_degraded",
                                     ts=float(cycle_started),
                                     failures=int(tls_fail_count),
-                                    domains=[r.domain for r in (tls_results or []) if not r.ok][:20],
+                                    domains=[r.domain for r in tls_alert_results if not r.ok][:20],
                                 )
                                 msg = _build_tls_alert_message(
-                                    results=tls_results,
+                                    results=tls_alert_results,
                                     min_days_valid=float(tls_min_days_valid),
                                     down_after_failures=tls_down_after_failures,
                                     fail_streak=int(tls_fail_streak),
@@ -4262,7 +4366,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                                 telegram_cfg=telegram_cfg,
                                                 dispatch_cfg=dispatch_cfg,
                                                 dispatch_state=dispatch_state,
-                                                results=tls_results,
+                                                results=tls_alert_results,
                                                 min_days_valid=float(tls_min_days_valid),
                                                 dispatch_history=dispatch_history,
                                                 dispatch_last=dispatch_last,
@@ -4344,7 +4448,24 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     cur = sorted(set((r.a_records or []) + (r.aaaa_records or [])))
                                     dns_last_ips[r.domain] = cur
 
-                            dns_observed_ok = all(r.ok for r in (dns_results or []))
+                            suppressed_dns_domains = sorted(
+                                {
+                                    r.domain
+                                    for r in (dns_results or [])
+                                    if not r.ok and r.domain in entries_by_domain and r.domain not in alertable_domains
+                                }
+                            )
+                            if suppressed_dns_domains:
+                                LOGGER.info(
+                                    "DNS failures excluded from Telegram routing domains=%s",
+                                    suppressed_dns_domains,
+                                )
+                            dns_alert_results = [
+                                r
+                                for r in (dns_results or [])
+                                if r.domain not in entries_by_domain or r.domain in alertable_domains
+                            ]
+                            dns_observed_ok = all(r.ok for r in dns_alert_results)
                             prev_effective = bool(dns_last_ok)
                             dns_last_ok, dns_fail_streak, dns_success_streak, dns_alerted_down = _update_effective_ok(
                                 prev_effective_ok=prev_effective,
@@ -4356,7 +4477,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             )
                             dns_fail_count = 0
                             try:
-                                dns_fail_count = sum(1 for r in (dns_results or []) if not bool(getattr(r, "ok", False)))
+                                dns_fail_count = sum(
+                                    1 for r in dns_alert_results if not bool(getattr(r, "ok", False))
+                                )
                             except Exception:
                                 dns_fail_count = 0
                             _append_signal_sample(
@@ -4364,15 +4487,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 [float(cycle_started), 1 if bool(dns_last_ok) else 0, int(dns_fail_count)],
                             )
 
-                            if dns_alerted_down and dns_results and (not dns_observed_ok):
+                            if dns_alerted_down and dns_alert_results and (not dns_observed_ok):
                                 _append_event(
                                     "dns_degraded",
                                     ts=float(cycle_started),
                                     failures=int(dns_fail_count),
-                                    domains=[r.domain for r in (dns_results or []) if not r.ok][:20],
+                                    domains=[r.domain for r in dns_alert_results if not r.ok][:20],
                                 )
                                 msg = _build_dns_alert_message(
-                                    results=dns_results,
+                                    results=dns_alert_results,
                                     down_after_failures=dns_down_after_failures,
                                     fail_streak=int(dns_fail_streak),
                                 )
@@ -4393,7 +4516,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                                 telegram_cfg=telegram_cfg,
                                                 dispatch_cfg=dispatch_cfg,
                                                 dispatch_state=dispatch_state,
-                                                results=dns_results,
+                                                results=dns_alert_results,
                                                 dispatch_history=dispatch_history,
                                                 dispatch_last=dispatch_last,
                                                 events=events,
@@ -4459,27 +4582,38 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 api_contract_success_streak[domain] = next_success
 
                                 if alerted_down:
+                                    domain_entry = entries_by_domain[domain]
                                     failures = [r for r in results if not r.ok]
                                     _append_event(
                                         "api_contract_degraded",
                                         ts=float(cycle_started),
                                         domain=domain,
                                         failures=int(len(failures)),
+                                        telegram_alert=domain_entry.routes_telegram,
+                                        alert_policy=domain_entry.alert_policy.telegram,
                                     )
-                                    api_failures_to_alert.extend(failures)
-                                    api_failures_for_dispatch.extend(failures)
+                                    if domain_entry.routes_telegram:
+                                        api_failures_to_alert.extend(failures)
+                                        api_failures_for_dispatch.extend(failures)
                                     msg = _build_api_contract_alert_message(
                                         failures=failures,
                                         down_after_failures=api_down_after_failures,
                                         fail_streak=int(next_fail),
                                     )
-                                    ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                                    LOGGER.warning(
-                                        "API contract degraded domain=%s sent_ok=%s telegram_last=%s",
-                                        domain,
-                                        ok_all,
-                                        redact_telegram_response(resps[-1] if resps else {}),
+                                    routed = await _route_domain_telegram_alert(
+                                        http_client=http_client,
+                                        telegram_cfg=telegram_cfg,
+                                        entry=domain_entry,
+                                        message=msg,
                                     )
+                                    if routed is not None:
+                                        ok_all, resps = routed
+                                        LOGGER.warning(
+                                            "API contract degraded domain=%s sent_ok=%s telegram_last=%s",
+                                            domain,
+                                            ok_all,
+                                            redact_telegram_response(resps[-1] if resps else {}),
+                                        )
                                 else:
                                     recovered = (not prev_effective) and bool(next_effective)
                                     if recovered:
@@ -4488,7 +4622,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             ts=float(cycle_started),
                                             domain=domain,
                                         )
-                                    if recovered and api_notify_on_recovery:
+                                    if (
+                                        recovered
+                                        and api_notify_on_recovery
+                                        and entries_by_domain[domain].routes_telegram
+                                    ):
                                         ok, resp = await send_telegram_message(
                                             http_client,
                                             telegram_cfg,
@@ -4631,9 +4769,24 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # ------------------------------
                     if proxy_enabled and cycle_results:
                         proxy_tz = _load_timezone(proxy_timezone_name)
-                        upstream_issues = check_upstream_header_expectations(
+                        all_upstream_issues = check_upstream_header_expectations(
                             specs_by_domain=specs_by_domain, cycle_results=cycle_results
                         )
+                        suppressed_proxy_domains = sorted(
+                            {
+                                issue.domain
+                                for issue in all_upstream_issues
+                                if issue.domain not in alertable_domains
+                            }
+                        )
+                        if suppressed_proxy_domains:
+                            LOGGER.info(
+                                "Proxy header failures excluded from Telegram routing domains=%s",
+                                suppressed_proxy_domains,
+                            )
+                        upstream_issues = [
+                            issue for issue in all_upstream_issues if issue.domain in alertable_domains
+                        ]
 
                         access_stats = None
                         access_violation = False
@@ -4653,17 +4806,24 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         upstream_summary = None
                         upstream_violation = False
                         if proxy_error_log_path and proxy_max_upstream_errors_per_domain > 0:
-                            upstream_events = parse_recent_upstream_errors(
+                            all_upstream_events = parse_recent_upstream_errors(
                                 error_log_path=proxy_error_log_path,
                                 now=datetime.now(timezone.utc),
                                 window_seconds=int(proxy_window_seconds),
                                 local_tz=proxy_tz,
                                 max_bytes=int(proxy_error_max_bytes),
                             )
+                            upstream_events = [
+                                event
+                                for event in all_upstream_events
+                                if event.server not in entries_by_domain or event.server in alertable_domains
+                            ]
                             upstream_summary = summarize_upstream_errors(upstream_events)
                             counts = upstream_summary.get("counts_by_server") if isinstance(upstream_summary, dict) else {}
                             if isinstance(counts, dict):
-                                enabled_domains = {s.domain for s in enabled_specs}
+                                enabled_domains = {
+                                    s.domain for s in enabled_specs if s.domain in alertable_domains
+                                }
                                 for server, count in counts.items():
                                     if server not in enabled_domains:
                                         continue
@@ -4671,7 +4831,14 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         upstream_violation = True
                                         break
 
-                        proxy_observed_ok = (not upstream_issues) and (not access_violation) and (not upstream_violation)
+                        # The access-log rate has no domain attribution in the configured
+                        # Nginx combined log format, so it remains a global critical signal.
+                        # Domain policy applies only where the failing domain is known.
+                        proxy_observed_ok = (
+                            (not upstream_issues)
+                            and (not access_violation)
+                            and (not upstream_violation)
+                        )
                         prev_effective = bool(proxy_last_ok)
                         proxy_last_ok, proxy_fail_streak, proxy_success_streak, proxy_alerted_down = _update_effective_ok(
                             prev_effective_ok=prev_effective,
@@ -4807,25 +4974,35 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             synthetic_success_streak[spec.domain] = next_success
 
                             if alerted_down and real_failures:
+                                domain_entry = entries_by_domain[spec.domain]
                                 _append_event(
                                     "synthetic_degraded",
                                     ts=float(cycle_started),
                                     domain=spec.domain,
                                     failures=int(len(real_failures)),
+                                    telegram_alert=domain_entry.routes_telegram,
+                                    alert_policy=domain_entry.alert_policy.telegram,
                                 )
                                 msg = _build_synthetic_alert_message(
                                     failures=real_failures,
                                     down_after_failures=syn_down_after_failures,
                                     fail_streak=int(next_fail),
                                 )
-                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                                LOGGER.warning(
-                                    "Synthetic degraded domain=%s sent_ok=%s telegram_last=%s",
-                                    spec.domain,
-                                    ok_all,
-                                    redact_telegram_response(resps[-1] if resps else {}),
+                                routed = await _route_domain_telegram_alert(
+                                    http_client=http_client,
+                                    telegram_cfg=telegram_cfg,
+                                    entry=domain_entry,
+                                    message=msg,
                                 )
-                                syn_failures_for_dispatch.extend(real_failures)
+                                if routed is not None:
+                                    ok_all, resps = routed
+                                    LOGGER.warning(
+                                        "Synthetic degraded domain=%s sent_ok=%s telegram_last=%s",
+                                        spec.domain,
+                                        ok_all,
+                                        redact_telegram_response(resps[-1] if resps else {}),
+                                    )
+                                    syn_failures_for_dispatch.extend(real_failures)
                             else:
                                 recovered = (not prev_effective) and bool(next_effective)
                                 if recovered:
@@ -4834,7 +5011,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         ts=float(cycle_started),
                                         domain=spec.domain,
                                     )
-                                if recovered and syn_notify_on_recovery:
+                                if (
+                                    recovered
+                                    and syn_notify_on_recovery
+                                    and entries_by_domain[spec.domain].routes_telegram
+                                ):
                                     ok, resp = await send_telegram_message(
                                         http_client,
                                         telegram_cfg,
@@ -4950,11 +5131,14 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             web_vitals_success_streak[spec.domain] = next_success
 
                             if alerted_down and (not evaluated.ok):
+                                domain_entry = entries_by_domain[spec.domain]
                                 _append_event(
                                     "web_vitals_degraded",
                                     ts=float(cycle_started),
                                     domain=spec.domain,
                                     reason=str(evaluated.error or "threshold_exceeded")[:500],
+                                    telegram_alert=domain_entry.routes_telegram,
+                                    alert_policy=domain_entry.alert_policy.telegram,
                                 )
                                 msg = _build_web_vitals_alert_message(
                                     failures=[evaluated],
@@ -4962,14 +5146,21 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     down_after_failures=wv_down_after_failures,
                                     fail_streak=int(next_fail),
                                 )
-                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                                LOGGER.warning(
-                                    "Web vitals degraded domain=%s sent_ok=%s telegram_last=%s",
-                                    spec.domain,
-                                    ok_all,
-                                    redact_telegram_response(resps[-1] if resps else {}),
+                                routed = await _route_domain_telegram_alert(
+                                    http_client=http_client,
+                                    telegram_cfg=telegram_cfg,
+                                    entry=domain_entry,
+                                    message=msg,
                                 )
-                                wv_failures_for_dispatch.append(evaluated)
+                                if routed is not None:
+                                    ok_all, resps = routed
+                                    LOGGER.warning(
+                                        "Web vitals degraded domain=%s sent_ok=%s telegram_last=%s",
+                                        spec.domain,
+                                        ok_all,
+                                        redact_telegram_response(resps[-1] if resps else {}),
+                                    )
+                                    wv_failures_for_dispatch.append(evaluated)
                             else:
                                 recovered = (not prev_effective) and bool(next_effective)
                                 if recovered:
@@ -4978,7 +5169,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         ts=float(cycle_started),
                                         domain=spec.domain,
                                     )
-                                if recovered and wv_notify_on_recovery:
+                                if (
+                                    recovered
+                                    and wv_notify_on_recovery
+                                    and entries_by_domain[spec.domain].routes_telegram
+                                ):
                                     ok, resp = await send_telegram_message(
                                         http_client,
                                         telegram_cfg,
@@ -5148,6 +5343,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     scheduled_label=f"{hhmm} {heartbeat_timezone}",
                                     started_at=started_at,
                                     results=cycle_results,
+                                    domain_entries=entries_by_domain,
                                     disabled_lines=disabled_lines,
                                     host_snap=host_snap,
                                     host_violations=host_violations,

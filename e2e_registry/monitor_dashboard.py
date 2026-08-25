@@ -17,6 +17,7 @@ from domain_checks.history import (
     latency_percentile_ms,
     window_samples,
 )
+from domain_checks.inventory import parse_domain_alert_policy
 
 
 def _safe_float(value: Any) -> float | None:
@@ -103,7 +104,7 @@ def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
     if not isinstance(domains_cfg, list):
         return []
     out: list[dict[str, Any]] = []
-    for entry in domains_cfg:
+    for index, entry in enumerate(domains_cfg):
         if isinstance(entry, str):
             d = entry.strip()
             if not d:
@@ -118,6 +119,7 @@ def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
                     "disabled": False,
                     "disabled_reason": None,
                     "disabled_until_ts": None,
+                    "alert_policy": parse_domain_alert_policy(entry).to_dashboard_dict(),
                 }
             )
             continue
@@ -126,6 +128,7 @@ def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
             if not d:
                 continue
             disabled = bool(entry.get("disabled")) or (entry.get("enabled") is False)
+            alert_policy = parse_domain_alert_policy(entry, path=f"domains[{index}]")
 
             def _parse_until(value: Any) -> float | None:
                 if value is None:
@@ -162,6 +165,7 @@ def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
                     "disabled": disabled,
                     "disabled_reason": str(entry.get("disabled_reason") or "").strip() or None,
                     "disabled_until_ts": _parse_until(entry.get("disabled_until")),
+                    "alert_policy": alert_policy.to_dashboard_dict(),
                 }
             )
             continue
@@ -374,6 +378,7 @@ def summarize_domains(
                 "disabled": bool(domain_info.get("disabled", False)),
                 "disabled_reason": domain_info.get("disabled_reason"),
                 "disabled_until_ts": domain_info.get("disabled_until_ts"),
+                "alert_policy": domain_info.get("alert_policy"),
                 "last": {
                     "ts": effective_last_ts,
                     "primary_ts": last_ts,
@@ -448,8 +453,10 @@ def summarize_domain_groups(*, domains: list[dict[str, Any]], config: dict[str, 
         if not members:
             continue
         health = _summarize_service_health(members)
-        if health["down"]:
+        if health["alertable_down"]:
             status = "attention"
+        elif health["expected_down"]:
+            status = "expected"
         elif health["unknown"]:
             status = "unknown"
         else:
@@ -613,10 +620,17 @@ def _summarize_service_health(domains: list[dict[str, Any]]) -> dict[str, int]:
     enabled_domains = [domain for domain in domains if not bool(domain.get("disabled"))]
     down_domains = [domain for domain in enabled_domains if (domain.get("last") or {}).get("ok") is False]
     unknown_domains = [domain for domain in enabled_domains if (domain.get("last") or {}).get("ok") is None]
+    expected_down = [
+        domain
+        for domain in down_domains
+        if (domain.get("alert_policy") or {}).get("telegram_enabled") is False
+    ]
     return {
         "enabled": len(enabled_domains),
         "healthy": len(enabled_domains) - len(down_domains) - len(unknown_domains),
         "down": len(down_domains),
+        "alertable_down": len(down_domains) - len(expected_down),
+        "expected_down": len(expected_down),
         "unknown": len(unknown_domains),
         "disabled": len(domains) - len(enabled_domains),
     }
@@ -704,6 +718,11 @@ def _build_incidents(
         )
     for domain in down_domains:
         last = domain.get("last") if isinstance(domain.get("last"), dict) else {}
+        alert_policy = (
+            domain.get("alert_policy") if isinstance(domain.get("alert_policy"), dict) else {}
+        )
+        telegram_enabled = alert_policy.get("telegram_enabled") is not False
+        policy_reason = str(alert_policy.get("reason") or "").strip()
         group_label = str(domain.get("group_label") or "Unconfigured")
         failure_sources = [str(source) for source in (last.get("failure_sources") or [])]
         source_labels = {
@@ -717,34 +736,58 @@ def _build_incidents(
             failure_streaks.append(int((domain.get("api_contract") or {}).get("fail_streak") or 0))
         if "synthetic" in failure_sources:
             failure_streaks.append(int((domain.get("synthetic") or {}).get("fail_streak") or 0))
+        detail = (
+            f"{group_label} · {failing_checks or 'health check'} is down after "
+            f"{max(failure_streaks)} failing cycles."
+        )
+        if not telegram_enabled:
+            detail += " Expected/dashboard-only status; no Telegram alert is routed."
+            if policy_reason:
+                detail += f" {policy_reason}"
         incidents.append(
             {
                 "kind": "domain_down",
-                "severity": "critical",
-                "title": f"{domain.get('domain')} is down",
-                "detail": (
-                    f"{group_label} · {failing_checks or 'health check'} is down after "
-                    f"{max(failure_streaks)} failing cycles."
+                "severity": "critical" if telegram_enabled else "expected",
+                "title": (
+                    f"{domain.get('domain')} is down"
+                    if telegram_enabled
+                    else f"{domain.get('domain')} is down — expected / dashboard only"
                 ),
+                "detail": detail,
                 "domain": domain.get("domain"),
                 "group": domain.get("group"),
                 "group_label": group_label,
                 "status_code": last.get("status_code"),
                 "observed_at_ts": last.get("ts"),
+                "telegram_alert": telegram_enabled,
+                "expected": not telegram_enabled,
             }
         )
     for domain in unknown_domains:
         group_label = str(domain.get("group_label") or "Unconfigured")
+        alert_policy = (
+            domain.get("alert_policy") if isinstance(domain.get("alert_policy"), dict) else {}
+        )
+        telegram_enabled = alert_policy.get("telegram_enabled") is not False
         incidents.append(
             {
                 "kind": "domain_unknown",
-                "severity": "warning",
-                "title": f"{domain.get('domain')} has no current result",
-                "detail": f"{group_label} · the domain is enabled but has not produced a health result.",
+                "severity": "warning" if telegram_enabled else "expected",
+                "title": (
+                    f"{domain.get('domain')} has no current result"
+                    if telegram_enabled
+                    else f"{domain.get('domain')} has no current result — dashboard only"
+                ),
+                "detail": (
+                    f"{group_label} · the domain is enabled but has not produced a health result."
+                    + (" No Telegram alert is routed by policy." if not telegram_enabled else "")
+                ),
                 "domain": domain.get("domain"),
                 "group": domain.get("group"),
                 "group_label": group_label,
                 "observed_at_ts": None,
+                "telegram_alert": telegram_enabled,
+                "expected": not telegram_enabled,
             }
         )
     for signal in degraded_signals:

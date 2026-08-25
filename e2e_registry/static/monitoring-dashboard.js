@@ -153,8 +153,13 @@
       detail = "Current production evidence cannot be trusted until the monitor recovers.";
     } else if (incidents.length > 0) {
       posture = incidents.some((incident) => incident.severity === "critical") ? "critical" : "attention";
-      title = `${incidents.length} current ${incidents.length === 1 ? "problem" : "problems"}`;
-      detail = "Review the incidents and affected checks below.";
+      const expectedOnly = incidents.every((incident) => incident.severity === "expected");
+      title = expectedOnly
+        ? `${incidents.length} expected dashboard-only ${incidents.length === 1 ? "outage" : "outages"}`
+        : `${incidents.length} current ${incidents.length === 1 ? "problem" : "problems"}`;
+      detail = expectedOnly
+        ? "Visible for awareness; Telegram alerts are suppressed by explicit policy."
+        : "Review the incidents and affected checks below.";
     }
 
     const container = byId("overall-posture");
@@ -176,10 +181,16 @@
 
     byId("kpi-services").textContent = `${formatCount(services.healthy)}/${formatCount(services.enabled)}`;
     const unavailable = numberOrNull(services.unknown) || 0;
+    const expectedDown = numberOrNull(services.expected_down) || 0;
+    const alertableDown = numberOrNull(services.alertable_down) || 0;
     if (services.down && unavailable) {
-      byId("kpi-services-detail").textContent = `${formatCount(services.down)} down · ${formatCount(unavailable)} without observations`;
-    } else if (services.down) {
-      byId("kpi-services-detail").textContent = `${formatCount(services.down)} requiring attention`;
+      byId("kpi-services-detail").textContent = `${formatCount(alertableDown)} alertable · ${formatCount(expectedDown)} expected · ${formatCount(unavailable)} without observations`;
+    } else if (alertableDown && expectedDown) {
+      byId("kpi-services-detail").textContent = `${formatCount(alertableDown)} alertable · ${formatCount(expectedDown)} expected/dashboard only`;
+    } else if (alertableDown) {
+      byId("kpi-services-detail").textContent = `${formatCount(alertableDown)} requiring attention`;
+    } else if (expectedDown) {
+      byId("kpi-services-detail").textContent = `${formatCount(expectedDown)} expected · dashboard only, no alerts`;
     } else if (unavailable) {
       byId("kpi-services-detail").textContent = `${formatCount(unavailable)} without observations`;
     } else {
@@ -258,7 +269,8 @@
   }
 
   function groupState(group) {
-    if (group.down) return { label: `${formatCount(group.down)} down`, className: "is-critical" };
+    if (group.alertable_down) return { label: `${formatCount(group.down)} down`, className: "is-critical" };
+    if (group.expected_down) return { label: `${formatCount(group.expected_down)} expected · no alerts`, className: "is-attention" };
     if (group.unknown) return { label: `${formatCount(group.unknown)} unknown`, className: "is-attention" };
     return { label: `${formatCount(group.healthy)}/${formatCount(group.enabled)} healthy`, className: "is-healthy" };
   }
@@ -292,7 +304,9 @@
       id: null,
       label: "All groups",
       detail: `${formatCount(inventory.active_domains)} active checks`,
-      status: groups.some((group) => group.down) ? "critical" : "healthy",
+      status: groups.some((group) => group.alertable_down)
+        ? "critical"
+        : (groups.some((group) => group.expected_down) ? "attention" : "healthy"),
     }));
     groups.forEach((group) => {
       const state = groupState(group);
@@ -320,7 +334,16 @@
     if (domain.domain === model.selectedDomain) row.setAttribute("aria-current", "true");
 
     const state = domainState(domain);
-    addCell(row, "Status", createElement("span", `health-state ${state.className}`, state.label));
+    const statusCell = createElement("span", "health-state-stack");
+    statusCell.append(createElement("span", `health-state ${state.className}`, state.label));
+    if (domain.alert_policy && domain.alert_policy.telegram_enabled === false) {
+      statusCell.append(createElement(
+        "span",
+        "alert-policy-state",
+        state.label === "Down" ? "Expected · no alerts" : "Dashboard only"
+      ));
+    }
+    addCell(row, "Status", statusCell);
 
     const domainCell = createElement("span");
     domainCell.append(createElement("span", "domain-name", domain.domain));
@@ -487,7 +510,10 @@
     if (!domain) return;
 
     byId("domain-detail-title").textContent = domainName;
-    byId("selected-domain-meta").textContent = `${domain.group_label || "Unconfigured"} · ${titleCase(domain.environment)} · ${titleCase(domain.kind)}`;
+    const policyMeta = domain.alert_policy && domain.alert_policy.telegram_enabled === false
+      ? " · Dashboard only · no Telegram alerts"
+      : " · Critical alerting";
+    byId("selected-domain-meta").textContent = `${domain.group_label || "Unconfigured"} · ${titleCase(domain.environment)} · ${titleCase(domain.kind)}${policyMeta}`;
     const state = domainState(domain);
     setStatusLabel(byId("selected-domain-status"), state.label, state.label.toLowerCase());
     byId("selected-domain-availability").textContent = formatPercent(domain.availability_24h && domain.availability_24h.ok_pct, 2);
