@@ -41,6 +41,7 @@ MONITORING_EVENT_KINDS = frozenset(
         "tls_recovered",
         "dns_degraded",
         "dns_recovered",
+        "api_contract_alert_delivered",
         "api_contract_degraded",
         "api_contract_recovered",
         "container_health_degraded",
