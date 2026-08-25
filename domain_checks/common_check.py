@@ -48,6 +48,7 @@ class DomainCheckSpec:
     capture_headers: list[str] = field(default_factory=list)
     # Optional extended checks (used by additional monitoring "metrics" modules).
     api_contract_checks: list[dict[str, Any]] = field(default_factory=list)
+    api_contract: dict[str, Any] = field(default_factory=dict)
     synthetic_transactions: list[dict[str, Any]] = field(default_factory=list)
     web_vitals: dict[str, Any] = field(default_factory=dict)
     proxy: dict[str, Any] = field(default_factory=dict)
@@ -276,6 +277,7 @@ def load_domain_spec_from_module_dict(module_vars: dict[str, Any]) -> DomainChec
         forbidden_text_any=[str(t) for t in forbidden],
         capture_headers=[str(h) for h in (cfg.get("capture_headers") or [])],
         api_contract_checks=cfg.get("api_contract_checks") if isinstance(cfg.get("api_contract_checks"), list) else [],
+        api_contract=cfg.get("api_contract") if isinstance(cfg.get("api_contract"), dict) else {},
         synthetic_transactions=cfg.get("synthetic_transactions") if isinstance(cfg.get("synthetic_transactions"), list) else [],
         web_vitals=cfg.get("web_vitals") if isinstance(cfg.get("web_vitals"), dict) else {},
         proxy=cfg.get("proxy") if isinstance(cfg.get("proxy"), dict) else {},
