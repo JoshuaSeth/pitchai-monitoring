@@ -400,7 +400,7 @@ async def test_dashboard_renders_the_complete_production_inventory(
         e2e_status_summary=None,
         e2e_dispatch_runs=[],
     )
-    assert summary["inventory"]["active_domains"] == 59
+    assert summary["inventory"]["active_domains"] == 60
     assert summary["inventory"]["groups"] == 14
 
     async with async_playwright() as playwright:
