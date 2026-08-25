@@ -65,6 +65,18 @@ def test_domain_inventory_validation_accepts_complete_metadata() -> None:
             lambda config: config["container_health"].update(include_name_patterns=["["]),
             "include_name_patterns[0] is invalid",
         ),
+        (
+            lambda config: config["domains"][0].update(
+                alert_policy={"telegram": "silent", "reason": "invalid mode"}
+            ),
+            "alert_policy.telegram must be one of",
+        ),
+        (
+            lambda config: config["domains"][0].update(
+                alert_policy={"telegram": "dashboard-only"}
+            ),
+            "reason is required for dashboard-only domains",
+        ),
     ],
 )
 def test_domain_inventory_validation_fails_loudly(mutation, message: str) -> None:

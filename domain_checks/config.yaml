@@ -242,7 +242,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-08-24"
+  reviewed_at: "2026-08-25"
   authoritative_sources:
     - "domain-engineer-namecheap-dns lane handoff (2026-08-24)"
     - "Namecheap authoritative zone snapshot: 65 records, no wildcard"
@@ -283,7 +283,7 @@ domain_groups:
     order: 70
   potaito:
     label: "Potaito"
-    description: "Protected production and staging deployments"
+    description: "Potaito production, staging and Potato market-product routes"
     order: 80
   skybuyfly:
     label: "SkyBuyFly"
@@ -591,6 +591,9 @@ domains:
     environment: internal
     kind: infrastructure
     sources: [namecheap-zone-2026-08-24, ax41-registry-runtime, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Internal registry status is retained for visibility but is not operationally alertable right now."
     check:
       allowed_status_codes: [401]
       browser_enabled: false
@@ -605,6 +608,9 @@ domains:
     environment: internal
     kind: application
     sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, pm-deployment-records, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "AgentCloud is not actively used right now; downtime remains dashboard-visible."
     check:
       <<: *json_200
       url: https://agentcloud.pitchai.net/healthz
@@ -615,6 +621,9 @@ domains:
     environment: internal
     kind: application
     sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, pm-deployment-records, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "The dashboards surface is not operationally important right now; downtime remains dashboard-visible."
     check:
       <<: *html_200
       url: https://dashboards.pitchai.net/
@@ -624,6 +633,9 @@ domains:
     environment: internal
     kind: application
     sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, pm-deployment-records, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "The support surface is not operationally important right now; downtime remains dashboard-visible."
     check:
       <<: *html_200
       url: https://support.pitchai.net/
@@ -813,6 +825,9 @@ domains:
     environment: production
     kind: application
     sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "The courses page is not actively operated right now; downtime remains dashboard-visible."
     check:
       <<: *html_200
       url: https://cursussen.pitchai.net/
@@ -884,7 +899,7 @@ domains:
 
   - domain: aardappelprijs.nl
     label: "Aardappelprijs"
-    group: market-insights
+    group: potaito
     environment: production
     kind: application
     sources: [client-zone-dns-and-tls, pitchai-main-ingress, live-probe-2026-08-24]
