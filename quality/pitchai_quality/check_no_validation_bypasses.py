@@ -11,7 +11,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from pitchai_quality.source_files import NON_SOURCE_DIRECTORY_NAMES, REPOSITORY_ROOT, iter_python_files
-from pitchai_quality.strict_policy import EXPECTED_NORMALIZED_STRICT_WORKFLOW_SHA256, INLINE_BYPASS
+from pitchai_quality.strict_policy import (
+    EXPECTED_MANIFESTED_PATHS,
+    EXPECTED_NORMALIZED_STRICT_WORKFLOW_SHA256,
+    INLINE_BYPASS,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -22,22 +26,12 @@ _STRICT_WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "python-stri
 _ANTI_BYPASS_PATH = "quality/pitchai_quality/check_no_validation_bypasses.py"
 _MANIFEST_RELATIVE_PATH = "quality/portable-enforcement-manifest.json"
 _STRICT_WORKFLOW_RELATIVE_PATH = ".github/workflows/python-strict.yml"
-_EXPECTED_PORTABLE_MANIFEST_SHA256 = "2d00a20f544e626a8402d775233f5b83773a7671eba5b3429de1868d8663ec2a"
-_EXPECTED_MANIFESTED_PATHS = (
-    "QUALITY.md", "quality/.gitignore", "quality/.semgrep.yml", "quality/.semgrepignore",
-    "quality/pitchai_quality/__init__.py", "quality/pitchai_quality/analysis_support.py",
-    "quality/pitchai_quality/check.py", "quality/pitchai_quality/check_nested_event_loops.py",
-    "quality/pitchai_quality/check_no_dense_inline_comprehensions.py",
-    "quality/pitchai_quality/check_no_pure_wrapper_functions.py",
-    "quality/pitchai_quality/check_no_single_use_one_line_functions.py",
-    "quality/pitchai_quality/check_no_vague_signatures.py",
-    "quality/pitchai_quality/pure_wrapper_index.py", "quality/pitchai_quality/pure_wrapper_resolution.py",
-    "quality/pitchai_quality/single_use_reporting.py", "quality/pitchai_quality/source_files.py",
-    "quality/pitchai_quality/strict_policy.py", "quality/pyproject.toml", "quality/uv.lock",
-)
+_EXPECTED_PORTABLE_MANIFEST_SHA256 = "ab3554dddfed6d42abfa95296874c172efbe6eb3c074c01c671ec2a7385a7f24"
 _CONFIG_PATHS = (
-    _QUALITY_ROOT / "pyproject.toml", _QUALITY_ROOT / ".semgrep.yml",
-    _QUALITY_ROOT / ".semgrepignore", _STRICT_WORKFLOW_PATH,
+    _QUALITY_ROOT / "pyproject.toml",
+    _QUALITY_ROOT / ".semgrep.yml",
+    _QUALITY_ROOT / ".semgrepignore",
+    _STRICT_WORKFLOW_PATH,
 )
 _DIRECT_TOOLCHAIN = re.compile(
     r"\b(?:ruff|basedpyright|pyright|pylint|semgrep)\b|"
@@ -47,14 +41,22 @@ _DIRECT_TOOLCHAIN = re.compile(
 _ACTION_REFERENCE = re.compile(r"^\s*(?:-\s*)?uses:\s*(\S+)")
 _PINNED_ACTION = re.compile(r"^[^@\s]+@[0-9a-fA-F]{40}$")
 _CONTINUE_ON_ERROR_TRUE = re.compile(
-    r"^\s*continue-on-error:\s*(?:true|[\"']true[\"'])\s*(?:#.*)?$", re.IGNORECASE,
+    r"^\s*continue-on-error:\s*(?:true|[\"']true[\"'])\s*(?:#.*)?$",
+    re.IGNORECASE,
 )
 _VERIFIER_DIGEST_ASSIGNMENT = re.compile(
-    r'^(?P<prefix>\s*expected_verifier_sha256=")(?P<digest>[0-9a-f]{64})(?P<suffix>"\s*)$', re.MULTILINE,
+    r'^(?P<prefix>\s*expected_verifier_sha256=")(?P<digest>[0-9a-f]{64})(?P<suffix>"\s*)$',
+    re.MULTILINE,
 )
 _CONFLICTING_ROOT_CONFIGS = (
-    ".ruff.toml", "ruff.toml", "pyrightconfig.json", "basedpyrightconfig.json",
-    ".pylintrc", "pylintrc", "setup.cfg", "tox.ini",
+    ".ruff.toml",
+    "ruff.toml",
+    "pyrightconfig.json",
+    "basedpyrightconfig.json",
+    ".pylintrc",
+    "pylintrc",
+    "setup.cfg",
+    "tox.ini",
 )
 
 
@@ -76,7 +78,7 @@ def _portable_disk_paths() -> set[str]:
         )
         if not generated and (path.is_file() or path.is_symlink()):
             paths.add(path.relative_to(REPOSITORY_ROOT).as_posix())
-    for relative in (_STRICT_WORKFLOW_RELATIVE_PATH, "QUALITY.md"):
+    for relative in (_STRICT_WORKFLOW_RELATIVE_PATH, ".python-version", "QUALITY.md", "pyproject.toml", "uv.lock"):
         path = REPOSITORY_ROOT / relative
         if path.is_file() or path.is_symlink():
             paths.add(relative)
@@ -109,10 +111,10 @@ def _portable_manifest_violations() -> list[Violation]:
     files = _manifest_files(manifest_bytes)
     if files is None:
         return [*violations, Violation(_MANIFEST_PATH, 1, "portable enforcement manifest is malformed")]
-    if set(files) != set(_EXPECTED_MANIFESTED_PATHS):
+    if set(files) != set(EXPECTED_MANIFESTED_PATHS):
         violations.append(Violation(_MANIFEST_PATH, 1, "portable enforcement manifest membership changed"))
     unmanifested = {_ANTI_BYPASS_PATH, _MANIFEST_RELATIVE_PATH, _STRICT_WORKFLOW_RELATIVE_PATH}
-    expected_disk_paths = {*_EXPECTED_MANIFESTED_PATHS, *unmanifested}
+    expected_disk_paths = {*EXPECTED_MANIFESTED_PATHS, *unmanifested}
     disk_paths = _portable_disk_paths()
     violations.extend(
         Violation(REPOSITORY_ROOT / path, 1, "unexpected portable enforcement file")
@@ -163,8 +165,9 @@ def _strict_workflow_violations() -> list[Violation]:
         violations.append(Violation(_STRICT_WORKFLOW_PATH, 1, "strict workflow permissions must be read-only contents"))
     stripped_lines = tuple(line.strip() for line in workflow_text.splitlines())
     required_commands = (
-        "run: uv sync --project quality --python 3.12 --frozen",
-        "run: uv run --project quality --python 3.12 --frozen check",
+        "run: uv sync --project quality --python 3.12.12 --frozen",
+        "run: uv run --project quality --python 3.12.12 --frozen check",
+        "run: uv run --project quality --python 3.12.12 --frozen python -m unittest quality.tests.test_ratchet",
     )
     for command in required_commands:
         if stripped_lines.count(command) != 1:
@@ -228,7 +231,9 @@ def main() -> int:
         Zero when the complete policy is intact; otherwise one.
     """
     violations = [
-        *_portable_manifest_violations(), *_workflow_and_toolchain_violations(), *_inline_violations(),
+        *_portable_manifest_violations(),
+        *_workflow_and_toolchain_violations(),
+        *_inline_violations(),
     ]
     if violations:
         for violation in violations:
