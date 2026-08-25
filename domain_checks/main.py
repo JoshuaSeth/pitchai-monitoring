@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from hashlib import sha256
 import json
 import logging
+import math
 import os
+import re
 import runpy
 import shutil
 import time
@@ -1805,8 +1808,95 @@ def _build_api_contract_alert_message(
         sc = "n/a" if r.status_code is None else str(r.status_code)
         ms = "n/a" if r.elapsed_ms is None else f"{int(round(float(r.elapsed_ms)))}ms"
         err = (r.error or "contract_failed").strip()[:260]
-        lines.append(f"- {r.domain} [{r.name}]: {err} status={sc} ({ms}) url={r.url}")
+        service = r.service or "unclassified"
+        failure_class = str((r.details or {}).get("failure_class") or "unknown")
+        lines.append(
+            f"- service={service} domain={r.domain} [{r.name}]: {err} "
+            f"failure_class={failure_class} status={sc} ({ms}) url={r.url}"
+        )
     return "\n".join(lines).strip()
+
+
+_SAFE_ALERT_DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"
+)
+_SAFE_ALERT_SERVICE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+_SAFE_ALERT_FAILURE_CLASS_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
+
+def _build_api_contract_delivery_receipt_fields(
+    *,
+    failures: list[ApiContractCheckResult],
+    responses: list[dict[str, Any]],
+    sent_ok: bool,
+    monitor_observed_at: float,
+    monitor_commit: str,
+    telegram_chat_id: str,
+) -> dict[str, Any] | None:
+    """Return redacted evidence fields only for a fully acknowledged alert delivery."""
+    if not sent_ok or not failures or not responses:
+        return None
+    try:
+        observed_at = float(monitor_observed_at)
+    except (TypeError, ValueError):
+        return None
+    configured_chat_id = str(telegram_chat_id or "").strip()
+    domains = {failure.domain for failure in failures if failure.domain}
+    services = {failure.service for failure in failures if failure.service}
+    failure_classes = {
+        str(failure.details.get("failure_class") or "") for failure in failures
+    }
+    application_commits = {
+        str(failure.details.get("application_commit") or "")
+        for failure in failures
+    }
+    if (
+        len(domains) != 1
+        or len(services) != 1
+        or len(failure_classes) != 1
+        or len(application_commits) != 1
+        or _SAFE_ALERT_DOMAIN_RE.fullmatch(next(iter(domains))) is None
+        or _SAFE_ALERT_SERVICE_RE.fullmatch(next(iter(services))) is None
+        or _SAFE_ALERT_FAILURE_CLASS_RE.fullmatch(next(iter(failure_classes))) is None
+        or re.fullmatch(r"[0-9a-f]{40}", monitor_commit) is None
+        or re.fullmatch(r"[0-9a-f]{40}", next(iter(application_commits))) is None
+        or not math.isfinite(observed_at)
+        or observed_at <= 0
+        or not configured_chat_id
+    ):
+        return None
+    message_ids: list[int] = []
+    for response in responses:
+        result = response.get("result")
+        message_id = result.get("message_id") if isinstance(result, dict) else None
+        chat = result.get("chat") if isinstance(result, dict) else None
+        delivered_chat_id = chat.get("id") if isinstance(chat, dict) else None
+        if (
+            response.get("ok") is not True
+            or not isinstance(message_id, int)
+            or isinstance(message_id, bool)
+            or message_id <= 0
+            or str(delivered_chat_id).strip() != configured_chat_id
+        ):
+            return None
+        message_ids.append(message_id)
+    return {
+        "schema_version": 1,
+        "domain": next(iter(domains)),
+        "service": next(iter(services)),
+        "failure_class": next(iter(failure_classes)),
+        "application_commit": next(iter(application_commits)),
+        "monitor_commit": monitor_commit,
+        "monitor_observed_at": observed_at,
+        "channel": "internal_telegram",
+        "destination_scope": "pitchai_internal",
+        "destination_sha256": sha256(
+            f"telegram-chat\0{configured_chat_id}".encode()
+        ).hexdigest(),
+        "telegram_message_ids": message_ids,
+        "delivery_status": "sent",
+        "external_message_sent": False,
+    }
 
 
 def _build_api_contract_dispatch_prompt(*, failures: list[ApiContractCheckResult]) -> str:
@@ -1814,6 +1904,7 @@ def _build_api_contract_dispatch_prompt(*, failures: list[ApiContractCheckResult
         {
             "domain": r.domain,
             "name": r.name,
+            "service": r.service,
             "url": r.url,
             "status_code": r.status_code,
             "elapsed_ms": r.elapsed_ms,
@@ -3326,7 +3417,13 @@ async def run_loop(config_path: Path, once: bool) -> int:
         "browser_min_mem_available_mb": max(0, browser_min_mem_available_mb),
     }
 
-    def _append_event(kind: str, *, ts: float | None = None, **fields: Any) -> None:
+    def _append_event(
+        kind: str,
+        *,
+        ts: float | None = None,
+        persist: bool = False,
+        **fields: Any,
+    ) -> None:
         nonlocal state_write_fail_streak
         entry = {"ts": float(ts) if ts is not None else time.time(), "kind": str(kind)}
         for k, v in fields.items():
@@ -3340,14 +3437,14 @@ async def run_loop(config_path: Path, once: bool) -> int:
         events.append(entry)
         if len(events) > 10_000:
             del events[: max(0, len(events) - 8000)]
-        if event_bus_outbox is not None and state_path is not None:
+        if state_path is not None and (event_bus_outbox is not None or persist):
             try:
                 _write_state_atomic(state_path, _build_state_payload())
                 state_write_fail_streak = 0
             except Exception as exc:
                 state_write_fail_streak = int(state_write_fail_streak) + 1
                 LOGGER.warning(
-                    "Failed to persist PitchAI Events Bus outbox path=%s error=%s",
+                    "Failed to persist monitor event state path=%s error=%s",
                     state_path,
                     exc,
                 )
@@ -4549,24 +4646,48 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             s
                             for s in enabled_specs
                             if s.api_contract_checks
-                            and (now_ts - float(api_contract_last_run_ts.get(s.domain, 0.0))) >= float(api_interval_minutes * 60)
+                            and (now_ts - float(api_contract_last_run_ts.get(s.domain, 0.0)))
+                            >= float(
+                                max(
+                                    1,
+                                    _coerce_int(
+                                        s.api_contract.get("interval_minutes"),
+                                        default=api_interval_minutes,
+                                    ),
+                                )
+                                * 60
+                            )
                         ]
                         if due_domains:
-                            tasks_by_domain: dict[str, asyncio.Task[list[ApiContractCheckResult]]] = {}
+                            tasks_by_domain: dict[
+                                str,
+                                tuple[asyncio.Task[list[ApiContractCheckResult]], DomainCheckSpec],
+                            ] = {}
                             for spec in due_domains[:50]:
                                 api_contract_last_run_ts[spec.domain] = now_ts
-                                tasks_by_domain[spec.domain] = asyncio.create_task(
-                                    run_api_contract_checks(
-                                        http_client=http_client,
-                                        domain=spec.domain,
-                                        base_url=spec.url,
-                                        checks=spec.api_contract_checks,
-                                        timeout_seconds=float(api_timeout_seconds),
-                                    )
+                                tasks_by_domain[spec.domain] = (
+                                    asyncio.create_task(
+                                        run_api_contract_checks(
+                                            http_client=http_client,
+                                            domain=spec.domain,
+                                            base_url=spec.url,
+                                            checks=spec.api_contract_checks,
+                                            timeout_seconds=float(api_timeout_seconds),
+                                        )
+                                    ),
+                                    spec,
                                 )
 
-                            for domain, task in tasks_by_domain.items():
+                            for domain, (task, spec) in tasks_by_domain.items():
+                                domain_down_after_failures = max(
+                                    1,
+                                    _coerce_int(
+                                        spec.api_contract.get("down_after_failures"),
+                                        default=api_down_after_failures,
+                                    ),
+                                )
                                 results = await task
+                                api_contract_observed_at = time.time()
                                 observed_ok = all(r.ok for r in results) if results else True
                                 prev_effective = api_contract_last_ok.get(domain, True)
                                 next_effective, next_fail, next_success, alerted_down = _update_effective_ok(
@@ -4574,7 +4695,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     observed_ok=observed_ok,
                                     fail_streak=int(api_contract_fail_streak.get(domain, 0)),
                                     success_streak=int(api_contract_success_streak.get(domain, 0)),
-                                    down_after_failures=api_down_after_failures,
+                                    down_after_failures=domain_down_after_failures,
                                     up_after_successes=api_up_after_successes,
                                 )
                                 api_contract_last_ok[domain] = next_effective
@@ -4584,10 +4705,22 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 if alerted_down:
                                     domain_entry = entries_by_domain[domain]
                                     failures = [r for r in results if not r.ok]
+                                    failure_services = sorted(
+                                        {failure.service for failure in failures if failure.service}
+                                    )
+                                    failure_classes = sorted(
+                                        {
+                                            failure.details["failure_class"]
+                                            for failure in failures
+                                            if isinstance(failure.details.get("failure_class"), str)
+                                        }
+                                    )
                                     _append_event(
                                         "api_contract_degraded",
                                         ts=float(cycle_started),
                                         domain=domain,
+                                        services=failure_services,
+                                        failure_classes=failure_classes,
                                         failures=int(len(failures)),
                                         telegram_alert=domain_entry.routes_telegram,
                                         alert_policy=domain_entry.alert_policy.telegram,
@@ -4597,7 +4730,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         api_failures_for_dispatch.extend(failures)
                                     msg = _build_api_contract_alert_message(
                                         failures=failures,
-                                        down_after_failures=api_down_after_failures,
+                                        down_after_failures=domain_down_after_failures,
                                         fail_streak=int(next_fail),
                                     )
                                     routed = await _route_domain_telegram_alert(
@@ -4608,12 +4741,40 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     )
                                     if routed is not None:
                                         ok_all, resps = routed
+                                        delivered_at = time.time()
                                         LOGGER.warning(
                                             "API contract degraded domain=%s sent_ok=%s telegram_last=%s",
                                             domain,
                                             ok_all,
                                             redact_telegram_response(resps[-1] if resps else {}),
                                         )
+                                        delivery_fields = (
+                                            _build_api_contract_delivery_receipt_fields(
+                                                failures=failures,
+                                                responses=resps,
+                                                sent_ok=ok_all,
+                                                monitor_observed_at=api_contract_observed_at,
+                                                monitor_commit=str(
+                                                    os.getenv(
+                                                        "PITCHAI_MONITORING_DEPLOYMENT_SHA"
+                                                    )
+                                                    or ""
+                                                ).strip(),
+                                                telegram_chat_id=telegram_cfg.chat_id,
+                                            )
+                                        )
+                                        if delivery_fields is None:
+                                            LOGGER.error(
+                                                "API contract alert delivery lacked a complete safe receipt domain=%s",
+                                                domain,
+                                            )
+                                        else:
+                                            _append_event(
+                                                "api_contract_alert_delivered",
+                                                ts=delivered_at,
+                                                persist=True,
+                                                **delivery_fields,
+                                            )
                                 else:
                                     recovered = (not prev_effective) and bool(next_effective)
                                     if recovered:

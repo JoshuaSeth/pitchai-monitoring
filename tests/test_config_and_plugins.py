@@ -209,7 +209,8 @@ def test_container_health_patterns_cover_every_socket_visible_runtime_dependency
         "aipc-crawler", "aipc-match-dependent-ops", "aipc-product-image-refresher",
         "aipc-qdrant-sync", "aipc-search-derived-fields", "aipc-meilisync",
         "qdrant", "meilisearch", "pgbouncer-aipc",
-        "deplanbook-play", "deplanbook-cms", "deplanbook-libretranslate",
+        "deplanbook-play", "deplanbook-play-blue", "deplanbook-play-green",
+        "deplanbook-cms", "deplanbook-libretranslate",
         "deplanbook-db-proxy", "pgbouncer-deplanbook",
         "dft-web-app-green", "dft-web-app", "dft-web-app-staging",
         "dft-web-app-staging-spend-enabled", "staging-temp-web",
@@ -230,6 +231,31 @@ def test_container_health_patterns_cover_every_socket_visible_runtime_dependency
     assert uncovered == []
     assert not any(pattern.search("autopar-batch-20260824") for pattern in patterns)
     assert not any(pattern.search("deplanbook-cms-canary") for pattern in patterns)
+    assert not any(pattern.search("deplanbook-play-auth-negative") for pattern in patterns)
+
+
+def test_deplanbook_contract_monitors_fail_closed_database_readiness() -> None:
+    config = _production_config()
+    entry = next(item for item in config["domains"] if item["domain"] == "deplanbook.com")
+    spec = load_domain_spec(entry)
+    readiness = next(check for check in spec.api_contract_checks if check["name"] == "database_readiness")
+
+    assert config["api_contract"]["interval_minutes"] == 5
+    assert config["api_contract"]["down_after_failures"] == 2
+    assert spec.api_contract == {"interval_minutes": 1, "down_after_failures": 1}
+    assert readiness["service"] == "deplanbook-play"
+    assert readiness["path"] == "/readyz"
+    assert readiness["expected_status_codes"] == [200]
+    assert readiness["failure_class_json_path"] == "failure_class"
+    assert readiness["json_paths_equal"] == {
+        "status": "ready",
+        "service": "deplanbook-play",
+        "checks.process_identity": "ok",
+        "checks.database_transaction": "ok",
+        "checks.database_identity": "ok",
+        "checks.migration_head": "ok",
+        "checks.reference_data": "ok",
+    }
 
 
 @pytest.mark.asyncio

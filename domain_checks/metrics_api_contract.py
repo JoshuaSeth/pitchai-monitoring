@@ -14,6 +14,7 @@ import httpx
 class ApiContractCheckResult:
     domain: str
     name: str
+    service: str | None
     ok: bool
     url: str
     status_code: int | None
@@ -60,6 +61,9 @@ def _as_list(value: Any) -> list[Any]:
 
 
 _ENV_REF_RE = re.compile(r"\$\{([A-Z0-9_]{1,64})\}")
+_SAFE_CLASS_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+_SAFE_SERVICE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+_SAFE_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _substitute_env_refs(text: str) -> str:
@@ -103,6 +107,8 @@ async def run_api_contract_checks(
         if not isinstance(raw, dict):
             continue
         name = str(raw.get("name") or raw.get("path") or raw.get("url") or "api_check").strip()[:80]
+        service_candidate = str(raw.get("service") or "").strip()
+        service = service_candidate if _SAFE_SERVICE_RE.fullmatch(service_candidate) else None
         method = str(raw.get("method") or "GET").strip().upper()
         path = str(raw.get("path") or "").strip()
         url = str(raw.get("url") or "").strip()
@@ -119,6 +125,8 @@ async def run_api_contract_checks(
             expected_ct = "application/json"
         json_required = [str(x) for x in _as_list(raw.get("json_paths_required")) if str(x or "").strip()]
         json_equal = raw.get("json_paths_equal") if isinstance(raw.get("json_paths_equal"), dict) else {}
+        failure_class_path = str(raw.get("failure_class_json_path") or "").strip()
+        application_commit_path = str(raw.get("application_commit_json_path") or "").strip()
         max_elapsed_ms = raw.get("max_elapsed_ms")
         try:
             max_elapsed_ms_f = float(max_elapsed_ms) if max_elapsed_ms is not None else None
@@ -164,12 +172,27 @@ async def run_api_contract_checks(
                     err = f"unexpected_content_type: {ct!r} missing {expected_ct!r}"
 
             data = None
-            if ok and (json_required or json_equal):
+            if json_required or json_equal or failure_class_path or application_commit_path:
                 try:
                     data = resp.json()
                 except Exception as exc:
-                    ok = False
-                    err = f"json_parse_error: {type(exc).__name__}: {exc}"
+                    if ok and (json_required or json_equal):
+                        ok = False
+                        err = f"json_parse_error: {type(exc).__name__}: {exc}"
+
+            if data is not None and failure_class_path:
+                exists, failure_class = _get_path(data, failure_class_path)
+                if exists and isinstance(failure_class, str) and _SAFE_CLASS_RE.fullmatch(failure_class):
+                    details["failure_class"] = failure_class
+
+            if data is not None and application_commit_path:
+                exists, application_commit = _get_path(data, application_commit_path)
+                if (
+                    exists
+                    and isinstance(application_commit, str)
+                    and _SAFE_COMMIT_RE.fullmatch(application_commit)
+                ):
+                    details["application_commit"] = application_commit
 
             if ok and json_required:
                 missing: list[str] = []
@@ -208,6 +231,7 @@ async def run_api_contract_checks(
             ApiContractCheckResult(
                 domain=cleaned_domain,
                 name=name,
+                service=service,
                 ok=ok,
                 url=url,
                 status_code=status_code,

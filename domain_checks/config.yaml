@@ -168,7 +168,7 @@ container_health:
     - "^aipc-(?:skybuyfly-(?:primary|backup)|crawler|match-dependent-ops|product-image-refresher|qdrant-sync|search-derived-fields|meilisync)$"
     - "^(?:qdrant|meilisearch|pgbouncer-aipc)$"
     - "^skybuyfly-quick-chat$"
-    - "^deplanbook-play$"
+    - "^deplanbook-play(?:-(?:blue|green))?$"
     - "^deplanbook-cms$"
     - "^deplanbook-(?:libretranslate|db-proxy)$"
     - "^pgbouncer-deplanbook$"

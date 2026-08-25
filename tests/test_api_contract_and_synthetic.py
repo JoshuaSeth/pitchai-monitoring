@@ -10,6 +10,10 @@ import pytest
 from playwright.async_api import async_playwright
 
 from domain_checks.common_check import find_chromium_executable
+from domain_checks.main import (
+    _build_api_contract_alert_message,
+    _build_api_contract_delivery_receipt_fields,
+)
 from domain_checks.metrics_api_contract import run_api_contract_checks
 from domain_checks.metrics_synthetic import run_synthetic_transactions
 
@@ -27,6 +31,19 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/not_ready":
+            body = json.dumps(
+                {
+                    "status": "not_ready",
+                    "service": "deplanbook-play",
+                    "commit": "a" * 40,
+                    "failure_class": "database_authentication",
+                    "private_detail": "must-not-propagate",
+                }
+            ).encode("utf-8")
+            self._send(503, {"Content-Type": "application/json"}, body)
+            return
+
         if self.path == "/private":
             expected = "Bearer secret-token"
             got = self.headers.get("Authorization") or ""
@@ -122,6 +139,112 @@ async def test_api_contract_checks_ok_and_fail(local_server_base_url: str) -> No
         )
         assert bad_res and bad_res[0].ok is False
         assert bad_res[0].error in {"missing_json_paths", "json_value_mismatch"} or (bad_res[0].error or "").startswith("missing_json_paths")
+
+
+@pytest.mark.asyncio
+async def test_api_contract_captures_only_safe_failure_class_for_internal_alert(
+    local_server_base_url: str,
+) -> None:
+    async with httpx.AsyncClient() as client:
+        results = await run_api_contract_checks(
+            http_client=client,
+            domain="deplanbook.com",
+            base_url=local_server_base_url,
+            checks=[
+                {
+                    "name": "database_readiness",
+                    "service": "deplanbook-play",
+                    "path": "/not_ready",
+                    "expected_status_codes": [200],
+                    "failure_class_json_path": "failure_class",
+                    "application_commit_json_path": "commit",
+                }
+            ],
+            timeout_seconds=2.0,
+        )
+
+    assert len(results) == 1
+    result = results[0]
+    assert result.ok is False
+    assert result.service == "deplanbook-play"
+    assert result.details["failure_class"] == "database_authentication"
+    assert result.details["application_commit"] == "a" * 40
+    assert "must-not-propagate" not in json.dumps(result.details)
+    alert = _build_api_contract_alert_message(
+        failures=results,
+        down_after_failures=1,
+        fail_streak=1,
+    )
+    assert "service=deplanbook-play" in alert
+    assert "failure_class=database_authentication" in alert
+    assert "must-not-propagate" not in alert
+
+    receipt = _build_api_contract_delivery_receipt_fields(
+        failures=results,
+        responses=[{"ok": True, "result": {"message_id": 8123, "chat": {"id": -9}}}],
+        sent_ok=True,
+        monitor_observed_at=1_777_000_000.0,
+        monitor_commit="b" * 40,
+        telegram_chat_id="-9",
+    )
+    assert receipt == {
+        "schema_version": 1,
+        "domain": "deplanbook.com",
+        "service": "deplanbook-play",
+        "failure_class": "database_authentication",
+        "application_commit": "a" * 40,
+        "monitor_commit": "b" * 40,
+        "monitor_observed_at": 1_777_000_000.0,
+        "channel": "internal_telegram",
+        "destination_scope": "pitchai_internal",
+        "destination_sha256": (
+            "6cdb894be74e95f29940d7eb84bba16f2a221ea3656789f9b748e592212fec0b"
+        ),
+        "telegram_message_ids": [8123],
+        "delivery_status": "sent",
+        "external_message_sent": False,
+    }
+
+    assert (
+        _build_api_contract_delivery_receipt_fields(
+            failures=results,
+            responses=[{"ok": False, "error": "network"}],
+            sent_ok=False,
+            monitor_observed_at=1_777_000_000.0,
+            monitor_commit="b" * 40,
+            telegram_chat_id="-100-private",
+        )
+        is None
+    )
+
+    assert (
+        _build_api_contract_delivery_receipt_fields(
+            failures=results,
+            responses=[
+                {"ok": True, "result": {"message_id": 8123, "chat": {"id": -8}}}
+            ],
+            sent_ok=True,
+            monitor_observed_at=1_777_000_000.0,
+            monitor_commit="b" * 40,
+            telegram_chat_id="-9",
+        )
+        is None
+    )
+
+    result.details["failure_class"] = "database authentication"
+    assert (
+        _build_api_contract_delivery_receipt_fields(
+            failures=results,
+            responses=[
+                {"ok": True, "result": {"message_id": 8123, "chat": {"id": -9}}}
+            ],
+            sent_ok=True,
+            monitor_observed_at=1_777_000_000.0,
+            monitor_commit="b" * 40,
+            telegram_chat_id="-9",
+        )
+        is None
+    )
 
 
 @pytest.mark.asyncio
