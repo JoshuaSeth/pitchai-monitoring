@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import os
+from typing import cast
 
 import uvicorn
 
-from monitoring_dashboard import install_monitoring_v2
-from monitoring_dashboard.legacy import production_registry_app
+from .monitoring_v2_runtime import install_monitoring_v2, production_registry_app
 
 
 def main() -> None:
@@ -17,7 +17,7 @@ def main() -> None:
     port = int(os.getenv("E2E_REGISTRY_PORT", "8111"))
     app = production_registry_app()
     install_monitoring_v2(app)
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    uvicorn.run(cast("str", cast("object", app)), host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":
