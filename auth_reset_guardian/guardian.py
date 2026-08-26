@@ -64,12 +64,14 @@ class CommandNotifier:
         self,
         command: Sequence[str],
         *,
+        preflight_command: Sequence[str] | None = None,
         timeout_seconds: float = 30.0,
         require_private_receipt: bool = True,
     ):
         if not command:
             raise ValueError("notification command must not be empty")
         self.command = tuple(command)
+        self.preflight_command = tuple(preflight_command or ())
         self.timeout_seconds = timeout_seconds
         self.require_private_receipt = require_private_receipt
 
@@ -79,21 +81,36 @@ class CommandNotifier:
             "LANG": os.environ.get("LANG", "C.UTF-8"),
             "PATH": os.defpath,
         }
-        try:
-            result = subprocess.run(
-                [*self.command, "--message", message],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=self.timeout_seconds,
-                check=False,
-                env=child_environment,
+        if self.preflight_command:
+            preflight = self._invoke(
+                self.preflight_command,
+                child_environment=child_environment,
+                stage="preflight",
             )
-        except subprocess.TimeoutExpired:
-            raise NotificationError("timeout") from None
-        except OSError as exc:
-            raise NotificationError(f"exec_{type(exc).__name__}") from None
+            if preflight.returncode != 0:
+                raise NotificationError(_preflight_failure_code(preflight))
+            try:
+                receipt = json.loads(preflight.stdout.strip().splitlines()[-1])
+            except (IndexError, json.JSONDecodeError):
+                raise NotificationError("invalid_preflight_receipt") from None
+            if not isinstance(receipt, dict) or any(
+                (
+                    receipt.get("status") != "ready",
+                    receipt.get("policy") != "personal-first",
+                    receipt.get("route_kind") != "private",
+                    receipt.get("requester_key") != "seth-ori",
+                    receipt.get("destination_ref") != "seth-ori",
+                    receipt.get("live_chat_type") != "private",
+                    receipt.get("delivery_store_ready") is not True,
+                )
+            ):
+                raise NotificationError("invalid_preflight_receipt")
+
+        result = self._invoke(
+            [*self.command, "--message", message],
+            child_environment=child_environment,
+            stage="notification",
+        )
         if result.returncode != 0:
             raise NotificationError(f"exit_{result.returncode}")
         if self.require_private_receipt:
@@ -111,6 +128,40 @@ class CommandNotifier:
                 )
             ):
                 raise NotificationError("invalid_private_receipt")
+
+    def _invoke(
+        self,
+        command: Sequence[str],
+        *,
+        child_environment: dict[str, str],
+        stage: str,
+    ) -> subprocess.CompletedProcess[str]:
+        try:
+            return subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=self.timeout_seconds,
+                check=False,
+                env=child_environment,
+            )
+        except subprocess.TimeoutExpired:
+            raise NotificationError(f"{stage}_timeout") from None
+        except OSError as exc:
+            raise NotificationError(f"{stage}_exec_{type(exc).__name__}") from None
+
+
+def _preflight_failure_code(result: subprocess.CompletedProcess[str]) -> str:
+    try:
+        receipt = json.loads(result.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+        return f"preflight_exit_{result.returncode}"
+    error_code = receipt.get("error_code") if isinstance(receipt, dict) else None
+    if not isinstance(error_code, str) or not error_code.replace("_", "").isalnum():
+        return f"preflight_exit_{result.returncode}"
+    return f"preflight_{error_code[:80]}"
 
 
 class Guardian:

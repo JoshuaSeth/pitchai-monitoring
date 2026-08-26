@@ -156,6 +156,14 @@ def test_deployment_live_dry_run_waits_for_quarter_hour_service() -> None:
     ) in script
 
 
+def test_deployment_fails_before_install_when_private_notifier_store_is_unready() -> None:
+    script = (ROOT / "ops" / "deploy_auth_reset_guardian.sh").read_text()
+    environment = (ROOT / "ops" / "auth-reset-guardian.env").read_text()
+
+    assert "auth_reset_guardian.telegram_notifier_preflight" in script
+    assert "AUTH_RESET_GUARDIAN_NOTIFICATION_PREFLIGHT_COMMAND=" in environment
+
+
 def test_schema_v1_migrates_warning_scope_without_losing_marks(tmp_path: Path) -> None:
     db_path = tmp_path / "audit.sqlite3"
     with sqlite3.connect(db_path) as connection:
@@ -912,6 +920,75 @@ def test_command_notifier_requires_verified_requester_private_receipt(monkeypatc
         assert exc.error_code == "invalid_private_receipt"
     else:
         raise AssertionError("broad receipt must fail requester-private verification")
+
+
+def test_command_notifier_preflight_failure_prevents_any_send(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    calls: list[list[str]] = []
+
+    def run(command, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(list(command))
+        return SimpleNamespace(
+            returncode=1,
+            stdout=json.dumps(
+                {"status": "failed", "error_code": "delivery_store_unavailable"}
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("auth_reset_guardian.guardian.subprocess.run", run)
+    with pytest.raises(NotificationError) as caught:
+        CommandNotifier(
+            ["telegram-helper"],
+            preflight_command=["notifier-preflight"],
+        ).notify("must not be sent")
+
+    assert caught.value.error_code == "preflight_delivery_store_unavailable"
+    assert calls == [["notifier-preflight"]]
+
+
+def test_command_notifier_sends_only_after_verified_private_preflight(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    preflight_receipt = json.dumps(
+        {
+            "status": "ready",
+            "policy": "personal-first",
+            "route_kind": "private",
+            "requester_key": "seth-ori",
+            "destination_ref": "seth-ori",
+            "live_chat_type": "private",
+            "delivery_store_ready": True,
+        }
+    )
+    private_receipt = json.dumps(
+        {
+            "status": "sent",
+            "policy": "personal-first",
+            "route_kind": "private",
+            "requester_key": "seth-ori",
+            "destination_ref": "seth-ori",
+        }
+    )
+    results = iter(
+        (
+            SimpleNamespace(returncode=0, stdout=preflight_receipt, stderr=""),
+            SimpleNamespace(returncode=0, stdout=private_receipt, stderr=""),
+        )
+    )
+    calls: list[list[str]] = []
+
+    def run(command, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(list(command))
+        return next(results)
+
+    monkeypatch.setattr("auth_reset_guardian.guardian.subprocess.run", run)
+    CommandNotifier(
+        ["telegram-helper"],
+        preflight_command=["notifier-preflight"],
+    ).notify("safe message")
+
+    assert calls == [
+        ["notifier-preflight"],
+        ["telegram-helper", "--message", "safe message"],
+    ]
 
 
 def test_command_notifier_child_does_not_inherit_broker_or_openai_secrets(

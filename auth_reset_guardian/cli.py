@@ -169,7 +169,19 @@ def _notifier(
     command = shlex.split(raw)
     if not command:
         parser.error("AUTH_RESET_GUARDIAN_NOTIFICATION_COMMAND is empty after parsing")
-    return CommandNotifier(command)
+    preflight_raw = (
+        os.getenv("AUTH_RESET_GUARDIAN_NOTIFICATION_PREFLIGHT_COMMAND") or ""
+    ).strip()
+    if required and not preflight_raw:
+        parser.error(
+            "AUTH_RESET_GUARDIAN_NOTIFICATION_PREFLIGHT_COMMAND is required"
+        )
+    preflight_command = shlex.split(preflight_raw) if preflight_raw else None
+    if preflight_raw and not preflight_command:
+        parser.error(
+            "AUTH_RESET_GUARDIAN_NOTIFICATION_PREFLIGHT_COMMAND is empty after parsing"
+        )
+    return CommandNotifier(command, preflight_command=preflight_command)
 
 
 def _bounded_lock_wait(value: str) -> float:
