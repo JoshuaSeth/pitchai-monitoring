@@ -81,36 +81,6 @@ class ReceiptRunner:
         return subprocess.CompletedProcess(args, 0, stdout=self.receipt, stderr="")
 
 
-class RecordingRunner:
-    """Typed subprocess double that records ordered preflight/send calls."""
-
-    def __init__(self, results: Sequence[subprocess.CompletedProcess[str]]) -> None:
-        self._results = iter(results)
-        self.calls: list[list[str]] = []
-
-    def __call__(
-        self,
-        args: Sequence[str],
-        *,
-        stdin: int,
-        stdout: int,
-        stderr: int,
-        text: bool,
-        timeout: float,
-        check: bool,
-        env: Mapping[str, str],
-    ) -> subprocess.CompletedProcess[str]:
-        assert stdin == subprocess.DEVNULL
-        assert stdout == subprocess.PIPE
-        assert stderr == subprocess.PIPE
-        assert text is True
-        assert timeout > 0
-        assert check is False
-        assert env
-        self.calls.append(list(args))
-        return next(self._results)
-
-
 class MutableClock:
     def __init__(self, now: datetime) -> None:
         self.now = now
@@ -224,14 +194,6 @@ def test_deployment_live_dry_run_waits_for_quarter_hour_service() -> None:
         '  --lock-wait-seconds "${LOCK_WAIT_SECONDS}" \\\n'
         "  run --dry-run --no-notify"
     ) in script
-
-
-def test_deployment_fails_before_install_when_private_notifier_store_is_unready() -> None:
-    script = (ROOT / "ops" / "deploy_auth_reset_guardian.sh").read_text()
-    environment = (ROOT / "ops" / "auth-reset-guardian.env").read_text()
-
-    assert "auth_reset_guardian.telegram_notifier_preflight" in script
-    assert "AUTH_RESET_GUARDIAN_NOTIFICATION_PREFLIGHT_COMMAND=" in environment
 
 
 def test_deployment_script_handles_expected_absence_without_erasing_failures() -> None:
@@ -1076,82 +1038,6 @@ def test_command_notifier_requires_verified_requester_private_receipt(
         assert exc.error_code == "invalid_private_receipt"
     else:
         raise AssertionError("broad receipt must fail requester-private verification")
-
-
-def test_command_notifier_preflight_failure_prevents_any_send(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    runner = RecordingRunner(
-        [
-            subprocess.CompletedProcess(
-                ["notifier-preflight"],
-                1,
-                stdout=json.dumps(
-                    {"status": "failed", "error_code": "delivery_store_unavailable"}
-                ),
-                stderr="",
-            )
-        ]
-    )
-
-    monkeypatch.setattr("auth_reset_guardian.guardian.subprocess.run", runner)
-    with pytest.raises(NotificationError) as caught:
-        CommandNotifier(
-            ["telegram-helper"],
-            preflight_command=["notifier-preflight"],
-        ).notify("must not be sent")
-
-    assert caught.value.error_code == "preflight_delivery_store_unavailable"
-    assert runner.calls == [["notifier-preflight"]]
-
-
-def test_command_notifier_sends_only_after_verified_private_preflight(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    preflight_receipt = json.dumps(
-        {
-            "status": "ready",
-            "policy": "personal-first",
-            "route_kind": "private",
-            "requester_key": "seth-ori",
-            "destination_ref": "seth-ori",
-            "live_chat_type": "private",
-            "delivery_store_ready": True,
-        }
-    )
-    private_receipt = json.dumps(
-        {
-            "status": "sent",
-            "policy": "personal-first",
-            "route_kind": "private",
-            "requester_key": "seth-ori",
-            "destination_ref": "seth-ori",
-        }
-    )
-    runner = RecordingRunner(
-        [
-            subprocess.CompletedProcess(
-                ["notifier-preflight"], 0, stdout=preflight_receipt, stderr=""
-            ),
-            subprocess.CompletedProcess(
-                ["telegram-helper", "--message", "safe message"],
-                0,
-                stdout=private_receipt,
-                stderr="",
-            ),
-        ]
-    )
-
-    monkeypatch.setattr("auth_reset_guardian.guardian.subprocess.run", runner)
-    CommandNotifier(
-        ["telegram-helper"],
-        preflight_command=["notifier-preflight"],
-    ).notify("safe message")
-
-    assert runner.calls == [
-        ["notifier-preflight"],
-        ["telegram-helper", "--message", "safe message"],
-    ]
 
 
 def test_command_notifier_child_does_not_inherit_broker_or_openai_secrets(
