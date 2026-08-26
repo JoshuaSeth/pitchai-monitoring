@@ -471,10 +471,10 @@ def find_chromium_executable() -> str | None:
         return env_path
 
     candidates = [
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/google-chrome",
         "/usr/bin/chromium",
         "/usr/bin/chromium-browser",
-        "/usr/bin/google-chrome",
-        "/usr/bin/google-chrome-stable",
         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     ]
     for path in candidates:

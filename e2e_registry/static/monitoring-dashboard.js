@@ -22,6 +22,11 @@
     groupFilter: null,
     collapsedGroups: new Set(),
     groupStateInitialized: false,
+    activeTab: "domains",
+    expandedIncidents: new Set(),
+    incidentEvidence: new Map(),
+    incidentStateInitialized: false,
+    expandedJourneys: new Set(),
     requestSequence: 0,
   };
 
@@ -61,6 +66,19 @@
     if (number === null) return "—";
     if (number >= 1000) return `${(number / 1000).toFixed(number >= 10000 ? 0 : 1)}s`;
     return `${Math.round(number)}ms`;
+  }
+
+  function formatBytes(value) {
+    const number = numberOrNull(value);
+    if (number === null) return "—";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let scaled = Math.max(0, number);
+    let index = 0;
+    while (scaled >= 1024 && index < units.length - 1) {
+      scaled /= 1024;
+      index += 1;
+    }
+    return `${scaled.toFixed(index === 0 || scaled >= 100 ? 0 : 1)} ${units[index]}`;
   }
 
   function formatDuration(value) {
@@ -208,6 +226,69 @@
     byId("kpi-availability-detail").textContent = `${formatCount(daily.successful_observations)} of ${formatCount(daily.observations)} successful`;
   }
 
+  function appendIncidentField(list, label, value, className = "") {
+    const wrapper = createElement("div", className);
+    wrapper.append(createElement("dt", "", label));
+    wrapper.append(createElement("dd", "", value || "Unavailable"));
+    list.append(wrapper);
+  }
+
+  function renderIncidentTrend(trend) {
+    const wrapper = createElement("div", "incident-trend");
+    const points = trend && Array.isArray(trend.points) ? trend.points : [];
+    const heading = createElement("div", "incident-trend__heading");
+    heading.append(createElement("span", "", "24-hour trend"));
+    heading.append(createElement("strong", statusClass(trend && trend.direction), titleCase(trend && trend.direction)));
+    wrapper.append(heading);
+    const svg = createSvgElement("svg", { viewBox: "0 0 420 72", preserveAspectRatio: "none", role: "img", "aria-label": "Incident trend" });
+    svg.classList.add("incident-trend__chart");
+    if (points.length < 2) {
+      const textNode = createSvgElement("text", { x: 10, y: 42, class: "chart-empty-text" });
+      textNode.textContent = "Trend collecting";
+      svg.append(textNode);
+    } else {
+      const pathPoints = points.map((point, index) => {
+        const x = points.length === 1 ? 0 : (index / (points.length - 1)) * 420;
+        const latency = numberOrNull(point.http_elapsed_ms);
+        const ok = point.ok !== false;
+        const y = ok ? Math.max(10, 58 - Math.min(42, (latency || 0) / 80)) : 64;
+        return [x, y];
+      });
+      const path = createSvgElement("path", { d: pointsPath(pathPoints), class: "chart-line" });
+      svg.append(path);
+      points.forEach((point, index) => {
+        const [x, y] = pathPoints[index];
+        svg.append(createSvgElement("circle", { cx: x, cy: y, r: point.ok === false ? 4 : 2.5, class: point.ok === false ? "chart-point is-down" : "chart-point" }));
+      });
+    }
+    wrapper.append(svg);
+    const availability = numberOrNull(trend && trend.availability_pct);
+    wrapper.append(createElement("p", "incident-trend__meta", availability === null
+      ? `${formatCount(trend && trend.observations)} retained observations`
+      : `${formatPercent(availability, 3)} availability · ${formatCount(trend && trend.observations)} observations`));
+    return wrapper;
+  }
+
+  async function loadIncidentEvidence(incident, incidentId, summary) {
+    if (!incident || incident.kind !== "domain_down" || !incident.domain) return;
+    if (model.incidentEvidence.has(incidentId)) return;
+    const endpoint = incident.evidence_endpoint
+      || `/dashboard/api/v1/monitoring/incidents/${encodeURIComponent(incident.domain)}/evidence`;
+    model.incidentEvidence.set(incidentId, { loading: true });
+    renderIncidents(summary);
+    try {
+      const payload = await getJson(endpoint);
+      model.incidentEvidence.set(incidentId, { ...payload, loading: false });
+    } catch (error) {
+      model.incidentEvidence.set(incidentId, {
+        loading: false,
+        data_state: "unavailable",
+        error_message: error instanceof Error ? error.message : "On-expand evidence request failed.",
+      });
+    }
+    renderIncidents(summary);
+  }
+
   function renderIncidents(summary) {
     const container = byId("incident-list");
     const incidents = Array.isArray(summary.incidents) ? summary.incidents : [];
@@ -216,20 +297,142 @@
 
     if (incidents.length === 0) {
       container.append(createElement("p", "empty-state is-healthy", "No current incidents. All latest effective checks are healthy."));
+      model.expandedIncidents.clear();
       return;
     }
 
-    incidents.forEach((incident) => {
-      const item = createElement("article", `incident ${incident.severity === "critical" ? "is-critical" : ""}`);
-      item.append(createElement("span", "incident__marker"));
-      const copy = createElement("div");
-      copy.append(createElement("strong", "", incident.title || titleCase(incident.kind)));
-      copy.append(createElement("p", "", incident.detail || "No additional detail was recorded."));
-      item.append(copy);
-      const time = createElement("time", "", formatRelative(incident.observed_at_ts, summary.generated_at_ts));
-      if (incident.observed_at_ts) time.dateTime = new Date(Number(incident.observed_at_ts) * 1000).toISOString();
-      item.append(time);
+    if (!model.incidentStateInitialized) {
+      const firstActionable = incidents.find((incident) => incident.severity === "critical") || incidents[0];
+      if (firstActionable) model.expandedIncidents.add(firstActionable.incident_id || `${firstActionable.kind}:0`);
+      model.incidentStateInitialized = true;
+    }
+    const activeIds = new Set(incidents.map((incident, index) => incident.incident_id || `${incident.kind}:${index}`));
+    [...model.expandedIncidents].forEach((id) => { if (!activeIds.has(id)) model.expandedIncidents.delete(id); });
+    [...model.incidentEvidence.keys()].forEach((id) => { if (!activeIds.has(id)) model.incidentEvidence.delete(id); });
+
+    incidents.forEach((incident, index) => {
+      const incidentId = incident.incident_id || `${incident.kind}:${index}`;
+      const fetchedEvidence = model.incidentEvidence.get(incidentId) || {};
+      const renderedIncident = { ...incident };
+      ["status_code", "error_message", "response_excerpt", "content_type"].forEach((key) => {
+        if (fetchedEvidence[key] !== null && fetchedEvidence[key] !== undefined) renderedIncident[key] = fetchedEvidence[key];
+      });
+      const domId = `incident-details-${index}`;
+      const expanded = model.expandedIncidents.has(incidentId);
+      const item = createElement("article", `incident is-${incident.severity || "warning"}${expanded ? " is-expanded" : ""}`);
+      item.dataset.incidentId = incidentId;
+
+      const toggle = createElement("button", "incident__toggle");
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", String(expanded));
+      toggle.setAttribute("aria-controls", domId);
+      toggle.setAttribute("aria-label", `${expanded ? "Collapse" : "Expand"} details for ${incident.title || titleCase(incident.kind)}`);
+      toggle.append(createElement("span", "incident__marker"));
+      const copy = createElement("span", "incident__copy");
+      const titleRow = createElement("span", "incident__title-row");
+      titleRow.append(createElement("strong", "", incident.title || titleCase(incident.kind)));
+      titleRow.append(createElement("span", `status-label ${statusClass(incident.current_status || incident.severity)}`, titleCase(incident.current_status || incident.severity)));
+      copy.append(titleRow);
+      copy.append(createElement("span", "incident__summary", incident.detail || "No additional detail was recorded."));
+      toggle.append(copy);
+      const timing = createElement("span", "incident__timing");
+      const time = createElement("time", "", formatRelative(incident.latest_seen_at_ts || incident.observed_at_ts, summary.generated_at_ts));
+      if (incident.latest_seen_at_ts || incident.observed_at_ts) time.dateTime = new Date(Number(incident.latest_seen_at_ts || incident.observed_at_ts) * 1000).toISOString();
+      timing.append(time);
+      timing.append(createElement("span", "incident__toggle-label", expanded ? "Collapse details" : "Expand details"));
+      const chevron = createSvgElement("svg", { viewBox: "0 0 20 20", "aria-hidden": "true" });
+      chevron.classList.add("incident__chevron");
+      chevron.append(createSvgElement("path", { d: "m5 7.5 5 5 5-5" }));
+      timing.append(chevron);
+      toggle.append(timing);
+      item.append(toggle);
+
+      const details = createElement("div", "incident__details");
+      details.id = domId;
+      details.hidden = !expanded;
+      const fields = createElement("dl", "incident-detail-grid");
+      appendIncidentField(fields, "Affected check", renderedIncident.affected_check);
+      appendIncidentField(fields, "Domain / service", renderedIncident.domain || renderedIncident.affected_service);
+      appendIncidentField(fields, "Current status", titleCase(renderedIncident.current_status));
+      appendIncidentField(fields, "Severity", titleCase(renderedIncident.severity));
+      appendIncidentField(fields, "First seen", formatDateTime(renderedIncident.first_seen_at_ts));
+      appendIncidentField(fields, "Latest seen", formatDateTime(renderedIncident.latest_seen_at_ts || renderedIncident.observed_at_ts));
+      appendIncidentField(fields, "Status / error code", renderedIncident.status_code === null || renderedIncident.status_code === undefined ? "Not recorded" : String(renderedIncident.status_code));
+      appendIncidentField(fields, "Likely owner / project", renderedIncident.owner_project);
+      if (renderedIncident.kind === "database_dependency") {
+        appendIncidentField(fields, "Database dependency", renderedIncident.database_dependency);
+        appendIncidentField(fields, "App container", renderedIncident.container);
+        appendIncidentField(fields, "Failure class", titleCase(renderedIncident.failure_class));
+        appendIncidentField(fields, "Failure phase", titleCase(renderedIncident.failure_phase));
+        appendIncidentField(fields, "Credential signal", titleCase(renderedIncident.credential_state));
+        const routeWeight = numberOrNull(renderedIncident.traffic_weight);
+        appendIncidentField(fields, "Production route", [
+          titleCase(renderedIncident.traffic_state),
+          renderedIncident.traffic_slot ? `${titleCase(renderedIncident.traffic_slot)} slot` : null,
+          routeWeight === null ? null : `${routeWeight}% traffic`,
+        ].filter(Boolean).join(" · "));
+        appendIncidentField(fields, "Alert group", renderedIncident.alert_group || "Not configured");
+      }
+      const policy = renderedIncident.alert_policy || {};
+      const policyLabel = policy.enabled === false
+        ? `Dashboard only · ${policy.reason || "Telegram disabled by policy"}`
+        : `${policy.channel || "Telegram"} · ${policy.mode || "enabled"}`;
+      appendIncidentField(fields, "Alert policy", policyLabel, policy.enabled === false ? "is-policy-quiet" : "");
+      const lastSuccess = renderedIncident.last_successful_sample || {};
+      appendIncidentField(fields, "Last successful sample", lastSuccess.observed_at_ts
+        ? `${formatDateTime(lastSuccess.observed_at_ts)}${lastSuccess.status_code ? ` · HTTP ${lastSuccess.status_code}` : ""}${numberOrNull(lastSuccess.latency_ms) === null ? "" : ` · ${formatMilliseconds(lastSuccess.latency_ms)}`}`
+        : "Not retained");
+      details.append(fields);
+
+      if (renderedIncident.kind === "domain_down" || renderedIncident.error_message || renderedIncident.response_excerpt) {
+        const evidence = createElement("div", "incident-evidence");
+        evidence.append(createElement("p", "section-kicker", "Safe failure evidence"));
+        if (renderedIncident.error_message) evidence.append(createElement("p", "incident-evidence__error", renderedIncident.error_message));
+        if (renderedIncident.response_excerpt) {
+          evidence.append(createElement("p", "incident-evidence__label", "Response excerpt · secrets and private data redacted"));
+          evidence.append(createElement("pre", "", renderedIncident.response_excerpt));
+        } else if (fetchedEvidence.loading) {
+          evidence.append(createElement("p", "data-state", "Fetching one bounded, allowlisted public response because this incident was expanded…"));
+        } else if (fetchedEvidence.data_state === "recovered") {
+          evidence.append(createElement("p", "data-state", "The on-expand public HTTP request has recovered; no failure body was retained."));
+        } else if (fetchedEvidence.data_state === "unavailable" || fetchedEvidence.data_state === "request_failed") {
+          evidence.append(createElement("p", "data-state", "On-expand evidence is unavailable. Retained status, timing, and trend remain authoritative."));
+        } else {
+          evidence.append(createElement("p", "data-state", renderedIncident.evidence_state === "not_retained" || renderedIncident.evidence_state === "on_expand"
+            ? "Expand this incident to fetch one bounded, allowlisted public response. No extra background probe is added."
+            : "No safe textual response excerpt was available for this failure."));
+        }
+        details.append(evidence);
+      }
+      details.append(renderIncidentTrend(renderedIncident.trend || {}));
+      const action = createElement("div", "incident-action");
+      action.append(createElement("span", "incident-action__index", "01"));
+      const actionCopy = createElement("div");
+      actionCopy.append(createElement("p", "section-kicker", "Suggested next action"));
+      actionCopy.append(createElement("strong", "", renderedIncident.suggested_next_action || "Review the latest evidence and owning service before taking production action."));
+      action.append(actionCopy);
+      if (renderedIncident.tab_target) {
+        const tabLink = createElement("button", "incident-tab-link", renderedIncident.tab_target === "databases"
+          ? "Open database dependencies"
+          : `Open ${titleCase(renderedIncident.tab_target)}`);
+        tabLink.type = "button";
+        tabLink.addEventListener("click", () => setActiveTab(renderedIncident.tab_target, true));
+        action.append(tabLink);
+      }
+      details.append(action);
+      item.append(details);
+
+      toggle.addEventListener("click", () => {
+        if (model.expandedIncidents.has(incidentId)) model.expandedIncidents.delete(incidentId);
+        else model.expandedIncidents.add(incidentId);
+        renderIncidents(summary);
+        const next = container.querySelector(`[data-incident-id="${CSS.escape(incidentId)}"] .incident__toggle`);
+        if (next) next.focus({ preventScroll: true });
+      });
       container.append(item);
+      if (expanded && renderedIncident.kind === "domain_down" && !renderedIncident.response_excerpt) {
+        void loadIncidentEvidence(renderedIncident, incidentId, summary);
+      }
     });
   }
 
@@ -325,6 +528,21 @@
       .some((value) => String(value || "").toLowerCase().includes(query));
   }
 
+  function databaseDependenciesForDomain(domainName) {
+    const dashboard = model.summary && model.summary.dashboards && model.summary.dashboards.databases || {};
+    const items = Array.isArray(dashboard.items) ? dashboard.items : [];
+    return items.filter((item) => Array.isArray(item.domains) && item.domains.includes(domainName));
+  }
+
+  function aggregateDatabaseStatus(items) {
+    if (!items.length) return "unlinked";
+    if (items.some((item) => item.telegram_alert_eligible === true)) return "down";
+    if (items.some((item) => item.status === "degraded")) return "degraded";
+    if (items.some((item) => item.status === "down")) return "degraded";
+    if (items.every((item) => item.status === "healthy")) return "healthy";
+    return "unknown";
+  }
+
   function appendDomainRow(tbody, domain) {
     const row = createElement("tr", domain.domain === model.selectedDomain ? "is-selected" : "");
     row.tabIndex = 0;
@@ -350,6 +568,12 @@
     const note = domain.disabled_reason || [domain.label !== domain.domain ? domain.label : null, domain.environment].filter(Boolean).join(" · ");
     if (note) domainCell.append(createElement("span", "domain-note", note));
     addCell(row, "Domain", domainCell);
+    const databaseStatus = aggregateDatabaseStatus(databaseDependenciesForDomain(domain.domain));
+    addCell(row, "DB", createElement(
+      "span",
+      `database-state-pill ${statusClass(databaseStatus)}`,
+      databaseStatus === "unlinked" ? "—" : titleCase(databaseStatus)
+    ));
     addCell(row, "HTTP", formatMilliseconds(domain.last && domain.last.http_ms));
     addCell(row, "Browser", formatMilliseconds(domain.last && domain.last.browser_ms));
     addCell(row, "24h", formatPercent(domain.availability_24h && domain.availability_24h.ok_pct, 2));
@@ -378,7 +602,7 @@
     if (domains.length === 0) {
       const row = createElement("tr");
       const cell = createElement("td", "empty-state", query ? "No domains match this filter." : "No monitored domains were returned.");
-      cell.colSpan = 6;
+      cell.colSpan = 7;
       row.append(cell);
       tbody.append(row);
       return;
@@ -392,7 +616,7 @@
       const groupRow = createElement("tr", "domain-group-row");
       groupRow.dataset.group = group.id;
       const cell = createElement("td");
-      cell.colSpan = 6;
+      cell.colSpan = 7;
       const toggle = createElement("button", "domain-group-toggle");
       toggle.type = "button";
       toggle.setAttribute("aria-expanded", String(!collapsed));
@@ -518,6 +742,26 @@
     setStatusLabel(byId("selected-domain-status"), state.label, state.label.toLowerCase());
     byId("selected-domain-availability").textContent = formatPercent(domain.availability_24h && domain.availability_24h.ok_pct, 2);
     byId("selected-domain-latency").textContent = `HTTP ${formatMilliseconds(domain.latency_24h && domain.latency_24h.http_p95_ms)} · Browser ${formatMilliseconds(domain.latency_24h && domain.latency_24h.browser_p95_ms)}`;
+    const linkedDatabases = databaseDependenciesForDomain(domainName);
+    const databaseStatus = aggregateDatabaseStatus(linkedDatabases);
+    const databaseCard = byId("selected-domain-database");
+    databaseCard.className = `domain-database-card ${statusClass(databaseStatus)}`;
+    databaseCard.replaceChildren();
+    databaseCard.append(createElement("span", "domain-database-card__dot"));
+    const databaseCopy = createElement("div");
+    databaseCopy.append(createElement("strong", "", linkedDatabases.length
+      ? `${formatCount(linkedDatabases.length)} database ${linkedDatabases.length === 1 ? "path" : "paths"} · ${titleCase(databaseStatus)}`
+      : "No linked database dependency"));
+    databaseCopy.append(createElement("small", "", linkedDatabases.length
+      ? linkedDatabases.map((item) => `${item.affected_app}: ${titleCase(item.status)}`).join(" · ")
+      : "This service is not yet linked to a discovered database consumer."));
+    databaseCard.append(databaseCopy);
+    if (linkedDatabases.length) {
+      const databaseButton = createElement("button", "domain-database-card__link", "Inspect DB paths");
+      databaseButton.type = "button";
+      databaseButton.addEventListener("click", () => setActiveTab("databases", true));
+      databaseCard.append(databaseButton);
+    }
     byId("selected-domain-range").textContent = `Loading ${model.range} production history…`;
 
     const sequence = ++model.requestSequence;
@@ -663,6 +907,483 @@
     });
   }
 
+  function createMetricCard(label, value, detail, status = "healthy") {
+    const card = createElement("article", `metric-card ${statusClass(status)}`);
+    card.append(createElement("p", "metric-card__label", label));
+    card.append(createElement("strong", "metric-card__value", value));
+    card.append(createElement("p", "metric-card__detail", detail));
+    return card;
+  }
+
+  function thresholdStatus(value, threshold) {
+    const current = numberOrNull(value);
+    const maximum = numberOrNull(threshold);
+    if (current === null) return "unknown";
+    if (maximum !== null && current >= maximum) return "critical";
+    if (maximum !== null && current >= maximum * 0.85) return "attention";
+    return "healthy";
+  }
+
+  function renderInfrastructureChart(host) {
+    const svg = byId("chart-infrastructure");
+    const samples = host && Array.isArray(host.trend_24h) ? host.trend_24h : [];
+    const series = [
+      { key: "cpu_used_pct", color: "#08775e", label: "CPU" },
+      { key: "memory_used_pct", color: "#c0801b", label: "Memory" },
+      { key: "worst_disk_used_pct", color: "#a43d37", label: "Disk" },
+    ];
+    const paths = [];
+    if (!samples.length) {
+      chartEmpty(svg, "Host trend is not yet available");
+      return;
+    }
+    series.forEach(({ key, color, label }) => {
+      const points = samples
+        .map((sample, index) => {
+          const value = numberOrNull(sample[key]);
+          if (value === null) return null;
+          return [
+            samples.length === 1 ? 480 : 14 + (index / (samples.length - 1)) * 932,
+            145 - (Math.max(0, Math.min(100, value)) / 100) * 126,
+          ];
+        })
+        .filter(Boolean);
+      if (points.length) {
+        paths.push(createSvgElement("path", {
+          d: pointsPath(points),
+          fill: "none",
+          stroke: color,
+          "stroke-width": 2.5,
+          "stroke-linecap": "round",
+          "stroke-linejoin": "round",
+          "vector-effect": "non-scaling-stroke",
+          "aria-label": label,
+        }));
+      }
+    });
+    svg.replaceChildren(...paths);
+  }
+
+  function renderInfrastructure(summary) {
+    const infrastructure = summary.dashboards && summary.dashboards.infrastructure || {};
+    const host = infrastructure.host || {};
+    const containers = infrastructure.containers || {};
+    setStatusLabel(byId("infrastructure-status"), titleCase(infrastructure.status), infrastructure.status);
+    byId("infra-host-data-state").textContent = host.data_state === "available"
+      ? `Observed ${formatRelative(host.observed_at_ts, summary.generated_at_ts)}`
+      : `${titleCase(host.data_state)} · ${host.observed_at_ts ? formatRelative(host.observed_at_ts, summary.generated_at_ts) : "no snapshot"}`;
+    byId("infra-host-observed").textContent = host.observed_at_ts
+      ? `${formatCount((host.trend_24h || []).length)} retained points · latest ${formatRelative(host.observed_at_ts, summary.generated_at_ts)}`
+      : "No host observation";
+
+    const metrics = host.metrics || {};
+    const thresholds = host.thresholds || {};
+    const resourceGrid = byId("infra-resource-grid");
+    resourceGrid.replaceChildren(
+      createMetricCard("CPU used", formatPercent(metrics.cpu_used_pct, 1), `Warn at ${formatPercent(thresholds.cpu_used_pct, 0)}`, thresholdStatus(metrics.cpu_used_pct, thresholds.cpu_used_pct)),
+      createMetricCard("Memory used", formatPercent(metrics.memory_used_pct, 1), `Warn at ${formatPercent(thresholds.memory_used_pct, 0)}`, thresholdStatus(metrics.memory_used_pct, thresholds.memory_used_pct)),
+      createMetricCard("Swap used", formatPercent(metrics.swap_used_pct, 1), `Warn at ${formatPercent(thresholds.swap_used_pct, 0)}`, thresholdStatus(metrics.swap_used_pct, thresholds.swap_used_pct)),
+      createMetricCard("Load / CPU", numberOrNull(metrics.load1_per_cpu) === null ? "—" : Number(metrics.load1_per_cpu).toFixed(2), `${formatCount(metrics.cpu_count)} logical CPUs · warn at ${numberOrNull(thresholds.load1_per_cpu) === null ? "—" : Number(thresholds.load1_per_cpu).toFixed(2)}`, thresholdStatus(metrics.load1_per_cpu, thresholds.load1_per_cpu)),
+    );
+    renderInfrastructureChart(host);
+
+    const disks = Array.isArray(host.disks) ? host.disks : [];
+    const diskList = byId("infra-disk-list");
+    diskList.replaceChildren();
+    if (!disks.length) {
+      diskList.append(createElement("p", "empty-state", "Disk capacity is not present in the latest host snapshot."));
+    } else {
+      disks.forEach((disk) => {
+        const row = createElement("article", `disk-row ${statusClass(thresholdStatus(disk.used_percent, thresholds.disk_used_pct))}`);
+        const copy = createElement("div", "disk-row__copy");
+        copy.append(createElement("strong", "", disk.path || "Unnamed mount"));
+        copy.append(createElement("small", "", `${formatBytes(disk.used_bytes)} used · ${formatBytes(disk.free_bytes)} free · ${formatBytes(disk.total_bytes)} total`));
+        row.append(copy);
+        const meter = createElement("div", "capacity-meter");
+        const fill = createElement("span", "capacity-meter__fill");
+        fill.style.width = `${Math.max(0, Math.min(100, numberOrNull(disk.used_percent) || 0))}%`;
+        meter.append(fill);
+        row.append(meter);
+        row.append(createElement("strong", "disk-row__value", formatPercent(disk.used_percent, 1)));
+        diskList.append(row);
+      });
+    }
+
+    const counts = containers.counts || {};
+    byId("container-count").textContent = formatCount(counts.total);
+    byId("infra-container-data-state").textContent = containers.data_state === "available"
+      ? `${formatCount(counts.healthy)} healthy · ${formatCount(counts.degraded)} degraded · collected ${formatRelative(containers.observed_at_ts, summary.generated_at_ts)}`
+      : containers.data_state === "summary_only"
+        ? `${formatCount(counts.total)} tracked · ${formatCount(containers.restart_total)} cumulative restarts · health pass ${formatRelative(containers.observed_at_ts, summary.generated_at_ts)}`
+        : `${titleCase(containers.data_state)} · ${containers.observed_at_ts ? `last collected ${formatRelative(containers.observed_at_ts, summary.generated_at_ts)}` : "no retained container inventory"}`;
+    const containerList = byId("container-list");
+    containerList.replaceChildren();
+    const items = Array.isArray(containers.items) ? containers.items : [];
+    if (!items.length) {
+      containerList.append(createElement("p", "empty-state", counts.total
+        ? "The existing health pass retains aggregate restart counters and overall health, but not per-container state. Detailed rows are explicitly unavailable; the dashboard adds no Docker probe."
+        : "No retained container inventory or restart counters are available. The dashboard adds no Docker probe."));
+    } else {
+      items.forEach((container) => {
+        const row = createElement("article", `container-row ${statusClass(container.status)}`);
+        const heading = createElement("div", "container-row__heading");
+        heading.append(createElement("strong", "", container.name));
+        heading.append(createElement("span", `status-label ${statusClass(container.status)}`, titleCase(container.status)));
+        row.append(heading);
+        const facts = createElement("dl", "container-row__facts");
+        appendIncidentField(facts, "Docker state", container.docker_status || (container.running ? "Running" : "Unavailable"));
+        appendIncidentField(facts, "Health", titleCase(container.health_status || "not reported"));
+        appendIncidentField(facts, "Restarts", `${formatCount(container.restart_count)} total${numberOrNull(container.restart_increase) ? ` · +${formatCount(container.restart_increase)} this pass` : ""}`);
+        appendIncidentField(facts, "Exit / OOM", `${numberOrNull(container.exit_code) === null ? "No exit code" : `Exit ${container.exit_code}`} · ${container.oom_killed ? "OOM killed" : "No OOM flag"}`);
+        row.append(facts);
+        if (container.error) row.append(createElement("p", "container-row__error", container.error));
+        containerList.append(row);
+      });
+    }
+  }
+
+  function renderMiniTrend(points) {
+    const wrapper = createElement("div", "availability-strip");
+    (Array.isArray(points) ? points : []).forEach((point) => {
+      const value = numberOrNull(point.availability_pct);
+      const segment = createElement("span", "availability-strip__point");
+      segment.classList.add(value === null ? "is-missing" : value >= 99.9 ? "is-healthy" : value >= 99 ? "is-attention" : "is-critical");
+      segment.title = value === null ? "No observations" : `${formatPercent(value, 3)} availability`;
+      wrapper.append(segment);
+    });
+    return wrapper;
+  }
+
+  function renderReliability(summary) {
+    const reliability = summary.dashboards && summary.dashboards.reliability || {};
+    const routing = reliability.routing || {};
+    const groups = Array.isArray(reliability.groups) ? reliability.groups : [];
+    setStatusLabel(byId("reliability-status"), titleCase(reliability.status), reliability.status);
+    byId("reliability-target").textContent = numberOrNull(reliability.slo_target_pct) === null
+      ? "SLO target unavailable"
+      : `Default target ${formatPercent(reliability.slo_target_pct, 3)}`;
+    const totalObservations = groups.reduce((sum, group) => sum + (numberOrNull(group.observations_24h) || 0), 0);
+    const exhausted = groups.filter((group) => {
+      const remaining = numberOrNull(group.error_budget_remaining_pct);
+      return remaining !== null && remaining <= 0 && numberOrNull(group.observations_24h);
+    }).length;
+    byId("reliability-summary").replaceChildren(
+      createMetricCard("Service groups", formatCount(groups.length), `${formatCount(totalObservations)} observations in 24 hours`, groups.length ? "healthy" : "unknown"),
+      createMetricCard("Budgets exhausted", formatCount(exhausted), exhausted ? "Immediate reliability attention" : "No exhausted group budgets", exhausted ? "critical" : "healthy"),
+      createMetricCard("Telegram alertable", formatCount(routing.telegram_alertable), `${formatCount(routing.enabled_services)} enabled services`, "healthy"),
+      createMetricCard("Dashboard only", formatCount(routing.dashboard_only), "Explicitly suppressed from Telegram", routing.dashboard_only ? "attention" : "healthy"),
+    );
+
+    const groupList = byId("reliability-groups");
+    groupList.replaceChildren();
+    if (!groups.length) {
+      groupList.append(createElement("p", "empty-state", "No configured service groups were available."));
+    } else {
+      groups.forEach((group) => {
+        const row = createElement("article", `reliability-row ${statusClass(group.status)}`);
+        const heading = createElement("div", "reliability-row__heading");
+        const copy = createElement("div");
+        copy.append(createElement("strong", "", group.label || group.id));
+        copy.append(createElement("small", "", `${formatCount(group.healthy)}/${formatCount(group.services)} currently healthy · ${formatCount(group.alertable_down)} alertable · ${formatCount(group.expected_down)} dashboard only`));
+        heading.append(copy);
+        heading.append(createElement("span", `status-label ${statusClass(group.status)}`, titleCase(group.status)));
+        row.append(heading);
+        const measures = createElement("div", "reliability-row__measures");
+        measures.append(createMetricCard("Availability", formatPercent(group.availability_24h_pct, 3), `${formatCount(group.observations_24h)} observations`, group.status));
+        const budgetRemaining = numberOrNull(group.error_budget_remaining_pct);
+        measures.append(createMetricCard("Budget remaining", formatPercent(group.error_budget_remaining_pct, 1), budgetRemaining === null ? "SLO target unavailable" : `${formatPercent(group.error_budget_consumed_pct, 1)} consumed`, budgetRemaining === null ? "unknown" : budgetRemaining <= 0 ? "critical" : "healthy"));
+        measures.append(createMetricCard("HTTP p95", formatMilliseconds(group.http_p95_ms), `Browser ${formatMilliseconds(group.browser_p95_ms)}`, "healthy"));
+        row.append(measures);
+        const budget = createElement("div", "budget-meter");
+        const budgetFill = createElement("span", "budget-meter__fill");
+        budgetFill.style.width = `${Math.max(0, Math.min(100, budgetRemaining === null ? 0 : budgetRemaining))}%`;
+        budget.classList.toggle("is-missing", budgetRemaining === null);
+        budget.append(budgetFill);
+        row.append(budget, renderMiniTrend(group.trend_24h));
+        groupList.append(row);
+      });
+    }
+
+    const events = Array.isArray(reliability.event_history) ? reliability.event_history : [];
+    const eventList = byId("reliability-events");
+    eventList.replaceChildren();
+    if (!events.length) {
+      eventList.append(createElement("p", "empty-state", "No incident or recovery transitions were retained in the last seven days."));
+    } else {
+      events.slice(0, 20).forEach((event) => {
+        const row = createElement("article", `reliability-event is-${event.state || "event"}`);
+        const copy = createElement("div");
+        copy.append(createElement("span", "event__kind", titleCase(event.kind)));
+        copy.append(createElement("strong", "", event.domain || event.owner_project || "Global monitor"));
+        copy.append(createElement("p", "", event.detail || event.owner_project || "Monitor state transition"));
+        row.append(copy, createElement("time", "", formatRelative(event.observed_at_ts, summary.generated_at_ts)));
+        eventList.append(row);
+      });
+    }
+
+    const routingList = byId("routing-summary");
+    routingList.replaceChildren();
+    routingList.append(
+      createMetricCard("Critical route", formatCount(routing.telegram_alertable), `${routing.channel || "Telegram"} receives debounced actionable failures`, "healthy"),
+      createMetricCard("Suppressed route", formatCount(routing.dashboard_only), "Still visible here; never promoted to Telegram by policy", routing.dashboard_only ? "attention" : "healthy"),
+      createElement("p", "routing-note", "Routing counts are computed from the same domain policy used by the alert sender. Viewing this tab does not run checks or change suppression."),
+    );
+  }
+
+  function journeyStatusLabel(status) {
+    return ({ healthy: "Healthy", failing: "Failing", stale: "Stale", infra_degraded: "Infra degraded", never_run: "Never run", disabled: "Disabled", unknown: "Unavailable" })[status] || titleCase(status);
+  }
+
+  function renderJourneys(summary) {
+    const journeys = summary.dashboards && summary.dashboards.journeys || {};
+    const items = Array.isArray(journeys.items) ? journeys.items : [];
+    setStatusLabel(byId("journeys-status"), titleCase(journeys.status), journeys.status);
+    byId("journey-count").textContent = formatCount(items.length);
+    byId("journey-summary").replaceChildren(
+      createMetricCard("Enabled", formatCount(journeys.total), `${formatCount(journeys.disabled)} disabled`, "healthy"),
+      createMetricCard("Passing", formatCount(journeys.passing), "Fresh effective journey successes", "healthy"),
+      createMetricCard("Attention", formatCount((numberOrNull(journeys.failing) || 0) + (numberOrNull(journeys.stale) || 0) + (numberOrNull(journeys.infra_degraded) || 0) + (numberOrNull(journeys.never_run) || 0) + (numberOrNull(journeys.unknown) || 0)), `${formatCount(journeys.failing)} failing · ${formatCount(journeys.stale)} stale · ${formatCount(journeys.unknown)} unavailable`, journeys.status === "attention" ? "critical" : "healthy"),
+      createMetricCard("Latest run", journeys.latest_run_at_ts ? formatRelative(journeys.latest_run_at_ts, summary.generated_at_ts) : "Unavailable", journeys.data_state === "available" ? "Registry-backed schedule" : titleCase(journeys.data_state), journeys.data_state === "available" ? "healthy" : "unknown"),
+    );
+
+    const list = byId("journey-list");
+    list.replaceChildren();
+    if (!items.length) {
+      list.append(createElement("p", "empty-state", journeys.data_state === "unavailable"
+        ? "The E2E registry is unavailable; journey state cannot be inferred."
+        : "No E2E journeys are registered."));
+      return;
+    }
+    const activeIds = new Set(items.map((item, index) => item.test_id || `journey-${index}`));
+    [...model.expandedJourneys].forEach((id) => { if (!activeIds.has(id)) model.expandedJourneys.delete(id); });
+    items.forEach((journey, index) => {
+      const id = journey.test_id || `journey-${index}`;
+      const panelId = `journey-details-${index}`;
+      const expanded = model.expandedJourneys.has(id);
+      const row = createElement("article", `journey-row ${statusClass(journey.status)}${expanded ? " is-expanded" : ""}`);
+      row.dataset.journeyId = id;
+      const toggle = createElement("button", "journey-row__toggle");
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", String(expanded));
+      toggle.setAttribute("aria-controls", panelId);
+      const copy = createElement("span", "journey-row__copy");
+      copy.append(createElement("strong", "", journey.test_name));
+      copy.append(createElement("small", "", `${journey.owner_project || "Owner unavailable"} · ${journey.base_url || "Target unavailable"}`));
+      toggle.append(copy);
+      toggle.append(createElement("span", `status-label ${statusClass(journey.status)}`, journeyStatusLabel(journey.status)));
+      const chevron = createSvgElement("svg", { viewBox: "0 0 20 20", "aria-hidden": "true" });
+      chevron.classList.add("incident__chevron");
+      chevron.append(createSvgElement("path", { d: "m5 7.5 5 5 5-5" }));
+      toggle.append(chevron);
+      row.append(toggle);
+      const details = createElement("div", "journey-row__details");
+      details.id = panelId;
+      details.hidden = !expanded;
+      const facts = createElement("dl", "journey-detail-grid");
+      appendIncidentField(facts, "Current status", journeyStatusLabel(journey.status));
+      appendIncidentField(facts, "Kind / interval", numberOrNull(journey.interval_seconds) === null
+        ? `${titleCase(journey.test_kind)} · schedule unavailable`
+        : `${titleCase(journey.test_kind)} · every ${formatDuration(journey.interval_seconds)}`);
+      appendIncidentField(facts, "Last run", journey.last_finished_at_ts ? `${formatDateTime(journey.last_finished_at_ts)} · ${formatMilliseconds(journey.last_elapsed_ms)}` : "Never completed");
+      appendIncidentField(facts, "Last success", journey.last_ok_ts ? formatDateTime(journey.last_ok_ts) : "Not retained");
+      appendIncidentField(facts, "Last failure", journey.last_fail_ts ? formatDateTime(journey.last_fail_ts) : "None retained");
+      appendIncidentField(facts, "Streak", `${formatCount(journey.success_streak)} success · ${formatCount(journey.fail_streak)} fail`);
+      appendIncidentField(facts, "Next due", journey.next_due_ts ? formatDateTime(journey.next_due_ts) : "Scheduler time unavailable");
+      appendIncidentField(facts, "Investigation", journey.investigation ? `${titleCase(journey.investigation.state)} · started ${formatRelative(journey.investigation.started_at_ts, summary.generated_at_ts)}` : "No active investigation retained");
+      details.append(facts);
+      const href = journey.investigation && safeDispatcherUrl(journey.investigation.url);
+      if (href) {
+        const link = createElement("a", "journey-investigation-link", "Open investigation");
+        link.href = href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        details.append(link);
+      }
+      row.append(details);
+      toggle.addEventListener("click", () => {
+        if (model.expandedJourneys.has(id)) model.expandedJourneys.delete(id);
+        else model.expandedJourneys.add(id);
+        renderJourneys(summary);
+        const next = list.querySelector(`[data-journey-id="${CSS.escape(id)}"] .journey-row__toggle`);
+        if (next) next.focus({ preventScroll: true });
+      });
+      list.append(row);
+    });
+  }
+
+  function databaseMatchesQuery(item, query) {
+    if (!query) return true;
+    const fields = [
+      item.affected_app,
+      item.container,
+      item.database_dependency,
+      item.owner_project,
+      item.failure_class,
+      item.credential_state,
+      item.credential_source,
+      item.status,
+      item.traffic_state,
+      item.traffic_slot,
+      item.routing_error,
+      item.telegram_suppression_reason,
+      ...(Array.isArray(item.domains) ? item.domains : []),
+    ];
+    return fields.some((value) => String(value || "").toLowerCase().includes(query));
+  }
+
+  function databaseSortValue(item) {
+    if (item.telegram_alert_eligible) return -10;
+    const severity = ({ down: 0, degraded: 1, healthy: 2 })[item.status] ?? 3;
+    const route = ({ active: 0, unknown: 1, inactive: 2 })[item.traffic_state] ?? 3;
+    return severity * 100 + route * 10 + (item.critical ? 0 : 1);
+  }
+
+  function databaseRouteLabel(item) {
+    const state = titleCase(item.traffic_state || "unknown");
+    const slot = item.traffic_slot ? `${titleCase(item.traffic_slot)} slot` : "Singleton route";
+    const weight = numberOrNull(item.traffic_weight);
+    const traffic = weight === null ? "weight unavailable" : `${weight}% traffic`;
+    return `${state} · ${slot} · ${traffic}`;
+  }
+
+  function databaseAlertLabel(item) {
+    if (item.telegram_alert_eligible) return "Telegram incident open";
+    if (item.telegram_alert_enabled) return "Telegram armed · active critical route";
+    return `Dashboard only · ${titleCase(item.telegram_suppression_reason || "policy suppressed")}`;
+  }
+
+  function appendDatabaseDomainLinks(container, domains) {
+    const linked = Array.isArray(domains) ? domains : [];
+    if (!linked.length) {
+      container.append(createElement("span", "database-domain-link is-unlinked", "No public route linked"));
+      return;
+    }
+    linked.forEach((domain) => {
+      const button = createElement("button", "database-domain-link", domain);
+      button.type = "button";
+      button.addEventListener("click", () => {
+        setActiveTab("domains", true);
+        void selectDomain(domain);
+      });
+      container.append(button);
+    });
+  }
+
+  function renderDatabaseRow(item, summary) {
+    const row = createElement("article", `database-dependency-row ${statusClass(item.status)}`);
+    const heading = createElement("div", "database-dependency-row__heading");
+    const copy = createElement("div", "database-dependency-row__copy");
+    const title = createElement("div", "database-dependency-row__title");
+    title.append(createElement("strong", "", item.affected_app || "Unassigned app"));
+    if (item.critical) title.append(createElement("span", "critical-production-tag", "Critical production"));
+    if (item.traffic_state === "inactive") title.append(createElement("span", "standby-route-tag", "Standby · 0% traffic"));
+    if (item.traffic_state === "unknown") title.append(createElement("span", "routing-unknown-tag", "Routing unknown"));
+    copy.append(title);
+    copy.append(createElement("small", "", `${item.database_dependency || "Database not named"} · ${item.container || "Container unavailable"}`));
+    heading.append(copy);
+    heading.append(createElement("span", `status-label ${statusClass(item.status)}`, titleCase(item.status)));
+    row.append(heading);
+
+    const facts = createElement("dl", "database-dependency-facts");
+    appendIncidentField(facts, "Last success", item.last_success_at_ts
+      ? `${formatDateTime(item.last_success_at_ts)} · ${formatMilliseconds(item.last_success_latency_ms)}`
+      : "No successful probe retained");
+    appendIncidentField(facts, "Last failure", item.last_failure_at_ts
+      ? `${formatDateTime(item.last_failure_at_ts)} · ${titleCase(item.last_failure_class)} · ${formatMilliseconds(item.last_failure_latency_ms)}`
+      : "No failure retained");
+    appendIncidentField(facts, "Failure started", item.failure_started_at_ts
+      ? `${formatDateTime(item.failure_started_at_ts)} · ${formatRelative(item.failure_started_at_ts, summary.generated_at_ts)}`
+      : "No active failure");
+    appendIncidentField(facts, "Current failure class", item.failure_class ? titleCase(item.failure_class) : "None");
+    appendIncidentField(facts, "Credential state", titleCase(item.credential_state || "current or unproven"));
+    appendIncidentField(facts, "Credential source", titleCase(item.credential_source || "unavailable"));
+    appendIncidentField(facts, "Owner / project", item.owner_project || "Ownership review required");
+    appendIncidentField(facts, "Production route", databaseRouteLabel(item));
+    appendIncidentField(facts, "Alert route", databaseAlertLabel(item));
+    row.append(facts);
+
+    const support = createElement("div", "database-dependency-support");
+    const coverage = createElement("div");
+    coverage.append(createElement("p", "section-kicker", "Probe coverage"));
+    coverage.append(createElement("p", "", Array.isArray(item.coverage) && item.coverage.length
+      ? item.coverage.join(" · ")
+      : "Coverage contract unavailable"));
+    support.append(coverage);
+    const routeLinks = createElement("div", "database-domain-links");
+    routeLinks.append(createElement("p", "section-kicker", "Related service health"));
+    appendDatabaseDomainLinks(routeLinks, item.domains);
+    support.append(routeLinks);
+    row.append(support);
+
+    if (item.sanitized_error_excerpt) {
+      const evidence = createElement("div", "database-failure-evidence");
+      evidence.append(createElement("p", "section-kicker", "Sanitized failure evidence"));
+      evidence.append(createElement("p", "", item.sanitized_error_excerpt));
+      row.append(evidence);
+    }
+    const action = createElement("div", "database-fix-path");
+    action.append(createElement("span", "database-fix-path__index", "FIX"));
+    const actionCopy = createElement("div");
+    actionCopy.append(createElement("p", "section-kicker", "Likely fix path"));
+    actionCopy.append(createElement("strong", "", item.likely_fix_path || "Inspect the app's runtime database route and grants."));
+    action.append(actionCopy);
+    row.append(action);
+    const observed = createElement("time", "database-dependency-row__observed", `Observed ${formatRelative(item.observed_at_ts, summary.generated_at_ts)}`);
+    if (item.observed_at_ts) observed.dateTime = new Date(Number(item.observed_at_ts) * 1000).toISOString();
+    row.append(observed);
+    return row;
+  }
+
+  function renderDatabases(summary) {
+    const databases = summary.dashboards && summary.dashboards.databases || {};
+    const allItems = Array.isArray(databases.items) ? databases.items : [];
+    const query = byId("database-filter").value.trim().toLowerCase();
+    const items = allItems
+      .filter((item) => databaseMatchesQuery(item, query))
+      .sort((left, right) => databaseSortValue(left) - databaseSortValue(right)
+        || String(left.affected_app || "").localeCompare(String(right.affected_app || "")));
+    setStatusLabel(byId("databases-status"), titleCase(databases.status), databases.status);
+    byId("database-summary").replaceChildren(
+      createMetricCard("Dependencies", formatCount(databases.total), `${formatCount(databases.healthy)} healthy`, databases.total ? "healthy" : "unknown"),
+      createMetricCard("Attention", formatCount(databases.degraded), `${formatCount(databases.standby_degraded)} standby · ${formatCount(databases.down)} down`, databases.degraded ? "attention" : "healthy"),
+      createMetricCard("Alertable down", formatCount(databases.alertable_down), `${formatCount(databases.open_alert_groups)} open alert groups`, databases.alertable_down ? "critical" : "healthy"),
+      createMetricCard("Collector state", titleCase(databases.data_state), databases.generated_at_ts
+        ? `${databases.collector_error_class ? `${titleCase(databases.collector_error_class)} · ` : ""}updated ${formatRelative(databases.generated_at_ts, summary.generated_at_ts)}`
+        : "No state file yet", databases.data_state === "live" ? "healthy" : "unknown"),
+    );
+    const list = byId("database-dependency-list");
+    list.replaceChildren();
+    if (!items.length) {
+      const message = query
+        ? "No database dependencies match this filter."
+        : ({
+          missing: "The database sidecar has not written its first compact state file yet.",
+          invalid: "The database state file is invalid; inspect the collector contract.",
+          unreadable: "The database state file is unreadable; inspect the state-volume boundary.",
+        })[databases.data_state] || "No database-backed production app containers were discovered.";
+      list.append(createElement("p", "empty-state", message));
+      return;
+    }
+    items.forEach((item) => list.append(renderDatabaseRow(item, summary)));
+  }
+
+  function setActiveTab(name, focus = false) {
+    const tabs = [...document.querySelectorAll("[data-dashboard-tab]")];
+    if (!tabs.some((tab) => tab.dataset.dashboardTab === name)) return;
+    model.activeTab = name;
+    tabs.forEach((tab) => {
+      const selected = tab.dataset.dashboardTab === name;
+      tab.classList.toggle("is-active", selected);
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      if (selected && focus) tab.focus();
+    });
+    document.querySelectorAll("[data-dashboard-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.dashboardPanel !== name;
+    });
+    window.history.replaceState(null, "", `#${name}`);
+  }
+
   function renderSummary(summary) {
     model.summary = summary;
     renderPosture(summary);
@@ -672,6 +1393,10 @@
     renderSignals(summary);
     renderEvents(summary);
     renderDiagnostics(summary);
+    renderInfrastructure(summary);
+    renderReliability(summary);
+    renderJourneys(summary);
+    renderDatabases(summary);
     byId("loaded-at").textContent = formatDateTime(summary.loaded_at_ts);
 
     const domains = Array.isArray(summary.domains) ? summary.domains : [];
@@ -726,6 +1451,26 @@
     byId("domain-filter").addEventListener("input", () => {
       if (model.summary) renderDomains(model.summary);
     });
+    byId("database-filter").addEventListener("input", () => {
+      if (model.summary) renderDatabases(model.summary);
+    });
+    const tabs = [...document.querySelectorAll("[data-dashboard-tab]")];
+    const requestedTab = window.location.hash.replace(/^#/, "");
+    if (tabs.some((tab) => tab.dataset.dashboardTab === requestedTab)) model.activeTab = requestedTab;
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => setActiveTab(tab.dataset.dashboardTab, false));
+      tab.addEventListener("keydown", (event) => {
+        let nextIndex = null;
+        if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+        if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+        if (event.key === "Home") nextIndex = 0;
+        if (event.key === "End") nextIndex = tabs.length - 1;
+        if (nextIndex === null) return;
+        event.preventDefault();
+        setActiveTab(tabs[nextIndex].dataset.dashboardTab, true);
+      });
+    });
+    setActiveTab(model.activeTab);
     loadDashboard();
   });
 })();

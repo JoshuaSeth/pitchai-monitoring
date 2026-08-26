@@ -1,0 +1,23 @@
+{% macro operator_chrome(shared, active_tab) -%}
+<header class="flex items-center justify-between">
+  <div class="flex items-center gap-4">
+    <div class="grid h-11 w-11 place-items-center rounded-[13px] bg-[#10271d] text-[14px] font-black tracking-[-0.04em] text-[#b9ff75]">PA</div>
+    <div>
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#648072]">PitchAI operations</p>
+      <p class="text-[19px] font-semibold tracking-[-0.02em] text-[#10271d]">Production monitoring</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-3 text-[12px] font-semibold text-[#4d695b]">
+    <span class="rounded-full border border-[#c9ddd1] bg-white px-3 py-2">{{ shared.environment }}</span>
+    <span>{{ shared.generated_at }}</span>
+  </div>
+</header>
+<nav class="mt-7 flex items-end gap-1 border-b border-[#cdded3]" aria-label="Monitoring views">
+  {% for tab in shared.tabs %}
+    <span class="relative px-5 py-3 text-[13px] font-bold {{ 'text-[#0b654f]' if tab == active_tab else 'text-[#667b70]' }}">
+      {{ tab }}
+      {% if tab == active_tab %}<span class="absolute inset-x-3 -bottom-px h-[3px] rounded-t bg-[#62bf45]"></span>{% endif %}
+    </span>
+  {% endfor %}
+</nav>
+{%- endmacro %}

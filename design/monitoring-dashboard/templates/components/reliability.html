@@ -1,0 +1,40 @@
+{% from "components/primitives.html" import status_label, bar_sparkline %}
+{% macro reliability_workspace(scenario) -%}
+<section class="grid grid-cols-[minmax(0,1.4fr)_minmax(310px,0.65fr)]">
+  <div class="border-r border-[#dbe7df] px-8 py-7">
+    <div class="flex items-end justify-between gap-8">
+      <div>
+        <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#587064]">Service-group SLOs</p>
+        <p class="mt-1 text-[12px] text-[#71837a]">Availability and p95 latency from retained effective samples</p>
+      </div>
+      <div class="w-[330px]">{{ bar_sparkline(scenario.trend, 'green') }}</div>
+    </div>
+    <div class="mt-7 overflow-hidden rounded-[14px] border border-[#d7e3db]">
+      <div class="grid grid-cols-[1.25fr_.6fr_.85fr_1fr_.75fr_.7fr_.35fr] bg-[#f4f8f5] px-5 py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#6e8177]">
+        <span>Group</span><span>Services</span><span>Availability</span><span>Error budget</span><span>HTTP p95</span><span>Incidents</span><span></span>
+      </div>
+      {% for group in scenario.groups %}
+        <div class="grid grid-cols-[1.25fr_.6fr_.85fr_1fr_.75fr_.7fr_.35fr] items-center border-t border-[#e1e9e4] px-5 py-4 text-[12px] text-[#31493d]">
+          <strong>{{ group.group }}</strong><span>{{ group.services }}</span><span class="font-semibold">{{ group.availability }}</span><span>{{ group.budget }}</span><span>{{ group.p95 }}</span><span>{{ group.incidents }}</span><span class="justify-self-end">{{ status_label(group.status) }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  <aside class="bg-[#f9fcfa] px-7 py-7">
+    <div class="flex items-center justify-between">
+      <div><p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#6b7e74]">Incident history</p><p class="mt-1 text-[11px] text-[#7b8b83]">Problem and recovery transitions · 7d</p></div>
+      <span class="text-[11px] font-bold text-[#49675a]">Newest first</span>
+    </div>
+    <ol class="mt-6">
+      {% for event in scenario.history %}
+        <li class="relative border-l border-[#cfddd5] pb-6 pl-5 last:pb-0">
+          <span class="absolute -left-[5px] top-1 h-[9px] w-[9px] rounded-full {{ 'bg-[#c23b35]' if event.status == 'problem' else 'bg-[#c18c25]' if event.status == 'expected' else 'bg-[#5aba40]' }}"></span>
+          <div class="flex items-center justify-between gap-3"><strong class="text-[12px] text-[#263e33]">{{ event.kind }}</strong>{{ status_label(event.status) }}</div>
+          <p class="mt-1.5 text-[11px] font-semibold text-[#536b5f]">{{ event.target }}</p>
+          <p class="mt-1 text-[10px] text-[#7b8b83]">{{ event.time }} UTC · {{ event.owner }}</p>
+        </li>
+      {% endfor %}
+    </ol>
+  </aside>
+</section>
+{%- endmacro %}

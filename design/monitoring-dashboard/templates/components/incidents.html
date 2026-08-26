@@ -1,0 +1,58 @@
+{% from "components/primitives.html" import status_label, fact %}
+{% macro incident_workspace(incidents, selected_id) -%}
+<section class="grid grid-cols-[minmax(0,0.92fr)_minmax(0,1.35fr)]">
+  <div class="border-r border-[#dbe7df]">
+    <div class="flex items-center justify-between border-b border-[#e3ebe6] px-8 py-5">
+      <div>
+        <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#587064]">Incident queue</p>
+        <p class="mt-1 text-[12px] text-[#71837a]">Enter or Space opens details</p>
+      </div>
+      <span class="text-[11px] font-bold text-[#7a8c83]">{{ incidents|length }} open</span>
+    </div>
+    {% for incident in incidents %}
+      <article class="border-b border-[#e3ebe6] px-8 py-6 {{ 'bg-[#f7fbf8]' if incident.id == selected_id else 'bg-white' }}">
+        <div class="flex items-center justify-between gap-4">
+          {{ status_label(incident.severity) }}
+          <span class="text-[11px] font-semibold text-[#7b8a82]">{{ incident.latest_seen }}</span>
+        </div>
+        <h2 class="mt-3 text-[15px] font-semibold leading-5 text-[#1c3328]">{{ incident.title }}</h2>
+        <p class="mt-1.5 text-[11px] leading-5 text-[#687c71]">{{ incident.summary }}</p>
+        <div class="mt-4 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#557166]">
+          <span>{{ 'Expanded' if incident.id == selected_id else 'View details' }}</span>
+          <span aria-hidden="true">{{ '↑' if incident.id == selected_id else '↓' }}</span>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+  {% for incident in incidents if incident.id == selected_id %}
+    <article class="px-9 py-7">
+      <div class="flex items-start justify-between gap-8">
+        <div>
+          <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#6c8075]">Active inspection</p>
+          <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.025em] text-[#163025]">{{ incident.title }}</h2>
+        </div>
+        {{ status_label(incident.severity, incident.status) }}
+      </div>
+      <dl class="mt-7 grid grid-cols-3 gap-x-7 gap-y-6 border-y border-[#dbe7df] py-6">
+        {{ fact('Affected check', incident.check) }}
+        {{ fact('Service / project', incident.service ~ ' · ' ~ incident.owner) }}
+        {{ fact('Error / status code', incident.code) }}
+        {{ fact('First seen', incident.first_seen) }}
+        {{ fact('Latest seen', incident.latest_seen) }}
+        {{ fact('Last successful sample', incident.last_success) }}
+        {{ fact('Trend', incident.trend) }}
+        {{ fact('Severity / alert policy', incident.policy) }}
+        {{ fact('Environment', 'Production') }}
+      </dl>
+      <div class="mt-6 border-l-[3px] border-[#d3a138] bg-[#fffaf0] px-5 py-4">
+        <p class="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#8a6617]">Safe failure evidence</p>
+        <p class="mt-2 font-mono text-[11px] leading-5 text-[#5f4a18]">{{ incident.evidence }}</p>
+      </div>
+      <div class="mt-6 border-l-[3px] border-[#62bf45] pl-5">
+        <p class="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#3b6a34]">Suggested next action</p>
+        <p class="mt-2 text-[13px] font-medium leading-6 text-[#294236]">{{ incident.action }}</p>
+      </div>
+    </article>
+  {% endfor %}
+</section>
+{%- endmacro %}

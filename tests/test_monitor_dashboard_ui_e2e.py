@@ -4,7 +4,10 @@ import json
 import socket
 import threading
 import time
+from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 import httpx
 import pytest
@@ -13,10 +16,21 @@ import yaml
 from playwright.async_api import async_playwright
 
 from domain_checks.common_check import find_chromium_executable
+from domain_checks.json_types import json_object
 from domain_checks.main import load_config
 from e2e_registry.app import create_app
 from e2e_registry.monitor_dashboard import MonitorData, build_dashboard_summary
 from e2e_registry.settings import RegistrySettings
+from monitoring_test_support.dashboard_tabs import build_actionable_dashboard_summary
+
+if TYPE_CHECKING:
+    from playwright.async_api import Locator, Page, Route
+
+    from domain_checks.json_types import JsonInput, JsonObject
+
+_EXPECTED_INCIDENT_COUNT = 2
+_EXPECTED_TAB_COUNT = 5
+_HTTP_OK = 200
 
 
 def _pick_free_port() -> int:
@@ -406,7 +420,7 @@ async def test_dashboard_renders_the_complete_production_inventory(
         e2e_status_summary=None,
         e2e_dispatch_runs=[],
     )
-    assert summary["inventory"]["active_domains"] == 58
+    assert summary["inventory"]["active_domains"] == 60
     assert summary["inventory"]["groups"] == 14
 
     async with async_playwright() as playwright:
@@ -447,9 +461,9 @@ async def test_dashboard_renders_the_complete_production_inventory(
         await page.route("**/dashboard/api/v1/monitoring/**", serve_monitor_data)
         try:
             await page.goto(f"{dashboard_server['base_url']}/dashboard")
-            await page.wait_for_function("document.querySelector('#kpi-services').textContent === '57/58'")
+            await page.wait_for_function("document.querySelector('#kpi-services').textContent === '59/60'")
             assert await page.locator("[data-testid=dash-domain-groups] button").count() == 15
-            assert "58 monitored domains" in await page.locator("#domain-inventory-note").inner_text()
+            assert "60 monitored domains" in await page.locator("#domain-inventory-note").inner_text()
             assert "1 expected" in await page.locator("#kpi-services-detail").inner_text()
 
             await page.locator("[data-testid=dash-domain-filter]").fill("AgentCloud")
@@ -493,6 +507,173 @@ async def test_dashboard_renders_the_complete_production_inventory(
             assert console_errors == []
             assert page_errors == []
             assert failed_requests == []
+        finally:
+            await context.close()
+            await browser.close()
+
+
+@dataclass
+class _BrowserReceipts:
+    console_errors: list[str] = field(default_factory=list)
+    page_errors: list[str] = field(default_factory=list)
+    failed_requests: list[str] = field(default_factory=list)
+
+
+async def _serve_actionable_monitor_data(summary: JsonObject, route: Route) -> None:
+    if "/monitoring/summary" in route.request.url:
+        await route.fulfill(json=summary)
+        return
+    await route.fulfill(
+        json={
+            "ok": True,
+            "domain": "a.example",
+            "samples": [
+                {"ts": 1_777_000_000.0, "ok": True, "http_ms": 110.0, "browser_ms": 400.0},
+                {"ts": 1_777_000_060.0, "ok": False, "http_ms": 42.1, "browser_ms": None},
+            ],
+        },
+    )
+
+
+async def _require_actionable_text(locator: Locator, expected: str) -> None:
+    rendered = await locator.inner_text()
+    if expected.casefold() not in rendered.casefold():
+        pytest.fail(f"missing rendered dashboard text {expected!r}: {rendered!r}")
+
+
+async def _verify_incident_disclosures(page: Page) -> None:
+    incident_toggles = page.locator("[data-testid=dash-incidents] .incident__toggle")
+    if await incident_toggles.count() != _EXPECTED_INCIDENT_COUNT:
+        pytest.fail("domain and database incidents were not both rendered")
+    if await incident_toggles.first.get_attribute("aria-expanded") != "true":
+        pytest.fail("critical domain incident was not initially disclosed")
+    await incident_toggles.first.click()
+    if await incident_toggles.first.get_attribute("aria-expanded") != "false":
+        pytest.fail("domain incident did not collapse")
+    await incident_toggles.first.click()
+    if await incident_toggles.first.get_attribute("aria-expanded") != "true":
+        pytest.fail("domain incident did not expand again")
+    incident = page.locator("[data-incident-id='domain_down:a.example']")
+    for expected in (
+        "HTTP readiness",
+        "Last successful sample",
+        "Safe failure evidence",
+        "Suggested next action",
+    ):
+        await _require_actionable_text(incident, expected)
+
+    database_incident = page.locator(
+        "[data-incident-id='database_dependency:billing-web:runtime-postgres']",
+    )
+    await database_incident.locator(".incident__toggle").click()
+    if await database_incident.locator(".incident__toggle").get_attribute("aria-expanded") != "true":
+        pytest.fail("database incident did not expose its disclosure state")
+    for expected in (
+        "Invalid Or Revoked Password",
+        "Green slot · 100% traffic",
+        "Open database dependencies",
+    ):
+        await _require_actionable_text(database_incident, expected)
+
+
+async def _verify_database_tab(page: Page) -> None:
+    await page.locator("#tab-domains").focus()
+    await page.keyboard.press("ArrowRight")
+    if not await page.locator("#panel-databases").is_visible():
+        pytest.fail("dashboard panel is not visible: databases")
+    database_panel = page.locator("[data-testid=dash-database-dependencies]")
+    for expected in (
+        "Billing web",
+        "login/authentication",
+        "PgBouncer/tunnel connectivity",
+        "schema usage grant",
+        "configured table permission",
+        "bounded query timeout",
+        "Stale Or Revoked After Last Success",
+        "Telegram incident open",
+    ):
+        await _require_actionable_text(database_panel, expected)
+    await page.locator("[data-testid=dash-database-filter]").fill("revoked")
+    if await page.locator(".database-dependency-row").count() != 1:
+        pytest.fail("database dependency filter did not retain the matching failure")
+
+
+async def _verify_retained_data_tabs(page: Page) -> None:
+    for tab_name, panel_test_id in (
+        ("infrastructure", "dash-infrastructure-metrics"),
+        ("reliability", "dash-reliability-summary"),
+        ("journeys", "dash-journey-summary"),
+    ):
+        await page.locator(f"#tab-{tab_name}").click()
+        if not await page.locator(f"#panel-{tab_name}").is_visible():
+            pytest.fail(f"dashboard panel is not visible: {tab_name}")
+        panel_text = await page.locator(f"[data-testid={panel_test_id}]").inner_text()
+        if not panel_text.strip():
+            pytest.fail(f"{tab_name} tab rendered no retained-data state")
+
+
+async def _exercise_actionable_dashboard(
+    page: Page,
+    base_url: str,
+    receipts: _BrowserReceipts,
+) -> None:
+    await page.goto(f"{base_url}/dashboard")
+    await page.wait_for_selector("[data-testid=dash-incidents] .incident__toggle")
+    tabs = page.locator("[data-testid=dash-tabs] [role=tab]")
+    if await tabs.count() != _EXPECTED_TAB_COUNT:
+        pytest.fail("dashboard did not render all five requested tabs")
+    await _verify_incident_disclosures(page)
+    await _verify_database_tab(page)
+    await _verify_retained_data_tabs(page)
+    if receipts.console_errors or receipts.page_errors or receipts.failed_requests:
+        pytest.fail(
+            "dashboard emitted browser errors: "
+            f"console={receipts.console_errors!r} page={receipts.page_errors!r} "
+            f"requests={receipts.failed_requests!r}",
+        )
+
+
+@pytest.mark.asyncio
+async def test_dashboard_tabs_incidents_and_database_details_are_interactive(
+    dashboard_server: dict[str, str],
+) -> None:
+    """Render all tabs and disclose actionable domain and database evidence."""
+    chromium_path = find_chromium_executable()
+    if not chromium_path:
+        pytest.skip("No chromium/chrome available for Playwright")
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(
+            headless=True,
+            executable_path=chromium_path,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+        context = await browser.new_context(
+            extra_http_headers={"X-PitchAI-Email": "operator@pitchai.net"},
+        )
+        summary_response = await context.request.get(
+            f"{dashboard_server['base_url']}/dashboard/api/v1/monitoring/summary",
+        )
+        if summary_response.status != _HTTP_OK:
+            pytest.fail(f"monitoring summary returned HTTP {summary_response.status}")
+        summary_payload = cast("JsonInput", json.loads(await summary_response.text()))
+        summary = build_actionable_dashboard_summary(json_object(summary_payload))
+        page = await context.new_page()
+        receipts = _BrowserReceipts()
+        page.on(
+            "console",
+            lambda message: receipts.console_errors.append(message.text)
+            if message.type == "error"
+            else None,
+        )
+        page.on("pageerror", lambda error: receipts.page_errors.append(str(error)))
+        page.on("requestfailed", lambda request: receipts.failed_requests.append(request.url))
+        await page.route(
+            "**/dashboard/api/v1/monitoring/**",
+            partial(_serve_actionable_monitor_data, summary),
+        )
+        try:
+            await _exercise_actionable_dashboard(page, dashboard_server["base_url"], receipts)
         finally:
             await context.close()
             await browser.close()
