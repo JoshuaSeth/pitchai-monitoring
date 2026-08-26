@@ -21,6 +21,7 @@ CHECK = {
         },
         {
             "name": "codex_no_quota_readiness",
+            "coordination_key": "afasask_auth_broker_readiness",
             "path": "/internal/monitor/codex-readiness",
             "headers": {"Authorization": "Bearer ${AFASASK_MONITOR_TOKEN}"},
             "expected_status_codes": [200],

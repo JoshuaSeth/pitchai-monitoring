@@ -18,6 +18,7 @@ import yaml
 from playwright.async_api import Browser, async_playwright
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from domain_checks.api_contract_coordination import ApiContractCoordinator
 from domain_checks.common_check import (
     DomainCheckResult,
     DomainCheckSpec,
@@ -28,7 +29,11 @@ from domain_checks.common_check import (
 )
 from domain_checks.history import append_sample, coerce_history, prune_history
 from domain_checks.inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
-from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
+from domain_checks.metrics_api_contract import (
+    ApiContractCheckResult,
+    group_api_contract_alert_failures,
+    run_api_contract_checks,
+)
 from domain_checks.metrics_container_health import ContainerHealthIssue, check_container_health
 from domain_checks.metrics_dns import DnsCheckResult, check_dns
 from domain_checks.metrics_nginx import (
@@ -3301,6 +3306,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
     check_semaphore = asyncio.Semaphore(check_concurrency)
     browser_semaphore = asyncio.Semaphore(browser_concurrency)
+    api_contract_coordinator = ApiContractCoordinator()
     browser_min_mem_available_mb_raw = os.getenv("BROWSER_MIN_MEM_AVAILABLE_MB")
     if browser_min_mem_available_mb_raw is None:
         browser_min_mem_available_mb_raw = config.get("browser_min_mem_available_mb", 2048)
@@ -4555,6 +4561,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         domain=spec.domain,
                                         base_url=spec.url,
                                         checks=spec.api_contract_checks,
+                                        coordinator=api_contract_coordinator,
                                         timeout_seconds=float(api_timeout_seconds),
                                     )
                                 )
@@ -4589,25 +4596,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     if domain_entry.routes_telegram:
                                         api_failures_to_alert.extend(failures)
                                         api_failures_for_dispatch.extend(failures)
-                                    msg = _build_api_contract_alert_message(
-                                        failures=failures,
-                                        down_after_failures=api_down_after_failures,
-                                        fail_streak=int(next_fail),
-                                    )
-                                    routed = await _route_domain_telegram_alert(
-                                        http_client=http_client,
-                                        telegram_cfg=telegram_cfg,
-                                        entry=domain_entry,
-                                        message=msg,
-                                    )
-                                    if routed is not None:
-                                        ok_all, resps = routed
-                                        LOGGER.warning(
-                                            "API contract degraded domain=%s sent_ok=%s telegram_last=%s",
-                                            domain,
-                                            ok_all,
-                                            redact_telegram_response(resps[-1] if resps else {}),
-                                        )
                                 else:
                                     recovered = (not prev_effective) and bool(next_effective)
                                     if recovered:
@@ -4632,6 +4620,31 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             redact_telegram_response(resp),
                                             domain,
                                         )
+
+                            api_alert_batches = group_api_contract_alert_failures(api_failures_to_alert)
+                            for alert_batch_key, alert_failures in api_alert_batches.items():
+                                if not all(
+                                    entries_by_domain[result.domain].routes_telegram
+                                    for result in alert_failures
+                                ):
+                                    raise RuntimeError("API contract alert batch contains a suppressed domain")
+                                alert_fail_streak = max(
+                                    int(api_contract_fail_streak.get(result.domain, 0))
+                                    for result in alert_failures
+                                )
+                                msg = _build_api_contract_alert_message(
+                                    failures=alert_failures,
+                                    down_after_failures=api_down_after_failures,
+                                    fail_streak=alert_fail_streak,
+                                )
+                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
+                                LOGGER.warning(
+                                    "API contract degradation batch=%s domains=%s sent_ok=%s telegram_last=%s",
+                                    alert_batch_key,
+                                    sorted({result.domain for result in alert_failures}),
+                                    ok_all,
+                                    redact_telegram_response(resps[-1] if resps else {}),
+                                )
 
                             if api_failures_for_dispatch and api_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                                 if "api_contract" in active_dispatch_tasks and not active_dispatch_tasks["api_contract"].done():
