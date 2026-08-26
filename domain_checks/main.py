@@ -121,18 +121,14 @@ class DomainEntryConfig:
         return self.alert_policy.telegram_enabled
 
 
-async def route_domain_telegram_alert(
+async def _route_domain_telegram_alert(
     *,
     http_client: httpx.AsyncClient,
     telegram_cfg: TelegramConfig,
     entry: DomainEntryConfig,
     message: str,
 ) -> tuple[bool, list[dict[str, Any]]] | None:
-    """Route a domain-scoped alert according to its inventory policy.
-
-    Returns:
-        The Telegram result, or ``None`` when inventory policy suppresses it.
-    """
+    """Route a domain-scoped alert according to its inventory policy."""
     if not entry.routes_telegram:
         LOGGER.info(
             "Telegram alert suppressed by inventory policy domain=%s mode=%s reason=%s",
@@ -3714,7 +3710,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 },
                             )
                             msg = _build_down_alert_message(enriched)
-                            routed = await route_domain_telegram_alert(
+                            routed = await _route_domain_telegram_alert(
                                 http_client=http_client,
                                 telegram_cfg=telegram_cfg,
                                 entry=domain_entry,
@@ -4598,7 +4594,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         down_after_failures=api_down_after_failures,
                                         fail_streak=int(next_fail),
                                     )
-                                    routed = await route_domain_telegram_alert(
+                                    routed = await _route_domain_telegram_alert(
                                         http_client=http_client,
                                         telegram_cfg=telegram_cfg,
                                         entry=domain_entry,
@@ -4986,7 +4982,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     down_after_failures=syn_down_after_failures,
                                     fail_streak=int(next_fail),
                                 )
-                                routed = await route_domain_telegram_alert(
+                                routed = await _route_domain_telegram_alert(
                                     http_client=http_client,
                                     telegram_cfg=telegram_cfg,
                                     entry=domain_entry,
@@ -5144,7 +5140,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     down_after_failures=wv_down_after_failures,
                                     fail_streak=int(next_fail),
                                 )
-                                routed = await route_domain_telegram_alert(
+                                routed = await _route_domain_telegram_alert(
                                     http_client=http_client,
                                     telegram_cfg=telegram_cfg,
                                     entry=domain_entry,

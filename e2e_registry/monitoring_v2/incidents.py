@@ -26,18 +26,19 @@ if TYPE_CHECKING:
         JsonObject,
     )
 
-_SIGNAL_LABELS = {
-    "host_health": "Host health",
-    "performance": "Performance",
-    "slo": "SLO",
-    "red": "RED metrics",
-    "tls": "TLS",
-    "dns": "DNS",
-    "container_health": "Container health",
-    "proxy": "Reverse proxy",
-    "meta": "Monitor integrity",
-    "browser": "Browser checks",
-}
+_SIGNAL_LABEL_PAIRS = (
+    ("host_health", "Host health"),
+    ("performance", "Performance"),
+    ("slo", "SLO"),
+    ("red", "RED metrics"),
+    ("tls", "TLS"),
+    ("dns", "DNS"),
+    ("container_health", "Container health"),
+    ("proxy", "Reverse proxy"),
+    ("meta", "Monitor integrity"),
+    ("browser", "Browser checks"),
+)
+_SIGNAL_LABELS = dict(_SIGNAL_LABEL_PAIRS)
 
 
 @dataclass(frozen=True)

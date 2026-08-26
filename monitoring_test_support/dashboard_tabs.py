@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from domain_checks.json_types import JsonObject
 
 
-def build_actionable_dashboard_summary(summary: JsonObject) -> JsonObject:
+def build_actionable_dashboard_summary(summary: JsonObject, *, domain: str) -> JsonObject:
     """Enrich retained dashboard data with one domain and one DB incident.
 
     Returns:
@@ -53,7 +53,7 @@ def build_actionable_dashboard_summary(summary: JsonObject) -> JsonObject:
         "failure_streak": 3,
         "success_streak": 0,
         "likely_fix_path": "Rotate the production credential and restore the active PgBouncer route.",
-        "domains": ["a.example"],
+        "domains": [domain],
         "coverage": [
             "login/authentication",
             "PgBouncer/tunnel connectivity",
@@ -89,15 +89,15 @@ def build_actionable_dashboard_summary(summary: JsonObject) -> JsonObject:
         "items": [database_item],
     }
     domain_incident: JsonObject = {
-        "incident_id": "domain_down:a.example",
+        "incident_id": f"domain_down:{domain}",
         "kind": "domain_down",
         "severity": "critical",
-        "title": "a.example is down",
+        "title": f"{domain} is down",
         "detail": "PitchAI core · HTTP readiness is down.",
         "current_status": "down",
         "affected_check": "HTTP readiness",
-        "affected_service": "Primary test route",
-        "domain": "a.example",
+        "affected_service": domain,
+        "domain": domain,
         "environment": "production",
         "group": "core",
         "group_label": "PitchAI core",
