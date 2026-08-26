@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from playwright.async_api import async_playwright
 
-from domain_checks.monitoring_contracts.json_types import json_object, optional_object
+from monitoring_contracts.json_types import json_object, optional_object
 from monitoring_test_support.browser_proof import (
     BrowserReceipts,
     exercise_actionable_dashboard,
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-    from domain_checks.monitoring_contracts.json_types import JsonInput
+    from monitoring_contracts.json_types import JsonInput
     from monitoring_test_support.dashboard_server import DashboardServer
 
 _HTTP_OK = 200

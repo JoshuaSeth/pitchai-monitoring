@@ -13,17 +13,17 @@ import pytest
 from fastapi import HTTPException
 from httpx import Response
 
-from domain_checks.database_dependencies.configuration import load_settings
-from domain_checks.database_dependencies.discovery import discover_dependencies
-from domain_checks.database_dependencies.failure_classification import classify_failure
-from domain_checks.database_dependencies.models import RoutingPolicy
-from domain_checks.database_dependencies.routing import resolve_routing
-from domain_checks.monitoring_contracts.json_types import float_value, object_list
-from e2e_registry.monitoring_v2.databases import load_database_dashboard
-from e2e_registry.monitoring_v2.evidence import (
+from monitoring_contracts.json_types import float_value, object_list
+from monitoring_dashboard.databases import load_database_dashboard
+from monitoring_dashboard.evidence import (
     bounded_response_body,
     require_public_endpoint,
 )
+from monitoring_database_dependencies.configuration import load_settings
+from monitoring_database_dependencies.discovery import discover_dependencies
+from monitoring_database_dependencies.failure_classification import classify_failure
+from monitoring_database_dependencies.models import RoutingPolicy
+from monitoring_database_dependencies.routing import resolve_routing
 from monitoring_test_support.database_dependency import (
     ROOT,
     DefinitionOptions,

@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING
 
 import uvicorn
 
-from e2e_registry.monitoring_v2 import install_monitoring_v2
-from e2e_registry.monitoring_v2.legacy import (
+from monitoring_dashboard import install_monitoring_v2
+from monitoring_dashboard.legacy import (
     DashboardSettingsInput,
     RegistryPaths,
     RegistryTokens,
@@ -28,8 +28,8 @@ if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
 
-    from domain_checks.monitoring_contracts.json_types import JsonObject
-    from e2e_registry.monitoring_v2.legacy import RegistrySettings
+    from monitoring_contracts.json_types import JsonObject
+    from monitoring_dashboard.legacy import RegistrySettings
 
 _START_ATTEMPTS = 80
 _START_RETRY_SECONDS = 0.05

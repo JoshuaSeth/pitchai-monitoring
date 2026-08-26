@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from domain_checks.monitoring_contracts.legacy import (
+from monitoring_contracts.legacy import (
     check_one_domain,
     domain_alert_policy,
     domain_entry_config,
@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     import httpx
     from playwright.async_api import Browser
 
-    from domain_checks.monitoring_contracts.json_types import JsonObject
-    from domain_checks.monitoring_contracts.legacy import DomainCheckSpec
+    from monitoring_contracts.json_types import JsonObject
+    from monitoring_contracts.legacy import DomainCheckSpec
 
 
 def test_domain_telegram_policy_suppresses_dashboard_only_and_routes_critical() -> None:

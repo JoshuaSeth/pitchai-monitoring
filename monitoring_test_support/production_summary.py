@@ -6,14 +6,14 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from domain_checks.monitoring_contracts.json_types import text_value
-from e2e_registry.monitoring_v2.legacy import MonitorData
-from e2e_registry.monitoring_v2.summary import build_dashboard_summary
+from monitoring_contracts.json_types import text_value
+from monitoring_dashboard.legacy import MonitorData
+from monitoring_dashboard.summary import build_dashboard_summary
 from monitoring_test_support.dashboard_tabs import build_actionable_dashboard_summary
 from monitoring_test_support.inventory import CONFIG_PATH, production_config, production_domains
 
 if TYPE_CHECKING:
-    from domain_checks.monitoring_contracts.json_types import JsonObject
+    from monitoring_contracts.json_types import JsonObject
 
 _FAILED_DOMAIN = "pitchai.net"
 _FAILED_HTTP_STATUS = 503

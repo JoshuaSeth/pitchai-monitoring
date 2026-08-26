@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, cast
 
 from fastapi.testclient import TestClient
 
-from domain_checks.monitoring_contracts.json_types import json_object, text_value
-from e2e_registry.monitoring_v2.legacy import (
+from monitoring_contracts.json_types import json_object, text_value
+from monitoring_dashboard.legacy import (
     PolicySettingsInput,
     RegistryPaths,
     RegistryTokens,
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     from httpx import Response
 
-    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
+    from monitoring_contracts.json_types import JsonInput, JsonObject
 
 _HTTP_OK = 200
 _SOURCE = (

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
 """Compatibility exports for typed monitoring evidence sanitizers."""
 
-from domain_checks.monitoring_contracts.safe_evidence import (
+from monitoring_contracts.safe_evidence import (
     EvidenceText,
     EvidenceValue,
     safe_list,

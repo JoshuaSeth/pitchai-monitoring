@@ -250,7 +250,7 @@ jobs:
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
               "$IMAGE_SHA" \
-              python -m domain_checks.database_dependencies.main
+              python -m monitoring_database_dependencies.main
 
             echo "⏳ Waiting for startup..."
             sleep 10

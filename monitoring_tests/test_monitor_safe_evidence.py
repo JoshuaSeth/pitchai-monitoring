@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from domain_checks.monitoring_contracts.safe_evidence import (
+from monitoring_contracts.safe_evidence import (
     safe_public_url,
     safe_response_excerpt,
     safe_text_excerpt,

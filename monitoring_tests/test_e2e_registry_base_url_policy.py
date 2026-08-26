@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from domain_checks.monitoring_contracts.json_types import json_object, text_value
+from monitoring_contracts.json_types import json_object, text_value
 from monitoring_test_support.base_url_policy import (
     bootstrap_policy_client,
     patch_test_base_url,
@@ -19,7 +19,7 @@ from monitoring_test_support.base_url_policy import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from domain_checks.monitoring_contracts.json_types import JsonInput
+    from monitoring_contracts.json_types import JsonInput
 
 _HTTP_BAD_REQUEST = 400
 _HTTP_OK = 200

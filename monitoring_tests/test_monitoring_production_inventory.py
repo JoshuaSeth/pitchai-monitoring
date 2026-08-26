@@ -8,14 +8,14 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from domain_checks.monitoring_contracts.json_types import (
+from monitoring_contracts.json_types import (
     json_object,
     object_list,
     optional_object,
     text_value,
     value_list,
 )
-from domain_checks.monitoring_contracts.legacy import (
+from monitoring_contracts.legacy import (
     inventory_runtime,
     load_domain_spec,
 )
@@ -29,8 +29,8 @@ from monitoring_test_support.inventory import (
 )
 
 if TYPE_CHECKING:
-    from domain_checks.monitoring_contracts.json_types import JsonInput
-    from domain_checks.monitoring_contracts.legacy import AlertPolicy, DomainCheckSpec
+    from monitoring_contracts.json_types import JsonInput
+    from monitoring_contracts.legacy import AlertPolicy, DomainCheckSpec
 
 _EXPECTED_ACTIVE_DOMAIN_COUNT = 60
 _EXPECTED_DATABASE_RULE_COUNT = 27

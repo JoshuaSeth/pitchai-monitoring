@@ -1,7 +1,7 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
 """Compatibility exports for the typed monitoring JSON contract package."""
 
-from domain_checks.monitoring_contracts.json_types import (
+from monitoring_contracts.json_types import (
     JsonInput,
     JsonObject,
     JsonScalar,

@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from domain_checks.monitoring_contracts.json_types import int_value, json_object
-from domain_checks.monitoring_contracts.legacy import common_runtime
+from monitoring_contracts.json_types import int_value, json_object
+from monitoring_contracts.legacy import common_runtime
 
 if TYPE_CHECKING:
     from playwright.async_api import ConsoleMessage, Locator, Page, Request, Route
 
-    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
+    from monitoring_contracts.json_types import JsonInput, JsonObject
 
 _EXPECTED_DOMAIN_COUNT = 60
 _EXPECTED_GROUP_BUTTON_COUNT = 15

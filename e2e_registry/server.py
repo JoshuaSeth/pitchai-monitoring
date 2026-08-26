@@ -7,8 +7,8 @@ import os
 
 import uvicorn
 
-from .monitoring_v2 import install_monitoring_v2
-from .monitoring_v2.legacy import production_registry_app
+from monitoring_dashboard import install_monitoring_v2
+from monitoring_dashboard.legacy import production_registry_app
 
 
 def main() -> None:

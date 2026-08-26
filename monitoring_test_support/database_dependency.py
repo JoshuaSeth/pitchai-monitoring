@@ -17,24 +17,24 @@ from unittest.mock import patch
 
 import pytest
 
-from domain_checks.database_dependencies.models import (
+from monitoring_contracts.json_types import json_object
+from monitoring_database_dependencies.models import (
     DatabaseDependencySettings,
     ProbeDefinition,
     ProbeObservation,
 )
-from domain_checks.database_dependencies.state import reduce_state
-from domain_checks.monitoring_contracts.json_types import json_object
+from monitoring_database_dependencies.state import reduce_state
 
 if TYPE_CHECKING:
-    from domain_checks.database_dependencies.models import (
+    from monitoring_contracts.json_types import JsonInput, JsonObject
+    from monitoring_database_dependencies.models import (
         ConnectionMode,
         ProbeRule,
         TrafficState,
     )
-    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
 
 ROOT = Path(__file__).resolve().parents[1]
-_TARGET_PROBE_PATH = ROOT / "domain_checks/database_dependencies/target_probe.txt"
+_TARGET_PROBE_PATH = ROOT / "monitoring_database_dependencies/target_probe.txt"
 
 
 class DefinitionOptions(NamedTuple):
