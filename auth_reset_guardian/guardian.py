@@ -6,7 +6,7 @@ import os
 import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Protocol, Sequence
 
 from .audit import AuditStore, RedemptionAttempt
 from .clients import AccountScanError, GuardianSource, RemoteCallError
@@ -55,6 +55,13 @@ class NotificationError(RuntimeError):
     def __init__(self, error_code: str):
         super().__init__(f"notification failed ({error_code})")
         self.error_code = error_code
+
+
+class Notifier(Protocol):
+    """Deliver one guardian notification through an explicit boundary."""
+
+    def notify(self, message: str) -> None:
+        """Deliver one message or raise ``NotificationError``."""
 
 
 class CommandNotifier:
@@ -170,7 +177,7 @@ class Guardian:
         *,
         source: GuardianSource,
         audit: AuditStore,
-        notifier: CommandNotifier | None = None,
+        notifier: Notifier | None = None,
         clock: Callable[[], datetime] = utc_now,
     ):
         self.source = source

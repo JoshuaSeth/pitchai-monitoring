@@ -50,6 +50,7 @@ class DomainCheckSpec:
     synthetic_transactions: list[dict[str, Any]] = field(default_factory=list)
     web_vitals: dict[str, Any] = field(default_factory=dict)
     proxy: dict[str, Any] = field(default_factory=dict)
+    browser_enabled: bool = True
     http_timeout_seconds: float = 15.0
     browser_timeout_seconds: float = 25.0
 
@@ -241,6 +242,7 @@ def load_domain_spec_from_module_dict(module_vars: dict[str, Any]) -> DomainChec
         synthetic_transactions=cfg.get("synthetic_transactions") if isinstance(cfg.get("synthetic_transactions"), list) else [],
         web_vitals=cfg.get("web_vitals") if isinstance(cfg.get("web_vitals"), dict) else {},
         proxy=cfg.get("proxy") if isinstance(cfg.get("proxy"), dict) else {},
+        browser_enabled=bool(cfg.get("browser_enabled", True)),
         http_timeout_seconds=float(cfg.get("http_timeout_seconds", 15.0)),
         browser_timeout_seconds=float(cfg.get("browser_timeout_seconds", 25.0)),
     )

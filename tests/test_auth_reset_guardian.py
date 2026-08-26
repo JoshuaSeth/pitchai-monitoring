@@ -4,12 +4,14 @@ import fcntl
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from types import SimpleNamespace
+from typing import Any, TypedDict
 
 import pytest
 
@@ -31,6 +33,7 @@ from auth_reset_guardian.guardian import (
 from auth_reset_guardian.models import (
     AccountDescriptor,
     AccountObservation,
+    ConsumeResult,
     ProviderCredentials,
     ResetCredit,
     utc_iso,
@@ -41,15 +44,82 @@ UTC = timezone.utc
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class HttpCall(TypedDict):
+    method: str
+    url: str
+    endpoint: str
+    headers: dict[str, str]
+    payload: dict[str, Any] | None
+    ambiguous_on_failure: bool
+
+
+class ReceiptRunner:
+    """Typed subprocess boundary double for requester-private receipts."""
+
+    def __init__(self, receipt: str) -> None:
+        self.receipt = receipt
+
+    def __call__(
+        self,
+        args: Sequence[str],
+        *,
+        stdin: int,
+        stdout: int,
+        stderr: int,
+        text: bool,
+        timeout: float,
+        check: bool,
+        env: Mapping[str, str],
+    ) -> subprocess.CompletedProcess[str]:
+        assert stdin == subprocess.DEVNULL
+        assert stdout == subprocess.PIPE
+        assert stderr == subprocess.PIPE
+        assert text is True
+        assert timeout > 0
+        assert check is False
+        assert env
+        return subprocess.CompletedProcess(args, 0, stdout=self.receipt, stderr="")
+
+
+class RecordingRunner:
+    """Typed subprocess double that records ordered preflight/send calls."""
+
+    def __init__(self, results: Sequence[subprocess.CompletedProcess[str]]) -> None:
+        self._results = iter(results)
+        self.calls: list[list[str]] = []
+
+    def __call__(
+        self,
+        args: Sequence[str],
+        *,
+        stdin: int,
+        stdout: int,
+        stderr: int,
+        text: bool,
+        timeout: float,
+        check: bool,
+        env: Mapping[str, str],
+    ) -> subprocess.CompletedProcess[str]:
+        assert stdin == subprocess.DEVNULL
+        assert stdout == subprocess.PIPE
+        assert stderr == subprocess.PIPE
+        assert text is True
+        assert timeout > 0
+        assert check is False
+        assert env
+        self.calls.append(list(args))
+        return next(self._results)
+
+
 class MutableClock:
-    def __init__(self, now: datetime):
+    def __init__(self, now: datetime) -> None:
         self.now = now
 
     def __call__(self) -> datetime:
         return self.now
 
 
-def _credit(*, credit_id: str, expires_at: datetime, status: str = "available") -> dict:
+def _credit(*, credit_id: str, expires_at: datetime, status: str = "available") -> dict[str, Any]:
     return {
         "id": credit_id,
         "reset_type": "codex_rate_limits",
@@ -66,7 +136,7 @@ def _fixture(
     expires_at: datetime,
     credit_id: str = "opaque-provider-credit",
     outcome: str = "nothing_to_reset",
-) -> dict:
+) -> dict[str, Any]:
     return {
         "accounts": [
             {
@@ -101,7 +171,7 @@ def _fixture(
     }
 
 
-def _events(db_path: Path) -> list[dict]:
+def _events(db_path: Path) -> list[dict[str, Any]]:
     with sqlite3.connect(db_path) as connection:
         connection.row_factory = sqlite3.Row
         return [dict(row) for row in connection.execute("SELECT * FROM events ORDER BY event_id")]
@@ -162,6 +232,19 @@ def test_deployment_fails_before_install_when_private_notifier_store_is_unready(
 
     assert "auth_reset_guardian.telegram_notifier_preflight" in script
     assert "AUTH_RESET_GUARDIAN_NOTIFICATION_PREFLIGHT_COMMAND=" in environment
+
+
+def test_deployment_script_handles_expected_absence_without_erasing_failures() -> None:
+    script = (ROOT / "ops" / "deploy_auth_reset_guardian.sh").read_text()
+
+    assert "|| true" not in script
+    assert (
+        'if ! previous_target="$(readlink -f -- "${CURRENT_LINK}")" || [[ ! -d "${previous_target}" ]]; then'
+        in script
+    )
+    assert "if ! systemctl disable --now pitchai-auth-reset-guardian.timer" in script
+    assert "if ! journalctl -u pitchai-auth-reset-guardian.service" in script
+    assert "mandatory rollback continues" in script
 
 
 def test_schema_v1_migrates_warning_scope_without_losing_marks(tmp_path: Path) -> None:
@@ -303,14 +386,14 @@ def test_failed_live_warning_notification_retries_without_duplicate_warning(
         first = Guardian(
             source=source,
             audit=audit,
-            notifier=notifier,  # type: ignore[arg-type]
+            notifier=notifier,
             clock=lambda: now,
         ).run(mode="live", dry_run=True)
     with AuditStore(db_path) as audit:
         second = Guardian(
             source=source,
             audit=audit,
-            notifier=notifier,  # type: ignore[arg-type]
+            notifier=notifier,
             clock=lambda: now,
         ).run(mode="live", dry_run=True)
 
@@ -360,7 +443,7 @@ def test_same_credit_id_and_expiry_are_scoped_per_account_for_warnings(
         summary = Guardian(
             source=source,
             audit=audit,
-            notifier=notifier,  # type: ignore[arg-type]
+            notifier=notifier,
             clock=lambda: now,
         ).run(mode="live", dry_run=True)
 
@@ -421,7 +504,7 @@ def test_credit_removed_between_inventory_and_recheck_is_not_replaced_by_another
     expiry = now + timedelta(hours=1)
 
     class RacingSource(SimulationSource):
-        def refresh_account(self, descriptor):  # type: ignore[no-untyped-def]
+        def refresh_account(self, descriptor: AccountDescriptor) -> AccountObservation:
             observation = super().refresh_account(descriptor)
             if self.refresh_calls[descriptor.account_ref] == 1:
                 self.remove_credit_before_next_refresh(
@@ -454,7 +537,7 @@ def test_same_credit_id_with_changed_expiry_fails_loudly_without_consuming(tmp_p
     changed_expiry = selected_expiry + timedelta(minutes=15)
 
     class ExpiryChangedSource(SimulationSource):
-        def refresh_account(self, descriptor):  # type: ignore[no-untyped-def]
+        def refresh_account(self, descriptor: AccountDescriptor) -> AccountObservation:
             observation = super().refresh_account(descriptor)
             if self.refresh_calls[descriptor.account_ref] == 1:
                 account = self._find(descriptor)
@@ -511,7 +594,7 @@ def test_recheck_error_notification_is_scoped_by_expected_expiry(tmp_path: Path)
             summary = Guardian(
                 source=source,
                 audit=audit,
-                notifier=notifier,  # type: ignore[arg-type]
+                notifier=notifier,
                 clock=lambda: now,
             ).run(mode="live", dry_run=True)
         assert summary.redemption_attempt_count == 0
@@ -555,7 +638,7 @@ def test_nothing_to_reset_is_retried_with_a_new_logical_idempotency_key(tmp_path
         first = Guardian(
             source=source,
             audit=audit,
-            notifier=notifier,  # type: ignore[arg-type]
+            notifier=notifier,
             clock=clock,
         ).run(mode="simulation", dry_run=False)
     clock.now += timedelta(minutes=15)
@@ -563,7 +646,7 @@ def test_nothing_to_reset_is_retried_with_a_new_logical_idempotency_key(tmp_path
         second = Guardian(
             source=source,
             audit=audit,
-            notifier=notifier,  # type: ignore[arg-type]
+            notifier=notifier,
             clock=clock,
         ).run(mode="simulation", dry_run=False)
     assert first.redemption_attempt_count == second.redemption_attempt_count == 1
@@ -592,7 +675,12 @@ def test_same_credit_id_and_expiry_do_not_resume_another_accounts_attempt(tmp_pa
     fixture["accounts"].append(second)
 
     class FirstAccountAmbiguousSource(SimulationSource):
-        def consume_credit(self, observation, credit, idempotency_key):  # type: ignore[no-untyped-def]
+        def consume_credit(
+            self,
+            observation: AccountObservation,
+            credit: ResetCredit,
+            idempotency_key: str,
+        ) -> ConsumeResult:
             if observation.descriptor.label == "info@pitchai.net":
                 self.consume_calls.append(
                     {
@@ -636,11 +724,21 @@ def test_ambiguous_attempt_resumes_the_same_idempotency_key(tmp_path: Path) -> N
     clock = MutableClock(now)
 
     class AmbiguousThenSuccessSource(SimulationSource):
-        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
-            super().__init__(*args, **kwargs)
+        def __init__(
+            self,
+            fixture: dict[str, Any],
+            *,
+            clock: Callable[[], datetime] | None = None,
+        ) -> None:
+            super().__init__(fixture, clock=clock)
             self.keys: list[str] = []
 
-        def consume_credit(self, observation, credit, idempotency_key):  # type: ignore[no-untyped-def]
+        def consume_credit(
+            self,
+            observation: AccountObservation,
+            credit: ResetCredit,
+            idempotency_key: str,
+        ) -> ConsumeResult:
             self.keys.append(idempotency_key)
             if len(self.keys) == 1:
                 raise RemoteCallError(
@@ -719,11 +817,28 @@ def test_live_source_uses_only_broker_oauth_and_targets_exact_credit() -> None:
 
     class FakeHttp:
         def __init__(self) -> None:
-            self.calls: list[dict] = []
+            self.calls: list[HttpCall] = []
 
-        def request(self, **kwargs):  # type: ignore[no-untyped-def]
-            self.calls.append(kwargs)
-            endpoint = kwargs["endpoint"]
+        def request(
+            self,
+            *,
+            method: str,
+            url: str,
+            endpoint: str,
+            headers: dict[str, str],
+            payload: dict[str, Any] | None = None,
+            ambiguous_on_failure: bool = False,
+        ) -> dict[str, Any]:
+            self.calls.append(
+                HttpCall(
+                    method=method,
+                    url=url,
+                    endpoint=endpoint,
+                    headers=headers,
+                    payload=payload,
+                    ambiguous_on_failure=ambiguous_on_failure,
+                )
+            )
             if endpoint == "broker_list_accounts":
                 return {
                     "accounts": [
@@ -774,8 +889,9 @@ def test_live_source_uses_only_broker_oauth_and_targets_exact_credit() -> None:
                     "credits": [_credit(credit_id="provider-credit-secret", expires_at=expiry)],
                 }
             if endpoint == "provider_consume_reset_credit":
-                assert kwargs["payload"]["credit_id"] == "provider-credit-secret"
-                assert kwargs["payload"]["redeem_request_id"] == "durable-key"
+                assert payload is not None
+                assert payload["credit_id"] == "provider-credit-secret"
+                assert payload["redeem_request_id"] == "durable-key"
                 return {"code": "reset", "windows_reset": 2}
             raise AssertionError(endpoint)
 
@@ -784,7 +900,7 @@ def test_live_source_uses_only_broker_oauth_and_targets_exact_credit() -> None:
         broker_url="http://broker.invalid",
         broker_admin_token="broker-admin-secret",
         provider_base_url="https://provider.invalid/backend-api",
-        http=http,  # type: ignore[arg-type]
+        http=http,
     )
     descriptor = source.list_accounts()[0]
     observation = source.refresh_account(descriptor)
@@ -805,11 +921,34 @@ def test_invalid_consume_result_is_ambiguous_and_reuses_exact_idempotency_key() 
 
     class InvalidResultHttp:
         def __init__(self) -> None:
-            self.calls: list[dict] = []
+            self.calls: list[HttpCall] = []
 
-        def request(self, **kwargs):  # type: ignore[no-untyped-def]
-            self.calls.append(kwargs)
-            assert kwargs["endpoint"] == "provider_consume_reset_credit"
+        def request(
+            self,
+            *,
+            method: str,
+            url: str,
+            endpoint: str,
+            headers: dict[str, str],
+            payload: dict[str, Any] | None = None,
+            ambiguous_on_failure: bool = False,
+        ) -> dict[str, Any]:
+            self.calls.append(
+                HttpCall(
+                    method=method,
+                    url=url,
+                    endpoint=endpoint,
+                    headers=headers,
+                    payload=payload,
+                    ambiguous_on_failure=ambiguous_on_failure,
+                )
+            )
+            assert endpoint == "provider_consume_reset_credit"
+            assert method == "POST"
+            assert url.endswith("/consume")
+            assert headers["Authorization"] == "Bearer fixture-oauth"
+            assert payload is not None
+            assert ambiguous_on_failure is True
             return {"code": "unsupported-provider-result", "windows_reset": 0}
 
     http = InvalidResultHttp()
@@ -817,7 +956,7 @@ def test_invalid_consume_result_is_ambiguous_and_reuses_exact_idempotency_key() 
         broker_url="http://broker.invalid",
         broker_admin_token="broker-admin-secret",
         provider_base_url="https://provider.invalid/backend-api",
-        http=http,  # type: ignore[arg-type]
+        http=http,
     )
     descriptor = AccountDescriptor(
         broker_account_id="broker-account-secret",
@@ -845,8 +984,9 @@ def test_invalid_consume_result_is_ambiguous_and_reuses_exact_idempotency_key() 
     assert captured.value.ambiguous is True
     assert captured.value.error_code == "invalid_result_payload"
     assert len(http.calls) == 2
-    assert {call["payload"]["redeem_request_id"] for call in http.calls} == {"durable-key"}
-    assert {call["payload"]["credit_id"] for call in http.calls} == {
+    payloads = [call["payload"] for call in http.calls if call["payload"] is not None]
+    assert {payload["redeem_request_id"] for payload in payloads} == {"durable-key"}
+    assert {payload["credit_id"] for payload in payloads} == {
         "provider-credit-secret"
     }
 
@@ -856,9 +996,23 @@ def test_live_source_stops_after_broker_reports_auth_invalid() -> None:
         def __init__(self) -> None:
             self.endpoints: list[str] = []
 
-        def request(self, **kwargs):  # type: ignore[no-untyped-def]
-            self.endpoints.append(kwargs["endpoint"])
-            if kwargs["endpoint"] == "broker_list_accounts":
+        def request(
+            self,
+            *,
+            method: str,
+            url: str,
+            endpoint: str,
+            headers: dict[str, str],
+            payload: dict[str, Any] | None = None,
+            ambiguous_on_failure: bool = False,
+        ) -> dict[str, Any]:
+            self.endpoints.append(endpoint)
+            assert method in {"GET", "POST"}
+            assert url.startswith("http://broker.invalid/")
+            assert headers["Authorization"] == "Bearer broker-admin-secret"
+            assert payload is None
+            assert ambiguous_on_failure is False
+            if endpoint == "broker_list_accounts":
                 return {
                     "accounts": [
                         {
@@ -870,7 +1024,7 @@ def test_live_source_stops_after_broker_reports_auth_invalid() -> None:
                         }
                     ]
                 }
-            if kwargs["endpoint"] == "broker_analytics_probe":
+            if endpoint == "broker_analytics_probe":
                 return {
                     "metadata": {"label": "sales@pitchai.net"},
                     "state": {"availability": "auth_invalid", "analytics": {"errors": {}}},
@@ -881,7 +1035,7 @@ def test_live_source_stops_after_broker_reports_auth_invalid() -> None:
     source = BrokerProviderSource(
         broker_url="http://broker.invalid",
         broker_admin_token="broker-admin-secret",
-        http=http,  # type: ignore[arg-type]
+        http=http,
     )
     descriptor = source.list_accounts()[0]
     try:
@@ -893,7 +1047,9 @@ def test_live_source_stops_after_broker_reports_auth_invalid() -> None:
     assert http.endpoints == ["broker_list_accounts", "broker_analytics_probe"]
 
 
-def test_command_notifier_requires_verified_requester_private_receipt(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_command_notifier_requires_verified_requester_private_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     private_receipt = json.dumps(
         {
             "status": "sent",
@@ -905,14 +1061,14 @@ def test_command_notifier_requires_verified_requester_private_receipt(monkeypatc
     )
     monkeypatch.setattr(
         "auth_reset_guardian.guardian.subprocess.run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=private_receipt, stderr=""),
+        ReceiptRunner(private_receipt),
     )
     CommandNotifier(["telegram-helper"]).notify("safe message")
 
     broad_receipt = private_receipt.replace('"private"', '"group"')
     monkeypatch.setattr(
         "auth_reset_guardian.guardian.subprocess.run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=broad_receipt, stderr=""),
+        ReceiptRunner(broad_receipt),
     )
     try:
         CommandNotifier(["telegram-helper"]).notify("must fail closed")
@@ -922,20 +1078,23 @@ def test_command_notifier_requires_verified_requester_private_receipt(monkeypatc
         raise AssertionError("broad receipt must fail requester-private verification")
 
 
-def test_command_notifier_preflight_failure_prevents_any_send(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    calls: list[list[str]] = []
+def test_command_notifier_preflight_failure_prevents_any_send(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = RecordingRunner(
+        [
+            subprocess.CompletedProcess(
+                ["notifier-preflight"],
+                1,
+                stdout=json.dumps(
+                    {"status": "failed", "error_code": "delivery_store_unavailable"}
+                ),
+                stderr="",
+            )
+        ]
+    )
 
-    def run(command, **kwargs):  # type: ignore[no-untyped-def]
-        calls.append(list(command))
-        return SimpleNamespace(
-            returncode=1,
-            stdout=json.dumps(
-                {"status": "failed", "error_code": "delivery_store_unavailable"}
-            ),
-            stderr="",
-        )
-
-    monkeypatch.setattr("auth_reset_guardian.guardian.subprocess.run", run)
+    monkeypatch.setattr("auth_reset_guardian.guardian.subprocess.run", runner)
     with pytest.raises(NotificationError) as caught:
         CommandNotifier(
             ["telegram-helper"],
@@ -943,10 +1102,12 @@ def test_command_notifier_preflight_failure_prevents_any_send(monkeypatch) -> No
         ).notify("must not be sent")
 
     assert caught.value.error_code == "preflight_delivery_store_unavailable"
-    assert calls == [["notifier-preflight"]]
+    assert runner.calls == [["notifier-preflight"]]
 
 
-def test_command_notifier_sends_only_after_verified_private_preflight(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_command_notifier_sends_only_after_verified_private_preflight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     preflight_receipt = json.dumps(
         {
             "status": "ready",
@@ -967,33 +1128,35 @@ def test_command_notifier_sends_only_after_verified_private_preflight(monkeypatc
             "destination_ref": "seth-ori",
         }
     )
-    results = iter(
-        (
-            SimpleNamespace(returncode=0, stdout=preflight_receipt, stderr=""),
-            SimpleNamespace(returncode=0, stdout=private_receipt, stderr=""),
-        )
+    runner = RecordingRunner(
+        [
+            subprocess.CompletedProcess(
+                ["notifier-preflight"], 0, stdout=preflight_receipt, stderr=""
+            ),
+            subprocess.CompletedProcess(
+                ["telegram-helper", "--message", "safe message"],
+                0,
+                stdout=private_receipt,
+                stderr="",
+            ),
+        ]
     )
-    calls: list[list[str]] = []
 
-    def run(command, **kwargs):  # type: ignore[no-untyped-def]
-        calls.append(list(command))
-        return next(results)
-
-    monkeypatch.setattr("auth_reset_guardian.guardian.subprocess.run", run)
+    monkeypatch.setattr("auth_reset_guardian.guardian.subprocess.run", runner)
     CommandNotifier(
         ["telegram-helper"],
         preflight_command=["notifier-preflight"],
     ).notify("safe message")
 
-    assert calls == [
+    assert runner.calls == [
         ["notifier-preflight"],
         ["telegram-helper", "--message", "safe message"],
     ]
 
 
 def test_command_notifier_child_does_not_inherit_broker_or_openai_secrets(
-    monkeypatch,
-) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     secret_names = (
         "AUTH_RESET_GUARDIAN_BROKER_ADMIN_TOKEN",
         "AUTH_TOKEN_SERVER_ADMIN_TOKEN",
