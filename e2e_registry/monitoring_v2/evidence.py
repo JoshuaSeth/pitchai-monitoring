@@ -17,29 +17,34 @@ import yaml
 from fastapi import APIRouter, HTTPException
 from httpx import AsyncClient, RequestError
 
-from domain_checks.common_check import load_domain_spec_from_module_dict
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     json_object,
     object_list,
     optional_object,
     text_value,
 )
-from domain_checks.safe_evidence import safe_public_url
-from e2e_registry.monitoring_v2.evidence_contracts import (
+from domain_checks.monitoring_contracts.legacy import (
+    load_domain_spec_from_module_dict,
+)
+from domain_checks.monitoring_contracts.safe_evidence import safe_public_url
+
+from .evidence_contracts import (
     EvidenceResponse,
     captured_contract,
     request_failure_contract,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from dataclasses import dataclass
 
     from fastapi import Request
     from httpx import Response
 
-    from domain_checks.common_check import DomainCheckSpec
-    from domain_checks.json_types import JsonInput, JsonObject
-    from e2e_registry.settings import RegistrySettings
+    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
+    from domain_checks.monitoring_contracts.legacy import DomainCheckSpec
+
+    from .legacy import RegistrySettings
 
     @dataclass(frozen=True)
     class _RegistryState:
@@ -96,8 +101,9 @@ def _load_spec(entry: JsonObject, *, config_path: Path) -> DomainCheckSpec:
     domain = text_value(entry.get("domain"))
     plugin_path = config_path.parent / domain / "check.py"
     if plugin_path.is_file():
-        module = runpy.run_path(str(plugin_path))
-        return load_domain_spec_from_module_dict(module)
+        module = cast("Mapping[str, object]", runpy.run_path(str(plugin_path)))
+        plugin_check = json_object(cast("JsonInput", module.get("CHECK")))
+        return load_domain_spec_from_module_dict({"CHECK": plugin_check})
     inline = optional_object(entry.get("check"))
     if inline:
         check: JsonObject = {"domain": domain}

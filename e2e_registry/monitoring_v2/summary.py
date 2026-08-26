@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     float_value,
     int_value,
     json_object,
@@ -14,21 +14,23 @@ from domain_checks.json_types import (
     optional_object,
     text_value,
 )
-from domain_checks.safe_evidence import safe_public_url, safe_text_excerpt
-from e2e_registry import monitor_dashboard as legacy_dashboard
-from e2e_registry.monitoring_v2.databases import load_database_dashboard
-from e2e_registry.monitoring_v2.event_analysis import safe_events
-from e2e_registry.monitoring_v2.incidents import IncidentSources, build_incidents
-from e2e_registry.monitoring_v2.infrastructure import build_infrastructure
-from e2e_registry.monitoring_v2.journeys import build_journeys
-from e2e_registry.monitoring_v2.reliability import build_reliability
+from domain_checks.monitoring_contracts.safe_evidence import safe_public_url, safe_text_excerpt
+
+from .databases import load_database_dashboard
+from .event_analysis import safe_events
+from .incidents import IncidentSources, build_incidents
+from .infrastructure import build_infrastructure
+from .journeys import build_journeys
+from .legacy import legacy_dashboard
+from .reliability import build_reliability
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import (
+    from domain_checks.monitoring_contracts.json_types import (
         JsonObject,
         JsonValue,
     )
-    from e2e_registry.monitor_dashboard import MonitorData
+
+    from .legacy import MonitorData
 
 _LEGACY_BUILD = legacy_dashboard.build_dashboard_summary
 

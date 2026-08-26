@@ -6,12 +6,14 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, NamedTuple, cast
 
-from domain_checks.database_dependencies.models import ProbeRule
-from domain_checks.json_types import bool_value, int_value, text_value, value_list
+from domain_checks.monitoring_contracts.json_types import bool_value, int_value, text_value, value_list
+
+from .models import ProbeRule
 
 if TYPE_CHECKING:
-    from domain_checks.database_dependencies.models import ConnectionMode
-    from domain_checks.json_types import JsonObject, JsonValue
+    from domain_checks.monitoring_contracts.json_types import JsonObject, JsonValue
+
+    from .models import ConnectionMode
 
 _CONNECTION_MODES = {"engine", "sqlalchemy_url", "psycopg_url", "asyncpg_url", "sqlite"}
 _SYNC_DRIVERS = {"psycopg", "psycopg2"}

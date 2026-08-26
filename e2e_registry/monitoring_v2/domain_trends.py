@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     bool_value,
     float_value,
     optional_object,
@@ -13,7 +13,7 @@ from domain_checks.json_types import (
 )
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject, JsonValue
+    from domain_checks.monitoring_contracts.json_types import JsonObject, JsonValue
 
 _MIN_OBSERVATION_FIELDS = 2
 _HTTP_LATENCY_FIELDS = 3

@@ -5,15 +5,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain_checks.json_types import float_value, text_value
-from domain_checks.safe_evidence import safe_text_excerpt
-from e2e_registry.monitoring_v2.event_analysis import (
+from domain_checks.monitoring_contracts.json_types import float_value, text_value
+from domain_checks.monitoring_contracts.safe_evidence import safe_text_excerpt
+
+from .event_analysis import (
     event_is_problem,
     event_is_recovery,
 )
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonObject
 
 _EVENT_WINDOW_SECONDS = 604_800.0
 _MAX_EVENTS = 60

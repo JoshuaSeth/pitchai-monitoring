@@ -5,10 +5,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain_checks.json_types import float_value, int_value, object_list, text_value
+from domain_checks.monitoring_contracts.json_types import float_value, int_value, object_list, text_value
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonObject
 
 
 def build_journey_incidents(journeys: JsonObject) -> list[JsonObject]:

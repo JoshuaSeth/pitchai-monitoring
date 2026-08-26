@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
-    from domain_checks.database_dependencies.models import RoutingPolicy, TrafficState
+    from .models import RoutingPolicy, TrafficState
 
 _MAX_ROUTING_FILE_BYTES = 16_384
 _HTTP_STATUS_MIN = 200

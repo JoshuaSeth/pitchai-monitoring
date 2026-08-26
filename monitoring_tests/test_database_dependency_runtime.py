@@ -18,7 +18,7 @@ from domain_checks.database_dependencies.discovery import discover_dependencies
 from domain_checks.database_dependencies.failure_classification import classify_failure
 from domain_checks.database_dependencies.models import RoutingPolicy
 from domain_checks.database_dependencies.routing import resolve_routing
-from domain_checks.json_types import float_value, object_list
+from domain_checks.monitoring_contracts.json_types import float_value, object_list
 from e2e_registry.monitoring_v2.databases import load_database_dashboard
 from e2e_registry.monitoring_v2.evidence import (
     bounded_response_body,

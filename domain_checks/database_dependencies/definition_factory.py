@@ -6,18 +6,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple
 
-from domain_checks.database_dependencies.models import (
+from .models import (
     DatabaseDependencyInventoryError,
     ProbeDefinition,
 )
 
 if TYPE_CHECKING:
-    from domain_checks.database_dependencies.models import (
+    from .models import (
         ConnectionMode,
         ProbeRule,
         TrafficState,
     )
-    from domain_checks.database_dependencies.routing import RoutingResolution
+    from .routing import RoutingResolution
 
 
 @dataclass(frozen=True)

@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from domain_checks.json_types import json_object
+from domain_checks.monitoring_contracts.json_types import json_object
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonInput, JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
 
 
 def load_state(path: Path) -> JsonObject:

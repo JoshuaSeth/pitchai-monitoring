@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     bool_value,
     float_value,
     int_value,
@@ -13,10 +13,10 @@ from domain_checks.json_types import (
     optional_object,
     value_list,
 )
-from domain_checks.safe_evidence import safe_text_excerpt
+from domain_checks.monitoring_contracts.safe_evidence import safe_text_excerpt
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject, JsonValue
+    from domain_checks.monitoring_contracts.json_types import JsonObject, JsonValue
 
 _HISTORY_WINDOW_SECONDS = 86_400.0
 _MIN_SAMPLE_FIELDS = 2

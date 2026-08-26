@@ -12,27 +12,29 @@ from typing import TYPE_CHECKING
 
 from httpx import HTTPError
 
-from domain_checks.database_dependencies.alerts import (
+from domain_checks.monitoring_contracts.json_types import json_object, object_list, text_value
+
+from .alerts import (
     DatabaseDependencyAlertConfigurationError,
     DatabaseDependencyAlertDeliveryError,
     deliver_pending_alerts,
 )
-from domain_checks.database_dependencies.configuration import load_settings
-from domain_checks.database_dependencies.discovery import discover_dependencies
-from domain_checks.database_dependencies.docker_gateway import DockerGateway
-from domain_checks.database_dependencies.probes import execute_probe
-from domain_checks.database_dependencies.routing import resolve_routing
-from domain_checks.database_dependencies.state import reduce_state
-from domain_checks.database_dependencies.state_io import load_state, write_state
-from domain_checks.json_types import json_object, object_list, text_value
+from .configuration import load_settings
+from .discovery import discover_dependencies
+from .docker_gateway import DockerGateway
+from .probes import execute_probe
+from .routing import resolve_routing
+from .state import reduce_state
+from .state_io import load_state, write_state
 
 if TYPE_CHECKING:
-    from domain_checks.database_dependencies.models import (
+    from domain_checks.monitoring_contracts.json_types import JsonObject
+
+    from .models import (
         DatabaseDependencySettings,
         ProbeDefinition,
         ProbeObservation,
     )
-    from domain_checks.json_types import JsonObject
 
 LOGGER = logging.getLogger(__name__)
 

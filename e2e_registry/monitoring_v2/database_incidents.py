@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     bool_value,
     float_value,
     int_value,
@@ -14,7 +14,7 @@ from domain_checks.json_types import (
 )
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonObject
 
 
 def _collector_incident(databases: JsonObject) -> JsonObject | None:

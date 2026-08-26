@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from domain_checks.safe_evidence import EvidenceValue
+    from domain_checks.monitoring_contracts.safe_evidence import EvidenceValue
 
 _USERINFO = re.compile(r"(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+(?::[^\s/@]*)?@")
 _SECRET_PARAMETER = re.compile(

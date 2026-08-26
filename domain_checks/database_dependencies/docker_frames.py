@@ -1,7 +1,7 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
 """Decode bounded Docker stdout/stderr multiplex frames."""
 
-from domain_checks.database_dependencies.docker_errors import DockerProtocolError
+from .docker_errors import DockerProtocolError
 
 _FRAME_HEADER_BYTES = 8
 _STDOUT_STREAM = 1

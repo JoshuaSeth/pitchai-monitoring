@@ -5,17 +5,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain_checks.database_dependencies.state_dependency import build_dependency_state
-from domain_checks.database_dependencies.state_groups import reduce_alert_groups
-from domain_checks.json_types import bool_value, int_value, json_object, object_list, text_value
+from domain_checks.monitoring_contracts.json_types import bool_value, int_value, json_object, object_list, text_value
+
+from .state_dependency import build_dependency_state
+from .state_groups import reduce_alert_groups
 
 if TYPE_CHECKING:
-    from domain_checks.database_dependencies.models import (
+    from domain_checks.monitoring_contracts.json_types import JsonObject
+
+    from .models import (
         DatabaseDependencySettings,
         ProbeDefinition,
         ProbeObservation,
     )
-    from domain_checks.json_types import JsonObject
 
 _SUPPORTED_STATE_VERSIONS = {1, 2}
 _CURRENT_STATE_VERSION = 2

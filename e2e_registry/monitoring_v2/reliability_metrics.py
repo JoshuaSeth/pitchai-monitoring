@@ -6,7 +6,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     bool_value,
     float_value,
     optional_object,
@@ -15,7 +15,7 @@ from domain_checks.json_types import (
 )
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject, JsonValue
+    from domain_checks.monitoring_contracts.json_types import JsonObject, JsonValue
 
 WINDOW_SECONDS = 86_400.0
 PERCENT = 100.0

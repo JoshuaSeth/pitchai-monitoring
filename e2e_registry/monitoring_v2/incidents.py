@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     bool_value,
     float_value,
     int_value,
@@ -14,15 +14,16 @@ from domain_checks.json_types import (
     optional_object,
     text_value,
 )
-from e2e_registry.monitoring_v2.database_incidents import build_database_incidents
-from e2e_registry.monitoring_v2.domain_incidents import (
+
+from .database_incidents import build_database_incidents
+from .domain_incidents import (
     build_domain_incident,
     build_unknown_incident,
 )
-from e2e_registry.monitoring_v2.journey_incidents import build_journey_incidents
+from .journey_incidents import build_journey_incidents
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import (
+    from domain_checks.monitoring_contracts.json_types import (
         JsonObject,
     )
 

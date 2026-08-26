@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Literal, NamedTuple
 if TYPE_CHECKING:
     from re import Pattern
 
-    from domain_checks.json_types import JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonObject
 
 ConnectionMode = Literal["engine", "sqlalchemy_url", "psycopg_url", "asyncpg_url", "sqlite"]
 DependencyKind = Literal["database", "coverage_gap"]

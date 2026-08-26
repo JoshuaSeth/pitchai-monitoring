@@ -10,9 +10,14 @@ from typing import TYPE_CHECKING, cast
 
 from fastapi.testclient import TestClient
 
-from domain_checks.json_types import json_object, text_value
-from e2e_registry.app import create_app
-from e2e_registry.settings import RegistrySettings
+from domain_checks.monitoring_contracts.json_types import json_object, text_value
+from e2e_registry.monitoring_v2.legacy import (
+    PolicySettingsInput,
+    RegistryPaths,
+    RegistryTokens,
+    create_registry_app,
+    policy_registry_settings,
+)
 from monitoring_test_support.inventory import CONFIG_PATH
 
 if TYPE_CHECKING:
@@ -20,7 +25,7 @@ if TYPE_CHECKING:
 
     from httpx import Response
 
-    from domain_checks.json_types import JsonInput, JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
 
 _HTTP_OK = 200
 _SOURCE = (
@@ -59,22 +64,24 @@ def bootstrap_policy_client(root: Path, *, allow_monitored_domains: bool) -> Pol
     explicit_hosts = ()
     if not allow_monitored_domains:
         explicit_hosts = ("autopar.pitchai.net", "deplanbook.com", "cms.deplanbook.com")
-    settings = RegistrySettings(
-        db_path=str(root / "e2e-registry.db"),
-        artifacts_dir=str(root / "artifacts"),
-        tests_dir=str(root / "submitted-tests"),
-        admin_token=admin_token,
-        monitor_token=secrets.token_urlsafe(24),
-        runner_token=secrets.token_urlsafe(24),
-        alerts_enabled=False,
-        dispatch_enabled=False,
-        strict_base_url_policy=True,
-        base_url_allowed_hosts=explicit_hosts,
-        base_url_allow_monitored_domains=allow_monitored_domains,
-        monitor_config_path=str(CONFIG_PATH),
-        public_base_url="https://monitoring.pitchai.net",
+    settings = policy_registry_settings(
+        PolicySettingsInput(
+            paths=RegistryPaths(
+                db_path=str(root / "e2e-registry.db"),
+                artifacts_dir=str(root / "artifacts"),
+                tests_dir=str(root / "submitted-tests"),
+            ),
+            tokens=RegistryTokens(
+                admin_token=admin_token,
+                monitor_token=secrets.token_urlsafe(24),
+                runner_token=secrets.token_urlsafe(24),
+            ),
+            explicit_hosts=explicit_hosts,
+            allow_monitored_domains=allow_monitored_domains,
+            monitor_config_path=str(CONFIG_PATH),
+        ),
     )
-    client = TestClient(create_app(settings))
+    client = TestClient(create_registry_app(settings))
     tenant_response = client.post(
         "/api/v1/admin/tenants",
         headers={"Authorization": f"Bearer {admin_token}"},

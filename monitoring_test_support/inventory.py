@@ -7,11 +7,11 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from domain_checks.json_types import json_object, object_list, text_value
-from domain_checks.main import load_config
+from domain_checks.monitoring_contracts.json_types import json_object, object_list, text_value
+from domain_checks.monitoring_contracts.legacy import load_config
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonInput, JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "domain_checks" / "config.yaml"
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     bool_value,
     float_value,
     int_value,
@@ -14,16 +14,17 @@ from domain_checks.json_types import (
     text_value,
     value_list,
 )
-from domain_checks.safe_evidence import safe_text_excerpt
-from e2e_registry.monitoring_v2.domain_trends import domain_trend, history_for_domain
-from e2e_registry.monitoring_v2.event_analysis import (
+from domain_checks.monitoring_contracts.safe_evidence import safe_text_excerpt
+
+from .domain_trends import domain_trend, history_for_domain
+from .event_analysis import (
     domain_first_seen,
     last_successful_sample,
     latest_problem_event,
 )
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject, JsonValue
+    from domain_checks.monitoring_contracts.json_types import JsonObject, JsonValue
 
 _SOURCE_LABELS = {
     "primary": "page/readiness check",

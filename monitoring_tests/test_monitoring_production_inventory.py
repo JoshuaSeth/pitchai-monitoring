@@ -8,15 +8,17 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from domain_checks.inventory import parse_domain_alert_policy
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     json_object,
     object_list,
     optional_object,
     text_value,
     value_list,
 )
-from domain_checks.main import load_domain_spec
+from domain_checks.monitoring_contracts.legacy import (
+    inventory_runtime,
+    load_domain_spec,
+)
 from monitoring_test_support.inventory import (
     EXPECTED_ACTIVE_DOMAINS,
     EXPECTED_DASHBOARD_ONLY_DOMAINS,
@@ -27,9 +29,8 @@ from monitoring_test_support.inventory import (
 )
 
 if TYPE_CHECKING:
-    from domain_checks.common_check import DomainCheckSpec
-    from domain_checks.inventory import DomainAlertPolicy
-    from domain_checks.json_types import JsonInput
+    from domain_checks.monitoring_contracts.json_types import JsonInput
+    from domain_checks.monitoring_contracts.legacy import AlertPolicy, DomainCheckSpec
 
 _EXPECTED_ACTIVE_DOMAIN_COUNT = 60
 _EXPECTED_DATABASE_RULE_COUNT = 27
@@ -93,10 +94,10 @@ def test_every_active_domain_has_an_executable_browser_contract() -> None:
 def test_alert_policy_routes_only_actionable_domains() -> None:
     """Keep expected or intentionally unused surfaces dashboard-only."""
     entries = production_domains()
-    policies: dict[str, DomainAlertPolicy] = {}
+    policies: dict[str, AlertPolicy] = {}
     for entry in entries:
         domain = text_value(entry.get("domain"))
-        policies[domain] = parse_domain_alert_policy(entry)
+        policies[domain] = inventory_runtime.parse_domain_alert_policy(entry)
     dashboard_only: set[str] = set()
     for domain, policy in policies.items():
         if not policy.telegram_enabled:

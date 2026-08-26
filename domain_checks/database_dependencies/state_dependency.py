@@ -6,16 +6,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple
 
-from domain_checks.database_dependencies.models import definition_contract
-from domain_checks.json_types import bool_value, float_value, int_value, text_value
+from domain_checks.monitoring_contracts.json_types import bool_value, float_value, int_value, text_value
+
+from .models import definition_contract
 
 if TYPE_CHECKING:
-    from domain_checks.database_dependencies.models import (
+    from domain_checks.monitoring_contracts.json_types import JsonObject
+
+    from .models import (
         DatabaseDependencySettings,
         ProbeDefinition,
         ProbeObservation,
     )
-    from domain_checks.json_types import JsonObject
 
 _AUTH_FAILURES = {
     "credential_missing",

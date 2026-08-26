@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     bool_value,
     float_value,
     json_object,
@@ -13,8 +13,9 @@ from domain_checks.json_types import (
     optional_object,
     text_value,
 )
-from e2e_registry.monitoring_v2.reliability_events import build_event_history
-from e2e_registry.monitoring_v2.reliability_metrics import (
+
+from .reliability_events import build_event_history
+from .reliability_metrics import (
     PERCENT,
     WINDOW_SECONDS,
     availability,
@@ -24,7 +25,7 @@ from e2e_registry.monitoring_v2.reliability_metrics import (
 )
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import (
+    from domain_checks.monitoring_contracts.json_types import (
         JsonObject,
         JsonValue,
     )

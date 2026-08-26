@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from domain_checks.database_dependencies.sanitization import sanitized_excerpt
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     bool_value,
     float_value,
     int_value,
@@ -21,7 +21,7 @@ from domain_checks.json_types import (
 )
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject, JsonValue
+    from domain_checks.monitoring_contracts.json_types import JsonObject, JsonValue
 
 _DEFAULT_STATE_PATH = "/monitor_state/database-dependencies.json"
 _MAX_STATE_BYTES = 4_194_304

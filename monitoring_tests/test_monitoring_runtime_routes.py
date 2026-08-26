@@ -8,12 +8,12 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-import domain_checks.main as monitoring
-from domain_checks.inventory import DomainAlertPolicy
-from domain_checks.main import (
-    DomainEntryConfig,
+from domain_checks.monitoring_contracts.legacy import (
     check_one_domain,
+    domain_alert_policy,
+    domain_entry_config,
     load_domain_spec,
+    monitoring_runtime,
 )
 from monitoring_test_support.inventory import (
     EXPECTED_ACTIVE_DOMAINS,
@@ -25,17 +25,17 @@ if TYPE_CHECKING:
     import httpx
     from playwright.async_api import Browser
 
-    from domain_checks.common_check import DomainCheckSpec
-    from domain_checks.json_types import JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonObject
+    from domain_checks.monitoring_contracts.legacy import DomainCheckSpec
 
 
 def test_domain_telegram_policy_suppresses_dashboard_only_and_routes_critical() -> None:
     """Mark only critical production domains as eligible for Telegram."""
     for domain in sorted(EXPECTED_DASHBOARD_ONLY_DOMAINS):
-        entry = DomainEntryConfig(
+        entry = domain_entry_config(
             domain=domain,
             raw_entry={},
-            alert_policy=DomainAlertPolicy(
+            alert_policy=domain_alert_policy(
                 telegram="dashboard-only",
                 reason="intentionally unused or noncritical surface",
             ),
@@ -43,10 +43,10 @@ def test_domain_telegram_policy_suppresses_dashboard_only_and_routes_critical() 
         if entry.routes_telegram:
             pytest.fail(f"dashboard-only domain is eligible for Telegram: {domain}")
 
-    critical_entry = DomainEntryConfig(
+    critical_entry = domain_entry_config(
         domain="pitchai.net",
         raw_entry={},
-        alert_policy=DomainAlertPolicy(telegram="critical"),
+        alert_policy=domain_alert_policy(telegram="critical"),
     )
     if not critical_entry.routes_telegram:
         pytest.fail("critical production domain is not eligible for Telegram")
@@ -78,8 +78,8 @@ async def test_every_inventory_domain_enters_http_and_browser_check_pipeline(
         browser_checked.append(spec.domain)
         return True, {"http_status": 200}
 
-    monkeypatch.setattr(monitoring, "http_get_check", fake_http)
-    monkeypatch.setattr(monitoring, "browser_check", fake_browser)
+    monkeypatch.setattr(monitoring_runtime, "http_get_check", fake_http)
+    monkeypatch.setattr(monitoring_runtime, "browser_check", fake_browser)
     semaphore = asyncio.Semaphore(4)
     checks = [
         check_one_domain(

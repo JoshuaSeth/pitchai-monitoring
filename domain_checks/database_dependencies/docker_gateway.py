@@ -13,13 +13,14 @@ from socket import socket as open_socket
 from typing import TYPE_CHECKING, cast, final, override
 from urllib.parse import quote
 
-from domain_checks.database_dependencies.docker_errors import DockerProtocolError
-from domain_checks.database_dependencies.docker_frames import decode_multiplexed_stream
-from domain_checks.database_dependencies.models import ProbeExecution
-from domain_checks.json_types import int_value, json_object, normalize_json, text_value
+from domain_checks.monitoring_contracts.json_types import int_value, json_object, normalize_json, text_value
+
+from .docker_errors import DockerProtocolError
+from .docker_frames import decode_multiplexed_stream
+from .models import ProbeExecution
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonInput, JsonObject, JsonValue
+    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject, JsonValue
 
 _HTTP_OK = 200
 _HTTP_CREATED = 201

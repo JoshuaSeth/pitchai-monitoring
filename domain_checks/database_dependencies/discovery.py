@@ -5,22 +5,24 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
-from domain_checks.database_dependencies.definition_factory import (
+from domain_checks.monitoring_contracts.json_types import text_value, value_list
+
+from .definition_factory import (
     ContainerDefinitionSource,
     build_coverage_gap,
     build_definition,
 )
-from domain_checks.database_dependencies.models import DatabaseDependencyInventoryError
-from domain_checks.json_types import text_value, value_list
+from .models import DatabaseDependencyInventoryError
 
 if TYPE_CHECKING:
-    from domain_checks.database_dependencies.models import (
+    from domain_checks.monitoring_contracts.json_types import JsonObject
+
+    from .models import (
         DatabaseDependencySettings,
         ProbeDefinition,
         ProbeRule,
     )
-    from domain_checks.database_dependencies.routing import RoutingResolution
-    from domain_checks.json_types import JsonObject
+    from .routing import RoutingResolution
 
 
 class DockerInventoryGateway(Protocol):

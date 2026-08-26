@@ -6,11 +6,11 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from domain_checks.json_types import optional_object
+from domain_checks.monitoring_contracts.json_types import optional_object
 from e2e_registry.monitoring_v2.database_incidents import build_database_incidents
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonObject
 
 
 def build_actionable_dashboard_summary(summary: JsonObject, *, domain: str) -> JsonObject:

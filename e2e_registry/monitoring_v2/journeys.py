@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     bool_value,
     float_value,
     int_value,
@@ -15,10 +15,10 @@ from domain_checks.json_types import (
     optional_object,
     text_value,
 )
-from domain_checks.safe_evidence import safe_public_url, safe_text_excerpt
+from domain_checks.monitoring_contracts.safe_evidence import safe_public_url, safe_text_excerpt
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import (
+    from domain_checks.monitoring_contracts.json_types import (
         JsonInput,
         JsonObject,
         JsonValue,

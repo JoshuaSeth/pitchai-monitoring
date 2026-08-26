@@ -9,11 +9,16 @@ from typing import TYPE_CHECKING, cast
 
 import yaml
 
-from domain_checks.database_dependencies.models import (
+from domain_checks.monitoring_contracts.json_types import (
+    json_object,
+    object_list,
+)
+
+from .models import (
     DatabaseDependencySettings,
     RoutingPolicy,
 )
-from domain_checks.database_dependencies.rule_configuration import (
+from .rule_configuration import (
     DatabaseDependencyConfigurationError,
     optional_text,
     parse_probe_rule,
@@ -22,16 +27,13 @@ from domain_checks.database_dependencies.rule_configuration import (
     required_text,
     text_tuple,
 )
-from domain_checks.json_types import (
-    json_object,
-    object_list,
-)
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from domain_checks.database_dependencies.models import ProbeRule, RoutingKind
-    from domain_checks.json_types import JsonInput, JsonObject, JsonValue
+    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject, JsonValue
+
+    from .models import ProbeRule, RoutingKind
 
 _ROUTING_KINDS = {"http_header", "nginx_upstream_file"}
 _MAX_PARALLEL_PROBES = 4

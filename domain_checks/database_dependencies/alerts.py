@@ -10,13 +10,19 @@ from typing import TYPE_CHECKING
 
 from httpx import Client
 
-from domain_checks.database_dependencies.state_io import write_state
-from domain_checks.json_types import float_value, normalize_json, object_list, text_value
+from domain_checks.monitoring_contracts.json_types import (
+    float_value,
+    normalize_json,
+    object_list,
+    text_value,
+)
+
+from .state_io import write_state
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from domain_checks.json_types import JsonObject, JsonValue
+    from domain_checks.monitoring_contracts.json_types import JsonObject, JsonValue
 
 _DASHBOARD_URL = "https://monitoring.pitchai.net/dashboard#databases"
 _MAX_MESSAGE_CHARS = 3_800

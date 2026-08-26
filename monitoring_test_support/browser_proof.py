@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from domain_checks.common_check import find_chromium_executable
-from domain_checks.json_types import int_value, json_object
+from domain_checks.monitoring_contracts.json_types import int_value, json_object
+from domain_checks.monitoring_contracts.legacy import common_runtime
 
 if TYPE_CHECKING:
     from playwright.async_api import ConsoleMessage, Locator, Page, Request, Route
 
-    from domain_checks.json_types import JsonInput, JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
 
 _EXPECTED_DOMAIN_COUNT = 60
 _EXPECTED_GROUP_BUTTON_COUNT = 15
@@ -38,7 +38,7 @@ def preferred_browser_executable() -> str | None:
     stable_browser = next((path for path in _STABLE_CHROME_PATHS if path.is_file()), None)
     if stable_browser is not None:
         return str(stable_browser)
-    return find_chromium_executable()
+    return common_runtime.find_chromium_executable()
 
 
 @dataclass

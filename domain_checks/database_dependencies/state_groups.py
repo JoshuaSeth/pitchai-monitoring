@@ -6,10 +6,10 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from domain_checks.json_types import bool_value, float_value, text_value
+from domain_checks.monitoring_contracts.json_types import bool_value, float_value, text_value
 
 if TYPE_CHECKING:
-    from domain_checks.json_types import JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonObject
 
 
 def _migration_group_state(

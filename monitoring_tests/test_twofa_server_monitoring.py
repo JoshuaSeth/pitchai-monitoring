@@ -9,19 +9,22 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from domain_checks.json_types import (
+from domain_checks.monitoring_contracts.json_types import (
     json_object,
     object_list,
     optional_object,
     text_value,
     value_list,
 )
-from domain_checks.main import load_config, load_domain_spec
+from domain_checks.monitoring_contracts.legacy import (
+    load_config,
+    load_domain_spec,
+)
 from monitoring_test_support.expectations import present
 
 if TYPE_CHECKING:
-    from domain_checks.common_check import DomainCheckSpec
-    from domain_checks.json_types import JsonInput, JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
+    from domain_checks.monitoring_contracts.legacy import DomainCheckSpec
 
 DOMAIN = "2fa-server.37.27.67.52.nip.io"
 _HTTP_OK = 200

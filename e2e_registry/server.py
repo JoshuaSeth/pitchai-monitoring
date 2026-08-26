@@ -7,17 +7,15 @@ import os
 
 import uvicorn
 
-from e2e_registry.app import create_app
-from e2e_registry.monitoring_v2 import install_monitoring_v2
-from e2e_registry.settings import RegistrySettings
+from .monitoring_v2 import install_monitoring_v2
+from .monitoring_v2.legacy import production_registry_app
 
 
 def main() -> None:
     """Create the registry app, install monitoring v2, and serve HTTP."""
     host = os.getenv("E2E_REGISTRY_HOST", "127.0.0.1").strip() or "127.0.0.1"
     port = int(os.getenv("E2E_REGISTRY_PORT", "8111"))
-    settings = RegistrySettings()
-    app = create_app(settings)
+    app = production_registry_app()
     install_monitoring_v2(app)
     uvicorn.run(app, host=host, port=port, log_level="info")
 

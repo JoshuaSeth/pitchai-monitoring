@@ -13,17 +13,23 @@ from typing import TYPE_CHECKING
 
 import uvicorn
 
-from e2e_registry import monitor_dashboard as legacy_dashboard
-from e2e_registry.app import create_app
 from e2e_registry.monitoring_v2 import install_monitoring_v2
-from e2e_registry.settings import RegistrySettings
+from e2e_registry.monitoring_v2.legacy import (
+    DashboardSettingsInput,
+    RegistryPaths,
+    RegistryTokens,
+    create_registry_app,
+    dashboard_registry_settings,
+    legacy_dashboard,
+)
 from monitoring_test_support.network_gateway import free_tcp_port
 
 if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
 
-    from domain_checks.json_types import JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonObject
+    from e2e_registry.monitoring_v2.legacy import RegistrySettings
 
 _START_ATTEMPTS = 80
 _START_RETRY_SECONDS = 0.05
@@ -83,19 +89,21 @@ def _settings(root: Path, state_path: Path, config_path: Path) -> RegistrySettin
     tests_dir = root / "submitted-tests"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     tests_dir.mkdir(parents=True, exist_ok=True)
-    return RegistrySettings(
-        db_path=str(root / "e2e-registry.db"),
-        artifacts_dir=str(artifacts_dir),
-        tests_dir=str(tests_dir),
-        admin_token=secrets.token_urlsafe(24),
-        monitor_token=secrets.token_urlsafe(24),
-        runner_token=secrets.token_urlsafe(24),
-        alerts_enabled=False,
-        dispatch_enabled=False,
-        public_base_url="",
-        monitor_state_path=str(state_path),
-        monitor_config_path=str(config_path),
-        dashboard_max_points=500,
+    return dashboard_registry_settings(
+        DashboardSettingsInput(
+            paths=RegistryPaths(
+                db_path=str(root / "e2e-registry.db"),
+                artifacts_dir=str(artifacts_dir),
+                tests_dir=str(tests_dir),
+            ),
+            tokens=RegistryTokens(
+                admin_token=secrets.token_urlsafe(24),
+                monitor_token=secrets.token_urlsafe(24),
+                runner_token=secrets.token_urlsafe(24),
+            ),
+            state_path=str(state_path),
+            config_path=str(config_path),
+        ),
     )
 
 
@@ -134,7 +142,7 @@ def running_dashboard_server(root: Path) -> Generator[DashboardServer]:
     """
     state_path, config_path = _write_monitor_fixture(root)
     settings = _settings(root, state_path, config_path)
-    app = create_app(settings)
+    app = create_registry_app(settings)
     previous_builder = legacy_dashboard.build_dashboard_summary
     install_monitoring_v2(app)
     port = free_tcp_port()

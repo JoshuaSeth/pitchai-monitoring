@@ -23,7 +23,7 @@ from domain_checks.database_dependencies.models import (
     ProbeObservation,
 )
 from domain_checks.database_dependencies.state import reduce_state
-from domain_checks.json_types import json_object
+from domain_checks.monitoring_contracts.json_types import json_object
 
 if TYPE_CHECKING:
     from domain_checks.database_dependencies.models import (
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
         ProbeRule,
         TrafficState,
     )
-    from domain_checks.json_types import JsonInput, JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonInput, JsonObject
 
 ROOT = Path(__file__).resolve().parents[1]
 _TARGET_PROBE_PATH = ROOT / "domain_checks/database_dependencies/target_probe.txt"

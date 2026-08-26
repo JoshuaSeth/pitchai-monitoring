@@ -8,7 +8,7 @@ import math
 import pytest
 
 from domain_checks.database_dependencies.configuration import load_settings
-from domain_checks.json_types import float_value, object_list
+from domain_checks.monitoring_contracts.json_types import float_value, object_list
 from monitoring_test_support.database_dependency import (
     ROOT,
     DefinitionOptions,

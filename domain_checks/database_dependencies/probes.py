@@ -8,18 +8,20 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from domain_checks.database_dependencies.failure_classification import classify_failure
-from domain_checks.database_dependencies.models import ProbeObservation
-from domain_checks.database_dependencies.sanitization import sanitized_excerpt
-from domain_checks.json_types import bool_value, float_value, json_object, text_value
+from domain_checks.monitoring_contracts.json_types import bool_value, float_value, json_object, text_value
+
+from .failure_classification import classify_failure
+from .models import ProbeObservation
+from .sanitization import sanitized_excerpt
 
 if TYPE_CHECKING:
-    from domain_checks.database_dependencies.docker_gateway import DockerGateway
-    from domain_checks.database_dependencies.models import (
+    from domain_checks.monitoring_contracts.json_types import JsonValue
+
+    from .docker_gateway import DockerGateway
+    from .models import (
         ProbeDefinition,
         ProbeExecution,
     )
-    from domain_checks.json_types import JsonValue
 
 
 class DatabaseProbeProtocolError(RuntimeError):

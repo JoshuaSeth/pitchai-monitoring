@@ -6,12 +6,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from domain_checks.safe_evidence import safe_public_url, safe_response_excerpt, safe_text_excerpt
+from domain_checks.monitoring_contracts.safe_evidence import safe_public_url, safe_response_excerpt, safe_text_excerpt
 
 if TYPE_CHECKING:
     from httpx import URL
 
-    from domain_checks.json_types import JsonObject
+    from domain_checks.monitoring_contracts.json_types import JsonObject
 
 
 @dataclass(frozen=True)
