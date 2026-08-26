@@ -33,7 +33,7 @@ Each available, plan-supported `codex_rate_limits` credit is warned once as it c
 
 If the machine was down at a threshold, `Persistent=true` starts the missed timer and the next pass records every crossed-but-unreported threshold. Starting at two hours before expiry, every 15-minute pass performs the mandatory fresh recheck and may attempt the exact credit. Fifteen minutes is deliberately more frequent than the requested two-hour cadence so a transient broker/provider failure still leaves several retries.
 
-Production warnings, non-consuming `nothing_to_reset` outcomes, account-check failures, verified redemptions, and verification failures use the canonical requester-private Telegram route `seth-ori`. There is no group route in the service configuration. Every decision and notification result is also durable in SQLite and journald. A threshold event is recorded exactly once, while a pending or failed Telegram delivery is reconstructed from that durable threshold on later passes and retried until the private sent receipt is recorded.
+Production warnings, non-consuming `nothing_to_reset` outcomes, account-check failures, verified redemptions, and verification failures use the canonical requester-private Telegram route `seth-ori`. There is no group route in the service configuration. Before every send, a no-send preflight proves the live route is private and the Telegram helper can query and write its durable receipt ledger. A failed preflight prevents the send, so a delivery-store outage cannot create repeated Telegram messages whose accepted receipts were never persisted. Every decision and notification result is also durable in SQLite and journald. A threshold event is recorded exactly once, while a pending or failed Telegram delivery is reconstructed from that durable threshold on later passes and retried until the private sent receipt is recorded.
 
 ## Production installation
 
@@ -48,7 +48,7 @@ The deployment:
 - refuses deployment if any shipped file differs from `HEAD`, records the full commit SHA and a path-independent source digest, and installs an immutable release below `/opt/pitchai-auth-reset-guardian/releases/`;
 - atomically points `/opt/pitchai-auth-reset-guardian/current` at that release;
 - reads the broker secret only from `/etc/auth-token-server/auth-token-server.env` at run time;
-- validates the canonical Telegram helper's requester-private Seth route;
+- validates the canonical Telegram helper's live requester-private Seth route and required receipt-ledger table and sequence privileges without sending a message;
 - passes an isolated fake-expiry simulation and a live no-consume dry-run;
 - installs and enables `pitchai-auth-reset-guardian.timer`;
 - starts one immediate live pass and verifies the persistent audit database.
