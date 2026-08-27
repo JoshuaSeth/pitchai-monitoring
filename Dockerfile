@@ -34,6 +34,7 @@ COPY domain_checks ./domain_checks
 COPY e2e_registry ./e2e_registry
 COPY e2e_runner ./e2e_runner
 COPY e2e_sandbox ./e2e_sandbox
+COPY monitoring_v2 ./monitoring_v2
 COPY specs ./specs
 
 CMD ["python", "-m", "domain_checks.main"]

@@ -37,6 +37,11 @@ jobs:
       - name: Build test image
         run: docker build -t service-monitoring:ci .
 
+      - name: Verify production image monitoring runtime
+        run: |
+          docker run --rm service-monitoring:ci \
+            python -c "from e2e_registry.monitoring_v2_runtime import install_monitoring_v2, production_registry_app; assert callable(install_monitoring_v2); assert callable(production_registry_app)"
+
       - name: Run tests (HTTP + Playwright UI)
         run: |
           docker run --rm \
