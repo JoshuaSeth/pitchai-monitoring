@@ -7,6 +7,8 @@ readonly BROKER_CONTAINER="auth-token-server"
 readonly BROKER_ENV="/etc/auth-token-server/auth-token-server.env"
 readonly BROKER_ACCOUNTS="/srv/auth-token-server/data/accounts"
 readonly DASHBOARD_DATA="/srv/codex-usage-dashboard"
+readonly HISTORY_DB="${DASHBOARD_DATA}/usage-history.sqlite3"
+readonly HISTORY_BACKUPS="${DASHBOARD_DATA}/backups"
 readonly PROD_PORT="8124"
 readonly CANARY_PORT="18124"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,6 +28,7 @@ done
 [[ -r "${BROKER_ENV}" ]] || { printf 'Broker environment is not readable.\n' >&2; exit 1; }
 [[ -d "${BROKER_ACCOUNTS}" ]] || { printf 'Broker account inventory is unavailable.\n' >&2; exit 1; }
 install -d -m 700 -o root -g root "${DASHBOARD_DATA}"
+install -d -m 700 -o root -g root "${HISTORY_BACKUPS}"
 [[ "$(stat -c '%a:%U:%G' "${BROKER_ENV}")" == "600:root:root" ]] || {
   printf 'Broker environment permissions are not 600 root:root.\n' >&2
   exit 1
@@ -47,7 +50,23 @@ set +a
 export AUTH_USAGE_BROKER_ADMIN_TOKEN="${AUTH_TOKEN_SERVER_ADMIN_TOKEN}"
 unset AUTH_TOKEN_SERVER_CLIENT_TOKEN AUTH_TOKEN_SERVER_DATA_DIR
 
-git_sha="$(git -C "${REPO_ROOT}" rev-parse --short=12 HEAD)"
+git_full_sha="$(git -C "${REPO_ROOT}" rev-parse --verify HEAD)"
+git_sha="${git_full_sha:0:12}"
+inventory_count="$(python3 - "${BROKER_ACCOUNTS}" <<'PY'
+import pathlib
+import sys
+
+accounts = pathlib.Path(sys.argv[1])
+count = sum(
+    1
+    for path in accounts.iterdir()
+    if path.is_dir() and (path / "metadata.json").is_file()
+)
+if count < 1:
+    raise RuntimeError("broker account inventory is empty")
+print(count)
+PY
+)"
 image="${1:-codex-usage-dashboard:${git_sha}}"
 if [[ $# -eq 0 ]]; then
   docker build --pull --tag "${image}" --file "${REPO_ROOT}/Dockerfile.auth-usage" "${REPO_ROOT}"
@@ -97,9 +116,65 @@ run_dashboard() {
     --env AUTH_USAGE_HISTORY_FILE=/dashboard-data/usage-samples.json \
     --env AUTH_USAGE_HISTORY_RETENTION_DAYS=8 \
     --env AUTH_USAGE_HISTORY_SAMPLE_INTERVAL_SECONDS=300 \
+    --env AUTH_USAGE_TIMESERIES_DB=/dashboard-data/usage-history.sqlite3 \
+    --env AUTH_USAGE_TIMESERIES_SAMPLE_INTERVAL_SECONDS=300 \
+    --env AUTH_USAGE_TIMESERIES_STARTUP_DELAY_SECONDS=30 \
+    --env "AUTH_USAGE_COLLECTOR_VERSION=${git_full_sha}" \
     --env AUTH_USAGE_REQUIRE_PROXY_AUTH=1 \
     "${health_args[@]}" \
     "${image}" >/dev/null
+}
+
+check_history() {
+  local name="$1"
+  local expected_version="$2"
+  local expected_accounts="$3"
+  local attempts=180
+  local output
+  while (( attempts > 0 )); do
+    if output="$(docker exec "${name}" python -m auth_usage_dashboard.history_cli \
+      --database /dashboard-data/usage-history.sqlite3 status 2>/dev/null)" \
+      && python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+expected_accounts = int(sys.argv[2])
+assert payload["latest_collector_version"] == sys.argv[1]
+assert payload["latest_source"] == "auth_usage_dashboard:redacted_broker_state"
+assert payload["latest_batch_account_count"] == expected_accounts
+assert payload["latest_batch_sample_count"] == expected_accounts
+' "${expected_version}" "${expected_accounts}" <<<"${output}"; then
+      break
+    fi
+    attempts=$((attempts - 1))
+    sleep 0.5
+  done
+  (( attempts > 0 )) || return 1
+  docker exec "${name}" python -m auth_usage_dashboard.history_cli \
+    --database /dashboard-data/usage-history.sqlite3 summary --hours 24 >/dev/null
+}
+
+backup_history() {
+  [[ -f "${HISTORY_DB}" ]] || return 0
+  local backup_path="${HISTORY_BACKUPS}/usage-history-$(date -u +%Y%m%dT%H%M%SZ).sqlite3"
+  python3 - "${HISTORY_DB}" "${backup_path}" <<'PY'
+import os
+import sqlite3
+import sys
+
+source_path, destination_path = sys.argv[1:]
+source = sqlite3.connect(f"file:{source_path}?mode=ro", uri=True, timeout=30.0)
+destination = sqlite3.connect(destination_path, timeout=30.0)
+try:
+    source.backup(destination)
+    if destination.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+        raise RuntimeError("history backup quick_check failed")
+finally:
+    destination.close()
+    source.close()
+os.chmod(destination_path, 0o600)
+PY
 }
 
 check_dashboard() {
@@ -134,7 +209,14 @@ if ! check_dashboard "${CANARY_PORT}"; then
   docker logs --tail 30 "${canary}" >&2 || true
   exit 1
 fi
+if ! check_history "${canary}" "${git_full_sha}" "${inventory_count}"; then
+  printf 'Canary time-series validation failed.\n' >&2
+  docker logs --tail 30 "${canary}" >&2 || true
+  exit 1
+fi
 docker rm --force "${canary}" >/dev/null
+
+backup_history
 
 had_previous=0
 if docker container inspect "${CONTAINER}" >/dev/null 2>&1; then
@@ -165,9 +247,16 @@ if ! check_dashboard "${PROD_PORT}"; then
   printf 'Production validation failed; previous container restored.\n' >&2
   exit 1
 fi
+if ! check_history "${CONTAINER}" "${git_full_sha}" "${inventory_count}"; then
+  docker logs --tail 30 "${CONTAINER}" >&2 || true
+  rollback
+  printf 'Production time-series validation failed; previous container restored.\n' >&2
+  exit 1
+fi
 
 if (( had_previous == 1 )); then
   docker rm "${backup}" >/dev/null
 fi
 unset AUTH_USAGE_BROKER_ADMIN_TOKEN AUTH_TOKEN_SERVER_ADMIN_TOKEN
-printf 'Deployed %s on 127.0.0.1:%s\n' "${image}" "${PROD_PORT}"
+printf 'Deployed %s on 127.0.0.1:%s with durable history %s\n' \
+  "${image}" "${PROD_PORT}" "${HISTORY_DB}"
