@@ -213,7 +213,10 @@ async def _validated_evidence(
     return await _fetch_evidence(spec, timeout_seconds=timeout_seconds)
 
 
-@router.get("/dashboard/api/v1/monitoring/incidents/{domain}/evidence")
+@router.get(
+    "/dashboard/api/v1/monitoring/incidents/{domain}/evidence",
+    response_model=None,
+)
 async def incident_evidence(domain: str, request: web_runtime.Request) -> JsonObject:
     """Fetch one allowlisted public response only when an operator expands it.
 

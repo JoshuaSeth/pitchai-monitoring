@@ -34,7 +34,7 @@ class FunctionDecorator(Protocol):
 class Router(Protocol):
     """Route-registration surface used by monitoring v2."""
 
-    def get(self, path: str) -> FunctionDecorator:
+    def get(self, path: str, *, response_model: object | None = None) -> FunctionDecorator:
         """Create one typed GET route decorator."""
         raise NotImplementedError
 
