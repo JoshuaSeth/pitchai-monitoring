@@ -5,9 +5,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+from .evidence import router as evidence_router
 from .registry_runtime import legacy_dashboard
 from .summary import build_dashboard_summary
-from .web_runtime import router as evidence_router
 
 if TYPE_CHECKING:
     from .registry_runtime import DashboardBuilder
