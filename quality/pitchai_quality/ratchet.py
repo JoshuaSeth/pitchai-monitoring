@@ -72,7 +72,7 @@ async def _is_ancestor(root: Path, ancestor: str) -> bool:
     raise RuntimeError(message)
 
 
-async def _changed_python_files(root: Path, base: str) -> tuple[str, ...]:
+async def _python_files_changed_since(root: Path, base: str) -> frozenset[str]:
     output = await _git(
         root,
         "diff",
@@ -84,7 +84,13 @@ async def _changed_python_files(root: Path, base: str) -> tuple[str, ...]:
         "*.py",
         "*.pyi",
     )
-    return tuple(sorted(filter(None, output.split("\0"))))
+    return frozenset(filter(None, output.split("\0")))
+
+
+async def _changed_python_files(root: Path, base: str, activation: str) -> tuple[str, ...]:
+    changed_from_event = await _python_files_changed_since(root, base)
+    changed_after_activation = await _python_files_changed_since(root, activation)
+    return tuple(sorted(changed_from_event.intersection(changed_after_activation)))
 
 
 def _event_json(path: Path) -> dict[str, JsonValue]:
@@ -150,7 +156,11 @@ async def _verify(arguments: argparse.Namespace) -> int:
     if candidate.get("tool_versions") != baseline.get("tool_versions"):
         message = "candidate locked tool versions differ from the activation baseline"
         raise RuntimeError(message)
-    changed = await _changed_python_files(root, _comparison_base(arguments, activation_commit))
+    changed = await _changed_python_files(
+        root,
+        _comparison_base(arguments, activation_commit),
+        activation_commit,
+    )
     failures = verify_snapshots(baseline, candidate, changed)
     report_path = cast("Path | None", arguments.candidate_report)
     if report_path is not None:

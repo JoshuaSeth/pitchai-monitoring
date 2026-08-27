@@ -33,7 +33,10 @@ machine-readable diagnostics with
 `.github/quality-baselines/python-strict-activation-main.json`. It fails when a gate
 has a new fingerprint, a higher fingerprint multiplicity, a higher aggregate
 violation count, or any violation attached to a Python file changed by the
-candidate. Moving unchanged code between paths or line numbers does not create
+candidate after the activation commit. Candidate ownership is the intersection
+of the GitHub event diff and the post-activation diff, so the activation PR can
+carry its frozen baseline source without exempting any later Python edit.
+Moving unchanged code between paths or line numbers does not create
 a new identity: ordinary fingerprints use the gate, rule, normalized message,
 and source-line digest, while locations remain separate evidence. Pylint's
 duplicate-code excerpts are nondeterministic even with a single worker, so

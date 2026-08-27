@@ -1,7 +1,7 @@
 {
   "files": {
     ".python-version": "7b55f8e67b5623c4bef3fa691288da9437d79d3aba156de48d481db32ac7d16d",
-    "QUALITY.md": "47b23576f50b3f1d489c928f8debecc2e48dab91636b973e4af1ccefa26097f3",
+    "QUALITY.md": "48ea39c5240826aea567fd7e8654eec944d9aed523011f2607dcbeb93884c1aa",
     "pyproject.toml": "2332aa08c08a47b1d3b1419bfc2c72cd48d0ccf148362f3b185bd39f39813b33",
     "quality/.gitignore": "9c7bcd3943d0972b48a7484f6a2a3635bfaa89db04176068f3afab590ef7785e",
     "quality/.semgrep.yml": "b3aa9b18b0993999899d45d704c44b516dd50e42634f00379d39ea5ddd1a647e",
@@ -18,7 +18,7 @@
     "quality/pitchai_quality/check_no_vague_signatures.py": "73ea3156085de8c309f56ce1f890506b9737c9bebc1070ec84d9d264d343f1df",
     "quality/pitchai_quality/pure_wrapper_index.py": "5b6224328c321af0a20f1e57f64cbfaac41ffba4c3e6cd770aa5658ee7a24691",
     "quality/pitchai_quality/pure_wrapper_resolution.py": "0c42e1489804f28705a112658dbe9cbde4b6354e83083dadd063d9637c4dd3a4",
-    "quality/pitchai_quality/ratchet.py": "25549f4432955aafa799f4fae8751c9eeddc8fc6ac2c18288e58fa2f7ae2e137",
+    "quality/pitchai_quality/ratchet.py": "1fb7fedfa4960abdb7ae0155d80914a10e734e23b99abc06fb135259e4bfd97e",
     "quality/pitchai_quality/ratchet_commands.py": "a1d8546be6037396372bd62011c1dc55b08fddff6a79cf9e9d75839841d53f64",
     "quality/pitchai_quality/ratchet_event.py": "25b4a6bd79e133525ef33ce75e0670627006d3476549723c236e40a1b55cde12",
     "quality/pitchai_quality/ratchet_json.py": "5d90d4863794b6a627f79a95215ac1a65b17ac67dd540dce03c4d9b22720f46e",
