@@ -54,7 +54,7 @@ Producers that already persist immutable envelopes use the one approved HTTP
 boundary instead of implementing another raw request path:
 
 ```python
-from domain_checks.event_bus import deliver_event_bus_payload
+from domain_checks.event_bus_delivery import deliver_event_bus_payload
 
 attempt = deliver_event_bus_payload(config, immutable_payload)
 ```
@@ -62,9 +62,10 @@ attempt = deliver_event_bus_payload(config, immutable_payload)
 `deliver_event_bus_payload()` validates and copies the envelope, recomputes its
 delivery identity, signs the canonical bytes, and returns `DeliveryAttempt`.
 Tampered payloads fail before network IO. The original delivery id is retained,
-so receiver-side deduplication remains authoritative. `EventBusOutbox.flush_sync()`
-uses this gateway for synchronous collectors; the existing async `flush(client)`
-uses the same validation and request preparation.
+so receiver-side deduplication remains authoritative. The database collector's
+state-backed outbox and the hotpath registry's transactional SQLite outbox both
+hand their already-persisted envelopes to this boundary; transport failures
+propagate so the owning outbox retains the row for retry.
 
 ## Event Catalog
 
