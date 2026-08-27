@@ -7,6 +7,8 @@ import json
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
+from httpx import AsyncClient
+
 from .browser_proof import (
     BrowserReceipts,
     exercise_actionable_dashboard,
@@ -69,6 +71,18 @@ async def test_dashboard_enforces_identity_and_exposes_v2_contract(
     required_tabs = {"infrastructure", "reliability", "journeys", "databases"}
     if not required_tabs.issubset(dashboards):
         pytest.fail(f"monitoring v2 dashboard payload is incomplete: {sorted(dashboards)}")
+
+
+@pytest.mark.asyncio
+async def test_dashboard_registers_the_protected_incident_evidence_route(
+    dashboard_server: DashboardServer,
+) -> None:
+    """Prove production installation includes the on-expand evidence router."""
+    client_factory = partial(AsyncClient, base_url=dashboard_server.base_url)
+    async with client_factory() as client:
+        response = await client.get("/dashboard/api/v1/monitoring/incidents/a.example/evidence")
+    if response.status_code != _HTTP_UNAUTHORIZED:
+        pytest.fail(f"protected incident evidence route returned {response.status_code}, expected 401")
 
 
 @pytest.mark.asyncio
