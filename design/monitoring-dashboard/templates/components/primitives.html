@@ -1,0 +1,46 @@
+{% macro status_label(status, text=None) -%}
+{% set tones = {
+  'healthy': 'border-[#bee3ca] bg-[#eefaf1] text-[#16714e]',
+  'critical': 'border-[#f0b6b2] bg-[#fff0ef] text-[#a22925]',
+  'attention': 'border-[#efd09e] bg-[#fff8e8] text-[#8d5b08]',
+  'expected': 'border-[#e5c87d] bg-[#fff9e6] text-[#8a650c]',
+  'recovery': 'border-[#bee3ca] bg-[#eefaf1] text-[#16714e]',
+  'problem': 'border-[#f0b6b2] bg-[#fff0ef] text-[#a22925]',
+  'unknown': 'border-[#ced8d2] bg-[#f4f7f5] text-[#60736a]'
+} %}
+<span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.11em] {{ tones.get(status, tones.unknown) }}">
+  <span class="h-1.5 w-1.5 rounded-full {{ 'bg-[#cc3a32]' if status in ['critical', 'problem'] else 'bg-[#c48c21]' if status in ['attention', 'expected'] else 'bg-[#58b83d]' if status in ['healthy', 'recovery'] else 'bg-[#8ca098]' }}"></span>
+  {{ text or status }}
+</span>
+{%- endmacro %}
+
+{% macro metric_strip(metrics, active_tab) -%}
+<section class="grid grid-cols-4 border-b border-[#dbe5df] bg-[#fefefe]">
+  {% for metric in metrics %}
+    <div class="{{ 'px-8 pb-[2px] pt-5' if active_tab == 'Domains' else 'px-8 pb-[24px] pt-5' if active_tab == 'Infrastructure' else 'px-3 pb-[25px] pt-[23px]' }} {{ 'border-l border-[#dbe5df]' if not loop.first else '' }}">
+      <p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]">{{ metric.label }}</p>
+      <div class="mt-3 flex items-baseline justify-between gap-3">
+        <strong class="text-[27px] font-semibold tracking-[-0.035em] {{ 'text-[#ae2d28]' if metric.status == 'critical' else 'text-[#91620c]' if metric.status == 'attention' else 'text-[#173328]' }}">{{ metric.value }}</strong>
+        {{ status_label(metric.status) }}
+      </div>
+      <p class="mt-2 text-[11px] leading-4 text-[#6b7e74]">{{ metric.detail }}</p>
+    </div>
+  {% endfor %}
+</section>
+{%- endmacro %}
+
+{% macro fact(label, value, icon='•') -%}
+<div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+  <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="grid h-4 w-4 place-items-center rounded-full border border-[#71857a] text-[8px]">{{ icon }}</span>{{ label }}</dt>
+  <dd class="mt-1 pl-6 text-[12px] font-semibold leading-5 text-[#263d32]">{{ value }}</dd>
+</div>
+{%- endmacro %}
+
+{% macro bar_sparkline(points, tone='green') -%}
+{% set color = '#bd3934' if tone == 'red' else '#c48b1f' if tone == 'amber' else '#178368' %}
+<div class="flex h-16 items-end gap-[3px]" aria-label="Retained trend samples">
+  {% for point in points %}
+    <span class="min-w-0 flex-1 rounded-t-[2px] opacity-{{ '100' if loop.last else '60' }}" style="height: {{ point }}%; background: {{ color }}"></span>
+  {% endfor %}
+</div>
+{%- endmacro %}

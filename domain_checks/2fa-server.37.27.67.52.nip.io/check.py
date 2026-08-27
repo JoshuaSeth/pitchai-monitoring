@@ -1,3 +1,4 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
 """Public health and event-outbox readiness checks for PitchAI 2FA Server."""
 
 CHECK = {

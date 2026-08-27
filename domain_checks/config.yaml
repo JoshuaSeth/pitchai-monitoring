@@ -151,6 +151,7 @@ container_health:
   monitor_all: false
   include_name_patterns:
     - "^service-monitoring$"
+    - "^database-dependency-monitor$"
     - "^e2e-registry$"
     - "^e2e-runner$"
     - "^registry$"
@@ -168,20 +169,20 @@ container_health:
     - "^aipc-(?:skybuyfly-(?:primary|backup)|crawler|match-dependent-ops|product-image-refresher|qdrant-sync|search-derived-fields|meilisync)$"
     - "^(?:qdrant|meilisearch|pgbouncer-aipc)$"
     - "^skybuyfly-quick-chat$"
-    - "^deplanbook-play$"
+    - "^deplanbook-play(?:-blue|-green)?$"
     - "^deplanbook-cms$"
     - "^deplanbook-(?:libretranslate|db-proxy)$"
     - "^pgbouncer-deplanbook$"
     - "^twofa-server-prod$"
     - "^dft-web-app(?:-green|-staging|-staging-spend-enabled)?$"
     - "^staging-temp-web$"
-    - "^dft-worker-(?:green|staging|staging-spend-enabled)$"
+    - "^dft-worker(?:-green|-staging|-staging-spend-enabled)?$"
     - "^dft-batch-progress-redis(?:-main-candidate|-staging|-staging-spend-enabled|-staging-temp-bas)?$"
     - "^dft-llm-mock-openai-staging$"
     - "^meilisearch-formatief-toetsen$"
     - "^meilisync-formatief-toetsen(?:-staging)?$"
     - "^pgbouncer-dft(?:-staging)?$"
-    - "^orthoparse-(?:web-app(?:-green)?|ceph-worker|worker-green)$"
+    - "^orthoparse-(?:web-app(?:-green)?|ceph-worker|worker(?:-green)?)$"
     - "^pgbouncer-orthoparse$"
     - "^pitchai-onboarding-course-onboarding-course-1$"
     - "^pitchai-breakglass-web-terminal$"
@@ -192,6 +193,585 @@ container_health:
   up_after_successes: 1
   dispatch_on_degraded: true
   notify_on_recovery: false
+
+# First-class database dependency monitoring. The sidecar executes one bounded,
+# read-only probe inside each database-backed production app container so the
+# exact runtime credential and network/PgBouncer path are exercised. It never
+# copies DSNs, passwords, query results, or raw container environment values into
+# monitoring state or logs.
+database_dependencies:
+  enabled: true
+  interval_seconds: 300
+  timeout_seconds: 12
+  down_after_failures: 2
+  up_after_successes: 2
+  max_parallel_probes: 4
+  docker_socket_path: /var/run/docker.sock
+  state_path: /data/database-dependencies.json
+  python_executable: python
+  environment_key_patterns:
+    - '^(?:[A-Z0-9]+_)*(?:DATABASE|DB)(?:_[A-Z0-9]+)*(?:_URL|_URI|_DSN|_PATH)$'
+  environment_key_exclude_patterns:
+    - '(?:ADMIN|ALEMBIC|DIRECT|MIGRATION|SHADOW|STAGING|TEST)'
+  exclude_name_patterns:
+    - '^service-monitoring$'
+    - '^database-dependency-monitor$'
+    - '(^|[-_])(?:demo|deprecated|rehearsal|rollback|staging|test)(?:[-_]|$)'
+    - '^(?:postgres|pgbouncer|redis|qdrant|meilisearch|libretranslate)(?:[-_].*)?$'
+    - '^(?:apologetica-wagtail-staging|potai-staging)$'
+  routing_policies:
+    - id: dft-blue-green
+      kind: http_header
+      source: https://formatief-toetsen.pitchai.net/healthz
+      header_name: X-DFT-Blue-Green
+      slots: [blue, green]
+    - id: orthoparse-blue-green
+      kind: http_header
+      source: https://orthoparse.pitchai.net/healthz
+      header_name: X-Orthoparse-Blue-Green
+      slots: [blue, green]
+    - id: deplanbook-blue-green
+      kind: nginx_upstream_file
+      source: /routing/nginx-conf/deplanbook-play-upstream.conf
+      slots: [legacy, blue, green]
+      slot_ports: {legacy: 3140, blue: 13140, green: 13141}
+  rules:
+    - id: autopar-primary
+      container_pattern: '^autopar$'
+      app_name: AutoPAR
+      owner_project: AutoPAR
+      database_label: Production PostgreSQL via AutoPAR runtime/PgBouncer
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: autopar-primary
+      domains: [autopar.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:sync_engine
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks:
+        - caseanalysisstate
+        - meditlinkcase
+        - meditlinkuser
+        - overjet_details
+        - serverstate
+        - patient_longitudinal_pairs
+        - dashboard_overview_case_facts
+        - dashboard_overview_pair_candidates
+        - dashboard_policy_trajectory_denominator
+      alert_group: autopar-production-database
+      likely_fix_path: Restore LOGIN/password on the AutoPAR runtime role, then restore AutoPAR schema/table/materialized-view grants and verify the PgBouncer route.
+    - id: autopar-auth
+      container_pattern: '^autopar-auth$'
+      app_name: AutoPAR authentication
+      owner_project: AutoPAR
+      database_label: Production PostgreSQL via AutoPAR auth runtime
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: autopar-auth
+      domains: [auth.autopar.pitchai.net, autopar.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:sync_engine
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [meditlinkuser]
+      alert_group: autopar-production-database
+      likely_fix_path: Restore the AutoPAR auth runtime role LOGIN/password and SELECT grant, then verify its mounted runtime config and PgBouncer path.
+    - id: autopar-dashboard-refresh
+      container_pattern: '^autopar-dashboard-mv-refresh$'
+      app_name: AutoPAR dashboard refresh
+      owner_project: AutoPAR
+      database_label: AutoPAR dashboard materialized-view chain
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [autopar.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:sync_engine
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks:
+        - patient_longitudinal_pairs
+        - dashboard_overview_case_facts
+        - dashboard_overview_pair_candidates
+        - dashboard_policy_trajectory_denominator
+      alert_group: autopar-dashboard-refresh
+      likely_fix_path: Restore runtime-role read grants and the refresher role's materialized-view refresh grants; then run the AutoPAR dashboard runtime verifier.
+    - id: autopar-production-worker
+      container_pattern: '^autopar-'
+      app_name: AutoPAR production worker
+      owner_project: AutoPAR
+      database_label: AutoPAR production PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [autopar.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:sync_engine
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [caseanalysisstate]
+      alert_group: autopar-production-workers
+      likely_fix_path: Verify the worker's mounted runtime config, runtime-role LOGIN/password, PgBouncer route, and SELECT/UPDATE grants.
+    - id: afasask-primary
+      container_pattern: '^afasask$'
+      app_name: AFASAsk
+      owner_project: AFASAsk
+      database_label: AFASAsk production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: afasask-primary
+      domains: [afasask.pitchai.net, afasask.gzb.nl]
+      connection_mode: sqlalchemy_url
+      environment_keys: [AFASASK_DATABASE_URL, DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [pipeline_session, conversation_message_log, org_signal_run]
+      alert_group: afasask-production-database
+      likely_fix_path: Verify the AFASAsk runtime DB credential, database route, schema USAGE, and application relation grants.
+    - id: skybuyfly-primary
+      container_pattern: '^aipc-skybuyfly-primary$'
+      app_name: SkyBuyFly primary
+      owner_project: AIPC / SkyBuyFly
+      database_label: SkyBuyFly primary PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: skybuyfly-primary
+      domains: [skybuyfly.pitchai.net]
+      connection_mode: sqlalchemy_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [product, users, user_sessions]
+      alert_group: skybuyfly-primary-database
+      likely_fix_path: Verify the primary AIPC runtime credential and PgBouncer/tunnel, then restore schema and relation grants for the runtime role.
+    - id: skybuyfly-stable
+      container_pattern: '^aipc-stable$'
+      app_name: SkyBuyFly stable
+      owner_project: AIPC / SkyBuyFly
+      database_label: SkyBuyFly stable PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [stable.skybuyfly.pitchai.net]
+      connection_mode: sqlalchemy_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [product, users, user_sessions]
+      alert_group: skybuyfly-stable-database
+      likely_fix_path: Verify the stable AIPC runtime credential, PgBouncer/tunnel, and schema/relation grants before promotion.
+    - id: dft-web-blue
+      container_pattern: '^dft-web-app$'
+      app_name: Formatief Toetsen
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: dft-web
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [auth_users, formative_flows, system_status_banners]
+      routing_policy_id: dft-blue-green
+      traffic_slot: blue
+      alert_group: dft-production-database
+      likely_fix_path: Verify the DFT web runtime credential and PgBouncer route, then restore schema and application table grants.
+    - id: dft-web-green
+      container_pattern: '^dft-web-app-green$'
+      app_name: Formatief Toetsen
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: dft-web
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [auth_users, formative_flows, system_status_banners]
+      routing_policy_id: dft-blue-green
+      traffic_slot: green
+      alert_group: dft-production-database
+      likely_fix_path: Verify the green DFT web runtime credential and PgBouncer route, then restore schema and application table grants before promotion.
+    - id: dft-worker-blue
+      container_pattern: '^dft-worker$'
+      app_name: Formatief Toetsen worker
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: dft-worker
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [formative_flows]
+      routing_policy_id: dft-blue-green
+      traffic_slot: blue
+      alert_group: dft-production-database
+      likely_fix_path: Verify the active DFT worker runtime credential, PgBouncer route, and formative-flow grants.
+    - id: dft-worker-green
+      container_pattern: '^dft-worker-green$'
+      app_name: Formatief Toetsen worker
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: dft-worker
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [formative_flows]
+      routing_policy_id: dft-blue-green
+      traffic_slot: green
+      alert_group: dft-production-database
+      likely_fix_path: Verify the green DFT worker runtime credential, PgBouncer route, and formative-flow grants before promotion.
+    - id: deplanbook-legacy
+      container_pattern: '^deplanbook-play$'
+      app_name: DePlanBook
+      owner_project: DePlanBook
+      database_label: DePlanBook production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: deplanbook-app
+      domains: [deplanbook.com, deplanbook.pitchai.net, dpb.pitchai.net]
+      connection_mode: asyncpg_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [user, foodlogentry, activitylogentry]
+      routing_policy_id: deplanbook-blue-green
+      traffic_slot: legacy
+      alert_group: deplanbook-production-database
+      likely_fix_path: Verify the DePlanBook app runtime credential, DB proxy/PgBouncer path, and schema/table grants.
+    - id: deplanbook-blue
+      container_pattern: '^deplanbook-play-blue$'
+      app_name: DePlanBook
+      owner_project: DePlanBook
+      database_label: DePlanBook production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: deplanbook-app
+      domains: [deplanbook.com, deplanbook.pitchai.net, dpb.pitchai.net]
+      connection_mode: asyncpg_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [user, foodlogentry, activitylogentry]
+      routing_policy_id: deplanbook-blue-green
+      traffic_slot: blue
+      alert_group: deplanbook-production-database
+      likely_fix_path: Verify the blue DePlanBook runtime credential, DB proxy path, and application table grants.
+    - id: deplanbook-green
+      container_pattern: '^deplanbook-play-green$'
+      app_name: DePlanBook
+      owner_project: DePlanBook
+      database_label: DePlanBook production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: deplanbook-app
+      domains: [deplanbook.com, deplanbook.pitchai.net, dpb.pitchai.net]
+      connection_mode: asyncpg_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [user, foodlogentry, activitylogentry]
+      routing_policy_id: deplanbook-blue-green
+      traffic_slot: green
+      alert_group: deplanbook-production-database
+      likely_fix_path: Verify the green DePlanBook runtime credential, DB proxy path, and application table grants.
+    - id: deplanbook-cms
+      container_pattern: '^deplanbook-cms$'
+      app_name: DePlanBook CMS
+      owner_project: DePlanBook
+      database_label: DePlanBook CMS database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: deplanbook-cms
+      domains: [cms.deplanbook.com]
+      connection_mode: sqlite
+      environment_keys: [SQLITE_DB_PATH]
+      file_environment_keys: []
+      default_sqlite_path: /data/db.sqlite3
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [django_migrations, wagtailcore_page]
+      alert_group: deplanbook-cms-database
+      likely_fix_path: Verify the CMS runtime database path/credential and filesystem/database read permission.
+    - id: orthoparse-web-blue
+      container_pattern: '^orthoparse-web-app$'
+      app_name: Orthoparse
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: orthoparse-web
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [ortho_users, orthoparse_cases, orthoparse_pipeline_runs]
+      routing_policy_id: orthoparse-blue-green
+      traffic_slot: blue
+      alert_group: orthoparse-production-database
+      likely_fix_path: Verify the Orthoparse runtime credential and PgBouncer route, then restore schema and application relation grants.
+    - id: orthoparse-web-green
+      container_pattern: '^orthoparse-web-app-green$'
+      app_name: Orthoparse
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: orthoparse-web
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [ortho_users, orthoparse_cases, orthoparse_pipeline_runs]
+      routing_policy_id: orthoparse-blue-green
+      traffic_slot: green
+      alert_group: orthoparse-production-database
+      likely_fix_path: Verify the green Orthoparse runtime credential and PgBouncer route, then restore schema and application relation grants before promotion.
+    - id: orthoparse-worker-blue
+      container_pattern: '^orthoparse-worker$'
+      app_name: Orthoparse worker
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: orthoparse-worker
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [orthoparse_cases, orthoparse_pipeline_runs]
+      routing_policy_id: orthoparse-blue-green
+      traffic_slot: blue
+      alert_group: orthoparse-production-database
+      likely_fix_path: Verify the active Orthoparse worker runtime credential, PgBouncer route, and pipeline grants.
+    - id: orthoparse-worker-green
+      container_pattern: '^orthoparse-worker-green$'
+      app_name: Orthoparse worker
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: orthoparse-worker
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [orthoparse_cases, orthoparse_pipeline_runs]
+      routing_policy_id: orthoparse-blue-green
+      traffic_slot: green
+      alert_group: orthoparse-production-database
+      likely_fix_path: Verify the green Orthoparse worker runtime credential, PgBouncer route, and pipeline grants before promotion.
+    - id: potaito-model-lab
+      container_pattern: '^potaito-web-harvest$'
+      app_name: Potaito
+      owner_project: Potaito
+      database_label: Potaito model-lab SQLite registry
+      environment: production
+      critical: false
+      telegram_enabled: false
+      required_group: potaito-model-lab
+      domains: [potaito.pitchai.net, aardappelprijs.nl]
+      connection_mode: sqlite
+      environment_keys: [POTATO_MODEL_LAB_DB_PATH]
+      file_environment_keys: []
+      default_sqlite_path: /data/model_lab/model_lab.sqlite3
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [model_registry_models]
+      alert_group: potaito-model-lab-database
+      likely_fix_path: Verify the Potaito model-lab volume and SQLite read permission; this dashboard-only store does not page Telegram.
+    - id: twofa-primary
+      container_pattern: '^twofa-server-prod$'
+      app_name: PitchAI 2FA
+      owner_project: PitchAI infrastructure
+      database_label: 2FA production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: twofa-primary
+      domains: [2fa-server.37.27.67.52.nip.io]
+      connection_mode: sqlalchemy_url
+      environment_keys: [TWOFA_DATABASE_URL, DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [totp_entries, api_tokens, audit_events]
+      alert_group: twofa-production-database
+      likely_fix_path: Verify the 2FA runtime database path/credential and database read permission without rotating unrelated secrets.
+    - id: onboarding-primary
+      container_pattern: '^pitchai-onboarding-course-onboarding-course-1$'
+      app_name: PitchAI onboarding course
+      owner_project: PitchAI infrastructure
+      database_label: Onboarding application database
+      environment: production
+      critical: false
+      telegram_enabled: false
+      required_group: onboarding-primary
+      domains: [onboarding-course.pitchai.net]
+      connection_mode: sqlite
+      environment_keys: [PITCHAI_COURSE_DATABASE_PATH]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [schema_migrations, accounts, mission_progress]
+      alert_group: onboarding-course-database
+      likely_fix_path: Verify the onboarding runtime SQLite path and relation readability; this dashboard-only surface does not page Telegram.
+    - id: e2e-registry-state
+      container_pattern: '^e2e-registry$'
+      app_name: E2E registry
+      owner_project: PitchAI monitoring
+      database_label: E2E registry SQLite state
+      environment: production
+      critical: false
+      telegram_enabled: false
+      required_group: e2e-registry
+      domains: [monitoring.pitchai.net]
+      connection_mode: sqlite
+      environment_keys: [E2E_REGISTRY_DB_PATH]
+      file_environment_keys: []
+      default_sqlite_path: /data/e2e-registry.db
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [schema_meta, tests, runs]
+      alert_group: e2e-registry-database
+      likely_fix_path: Verify the registry data-volume mount and SQLite file read/write ownership, then inspect registry logs.
+    - id: dft-production-component
+      container_pattern: '^dft-'
+      app_name: DFT production component
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [formative_flows]
+      alert_group: dft-production-components
+      likely_fix_path: Verify this DFT component's runtime credential, PgBouncer route, and least-privilege grants.
+    - id: orthoparse-production-component
+      container_pattern: '^orthoparse-'
+      app_name: Orthoparse production component
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [orthoparse_cases]
+      alert_group: orthoparse-production-components
+      likely_fix_path: Verify this Orthoparse component's runtime credential, PgBouncer route, and least-privilege grants.
+    - id: aipc-production-component
+      container_pattern: '^aipc-'
+      app_name: AIPC production component
+      owner_project: AIPC / SkyBuyFly
+      database_label: AIPC production PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [skybuyfly.pitchai.net]
+      connection_mode: sqlalchemy_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [product]
+      alert_group: aipc-production-components
+      likely_fix_path: Verify this component's runtime credential, database/PgBouncer/tunnel route, and least-privilege grants.
+    - id: discovered-production
+      container_pattern: '.*'
+      app_name: Discovered production database consumer
+      owner_project: PitchAI platform / ownership review
+      database_label: Discovered runtime database
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: []
+      connection_mode: sqlalchemy_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: []
+      alert_group: discovered-production-database
+      likely_fix_path: Assign the owning project, confirm whether this is a critical production dependency, and verify its runtime credential and grants.
 
 # Reverse proxy / failover monitoring (uses upstream headers + optional Nginx logs).
 proxy:
