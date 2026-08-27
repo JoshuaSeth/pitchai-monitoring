@@ -162,6 +162,8 @@ container_health:
     - "^pgbouncer-(?:afasask|autopar|potaito)$"
     - "^autopar$"
     - "^autopar-auth$"
+    - "^autopar-staging-(?:web|db)$"
+    - "^aigenda-webapp(?:-monitor)?$"
     - "^codex-cowork-webapp$"
     - "^apologetica-wagtail-staging(?:-db)?$"
     - "^potaito-web-harvest$"
@@ -823,16 +825,17 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-08-25"
+  reviewed_at: "2026-08-27"
   authoritative_sources:
-    - "domain-engineer-namecheap-dns lane handoff (2026-08-24)"
-    - "Namecheap authoritative zone snapshot: 65 records, no wildcard"
+    - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
+    - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
     - "pitchai-main, pitchai-dev, file-storage, Jeff, AX41 and DFT ingress/runtime"
-    - "repository proxy/deployment configuration and PM deployment records"
+    - "last-nine-day live-agent, PM DB, repository and deployment evidence sweep"
     - "current production monitoring routes and deep-check plugins"
     - "PitchAI live-agent/app-server registry and tools portal routing"
-    - "live public DNS, TLS and HTTP contract probes (2026-08-25)"
+    - "live public DNS, TLS, HTTP and container/service contract probes (2026-08-27)"
     - "known client deployment zones"
+    - "Unimix repair confirmation and live public probes (2026-08-27)"
 
 domain_groups:
   corporate:
@@ -883,6 +886,10 @@ domain_groups:
     label: "Learning & demos"
     description: "Courses, demos and staging content applications"
     order: 120
+  aigenda-calendar:
+    label: "AIGENDA calendar"
+    description: "Production calendar application and isolated synthetic monitor"
+    order: 125
   jeff-internal:
     label: "Jeff internal"
     description: "Jeff environment service aliases"
@@ -891,6 +898,10 @@ domain_groups:
     label: "Market insights"
     description: "Protected client-facing price services"
     order: 140
+  unimix:
+    label: "Unimix"
+    description: "Unimix Brasil production website and canonical alias"
+    order: 150
 
 check_profiles:
   html_200: &html_200
@@ -1054,6 +1065,28 @@ domains:
           url: https://whatsapp.pitchai.net/operator
           expected_status_codes: [401]
           expected_content_type_contains: text/html
+  - domain: livedocuments.pitchai.net
+    label: "PitchAI Live Documents"
+    group: platform-apps
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-27, pitchai-dev-ingress, live-documents-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *protected_401
+      url: https://livedocuments.pitchai.net/
+  - domain: servers.pitchai.net
+    label: "PitchAI server fleet"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-27, pitchai-dev-ingress, server-fleet-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *sso_edge
+      url: https://servers.pitchai.net/
   - domain: suggestions.pitchai.net
     label: "Suggestions"
     group: operations
@@ -1170,6 +1203,22 @@ domains:
     check:
       <<: *html_200
       url: https://storage.pitchai.net/status
+  - domain: lfs.pitchai.net
+    label: "PitchAI Git LFS"
+    group: infrastructure
+    environment: production
+    kind: storage
+    sources: [namecheap-zone-2026-08-27, file-storage-ingress, git-lfs-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      allowed_status_codes: [200]
+      browser_enabled: false
+      url: https://lfs.pitchai.net/readyz
+      required_selectors_all:
+        - selector: body
+          state: attached
+      required_text_all: [ok]
   - domain: onboarding-course.pitchai.net
     label: "Onboarding course"
     group: infrastructure
@@ -1296,6 +1345,21 @@ domains:
       <<: *json_200
       url: https://staging.autopar.pitchai.net/
       required_text_all: [AutoPAR]
+  - domain: autopar-staging-web.37.27.67.52.nip.io
+    label: "AutoPAR staging web app"
+    group: autopar
+    environment: staging
+    kind: application
+    ownership: pitchai-operated-non-owned-dns
+    sources: [autopar-staging-runtime, pitchai-main-ingress, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://autopar-staging-web.37.27.67.52.nip.io/
+      expected_final_host_suffix: autopar-staging-web.37.27.67.52.nip.io
+      expected_title_contains: "AutoPAR"
+      required_text_all: [AutoPAR]
 
   - domain: formatief-toetsen.pitchai.net
     label: "DFT production"
@@ -1374,6 +1438,20 @@ domains:
       url: https://deplanbook.pitchai.net/
       expected_final_host_suffix: deplanbook.com
       required_text_all: [Deplanbook]
+  - domain: theplanbook.pitchai.net
+    label: "DePlanBook legacy-name alias"
+    group: deplanbook
+    environment: production
+    kind: alias
+    sources: [namecheap-zone-2026-08-27, pitchai-main-ingress, deplanbook-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Intentional redirect alias for critical deplanbook.com; independent paging would duplicate incidents."
+    check:
+      <<: *html_200
+      url: https://theplanbook.pitchai.net/
+      expected_final_host_suffix: deplanbook.com
+      required_text_all: [DePlanBook]
   - domain: dpb.pitchai.net
     label: "DePlanBook short alias"
     group: deplanbook
@@ -1471,6 +1549,29 @@ domains:
       <<: *html_200
       url: https://apologetica-wagtail-staging.pitchai.net/
 
+  - domain: aigenda.pitchai.net
+    label: "AIGENDA calendar"
+    group: aigenda-calendar
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-27, pitchai-dev-ingress, aigenda-calendar-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *protected_401
+      url: https://aigenda.pitchai.net/
+  - domain: aigenda-monitor.pitchai.net
+    label: "AIGENDA synthetic monitor"
+    group: aigenda-calendar
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-27, pitchai-dev-ingress, aigenda-calendar-monitor-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *protected_401
+      url: https://aigenda-monitor.pitchai.net/
+
   - domain: jeff-codex-voice.pitchai.net
     label: "Jeff Codex Voice"
     group: jeff-internal
@@ -1517,6 +1618,35 @@ domains:
     check:
       <<: *protected_401
       url: https://akkerbouwprijs.nl/
+
+  - domain: unimixbrasil.com.br
+    label: "Unimix Brasil"
+    group: unimix
+    environment: production
+    kind: application
+    sources: [unimix-repair-confirmation-2026-08-27, client-zone-dns-and-tls, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://unimixbrasil.com.br/
+      expected_final_host_suffix: unimixbrasil.com.br
+      expected_title_contains: "Unimix"
+      required_text_all: ["Since 2003", "Unimix"]
+  - domain: www.unimixbrasil.com.br
+    label: "Unimix Brasil canonical alias"
+    group: unimix
+    environment: production
+    kind: alias
+    sources: [unimix-repair-confirmation-2026-08-27, client-zone-dns-and-tls, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://www.unimixbrasil.com.br/
+      expected_final_host_suffix: unimixbrasil.com.br
+      expected_title_contains: "Unimix"
+      required_text_all: ["Since 2003", "Unimix"]
 
 retired_domains:
   - domain: n8n.pitchai.net
@@ -1595,3 +1725,59 @@ retired_domains:
     classification: historical
     reason: "Unprovisioned historical candidate with no DNS, ingress or deployment"
     sources: [domain-engineer-namecheap-dns, authoritative-dns-probe-2026-08-24]
+  - domain: staging.dispatch.pitchai.net
+    classification: pending
+    reason: "Referenced by the staging service lane but not provisioned in authoritative DNS"
+    sources: [server-space-agent-2026-08-27, authoritative-dns-probe-2026-08-27]
+  - domain: aigenda.37.27.67.52.nip.io
+    classification: invalid-alias
+    reason: "Legacy direct-IP alias has no matching TLS identity; monitor canonical aigenda.pitchai.net"
+    sources: [repository-deployment-evidence, tls-probe-2026-08-27]
+  - domain: aigenda-rules.135-181-182-48.sslip.io
+    classification: replaced
+    reason: "Duplicate direct-IP route for the canonical aigenda-rules.demos.pitchai.net service"
+    sources: [pitchai-dev-ingress, live-probe-2026-08-27]
+  - domain: driestar-aigenda.demos.pitchai.net
+    classification: pending
+    reason: "Fallback recommendation was never provisioned; the live AIGENDA calendar uses its canonical hosts"
+    sources: [pm-deployment-records, authoritative-dns-probe-2026-08-27]
+  - domain: theplanbook.com
+    classification: not-owned
+    reason: "Unrelated external spelling variant with no PitchAI DNS or deployment contract"
+    sources: [repository-evidence-sweep, external-zone-probe-2026-08-27]
+  - domain: www.theplanbook.com
+    classification: not-owned
+    reason: "Unrelated external spelling variant with no PitchAI DNS or deployment contract"
+    sources: [repository-evidence-sweep, external-zone-probe-2026-08-27]
+  - domain: staging.afasask.gzb.nl
+    classification: replaced
+    reason: "Historical client-zone staging name is NXDOMAIN; monitor staging.afasask.pitchai.net"
+    sources: [repository-evidence-sweep, authoritative-dns-probe-2026-08-27]
+  - domain: staging.hetcis.nl
+    classification: replaced
+    reason: "Historical self-signed client-zone host; monitor staging.hetcis.pitchai.net"
+    sources: [repository-evidence-sweep, tls-probe-2026-08-27]
+  - domain: suggestions.demos.pitchai.net
+    classification: historical
+    reason: "Historical demo reference is NXDOMAIN and has no current ingress contract"
+    sources: [repository-evidence-sweep, authoritative-dns-probe-2026-08-27]
+  - domain: staging.potai.pitchai.net
+    classification: replaced
+    reason: "Historical typo is NXDOMAIN; monitor staging.potaito.pitchai.net"
+    sources: [repository-evidence-sweep, authoritative-dns-probe-2026-08-27]
+  - domain: staging.potato.pitchai.net
+    classification: replaced
+    reason: "Historical product-name alias is NXDOMAIN; monitor staging.potaito.pitchai.net"
+    sources: [repository-evidence-sweep, authoritative-dns-probe-2026-08-27]
+  - domain: studentenreisproduct.nl
+    classification: not-owned
+    reason: "External source website, not a PitchAI-operated deployment target"
+    sources: [project-evidence-sweep, external-zone-probe-2026-08-27]
+  - domain: www.centrumvoorisraelstudies.nl
+    classification: replaced
+    reason: "Legacy Solcon hostname has an invalid TLS contract; monitor www.hetcis.nl"
+    sources: [repository-evidence-sweep, tls-probe-2026-08-27]
+  - domain: www.intern.centrumvoorisraelstudies.nl
+    classification: replaced
+    reason: "Legacy Solcon internal hostname has an invalid TLS contract; monitor current HetCIS routes"
+    sources: [repository-evidence-sweep, tls-probe-2026-08-27]
