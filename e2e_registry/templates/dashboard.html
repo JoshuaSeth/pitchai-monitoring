@@ -5,7 +5,7 @@
       <div class="dashboard-hero__copy">
         <p class="eyebrow">PitchAI operations</p>
         <h1 id="dashboard-title" data-testid="dash-title">System health,<br><span>without the guesswork.</span></h1>
-        <p class="dashboard-hero__lede">Current service, domain, and end-to-end signals from the production monitor.</p>
+        <p class="dashboard-hero__lede">Current service, domain, database dependency, and end-to-end signals from the production monitor.</p>
       </div>
       <div class="dashboard-hero__controls">
         <div class="posture" id="overall-posture" data-testid="dash-pill-overall" aria-live="polite">
@@ -116,6 +116,25 @@
       </article>
     </section>
 
+    <nav class="dashboard-tabs" role="tablist" aria-label="Monitoring dashboards" data-testid="dash-tabs">
+      <button class="dashboard-tab is-active" id="tab-domains" type="button" role="tab" aria-selected="true" aria-controls="panel-domains" data-dashboard-tab="domains">
+        <span>Domain health</span><small>Coverage & checks</small>
+      </button>
+      <button class="dashboard-tab" id="tab-databases" type="button" role="tab" aria-selected="false" aria-controls="panel-databases" tabindex="-1" data-dashboard-tab="databases">
+        <span>Database dependencies</span><small>Credentials & grants</small>
+      </button>
+      <button class="dashboard-tab" id="tab-infrastructure" type="button" role="tab" aria-selected="false" aria-controls="panel-infrastructure" tabindex="-1" data-dashboard-tab="infrastructure">
+        <span>Infrastructure</span><small>Host & containers</small>
+      </button>
+      <button class="dashboard-tab" id="tab-reliability" type="button" role="tab" aria-selected="false" aria-controls="panel-reliability" tabindex="-1" data-dashboard-tab="reliability">
+        <span>Reliability</span><small>SLOs & history</small>
+      </button>
+      <button class="dashboard-tab" id="tab-journeys" type="button" role="tab" aria-selected="false" aria-controls="panel-journeys" tabindex="-1" data-dashboard-tab="journeys">
+        <span>Journeys</span><small>Live hotpaths</small>
+      </button>
+    </nav>
+
+    <div class="dashboard-panel" id="panel-domains" role="tabpanel" aria-labelledby="tab-domains" data-dashboard-panel="domains">
     <section class="section-card domains-card" aria-labelledby="domains-title">
       <header class="section-heading section-heading--tools">
         <div>
@@ -141,6 +160,7 @@
               <tr>
                 <th scope="col">Status</th>
                 <th scope="col">Domain</th>
+                <th scope="col">DB</th>
                 <th scope="col">HTTP</th>
                 <th scope="col">Browser</th>
                 <th scope="col">24h</th>
@@ -169,6 +189,10 @@
             <svg class="signal-chart" id="chart-domain-latency" data-testid="dash-chart-domain-latency" viewBox="0 0 640 116" preserveAspectRatio="none" role="img" aria-label="Selected domain response-time history"></svg>
           </div>
           <p class="chart-range" id="selected-domain-range">Choose a row to inspect its current range.</p>
+          <div class="domain-database-card" id="selected-domain-database" data-testid="dash-selected-domain-database">
+            <span class="domain-database-card__dot" aria-hidden="true"></span>
+            <div><strong>Database dependency</strong><small>No linked dependency returned yet.</small></div>
+          </div>
         </aside>
       </div>
     </section>
@@ -207,6 +231,108 @@
         <div class="diagnostic-list" id="diagnostic-list" data-testid="dash-dispatch-table">
           <p class="empty-state">Loading investigations…</p>
         </div>
+      </article>
+    </section>
+    </div>
+
+    <section class="dashboard-panel" id="panel-databases" role="tabpanel" aria-labelledby="tab-databases" data-dashboard-panel="databases" hidden>
+      <div class="panel-intro">
+        <div>
+          <p class="section-kicker">Runtime credentials / grants</p>
+          <h2>Database dependencies</h2>
+          <p>Read-only probes run inside each database-backed app container, exercising its real credential, PgBouncer/tunnel, schema, and query-permission path.</p>
+        </div>
+        <span class="status-label" id="databases-status">Loading</span>
+      </div>
+      <div class="database-summary" id="database-summary" data-testid="dash-database-summary"></div>
+      <article class="section-card database-dependencies-card">
+        <header class="section-heading section-heading--tools">
+          <div>
+            <p class="section-kicker">Every five minutes</p>
+            <h3>App-to-database paths</h3>
+          </div>
+          <label class="filter-control" for="database-filter">
+            <span class="sr-only">Filter database dependencies</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 5 5"></path></svg>
+            <input type="search" id="database-filter" placeholder="Filter app, DB, owner, failure" data-testid="dash-database-filter" />
+          </label>
+        </header>
+        <div class="database-policy-note">
+          <strong>Alert policy</strong>
+          <span>Only debounced failures on the active critical production route open one Telegram alert per app group. Inactive slots, unknown routing, collector faults, coverage gaps, and noncritical stores stay dashboard only.</span>
+        </div>
+        <div class="database-dependency-list" id="database-dependency-list" data-testid="dash-database-dependencies">
+          <p class="empty-state">Loading database dependency state…</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="dashboard-panel" id="panel-infrastructure" role="tabpanel" aria-labelledby="tab-infrastructure" data-dashboard-panel="infrastructure" hidden>
+      <div class="panel-intro">
+        <div>
+          <p class="section-kicker">USE / capacity</p>
+          <h2>Infrastructure</h2>
+          <p>Host pressure and container state from the monitor’s existing lightweight collection pass.</p>
+        </div>
+        <span class="status-label" id="infrastructure-status">Loading</span>
+      </div>
+      <div class="infra-layout">
+        <article class="section-card infra-host-card">
+          <header class="section-heading">
+            <div><p class="section-kicker">Production host</p><h3>Resource pressure</h3></div>
+            <span class="data-state" id="infra-host-data-state">Waiting for snapshot</span>
+          </header>
+          <div class="resource-grid" id="infra-resource-grid" data-testid="dash-infrastructure-metrics"></div>
+          <div class="chart-block chart-block--wide">
+            <div class="chart-block__heading"><span>24-hour pressure trend</span><strong id="infra-host-observed">—</strong></div>
+            <svg class="signal-chart" id="chart-infrastructure" data-testid="dash-chart-infrastructure" viewBox="0 0 960 160" preserveAspectRatio="none" role="img" aria-label="Host CPU, memory, and disk pressure history"></svg>
+          </div>
+          <div class="disk-list" id="infra-disk-list" data-testid="dash-infrastructure-disks"></div>
+        </article>
+        <article class="section-card infra-container-card">
+          <header class="section-heading">
+            <div><p class="section-kicker">Docker</p><h3>Container health</h3></div>
+            <span class="section-count" id="container-count">—</span>
+          </header>
+          <p class="data-state" id="infra-container-data-state">Waiting for container inventory</p>
+          <div class="container-list" id="container-list" data-testid="dash-containers"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="dashboard-panel" id="panel-reliability" role="tabpanel" aria-labelledby="tab-reliability" data-dashboard-panel="reliability" hidden>
+      <div class="panel-intro">
+        <div>
+          <p class="section-kicker">RED / SLO</p>
+          <h2>Reliability</h2>
+          <p>Project-level availability, error budget, latency, incident history, and routing posture.</p>
+        </div>
+        <span class="status-label" id="reliability-status">Loading</span>
+      </div>
+      <div class="reliability-summary" id="reliability-summary" data-testid="dash-reliability-summary"></div>
+      <article class="section-card reliability-groups-card">
+        <header class="section-heading"><div><p class="section-kicker">Rolling 24 hours</p><h3>Service groups</h3></div><span class="section-meta" id="reliability-target">—</span></header>
+        <div class="reliability-groups" id="reliability-groups" data-testid="dash-reliability-groups"></div>
+      </article>
+      <div class="activity-grid">
+        <article class="section-card"><header class="section-heading"><div><p class="section-kicker">Seven-day trail</p><h3>Incident history</h3></div></header><div class="reliability-events" id="reliability-events" data-testid="dash-reliability-events"></div></article>
+        <article class="section-card"><header class="section-heading"><div><p class="section-kicker">Policy</p><h3>Alert routing</h3></div></header><div class="routing-summary" id="routing-summary" data-testid="dash-routing-summary"></div></article>
+      </div>
+    </section>
+
+    <section class="dashboard-panel" id="panel-journeys" role="tabpanel" aria-labelledby="tab-journeys" data-dashboard-panel="journeys" hidden>
+      <div class="panel-intro">
+        <div>
+          <p class="section-kicker">Black-box user impact</p>
+          <h2>Journeys</h2>
+          <p>Live end-to-end hotpaths, effective state, scheduling freshness, and investigation status.</p>
+        </div>
+        <span class="status-label" id="journeys-status">Loading</span>
+      </div>
+      <div class="journey-summary" id="journey-summary" data-testid="dash-journey-summary"></div>
+      <article class="section-card journeys-card">
+        <header class="section-heading"><div><p class="section-kicker">Registry-backed</p><h3>Monitored hotpaths</h3></div><span class="section-count" id="journey-count">—</span></header>
+        <div class="journey-list" id="journey-list" data-testid="dash-journeys"></div>
       </article>
     </section>
 
