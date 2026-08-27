@@ -23,29 +23,81 @@ function list(value) {
 }
 
 async function summaryFromPage(page) {
-  return page.evaluate(async () => {
-    const response = await fetch('/dashboard/api/v1/monitoring/summary?range=24h', {
+  return page.evaluate(async (cacheBuster) => {
+    const response = await fetch('/dashboard/api/v1/monitoring/summary?range=24h&_=' + cacheBuster, {
       credentials: 'same-origin',
+      cache: 'no-store',
     });
     if (!response.ok) throw new Error('summary HTTP ' + response.status);
     return response.json();
-  });
+  }, Date.now());
 }
 
 async function waitForUnimixHealth(page) {
-  await page.waitForFunction(async (requiredDomains) => {
-    const response = await fetch('/dashboard/api/v1/monitoring/summary?range=24h', {
-      credentials: 'same-origin',
-    });
-    if (!response.ok) return false;
-    const summary = await response.json();
-    const domains = Array.isArray(summary.domains) ? summary.domains : [];
-    return requiredDomains.every((hostname) => {
-      const domain = domains.find((item) => item && item.domain === hostname);
-      const last = domain && domain.last && typeof domain.last === 'object' ? domain.last : {};
-      return domain && domain.group === 'unimix' && last.ok === true && Number(last.status_code) === 200;
-    });
-  }, {timeout: 120000, polling: 2000}, REQUIRED_UNIMIX_DOMAINS);
+  try {
+    await page.waitForFunction(async (requiredDomains) => {
+      const response = await fetch(
+        '/dashboard/api/v1/monitoring/summary?range=24h&_=' + Date.now(),
+        {credentials: 'same-origin', cache: 'no-store'},
+      );
+      if (!response.ok) return false;
+      const summary = await response.json();
+      const domains = Array.isArray(summary.domains) ? summary.domains : [];
+      return requiredDomains.every((hostname) => {
+        const domain = domains.find((item) => item && item.domain === hostname);
+        const last = domain && domain.last && typeof domain.last === 'object' ? domain.last : {};
+        return domain && domain.group === 'unimix' && last.ok === true && Number(last.status_code) === 200;
+      });
+    }, {timeout: 120000, polling: 2000}, REQUIRED_UNIMIX_DOMAINS);
+  } catch (error) {
+    const summary = await summaryFromPage(page);
+    const domains = list(summary.domains)
+      .filter((item) => REQUIRED_UNIMIX_DOMAINS.includes(object(item).domain))
+      .map((item) => ({domain: object(item).domain, group: object(item).group, last: object(item).last}));
+    throw new Error('Unimix health did not converge: ' + JSON.stringify(domains), {cause: error});
+  }
+}
+
+async function waitForInfrastructureData(page) {
+  try {
+    await page.waitForFunction(async () => {
+      const response = await fetch(
+        '/dashboard/api/v1/monitoring/summary?range=24h&_=' + Date.now(),
+        {credentials: 'same-origin', cache: 'no-store'},
+      );
+      if (!response.ok) return false;
+      const summary = await response.json();
+      const dashboards = summary && typeof summary.dashboards === 'object' ? summary.dashboards : {};
+      const infrastructure =
+        dashboards && typeof dashboards.infrastructure === 'object' ? dashboards.infrastructure : {};
+      const containers =
+        infrastructure && typeof infrastructure.containers === 'object' ? infrastructure.containers : {};
+      const items = Array.isArray(containers.items) ? containers.items : [];
+      const counts = containers && typeof containers.counts === 'object' ? containers.counts : {};
+      const total = Number(counts.total);
+      const restartTotal = Number(containers.restart_total);
+      const hasRows =
+        containers.data_state === 'available' &&
+        items.length > 0 &&
+        Number.isInteger(total) &&
+        total === items.length;
+      const hasSummary =
+        containers.data_state === 'summary_only' &&
+        items.length === 0 &&
+        Number.isInteger(total) &&
+        total > 0 &&
+        Number.isInteger(restartTotal) &&
+        restartTotal >= 0;
+      return hasRows || hasSummary;
+    }, {timeout: 120000, polling: 2000});
+  } catch (error) {
+    const summary = await summaryFromPage(page);
+    const infrastructure = object(object(summary.dashboards).infrastructure);
+    throw new Error(
+      'Infrastructure data did not converge: ' + JSON.stringify(object(infrastructure.containers)),
+      {cause: error},
+    );
+  }
 }
 
 async function verifyTabs(page) {
@@ -112,6 +164,7 @@ async function main() {
       return Boolean(note && note.textContent && note.textContent.includes('monitored domains'));
     }, {timeout: 30000});
     await waitForUnimixHealth(page);
+    await waitForInfrastructureData(page);
 
     const summary = await summaryFromPage(page);
     const domains = list(summary.domains);
