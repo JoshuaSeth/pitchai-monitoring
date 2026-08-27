@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           baseline_path=".github/quality-baselines/python-strict-activation-main.json"
-          expected_baseline_sha256="7412dd45bbbf8b0ce98a87672fe873d3618433b7791b732159330ccf7040eb69"
+          expected_baseline_sha256="0993139db1944ae41803963e254b351afe7a0ebc472b467d4009c862bfaa60ad"
           actual_baseline_sha256="$(sha256sum "$baseline_path" | awk '{print $1}')"
           if [[ "$actual_baseline_sha256" != "$expected_baseline_sha256" ]]; then
             printf '%s: SHA-256 trust anchor mismatch (expected %s, got %s)\n' \

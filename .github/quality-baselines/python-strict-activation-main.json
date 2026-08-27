@@ -1,5 +1,5 @@
 {
-  "committed_at": "2026-08-27T13:13:15+00:00",
+  "committed_at": "2026-08-27T13:22:01+00:00",
   "evidence_url": "https://github.com/JoshuaSeth/pitchai-monitoring/pull/48",
   "gate_count": 10,
   "gates": [
@@ -141911,7 +141911,7 @@
         }
       ],
       "metrics": {
-        "score": 9.152605924259468
+        "score": 9.152817693364987
       },
       "name": "pylint",
       "return_code": 30,
@@ -144851,8 +144851,8 @@
     }
   ],
   "policy_sha256": {
-    ".github/workflows/python-strict.yml": "d269db316755cec20274739dc493d349c1e12f37bd339f54927a52a690bef370",
-    "QUALITY.md": "47b23576f50b3f1d489c928f8debecc2e48dab91636b973e4af1ccefa26097f3",
+    ".github/workflows/python-strict.yml": "758f2c4577894aa731482d66a0f07c05cd65575167c9af0e522e88e786c22956",
+    "QUALITY.md": "48ea39c5240826aea567fd7e8654eec944d9aed523011f2607dcbeb93884c1aa",
     "quality/.semgrep.yml": "b3aa9b18b0993999899d45d704c44b516dd50e42634f00379d39ea5ddd1a647e",
     "quality/.semgrepignore": "5ac837fad6ac50281eec4bafdbd801f53b86229d6b9d7789ad677a2c707630e1",
     "quality/pyproject.toml": "175769b07813593fcac7744af0d643426ee96131531709ed514f62977cdb964c",
@@ -144861,7 +144861,7 @@
   "profile": "current-ten-gate",
   "role": "activation",
   "schema": 1,
-  "source_commit": "df7d138cba64fba2e1f6fdf2b6e1ee7a84708d0a",
+  "source_commit": "a2838c159f4435684735e1a4f00d127a5ffb097f",
   "source_file_count": 168,
   "source_files": [
     "domain_checks/2fa-server.37.27.67.52.nip.io/__init__.py",
@@ -145033,7 +145033,7 @@
     "tests/test_telegram_chunking.py",
     "tests/test_twofa_server_monitoring.py"
   ],
-  "source_tree": "e853f43a012460fe0f658f549426d0e2c241c0ec",
+  "source_tree": "f47137e2c71fada90584e67993036a0ac5412ce5",
   "tool_versions": {
     "basedpyright": "basedpyright 1.39.8",
     "pylint": "pylint 4.0.5",
