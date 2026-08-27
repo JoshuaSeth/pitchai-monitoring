@@ -165,11 +165,9 @@ def _canonical_json(payload: JsonObject) -> bytes:
 
 def _delivery_attempt(*, delivery_id: str, response: Response) -> DeliveryAttempt:
     if response.status_code != _ACCEPTED_STATUS:
-        return DeliveryAttempt(
+        return _failed_attempt(
             delivery_id=delivery_id,
-            success=False,
             status_code=response.status_code,
-            event_id=None,
             error=f"http_status_{response.status_code}",
         )
     decoded = cast("object", json.loads(response.text))
@@ -195,10 +193,18 @@ def _delivery_attempt(*, delivery_id: str, response: Response) -> DeliveryAttemp
 
 
 def _invalid_acceptance(*, delivery_id: str, status_code: int) -> DeliveryAttempt:
+    return _failed_attempt(
+        delivery_id=delivery_id,
+        status_code=status_code,
+        error="invalid_acceptance_response",
+    )
+
+
+def _failed_attempt(*, delivery_id: str, status_code: int, error: str) -> DeliveryAttempt:
     return DeliveryAttempt(
         delivery_id=delivery_id,
         success=False,
         status_code=status_code,
         event_id=None,
-        error="invalid_acceptance_response",
+        error=error,
     )

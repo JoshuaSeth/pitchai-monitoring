@@ -8,9 +8,10 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-from domain_checks.event_bus import load_event_bus_config
-from domain_checks.event_bus_delivery import build_incident_payload, deliver_event_bus_payload
-
+from .event_bus_runtime import (
+    DELIVERY_RUNTIME,
+    EVENT_BUS_RUNTIME,
+)
 from .incident_events import database_transition_events
 from .json_types import (
     float_value,
@@ -25,9 +26,7 @@ from .json_types import (
 if TYPE_CHECKING:
     from httpx import BaseTransport
 
-    from domain_checks.event_bus import DeliveryAttempt, EventBusConfig
-    from domain_checks.event_bus_delivery import JsonObject as DeliveryPayload
-
+    from .event_bus_runtime import DeliveryAttempt, EventBusConfig
     from .json_types import JsonInput, JsonObject, JsonValue
 
 LOGGER = logging.getLogger(__name__)
@@ -54,7 +53,7 @@ class DatabaseEventBus:
         Raises:
             TypeError: If the persisted outbox shape is invalid.
         """
-        config = load_event_bus_config()
+        config = EVENT_BUS_RUNTIME.load_event_bus_config()
         if config is None:
             return None
         raw_entries = state.get("event_bus_outbox", [])
@@ -87,11 +86,11 @@ class DatabaseEventBus:
             for entry in staged.entries
         }
         for event in database_transition_events(previous=previous, updated=updated):
-            payload = build_incident_payload(
+            payload = DELIVERY_RUNTIME.build_incident_payload(
                 self.config,
                 kind=event.kind,
                 occurred_at=event.occurred_at,
-                details=cast("DeliveryPayload", event.details),
+                details=event.details,
             )
             delivery_id = text_value(payload.get("delivery_id"))
             if delivery_id in known_delivery_ids:
@@ -130,8 +129,8 @@ class DatabaseEventBus:
             due_at = float_value(entry.get("next_attempt_at"))
             if due_at is None or due_at > selected_now:
                 break
-            payload = cast("DeliveryPayload", optional_object(entry.get("payload")))
-            attempt = deliver_event_bus_payload(
+            payload = optional_object(entry.get("payload"))
+            attempt = DELIVERY_RUNTIME.deliver_event_bus_payload(
                 self.config,
                 payload,
                 now=selected_now,
