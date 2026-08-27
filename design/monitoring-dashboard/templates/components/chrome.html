@@ -1,7 +1,7 @@
 {% macro operator_chrome(shared, active_tab) -%}
 <header class="flex items-center justify-between">
   <div class="flex items-center gap-4">
-    <div class="grid h-11 w-11 place-items-center rounded-[13px] bg-[#10271d] text-[14px] font-black tracking-[-0.04em] text-[#b9ff75]">PA</div>
+    <div class="grid h-11 w-11 place-items-center rounded-[13px] bg-[#0e2a1e] text-[14px] font-black tracking-[-0.04em] text-[#b9ff75] shadow-[inset_0_0_12px_rgba(74,196,89,0.12)]">PA</div>
     <div>
       <p class="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#648072]">PitchAI operations</p>
       <p class="text-[19px] font-semibold tracking-[-0.02em] text-[#10271d]">Production monitoring</p>
@@ -12,7 +12,7 @@
     <span>{{ shared.generated_at }}</span>
   </div>
 </header>
-<nav class="mt-7 flex items-end gap-1 border-b border-[#cdded3]" aria-label="Monitoring views">
+<nav class="mt-7 flex items-end gap-1 border-b border-[#d2ded7]" aria-label="Monitoring views">
   {% for tab in shared.tabs %}
     <span class="relative px-5 py-3 text-[13px] font-bold {{ 'text-[#0b654f]' if tab == active_tab else 'text-[#667b70]' }}">
       {{ tab }}

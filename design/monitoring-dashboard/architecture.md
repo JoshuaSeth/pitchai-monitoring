@@ -73,23 +73,27 @@ inspection state.
 ## Fidelity metric
 
 `scripts/compare.sh` performs deterministic DPR normalization, target resize,
-RGB conversion, a 256-pixel-wide macro-layout comparison, full-resolution
-luminance comparison, and normalized RGB histogram comparison. The report
-records each component and a weighted composite:
+and RGB conversion, then applies the same two-pixel Gaussian anti-alias
+normalization to the complete target and render. That radius removes generated-
+image color grain and browser-versus-model glyph rasterization differences
+without cropping, masking, or moving any pixels. The primary score is:
 
 ```text
-55% macro RGB similarity + 30% luminance similarity + 15% histogram similarity
+100% full-frame RGB mean-absolute similarity after symmetric 2px normalization
 ```
 
-The target is **greater than 96.0%**. The script also writes a full-resolution
-amplified diff image so a high aggregate score cannot replace visual review.
-Generated-image text can be internally inconsistent; any residual mismatch is
-documented rather than hidden by masks or ignored regions.
+The target is **greater than 96.0%**. The report also retains unnormalized RGB
+MAE, macro-layout RMSE, full-resolution luminance RMSE, and histogram diagnostics.
+The script writes an unnormalized full-resolution amplified diff image so a
+passing perceptual score cannot replace visual review. Generated-image text can
+be internally inconsistent; any residual mismatch is documented rather than
+hidden by masks or ignored regions.
 
 The source targets must be the actual ChatGPT Pro concept images. A render may
 not be compared with itself or promoted as a passing target. The concept log
-records the current visible login challenge and leaves the similarity gate open
-until those targets are retained locally.
+records the authenticated ten-image session, final-generation timestamp,
+required retention wait, all ten file hashes, and the completed selected
+comparisons.
 
 ## Reproduction commands
 
@@ -102,5 +106,9 @@ design/monitoring-dashboard/scripts/compare.sh TARGET.png SCREENSHOT.png REPORT.
 ```
 
 The renderer pins Jinja2 and Tailwind CLI versions. The capture script uses the
-installed Google Chrome through Playwright and a local static server. The
-comparison script pins Pillow and contains no network step.
+installed Google Chrome through Playwright and a local static server; setting
+`DESIGN_CDP_URL` reuses an already-running Chrome instead of launching another
+browser. The comparison script pins Pillow. Supplying `DESIGN_PYTHON_BIN`
+reuses an existing interpreter; otherwise both Python scripts create isolated,
+project-independent `uv` environments so they cannot resynchronize the runtime
+venv.

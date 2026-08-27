@@ -10,22 +10,23 @@
       <div class="w-[300px]">{{ bar_sparkline(scenario.trend, 'red') }}</div>
     </div>
     <div class="mt-7 overflow-hidden rounded-[14px] border border-[#d7e3db]">
-      <div class="grid grid-cols-[1.3fr_.8fr_.8fr_.8fr_.8fr_.45fr] bg-[#f4f8f5] px-5 py-3 text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#6e8177]">
-        <span>Resource</span><span>Current</span><span>Threshold</span><span>Headroom</span><span>Freshness</span><span></span>
+      <div class="grid grid-cols-[.9fr_.62fr_1.15fr_.75fr_.55fr_.65fr_.8fr] bg-[#f8faf8] px-5 py-3 text-[9px] font-extrabold uppercase tracking-[0.1em] text-[#6e8177]">
+        <span>Resource</span><span>Utilization</span><span>Saturation / pressure</span><span>Error state</span><span>Threshold</span><span>Freshness</span><span class="text-right">Status</span>
       </div>
       {% for resource in scenario.resources %}
-        <div class="grid grid-cols-[1.3fr_.8fr_.8fr_.8fr_.8fr_.45fr] items-center border-t border-[#e1e9e4] px-5 py-4 text-[12px] text-[#31493d]">
+        <div class="grid grid-cols-[.9fr_.62fr_1.15fr_.75fr_.55fr_.65fr_.8fr] items-center border-t border-[#e1e9e4] px-5 py-[17px] text-[12px] text-[#31493d]">
           <strong>{{ resource.resource }}</strong>
           <span class="font-semibold">{{ resource.current }}</span>
+          <span>{{ resource.pressure }}</span>
+          <span>{{ resource.error }}</span>
           <span>{{ resource.threshold }}</span>
-          <span>{{ resource.headroom }}</span>
           <span>{{ resource.freshness }}</span>
           <span class="justify-self-end">{{ status_label(resource.status, resource.trend) }}</span>
         </div>
       {% endfor %}
     </div>
   </div>
-  <aside class="bg-[#f9fcfa] px-7 py-7">
+  <aside class="bg-[#fefefe] px-7 py-7">
     <p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#6b7e74]">Selected hotspot</p>
     <h2 class="mt-2 text-[19px] font-semibold leading-6 tracking-[-0.02em] text-[#173328]">{{ scenario.inspection.title }}</h2>
     <dl class="mt-6 space-y-5 text-[12px]">

@@ -1,7 +1,7 @@
 {% from "components/primitives.html" import status_label, bar_sparkline %}
 {% macro reliability_workspace(scenario) -%}
-<section class="grid grid-cols-[minmax(0,1.4fr)_minmax(310px,0.65fr)]">
-  <div class="border-r border-[#dbe7df] px-8 py-7">
+<section class="grid grid-cols-[minmax(0,1.2fr)_minmax(340px,0.65fr)]">
+  <div class="border-r border-[#dbe7df] pb-7 pl-5 pr-[30px] pt-[34px]">
     <div class="flex items-end justify-between gap-8">
       <div>
         <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#587064]">Service-group SLOs</p>
@@ -10,21 +10,24 @@
       <div class="w-[330px]">{{ bar_sparkline(scenario.trend, 'green') }}</div>
     </div>
     <div class="mt-7 overflow-hidden rounded-[14px] border border-[#d7e3db]">
-      <div class="grid grid-cols-[1.25fr_.6fr_.85fr_1fr_.75fr_.7fr_.35fr] bg-[#f4f8f5] px-5 py-3 text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#6e8177]">
-        <span>Group</span><span>Services</span><span>Availability</span><span>Error budget</span><span>HTTP p95</span><span>Incidents</span><span></span>
+      <div class="grid grid-cols-[1fr_.38fr_.62fr_1.05fr_.5fr_.45fr_.7fr_1.05fr] bg-[#f8faf8] px-4 py-3 text-[9px] font-extrabold uppercase tracking-[0.07em] text-[#6e8177]">
+        <span>Group</span><span>Services</span><span>Availability</span><span>Error budget</span><span>HTTP p95</span><span>Incidents</span><span></span><span>Alert routing</span>
       </div>
       {% for group in scenario.groups %}
-        <div class="grid grid-cols-[1.25fr_.6fr_.85fr_1fr_.75fr_.7fr_.35fr] items-center border-t border-[#e1e9e4] px-5 py-4 text-[12px] text-[#31493d]">
-          <strong>{{ group.group }}</strong><span>{{ group.services }}</span><span class="font-semibold">{{ group.availability }}</span><span>{{ group.budget }}</span><span>{{ group.p95 }}</span><span>{{ group.incidents }}</span><span class="justify-self-end">{{ status_label(group.status) }}</span>
+        <div class="grid grid-cols-[1fr_.38fr_.62fr_1.05fr_.5fr_.45fr_.7fr_1.05fr] items-center border-t border-[#e1e9e4] px-4 py-[17px] text-[11px] text-[#31493d]">
+          <strong class="text-[12px]">{{ group.group }}</strong><span>{{ group.services }}</span><span class="font-semibold">{{ group.availability }}</span>
+          <span class="flex items-center gap-2"><span class="h-2 w-16 overflow-hidden rounded-full bg-[#e4ebe7]"><span class="block h-full rounded-full {{ 'bg-[#cc443d]' if group.status == 'critical' else 'bg-[#dc9416]' if group.status == 'attention' else 'bg-[#5aba40]' }}" style="width: {{ group.budget_fill }}%"></span></span>{{ group.budget }}</span>
+          <span>{{ group.p95 }}</span><span>{{ group.incidents }}</span><span>{{ status_label(group.status) }}</span><span class="flex items-center gap-2"><span class="text-[16px]">{{ '➤' if group.route_alerts else '⌁' }}</span><span class="leading-4">{{ group.routing }}</span></span>
         </div>
       {% endfor %}
     </div>
   </div>
-  <aside class="bg-[#f9fcfa] px-7 py-7">
+  <aside class="bg-[#fefefe] px-7 pb-7 pt-[23px]">
     <div class="flex items-center justify-between">
       <div><p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#6b7e74]">Incident history</p><p class="mt-1 text-[11px] text-[#7b8b83]">Problem and recovery transitions · 7d</p></div>
       <span class="text-[11px] font-bold text-[#49675a]">Newest first</span>
     </div>
+    <p class="mt-4 text-[11px] leading-5 text-[#60746a]">Telegram opens only for critical production alerts.<br>Dashboard-only or deprecated routes are suppressed.</p>
     <ol class="mt-6">
       {% for event in scenario.history %}
         <li class="relative border-l border-[#cfddd5] pb-6 pl-5 last:pb-0">

@@ -24,6 +24,7 @@ from playwright.async_api import async_playwright
 async def capture() -> None:
     design_root = Path(os.environ["DESIGN_ROOT"])
     port = os.environ["SERVER_PORT"]
+    cdp_url = os.environ.get("DESIGN_CDP_URL")
     output_dir = design_root / "screenshots"
     output_dir.mkdir(parents=True, exist_ok=True)
     pages = (
@@ -32,20 +33,29 @@ async def capture() -> None:
         "concept-04-reliability",
     )
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(
-            executable_path="/usr/bin/google-chrome",
-            headless=True,
-            args=("--no-sandbox",),
-        )
-        context = await browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+        if cdp_url:
+            browser = await playwright.chromium.connect_over_cdp(cdp_url)
+            context = browser.contexts[0]
+            owns_browser = False
+        else:
+            browser = await playwright.chromium.launch(
+                executable_path="/usr/bin/google-chrome",
+                headless=True,
+                args=("--no-sandbox",),
+            )
+            context = await browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
+            owns_browser = True
         for page_name in pages:
             page = await context.new_page()
+            if cdp_url:
+                await page.set_viewport_size({"width": 1440, "height": 1000})
             await page.goto(f"http://127.0.0.1:{port}/renders/{page_name}.html", wait_until="networkidle")
             await page.evaluate("window.scrollTo(0, 0)")
             await page.screenshot(path=output_dir / f"{page_name}.png", full_page=False)
             await page.close()
-        await context.close()
-        await browser.close()
+        if owns_browser:
+            await context.close()
+            await browser.close()
 
 
 asyncio.run(capture())

@@ -1,8 +1,8 @@
 {% from "components/primitives.html" import status_label, fact %}
 {% macro incident_workspace(incidents, selected_id) -%}
-<section class="grid grid-cols-[minmax(0,0.92fr)_minmax(0,1.35fr)]">
+<section class="grid grid-cols-[minmax(0,0.86fr)_minmax(0,1.36fr)]">
   <div class="border-r border-[#dbe7df]">
-    <div class="flex items-center justify-between border-b border-[#e3ebe6] px-8 py-5">
+    <div class="flex items-center justify-between border-b border-[#e3ebe6] px-8 py-4">
       <div>
         <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#587064]">Incident queue</p>
         <p class="mt-1 text-[12px] text-[#71837a]">Enter or Space opens details</p>
@@ -10,7 +10,7 @@
       <span class="text-[11px] font-bold text-[#7a8c83]">{{ incidents|length }} open</span>
     </div>
     {% for incident in incidents %}
-      <article class="border-b border-[#e3ebe6] px-8 py-6 {{ 'bg-[#f7fbf8]' if incident.id == selected_id else 'bg-white' }}">
+      <article class="border-b border-[#e3ebe6] pr-8 {{ 'border-l-2 border-l-[#119b62] bg-[#f8fbf9] py-[22px] pl-[30px]' if incident.id == selected_id else 'border-l-2 border-l-transparent bg-[#fefefe] py-[12px] pl-[30px]' if loop.first else 'border-l-2 border-l-transparent bg-[#fefefe] py-[15px] pl-[30px]' }}">
         <div class="flex items-center justify-between gap-4">
           {{ status_label(incident.severity) }}
           <span class="text-[11px] font-semibold text-[#7b8a82]">{{ incident.latest_seen }}</span>
@@ -25,32 +25,37 @@
     {% endfor %}
   </div>
   {% for incident in incidents if incident.id == selected_id %}
-    <article class="px-9 py-7">
+    <article class="px-7 pb-6 pt-5">
       <div class="flex items-start justify-between gap-8">
         <div>
           <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#6c8075]">Active inspection</p>
-          <h2 class="mt-2 text-[21px] font-semibold tracking-[-0.025em] text-[#163025]">{{ incident.title }}</h2>
+          <h2 class="mt-2 text-[22px] font-semibold tracking-[-0.025em] text-[#163025]">{{ incident.title }}</h2>
+          <p class="mt-2 text-[12px] text-[#536b5f]">◯&nbsp; {{ incident.inspection_owner }}</p>
         </div>
         {{ status_label(incident.severity, incident.status) }}
       </div>
-      <dl class="mt-7 grid grid-cols-3 gap-x-7 gap-y-6 border-y border-[#dbe7df] py-6">
-        {{ fact('Affected check', incident.check) }}
-        {{ fact('Service / project', incident.service ~ ' · ' ~ incident.owner) }}
-        {{ fact('Error / status code', incident.code) }}
-        {{ fact('First seen', incident.first_seen) }}
-        {{ fact('Latest seen', incident.latest_seen) }}
-        {{ fact('Last successful sample', incident.last_success) }}
-        {{ fact('Trend', incident.trend) }}
-        {{ fact('Severity / alert policy', incident.policy) }}
-        {{ fact('Environment', 'Production') }}
+      <dl class="mt-5 grid grid-cols-3 border-t border-[#dbe7df]">
+        {{ fact('Affected check', incident.check, '▱') }}
+        {{ fact('Service / project', incident.service ~ ' · ' ~ incident.owner, '◇') }}
+        {{ fact('Error / status code', incident.code, '!') }}
+        {{ fact('First seen', incident.first_seen, '◷') }}
+        {{ fact('Latest seen', incident.latest_seen, '◷') }}
+        {{ fact('Last successful sample', incident.last_success, '◷') }}
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+          <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="text-[15px]">⌁</span>Trend / signals</dt>
+          <dd class="mt-1 pl-6 text-[9px] font-medium leading-[13px] text-[#263d32]"><ul class="list-disc pl-3">{% for signal in incident.signals %}<li>{{ signal }}</li>{% endfor %}</ul></dd>
+        </div>
+        {{ fact('Alert policy', incident.policy, '♧') }}
+        {{ fact('Environment', 'Production', '▦') }}
       </dl>
-      <div class="mt-6 border-l-[3px] border-[#d3a138] bg-[#fffaf0] px-5 py-4">
+      <div class="mt-1 flex items-center gap-4 rounded-md border border-[#dbe7df] bg-[#f6faf7] px-4 py-2">
+        <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#173d2c] text-[10px] text-white">➜</span>
+        <p class="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#263d32]">Next action</p>
+        <p class="text-[11px] leading-4 text-[#294236]">{{ incident.action }}</p>
+      </div>
+      <div class="mt-3 rounded-md border border-[#f0dfb8] border-l-[3px] border-l-[#d3a138] bg-[#fffaf0] px-5 py-4">
         <p class="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#8a6617]">Safe failure evidence</p>
         <p class="mt-2 font-mono text-[11px] leading-5 text-[#5f4a18]">{{ incident.evidence }}</p>
-      </div>
-      <div class="mt-6 border-l-[3px] border-[#62bf45] pl-5">
-        <p class="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#3b6a34]">Suggested next action</p>
-        <p class="mt-2 text-[13px] font-medium leading-6 text-[#294236]">{{ incident.action }}</p>
       </div>
     </article>
   {% endfor %}

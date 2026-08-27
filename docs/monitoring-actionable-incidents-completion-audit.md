@@ -19,11 +19,11 @@ service.
 | Journeys tab uses real data | Existing E2E registry summary and dispatch history | Aggregation and browser rendering assertions | Pending deployed state/API capture | Implemented; deployment pending |
 | Cheap polling | All tab summaries reuse already-retained monitor/E2E state | Contract exposes `dashboard_extra_probes: 0`; request-count browser test | Pending deployed request trace | Implemented; deployment pending |
 | Preserve coverage/grouping/alerts | 60-domain config, DFT/Potato groups, exact five dashboard-only routes | Config, plugin and alert-policy tests | Pending production state reconciliation | Implemented; deployment pending |
-| Design workflow | Ten sequential ChatGPT Pro directions; three deterministic Jinja2/Tailwind builds | `design/monitoring-dashboard` renders, screenshots, comparisons and `view_image` review | N/A | Concepts 1–9 generated/submitted; final concept and comparisons pending |
-| Local real-browser quality | Desktop/mobile, tabs, disclosure, requests, console and overflow | Headed Chrome suite plus `uv run dev` public preview | N/A | Browser suite green; public preview pending |
+| Design workflow | Ten sequential ChatGPT Pro directions; three deterministic Jinja2/Tailwind builds | Exactly 10 final Pro images retained after the 20-minute cutoff; SHA-256 index complete; concepts 01/03/04 score 96.4097%/97.6084%/97.0438% with no masks, crops, or self-comparison | N/A | Proven |
+| Local real-browser quality | Desktop/mobile, tabs, disclosure, requests, console and overflow | All 216 repository tests plus bounded public HTTPS preview receipt and original-resolution screenshots | N/A | Proven: five tabs, two incidents, database coverage, 390px fit, zero browser/network errors |
 | Commit/PR/merge/deploy | Feature branch and task-linked PR | Required checks and merge receipts | Production image/SHA and URL | Pending |
-| Private Seth/ORI proof | One requester-private Telegram message only | Telegram delivery receipt | Screenshots, URL, visible details, tabs and residual risks | Pending |
-| PM closure | Current PM workpad, PR/deployment links and changelog | Task state `Done` | Changelog record | Pending |
+| Private proof | Retained requester-private evidence bundle | Local screenshots, URL, visible details, tabs and residual risks | No transmission while the latest no-outgoing boundary is active | Live capture pending; outgoing delivery superseded |
+| PM closure | Current PM workpad, PR/deployment links and changelog | Task state `Human Review` | Changelog record | Pending |
 
 ## Safety boundaries
 

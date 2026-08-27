@@ -16,7 +16,7 @@ test -s "$design_root/static/tailwind.css"
 if [[ -n "${DESIGN_PYTHON_BIN:-}" ]]; then
   python_command=("$DESIGN_PYTHON_BIN")
 else
-  python_command=(uv run --with jinja2==3.1.6 python)
+  python_command=(uv run --isolated --no-project --with jinja2==3.1.5 python)
 fi
 
 DESIGN_ROOT="$design_root" "${python_command[@]}" - <<'PY'
@@ -24,9 +24,13 @@ from __future__ import annotations
 
 import json
 import os
+from importlib.metadata import version
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
+
+if version("Jinja2") != "3.1.5":
+    raise RuntimeError("monitoring design rendering requires Jinja2 3.1.5")
 
 design_root = Path(os.environ["DESIGN_ROOT"])
 fixture = json.loads((design_root / "fixtures/monitoring-scenarios.json").read_text(encoding="utf-8"))
