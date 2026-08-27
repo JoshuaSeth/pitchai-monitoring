@@ -57,10 +57,24 @@ class DashboardBuilder(Protocol):
         raise NotImplementedError
 
 
+class MonitorDataLoader(Protocol):
+    """Monitoring state and configuration loader contract."""
+
+    def __call__(self, *, state_path: str, config_path: str) -> MonitorData:
+        """Load retained monitoring data from its source files."""
+        raise NotImplementedError
+
+    @staticmethod
+    def contract_name() -> str:
+        """Return the adapter contract name."""
+        raise NotImplementedError
+
+
 class LegacyDashboard(Protocol):
     """Mutable summary hook retained by the established registry app."""
 
     build_dashboard_summary: DashboardBuilder
+    load_monitor_data: MonitorDataLoader
 
     def contract_name(self) -> str:
         """Return the adapter contract name."""

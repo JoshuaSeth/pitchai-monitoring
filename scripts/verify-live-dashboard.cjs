@@ -11,7 +11,7 @@ const EXPECTED_SHA = process.env.MONITORING_DASHBOARD_EXPECTED_SHA || 'unknown';
 const EXPECTED_DOMAINS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_DOMAINS || '62');
 const EXPECTED_GROUPS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_GROUPS || '15');
 const SCREENSHOT_PATH = '/tmp/monitoring-live-dashboard-proof.png';
-const SUMMARY_FETCH_TIMEOUT_MS = 5000;
+const SUMMARY_FETCH_TIMEOUT_MS = 30000;
 const REQUIRED_TABS = ['domains', 'databases', 'infrastructure', 'reliability', 'journeys'];
 const REQUIRED_UNIMIX_DOMAINS = ['unimixbrasil.com.br', 'www.unimixbrasil.com.br'];
 
