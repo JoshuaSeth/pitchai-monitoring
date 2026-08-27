@@ -9,9 +9,7 @@ from typing import TYPE_CHECKING, cast
 
 from httpx import MockTransport, Response
 
-from domain_checks.event_bus import EventBusConfig
-from domain_checks.event_bus_delivery import build_incident_payload, deliver_event_bus_payload
-
+from .event_bus_runtime import DELIVERY_RUNTIME, EventBusConfig
 from .json_types import optional_object, text_value
 from .testing_runtime import pytest
 
@@ -51,7 +49,7 @@ def _accepted(request: Request) -> Response:
 def test_gateway_preserves_delivery_identity_and_receiver_dedupe_key() -> None:
     """Deliver one hotpath RED envelope without rebuilding its identity."""
     config = _config()
-    payload = build_incident_payload(
+    payload = DELIVERY_RUNTIME.build_incident_payload(
         config,
         kind="hotpath_red",
         occurred_at=_EVENT_TIME,
@@ -62,7 +60,7 @@ def test_gateway_preserves_delivery_identity_and_receiver_dedupe_key() -> None:
         },
     )
     transport_factory = partial(MockTransport, _accepted)
-    attempt = deliver_event_bus_payload(
+    attempt = DELIVERY_RUNTIME.deliver_event_bus_payload(
         config,
         payload,
         now=_DELIVERY_TIME,
@@ -81,7 +79,7 @@ def test_gateway_preserves_delivery_identity_and_receiver_dedupe_key() -> None:
 def test_gateway_rejects_payload_mutation_before_network_delivery() -> None:
     """Fail a tampered envelope before its stale delivery id can be reused."""
     config = _config()
-    payload = build_incident_payload(
+    payload = DELIVERY_RUNTIME.build_incident_payload(
         config,
         kind="hotpath_red",
         occurred_at=_EVENT_TIME,
@@ -93,7 +91,7 @@ def test_gateway_rejects_payload_mutation_before_network_delivery() -> None:
     transport_factory = partial(MockTransport, _accepted)
 
     with pytest.raises(ValueError):
-        _ = deliver_event_bus_payload(
+        _ = DELIVERY_RUNTIME.deliver_event_bus_payload(
             config,
             payload,
             now=_DELIVERY_TIME,
