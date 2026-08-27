@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from .domain_runtime import common_runtime
-from .json_types import int_value, json_object, object_list, optional_object
+from .json_types import int_value, json_object, optional_object
 from .testing_runtime import pytest
 
 if TYPE_CHECKING:
@@ -16,7 +16,8 @@ if TYPE_CHECKING:
     from .json_types import JsonInput, JsonObject
 
 _EXPECTED_INCIDENT_COUNT = 2
-_EXPECTED_TAB_COUNT = 5
+_EXPECTED_TAB_COUNT = 6
+_EXPECTED_HOTPATH_LANES = 13
 _MOBILE_WIDTH = 390
 _MOBILE_HEIGHT = 844
 _STABLE_CHROME_PATHS = (
@@ -70,6 +71,9 @@ class BrowserReceipts:
 
 async def serve_monitor_data(summary: JsonObject, route: Route) -> None:
     """Fulfil dashboard API requests from deterministic retained data."""
+    if "/hotpaths/summary" in route.request.url:
+        await route.fulfill(json={"hotpaths": summary, "ok": True})
+        return
     if "/monitoring/summary" in route.request.url:
         await route.fulfill(json=summary)
         return
@@ -91,6 +95,13 @@ async def _require_text(locator: Locator, expected: str) -> None:
         pytest.fail(f"missing rendered dashboard text {expected!r}: {rendered!r}")
 
 
+def _summary_count(summary: JsonObject, section: str, key: str) -> int:
+    value = int_value(optional_object(summary.get(section)).get(key))
+    if value is None:
+        pytest.fail(f"dashboard proof summary is missing {section}.{key}")
+    return value
+
+
 async def _verify_incidents(page: Page) -> None:
     incident_toggles = page.locator("[data-testid=dash-incidents] .incident__toggle")
     if await incident_toggles.count() != _EXPECTED_INCIDENT_COUNT:
@@ -102,13 +113,22 @@ async def _verify_incidents(page: Page) -> None:
     if await incident_toggles.first.get_attribute("aria-expanded") != "true":
         pytest.fail("domain incident did not expand again")
     incident = page.locator("[data-incident-id='domain_down:pitchai.net']")
-    for expected in ("HTTP readiness", "Last successful sample", "Safe failure evidence", "Suggested next action"):
+    for expected in (
+        "HTTP readiness",
+        "Last successful sample",
+        "Safe failure evidence",
+        "Suggested next action",
+    ):
         await _require_text(incident, expected)
     database_incident = page.locator(
         "[data-incident-id='database_dependency:billing-web:runtime-postgres']",
     )
     await database_incident.locator(".incident__toggle").click()
-    for expected in ("Invalid Or Revoked Password", "Green slot · 100% traffic", "Open database dependencies"):
+    for expected in (
+        "Invalid Or Revoked Password",
+        "Green slot · 100% traffic",
+        "Open database dependencies",
+    ):
         await _require_text(database_incident, expected)
 
 
@@ -140,6 +160,17 @@ async def _verify_tabs(page: Page) -> None:
         panel = page.locator(f"[data-testid={panel_test_id}]")
         if not (await panel.inner_text()).strip():
             pytest.fail(f"{tab_name} tab rendered no retained-data state")
+    await page.locator("#tab-hotpaths").click()
+    hotpath_rows = page.locator("[data-testid=dash-hotpaths] .hotpath-row")
+    if await hotpath_rows.count() != _EXPECTED_HOTPATH_LANES:
+        pytest.fail("client hotpath tab did not render the canonical 13-lane inventory")
+    for expected in (
+        "hot-path-testing",
+        "DFT formative assessment",
+        "safe-fail-event-path-proof",
+        "safe-pass-ingestion-proof",
+    ):
+        await _require_text(page.locator("#panel-hotpaths"), expected)
 
 
 async def _verify_mobile_width(page: Page) -> None:
@@ -168,28 +199,30 @@ async def _verify_mobile_width(page: Page) -> None:
 async def exercise_actionable_dashboard(
     page: Page,
     base_url: str,
-    summary: JsonObject,
     receipts: BrowserReceipts,
+    summary: JsonObject,
 ) -> None:
     """Verify inventory, incident disclosure, tabs, filtering, and mobile fit."""
-    expected_domains = object_list(summary.get("domains"))
-    expected_domain_count = len(expected_domains)
-    expected_healthy_domain_count = sum(
-        optional_object(domain.get("last")).get("ok") is True for domain in expected_domains
+    healthy_services = _summary_count(summary, "service_health", "healthy")
+    enabled_services = _summary_count(summary, "service_health", "enabled")
+    active_domains = _summary_count(summary, "inventory", "active_domains")
+    domain_groups = _summary_count(summary, "inventory", "groups")
+    expected_service_kpi = f"{healthy_services}/{enabled_services}"
+    kpi_expression = (
+        f"document.querySelector('#kpi-services').textContent === '{expected_service_kpi}'"
     )
-    expected_group_button_count = len(object_list(summary.get("domain_groups"))) + 1
     await page.goto(f"{base_url}/dashboard")
-    await page.wait_for_function(
-        "document.querySelector('#kpi-services').textContent === "
-        f"'{expected_healthy_domain_count}/{expected_domain_count}'",
-    )
+    await page.wait_for_function(kpi_expression)
     tabs = page.locator("[data-testid=dash-tabs] [role=tab]")
     if await tabs.count() != _EXPECTED_TAB_COUNT:
-        pytest.fail("dashboard did not render all five requested tabs")
+        pytest.fail("dashboard did not render all six requested tabs")
     group_buttons = page.locator("[data-testid=dash-domain-groups] button")
-    if await group_buttons.count() != expected_group_button_count:
+    if await group_buttons.count() != domain_groups + 1:
         pytest.fail("dashboard did not render all production domain groups")
-    await _require_text(page.locator("#domain-inventory-note"), f"{expected_domain_count} monitored domains")
+    await _require_text(
+        page.locator("#domain-inventory-note"),
+        f"{active_domains} monitored domains",
+    )
     await page.locator("[data-testid=dash-domain-groups] button[data-group=unimix]").click()
     for domain in ("unimixbrasil.com.br", "www.unimixbrasil.com.br"):
         await _require_text(page.locator(f"[data-domain='{domain}']"), domain)
