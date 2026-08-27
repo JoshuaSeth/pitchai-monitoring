@@ -100,19 +100,17 @@ def deliver_event_bus_payload(
     delivery_id, event_kind = _validate_payload(payload)
     body = _canonical_json(payload)
     timestamp = str(int(time.time() if now is None else now))
-    headers = {
-        "content-type": "application/json",
-        SIGNATURE_HEADER: signature_for_delivery(
-            body=body,
-            secret=config.secret,
-            timestamp=timestamp,
-            delivery_id=delivery_id,
-            event_kind=event_kind,
-        ),
-        DELIVERY_HEADER: delivery_id,
-        TIMESTAMP_HEADER: timestamp,
-        EVENT_HEADER: event_kind,
-    }
+    signature = signature_for_delivery(
+        body=body,
+        secret=config.secret,
+        timestamp=timestamp,
+        delivery_id=delivery_id,
+        event_kind=event_kind,
+    )
+    headers = {"content-type": "application/json", SIGNATURE_HEADER: signature}
+    headers[DELIVERY_HEADER] = delivery_id
+    headers[TIMESTAMP_HEADER] = timestamp
+    headers[EVENT_HEADER] = event_kind
     client_factory = partial(
         Client,
         headers={"User-Agent": _USER_AGENT},
@@ -154,13 +152,13 @@ def _validate_payload(payload: JsonObject) -> tuple[str, str]:
 
 
 def _canonical_json(payload: JsonObject) -> bytes:
-    return json.dumps(
-        payload,
+    encoder = json.JSONEncoder(
         ensure_ascii=True,
         allow_nan=False,
         separators=(",", ":"),
         sort_keys=True,
-    ).encode()
+    )
+    return encoder.encode(payload).encode()
 
 
 def _delivery_attempt(*, delivery_id: str, response: Response) -> DeliveryAttempt:

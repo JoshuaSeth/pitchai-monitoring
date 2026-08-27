@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from importlib import import_module
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -17,27 +16,67 @@ if TYPE_CHECKING:
 type DeliveryPayload = dict[str, JsonValue]
 
 
-@dataclass(frozen=True)
-class EventBusConfig:
+class EventBusConfig(Protocol):
     """Typed structural view of the shared monitoring producer configuration."""
 
-    webhook_url: str
-    secret: str
-    environment: str
-    instance: str
-    deployment_sha: str | None
-    timeout_seconds: float = 10.0
+    @property
+    def webhook_url(self) -> str:
+        """Return the configured receiver URL."""
+        raise NotImplementedError
+
+    @property
+    def secret(self) -> str:
+        """Return the shared signing secret."""
+        raise NotImplementedError
+
+    @property
+    def environment(self) -> str:
+        """Return the producer environment."""
+        raise NotImplementedError
+
+    @property
+    def instance(self) -> str:
+        """Return the producer instance."""
+        raise NotImplementedError
+
+    @property
+    def deployment_sha(self) -> str | None:
+        """Return the optional deployed source revision."""
+        raise NotImplementedError
+
+    @property
+    def timeout_seconds(self) -> float:
+        """Return the delivery timeout."""
+        raise NotImplementedError
 
 
-@dataclass(frozen=True)
-class DeliveryAttempt:
+class DeliveryAttempt(Protocol):
     """Typed structural view of a shared monitoring delivery receipt."""
 
-    delivery_id: str
-    success: bool
-    status_code: int | None
-    event_id: str | None
-    error: str | None
+    @property
+    def delivery_id(self) -> str:
+        """Return the stable delivery identity."""
+        raise NotImplementedError
+
+    @property
+    def success(self) -> bool:
+        """Return whether the receiver accepted the event."""
+        raise NotImplementedError
+
+    @property
+    def status_code(self) -> int | None:
+        """Return the HTTP status when an exchange completed."""
+        raise NotImplementedError
+
+    @property
+    def event_id(self) -> str | None:
+        """Return the receiver event identity when accepted."""
+        raise NotImplementedError
+
+    @property
+    def error(self) -> str | None:
+        """Return a stable failure description."""
+        raise NotImplementedError
 
 
 class _EventBusRuntime(Protocol):

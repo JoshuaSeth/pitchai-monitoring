@@ -9,12 +9,14 @@ from typing import TYPE_CHECKING, cast
 
 from httpx import MockTransport, Response
 
-from .event_bus_runtime import DELIVERY_RUNTIME, EventBusConfig
+from .event_bus_runtime import DELIVERY_RUNTIME, EVENT_BUS_RUNTIME
 from .json_types import optional_object, text_value
 from .testing_runtime import pytest
 
 if TYPE_CHECKING:
     from httpx import Request
+
+    from .event_bus_runtime import EventBusConfig
 
 _EVENT_TIME = 1_787_855_200.0
 _DELIVERY_TIME = _EVENT_TIME + 1.0
@@ -23,13 +25,18 @@ _ACCEPTED_STATUS = 202
 
 def _config() -> EventBusConfig:
     signing_key = hashlib.sha256(b"monitoring-delivery-test-key").hexdigest()
-    return EventBusConfig(
-        webhook_url="https://pitchai.net/events-bus/webhooks/pitchai-monitoring",
-        secret=signing_key,
-        environment="production",
-        instance="pytest-monitoring",
-        deployment_sha="a" * 40,
+    config = EVENT_BUS_RUNTIME.load_event_bus_config(
+        {
+            "PITCHAI_MONITORING_EVENT_BUS_URL": "https://pitchai.net/events-bus/webhooks/pitchai-monitoring",
+            "PITCHAI_MONITORING_EVENT_BUS_SECRET": signing_key,
+            "PITCHAI_MONITORING_ENVIRONMENT": "production",
+            "PITCHAI_MONITORING_INSTANCE": "pytest-monitoring",
+            "PITCHAI_MONITORING_DEPLOYMENT_SHA": "a" * 40,
+        },
     )
+    if config is None:
+        pytest.fail("complete test delivery configuration was ignored")
+    return config
 
 
 def _accepted(request: Request) -> Response:
