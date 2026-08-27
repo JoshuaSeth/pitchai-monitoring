@@ -119,8 +119,8 @@
   }
 
   function statusClass(status) {
-    if (["healthy", "fresh", "up", "pass", "ok"].includes(status)) return "is-healthy";
-    if (["critical", "stale", "down", "fail"].includes(status)) return "is-critical";
+    if (["healthy", "fresh", "up", "pass", "passing", "ok", "delivered", "recovered"].includes(status)) return "is-healthy";
+    if (["critical", "stale", "down", "fail", "failed"].includes(status)) return "is-critical";
     return "is-attention";
   }
 
@@ -1134,6 +1134,133 @@
     return ({ healthy: "Healthy", failing: "Failing", stale: "Stale", infra_degraded: "Infra degraded", never_run: "Never run", disabled: "Disabled", unknown: "Unavailable" })[status] || titleCase(status);
   }
 
+  function shortHash(value) {
+    return typeof value === "string" && value.length > 12 ? value.slice(0, 12) : (value || "Unavailable");
+  }
+
+  function hotpathStatusLabel(status) {
+    return ({ passing: "Passing", warning: "Warning", critical: "Critical", stale: "Stale", never_reported: "Never reported" })[status]
+      || titleCase(status);
+  }
+
+  function renderHotpathUnavailable(message) {
+    setStatusLabel(byId("hotpaths-status"), "Unavailable", "unknown");
+    ["hotpath-tag", "hotpath-cadence", "hotpath-cooldown", "hotpath-reviewed"].forEach((id) => {
+      byId(id).textContent = "Unavailable";
+    });
+    byId("hotpath-count").textContent = "—";
+    byId("hotpath-proof-count").textContent = "—";
+    byId("hotpath-summary").replaceChildren(
+      createMetricCard("Signal state", "Unavailable", "The independent hotpath endpoint did not respond", "unknown"),
+    );
+    byId("hotpath-list").replaceChildren(createElement("p", "empty-state is-critical", message));
+    byId("hotpath-proof-list").replaceChildren(
+      createElement("p", "empty-state", "Synthetic proof state is unavailable with the hotpath signal endpoint."),
+    );
+  }
+
+  function appendHotpathEvidence(container, label, value) {
+    const field = createElement("div", "hotpath-evidence");
+    field.append(createElement("span", "", label));
+    field.append(createElement("code", "", value || "Unavailable"));
+    container.append(field);
+  }
+
+  function renderHotpathLane(lane, hotpaths) {
+    const latest = lane.latest_report || null;
+    const row = createElement("details", `hotpath-row ${statusClass(lane.status)}`);
+    const heading = createElement("summary", "hotpath-row__summary");
+    const copy = createElement("span", "hotpath-row__copy");
+    copy.append(createElement("strong", "", lane.name || lane.lane_id));
+    copy.append(createElement("small", "", `${lane.project || "Owner unavailable"} · ${lane.target_surface || "Target unavailable"}`));
+    heading.append(copy);
+    const timing = latest
+      ? `${formatRelative(latest.occurred_at_ts, hotpaths.generated_at_ts)} · ${formatDuration(latest.duration_seconds)}`
+      : `Expected every ${formatDuration(hotpaths.expected_interval_seconds)}`;
+    heading.append(createElement("span", "hotpath-row__timing", timing));
+    heading.append(createElement("span", `status-label ${statusClass(lane.status)}`, hotpathStatusLabel(lane.status)));
+    row.append(heading);
+
+    const body = createElement("div", "hotpath-row__details");
+    const facts = createElement("dl", "hotpath-detail-grid");
+    appendIncidentField(facts, "Lane / project", `${lane.lane_id} · ${lane.project}`);
+    appendIncidentField(facts, "Agent", lane.agent_global_id);
+    appendIncidentField(facts, "Reminder", lane.reminder_id);
+    appendIncidentField(facts, "Expected behavior", lane.expected_behavior);
+    appendIncidentField(facts, "Freshness", latest
+      ? `${formatDuration(lane.age_seconds)} old · stale after ${formatDuration(hotpaths.stale_after_seconds)}`
+      : "No central monitoring report retained");
+    if (latest) {
+      appendIncidentField(facts, "Latest run", `${formatDateTime(latest.occurred_at_ts)} · ${latest.run_id}`);
+      appendIncidentField(facts, "Result / severity", `${latest.success ? "PASS" : "FAIL"} · ${titleCase(latest.severity)}`);
+      appendIncidentField(facts, "Streak", `${formatCount(latest.success_streak)} success · ${formatCount(latest.fail_streak)} fail`);
+      appendIncidentField(facts, "Incident action", titleCase(latest.event_action));
+      appendIncidentField(facts, "Failure", latest.failure_reason
+        ? `${titleCase(latest.failure_class)} · ${titleCase(latest.failure_phase)} · ${latest.failure_reason}`
+        : "None retained");
+      appendIncidentField(facts, "Source / deployed", `${shortHash(latest.source_sha)} · ${shortHash(latest.deployed_sha)}`);
+    }
+    body.append(facts);
+    if (latest) {
+      const evidence = createElement("div", "hotpath-evidence-grid");
+      appendHotpathEvidence(evidence, "Private SeaweedFS evidence", latest.evidence_uri);
+      appendHotpathEvidence(evidence, "Artifact receipt SHA-256", latest.artifact_receipt_sha256);
+      appendHotpathEvidence(evidence, "Monitoring receipt SHA-256", latest.report_receipt_sha256);
+      appendHotpathEvidence(evidence, "Monitoring report", latest.report_id);
+      body.append(evidence);
+    }
+    row.append(body);
+    return row;
+  }
+
+  function renderHotpathProof(proof, generatedAt) {
+    const row = createElement("article", `hotpath-proof ${statusClass(proof.success ? "pass" : "fail")}`);
+    const copy = createElement("div");
+    copy.append(createElement("strong", "", `${proof.success ? "PASS" : "FAIL"} · ${proof.scenario || "Synthetic protocol proof"}`));
+    copy.append(createElement("small", "", `${titleCase(proof.event_action)} · event ${titleCase(proof.delivery_status || "not queued")} · ${formatRelative(proof.occurred_at_ts, generatedAt)}`));
+    row.append(copy);
+    row.append(createElement("code", "", shortHash(proof.report_receipt_sha256)));
+    return row;
+  }
+
+  function renderHotpaths(hotpaths) {
+    const counts = hotpaths.counts || {};
+    const lanes = Array.isArray(hotpaths.lanes) ? hotpaths.lanes : [];
+    const proofs = Array.isArray(hotpaths.synthetic_proofs) ? hotpaths.synthetic_proofs : [];
+    const delivery = hotpaths.event_delivery || {};
+    setStatusLabel(byId("hotpaths-status"), hotpathStatusLabel(hotpaths.status), hotpaths.status);
+    byId("hotpath-tag").textContent = hotpaths.canonical_tag || "Unavailable";
+    byId("hotpath-cadence").textContent = formatDuration(hotpaths.expected_interval_seconds);
+    byId("hotpath-cooldown").textContent = formatDuration(hotpaths.incident_cooldown_seconds);
+    byId("hotpath-reviewed").textContent = hotpaths.inventory_reviewed_at || "Unavailable";
+    byId("hotpath-count").textContent = formatCount(lanes.length);
+    byId("hotpath-proof-count").textContent = formatCount(proofs.length);
+    const attention = (numberOrNull(counts.warning) || 0) + (numberOrNull(counts.critical) || 0)
+      + (numberOrNull(counts.stale) || 0) + (numberOrNull(counts.never_reported) || 0);
+    const pendingEvents = (numberOrNull(delivery.pending) || 0) + (numberOrNull(delivery.retrying) || 0)
+      + (numberOrNull(delivery.delivering) || 0);
+    byId("hotpath-summary").replaceChildren(
+      createMetricCard("Canonical lanes", formatCount(counts.total), `${formatCount(counts.passing)} passing`, counts.total ? "healthy" : "unknown"),
+      createMetricCard("Attention", formatCount(attention), `${formatCount(counts.critical)} critical · ${formatCount(counts.stale)} stale · ${formatCount(counts.never_reported)} never reported`, attention ? "critical" : "healthy"),
+      createMetricCard("Events delivered", formatCount(delivery.delivered), `${formatCount(pendingEvents)} pending / retrying`, pendingEvents ? "attention" : "healthy"),
+      createMetricCard("Latest projection", formatRelative(hotpaths.generated_at_ts, hotpaths.generated_at_ts), `Schema v${hotpaths.schema_version || "?"}`, "healthy"),
+    );
+    const list = byId("hotpath-list");
+    list.replaceChildren();
+    if (!lanes.length) {
+      list.append(createElement("p", "empty-state is-critical", "The canonical hotpath inventory returned no lanes."));
+    } else {
+      lanes.forEach((lane) => list.append(renderHotpathLane(lane, hotpaths)));
+    }
+    const proofList = byId("hotpath-proof-list");
+    proofList.replaceChildren();
+    if (!proofs.length) {
+      proofList.append(createElement("p", "empty-state", "No safe synthetic PASS / FAIL proof has been retained yet."));
+    } else {
+      proofs.forEach((proof) => proofList.append(renderHotpathProof(proof, hotpaths.generated_at_ts)));
+    }
+  }
+
   function renderJourneys(summary) {
     const journeys = summary.dashboards && summary.dashboards.journeys || {};
     const items = Array.isArray(journeys.items) ? journeys.items : [];
@@ -1429,11 +1556,27 @@
     button.disabled = true;
     clearError();
     try {
-      const summary = await getJson(`/dashboard/api/v1/monitoring/summary?range=${encodeURIComponent(model.range)}`);
-      renderSummary(summary);
-      if (summary.error) showError("The monitor reported an incomplete state or configuration. Current values may be partial.");
+      const [monitoringResult, hotpathResult] = await Promise.allSettled([
+        getJson(`/dashboard/api/v1/monitoring/summary?range=${encodeURIComponent(model.range)}`),
+        getJson("/dashboard/api/v1/hotpaths/summary"),
+      ]);
+      if (monitoringResult.status === "fulfilled") {
+        renderSummary(monitoringResult.value);
+        if (monitoringResult.value.error) showError("The monitor reported an incomplete state or configuration. Current values may be partial.");
+      } else {
+        showError(monitoringResult.reason instanceof Error ? monitoringResult.reason.message : "Monitoring data could not be loaded.");
+      }
+      if (hotpathResult.status === "fulfilled" && hotpathResult.value.hotpaths) {
+        renderHotpaths(hotpathResult.value.hotpaths);
+      } else {
+        const reason = hotpathResult.status === "rejected" && hotpathResult.reason instanceof Error
+          ? hotpathResult.reason.message
+          : "The hotpath response did not contain a signal projection.";
+        renderHotpathUnavailable(reason);
+      }
     } catch (error) {
       showError(error instanceof Error ? error.message : "Monitoring data could not be loaded.");
+      renderHotpathUnavailable("The independent hotpath request could not be started.");
     } finally {
       button.classList.remove("is-loading");
       button.disabled = false;

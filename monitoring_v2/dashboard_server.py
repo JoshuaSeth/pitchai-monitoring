@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, cast
 
 import uvicorn
 
+from .hotpath_contract_runtime import HOTPATH_INSTALLER
 from .install import install_monitoring_v2
 from .network_gateway import free_tcp_port
 from .registry_runtime import (
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
 
+    from .hotpath_contract_runtime import HotpathApplication
     from .json_types import JsonObject
     from .registry_runtime import RegistrySettings
 
@@ -145,6 +147,9 @@ def running_dashboard_server(root: Path) -> Generator[DashboardServer]:
     app = create_registry_app(settings)
     previous_builder = legacy_dashboard.build_dashboard_summary
     install_monitoring_v2(app)
+    HOTPATH_INSTALLER.install_hotpath_monitoring(
+        cast("HotpathApplication", cast("object", app)),
+    )
     port = free_tcp_port()
     server = uvicorn.Server(
         uvicorn.Config(
