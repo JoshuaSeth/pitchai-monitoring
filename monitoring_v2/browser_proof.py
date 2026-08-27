@@ -8,15 +8,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from .domain_runtime import common_runtime
-from .json_types import int_value, json_object
+from .json_types import int_value, json_object, object_list, optional_object
 from .testing_runtime import pytest
 
 if TYPE_CHECKING:
     from .browser_runtime import BrowserRequest, ConsoleMessage, Locator, Page, Route
     from .json_types import JsonInput, JsonObject
 
-_EXPECTED_DOMAIN_COUNT = 62
-_EXPECTED_GROUP_BUTTON_COUNT = 16
 _EXPECTED_INCIDENT_COUNT = 2
 _EXPECTED_TAB_COUNT = 5
 _MOBILE_WIDTH = 390
@@ -167,17 +165,31 @@ async def _verify_mobile_width(page: Page) -> None:
         pytest.fail(f"dashboard overflowed the mobile viewport: {viewport!r}")
 
 
-async def exercise_actionable_dashboard(page: Page, base_url: str, receipts: BrowserReceipts) -> None:
+async def exercise_actionable_dashboard(
+    page: Page,
+    base_url: str,
+    summary: JsonObject,
+    receipts: BrowserReceipts,
+) -> None:
     """Verify inventory, incident disclosure, tabs, filtering, and mobile fit."""
+    expected_domains = object_list(summary.get("domains"))
+    expected_domain_count = len(expected_domains)
+    expected_healthy_domain_count = sum(
+        optional_object(domain.get("last")).get("ok") is True for domain in expected_domains
+    )
+    expected_group_button_count = len(object_list(summary.get("domain_groups"))) + 1
     await page.goto(f"{base_url}/dashboard")
-    await page.wait_for_function("document.querySelector('#kpi-services').textContent === '61/62'")
+    await page.wait_for_function(
+        "document.querySelector('#kpi-services').textContent === "
+        f"'{expected_healthy_domain_count}/{expected_domain_count}'",
+    )
     tabs = page.locator("[data-testid=dash-tabs] [role=tab]")
     if await tabs.count() != _EXPECTED_TAB_COUNT:
         pytest.fail("dashboard did not render all five requested tabs")
     group_buttons = page.locator("[data-testid=dash-domain-groups] button")
-    if await group_buttons.count() != _EXPECTED_GROUP_BUTTON_COUNT:
+    if await group_buttons.count() != expected_group_button_count:
         pytest.fail("dashboard did not render all production domain groups")
-    await _require_text(page.locator("#domain-inventory-note"), f"{_EXPECTED_DOMAIN_COUNT} monitored domains")
+    await _require_text(page.locator("#domain-inventory-note"), f"{expected_domain_count} monitored domains")
     await page.locator("[data-testid=dash-domain-groups] button[data-group=unimix]").click()
     for domain in ("unimixbrasil.com.br", "www.unimixbrasil.com.br"):
         await _require_text(page.locator(f"[data-domain='{domain}']"), domain)

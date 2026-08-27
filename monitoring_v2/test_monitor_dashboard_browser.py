@@ -159,7 +159,7 @@ async def test_dashboard_renders_production_inventory_incidents_and_tabs(
             partial(serve_monitor_data, summary),
         )
         try:
-            await exercise_actionable_dashboard(page, dashboard_server.base_url, receipts)
+            await exercise_actionable_dashboard(page, dashboard_server.base_url, summary, receipts)
         finally:
             await context.close()
             await browser.close()
