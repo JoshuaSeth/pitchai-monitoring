@@ -78,6 +78,10 @@ domains:
     environment: production
     kind: application
     sources: [browser fixture]
+    check:
+      url: https://a.example/
+      expected_status_codes: [200]
+      browser_enabled: false
 """,
         encoding="utf-8",
     )

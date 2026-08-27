@@ -823,7 +823,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-08-25"
+  reviewed_at: "2026-08-27"
   authoritative_sources:
     - "domain-engineer-namecheap-dns lane handoff (2026-08-24)"
     - "Namecheap authoritative zone snapshot: 65 records, no wildcard"
@@ -833,6 +833,7 @@ inventory:
     - "PitchAI live-agent/app-server registry and tools portal routing"
     - "live public DNS, TLS and HTTP contract probes (2026-08-25)"
     - "known client deployment zones"
+    - "Unimix repair confirmation and live public DNS, TLS and HTTP probes (2026-08-27)"
 
 domain_groups:
   corporate:
@@ -891,6 +892,10 @@ domain_groups:
     label: "Market insights"
     description: "Protected client-facing price services"
     order: 140
+  unimix:
+    label: "Unimix"
+    description: "Unimix Brasil production website and canonical alias"
+    order: 150
 
 check_profiles:
   html_200: &html_200
@@ -1517,6 +1522,35 @@ domains:
     check:
       <<: *protected_401
       url: https://akkerbouwprijs.nl/
+
+  - domain: unimixbrasil.com.br
+    label: "Unimix Brasil"
+    group: unimix
+    environment: production
+    kind: application
+    sources: [unimix-repair-confirmation-2026-08-27, client-zone-dns-and-tls, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://unimixbrasil.com.br/
+      expected_final_host_suffix: unimixbrasil.com.br
+      expected_title_contains: "Unimix"
+      required_text_all: ["Since 2003", "Unimix"]
+  - domain: www.unimixbrasil.com.br
+    label: "Unimix Brasil canonical alias"
+    group: unimix
+    environment: production
+    kind: alias
+    sources: [unimix-repair-confirmation-2026-08-27, client-zone-dns-and-tls, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://www.unimixbrasil.com.br/
+      expected_final_host_suffix: unimixbrasil.com.br
+      expected_title_contains: "Unimix"
+      required_text_all: ["Since 2003", "Unimix"]
 
 retired_domains:
   - domain: n8n.pitchai.net

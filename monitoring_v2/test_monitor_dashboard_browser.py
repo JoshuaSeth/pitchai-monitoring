@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
 from httpx import AsyncClient
 
+from . import evidence as evidence_runtime
 from .browser_proof import (
     BrowserReceipts,
     exercise_actionable_dashboard,
@@ -17,6 +19,7 @@ from .browser_proof import (
 )
 from .browser_runtime import async_playwright
 from .dashboard_server import running_dashboard_server
+from .evidence_contracts import EvidenceResponse
 from .json_types import json_object, optional_object
 from .network_gateway import fetch_dashboard_contract
 from .production_summary import production_dashboard_summary
@@ -26,8 +29,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
+    from httpx import URL
+
     from .dashboard_server import DashboardServer
+    from .domain_runtime import DomainCheckSpec
     from .json_types import JsonInput
+    from .testing_runtime import MonkeyPatch
 
 _HTTP_OK = 200
 _HTTP_UNAUTHORIZED = 401
@@ -83,6 +90,45 @@ async def test_dashboard_registers_the_protected_incident_evidence_route(
         response = await client.get("/dashboard/api/v1/monitoring/incidents/a.example/evidence")
     if response.status_code != _HTTP_UNAUTHORIZED:
         pytest.fail(f"protected incident evidence route returned {response.status_code}, expected 401")
+
+
+@pytest.mark.asyncio
+async def test_dashboard_serializes_authorized_incident_evidence(
+    dashboard_server: DashboardServer,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Prove the authorized route returns its safe JSON contract without a 500."""
+
+    async def successful_evidence(
+        spec: DomainCheckSpec,
+        *,
+        normalized_domain: str,
+        timeout_seconds: float,
+    ) -> EvidenceResponse:
+        await asyncio.sleep(0)
+        del timeout_seconds
+        if normalized_domain != "a.example":
+            pytest.fail("incident evidence validation received an unexpected check contract")
+        return EvidenceResponse(
+            content_type="text/html; charset=utf-8",
+            status_expected=True,
+            response_body=b"",
+            status_code=_HTTP_OK,
+            final_url=cast("URL", cast("object", spec.url)),
+        )
+
+    monkeypatch.setattr(evidence_runtime, "_validated_evidence", successful_evidence)
+    client_factory = partial(AsyncClient, base_url=dashboard_server.base_url)
+    async with client_factory() as client:
+        response = await client.get(
+            "/dashboard/api/v1/monitoring/incidents/a.example/evidence",
+            headers={"X-PitchAI-Email": "operator@pitchai.net"},
+        )
+    if response.status_code != _HTTP_OK:
+        pytest.fail(f"authorized incident evidence route returned {response.status_code}")
+    contract = json_object(cast("JsonInput", response.json()))
+    if contract.get("data_state") != "recovered" or contract.get("status_code") != _HTTP_OK:
+        pytest.fail(f"authorized incident evidence contract is incomplete: {contract}")
 
 
 @pytest.mark.asyncio

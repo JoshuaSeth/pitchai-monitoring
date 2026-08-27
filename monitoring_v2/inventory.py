@@ -37,6 +37,7 @@ EXPECTED_ACTIVE_DOMAINS = _words(
     jeff-dispatch.pitchai.net jeff-work-inbox.pitchai.net aardappelprijs.nl akkerbouwprijs.nl afasask.gzb.nl
     deplanbook.com cms.deplanbook.com hetcis.nl www.hetcis.nl agentcloud.pitchai.net dashboards.pitchai.net
     support.pitchai.net
+    unimixbrasil.com.br www.unimixbrasil.com.br
     """,
 )
 

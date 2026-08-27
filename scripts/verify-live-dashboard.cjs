@@ -8,10 +8,11 @@ const puppeteer = require('puppeteer');
 const BASE_URL = process.env.MONITORING_DASHBOARD_BASE_URL || 'http://127.0.0.1:8111';
 const IDENTITY = process.env.MONITORING_DASHBOARD_IDENTITY || 'info@pitchai.net';
 const EXPECTED_SHA = process.env.MONITORING_DASHBOARD_EXPECTED_SHA || 'unknown';
-const EXPECTED_DOMAINS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_DOMAINS || '60');
-const EXPECTED_GROUPS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_GROUPS || '14');
+const EXPECTED_DOMAINS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_DOMAINS || '62');
+const EXPECTED_GROUPS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_GROUPS || '15');
 const SCREENSHOT_PATH = '/tmp/monitoring-live-dashboard-proof.png';
 const REQUIRED_TABS = ['domains', 'databases', 'infrastructure', 'reliability', 'journeys'];
+const REQUIRED_UNIMIX_DOMAINS = ['unimixbrasil.com.br', 'www.unimixbrasil.com.br'];
 
 function object(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -29,6 +30,22 @@ async function summaryFromPage(page) {
     if (!response.ok) throw new Error('summary HTTP ' + response.status);
     return response.json();
   });
+}
+
+async function waitForUnimixHealth(page) {
+  await page.waitForFunction(async (requiredDomains) => {
+    const response = await fetch('/dashboard/api/v1/monitoring/summary?range=24h', {
+      credentials: 'same-origin',
+    });
+    if (!response.ok) return false;
+    const summary = await response.json();
+    const domains = Array.isArray(summary.domains) ? summary.domains : [];
+    return requiredDomains.every((hostname) => {
+      const domain = domains.find((item) => item && item.domain === hostname);
+      const last = domain && domain.last && typeof domain.last === 'object' ? domain.last : {};
+      return domain && domain.group === 'unimix' && last.ok === true && Number(last.status_code) === 200;
+    });
+  }, {timeout: 120000, polling: 2000}, REQUIRED_UNIMIX_DOMAINS);
 }
 
 async function verifyTabs(page) {
@@ -94,6 +111,7 @@ async function main() {
       const note = document.querySelector('#domain-inventory-note');
       return Boolean(note && note.textContent && note.textContent.includes('monitored domains'));
     }, {timeout: 30000});
+    await waitForUnimixHealth(page);
 
     const summary = await summaryFromPage(page);
     const domains = list(summary.domains);
@@ -123,6 +141,18 @@ async function main() {
       containerRestartTotal >= 0;
     assert.equal(domains.length, EXPECTED_DOMAINS, 'live domain inventory count changed');
     assert.equal(groups.length, EXPECTED_GROUPS, 'live domain group count changed');
+    const unimixGroup = groups.find((group) => object(group).id === 'unimix');
+    assert.ok(unimixGroup, 'live dashboard omitted the Unimix customer group');
+    assert.equal(Number(object(unimixGroup).enabled), REQUIRED_UNIMIX_DOMAINS.length);
+    assert.equal(Number(object(unimixGroup).healthy), REQUIRED_UNIMIX_DOMAINS.length);
+    for (const hostname of REQUIRED_UNIMIX_DOMAINS) {
+      const domain = domains.find((item) => object(item).domain === hostname);
+      assert.ok(domain, 'live dashboard omitted ' + hostname);
+      assert.equal(object(domain).group, 'unimix', hostname + ' escaped the Unimix group');
+      assert.equal(object(object(domain).last).ok, true, hostname + ' is not healthy');
+      assert.equal(Number(object(object(domain).last).status_code), 200, hostname + ' did not return HTTP 200');
+      assert.equal(object(object(domain).alert_policy).telegram, 'critical', hostname + ' is not alertable');
+    }
     assert.deepEqual(Object.keys(dashboards).sort(), ['databases', 'infrastructure', 'journeys', 'reliability']);
     assert.equal(databases.collector_status, 'healthy', 'database collector is not healthy');
     assert.equal(databases.data_state, 'live', 'database dependency state is not live');
@@ -149,6 +179,12 @@ async function main() {
     );
 
     const tabs = await verifyTabs(page);
+    await page.click('[data-testid="dash-domain-groups"] button[data-group="unimix"]');
+    for (const hostname of REQUIRED_UNIMIX_DOMAINS) {
+      const rowText = await page.$eval(`[data-domain="${hostname}"]`, (row) => row.innerText.toLowerCase());
+      assert.ok(rowText.includes(hostname), 'rendered dashboard row omitted ' + hostname);
+      assert.ok(rowText.includes('healthy'), 'rendered dashboard row is not healthy for ' + hostname);
+    }
     await page.click('#tab-databases');
     const databasePanel = await page.$eval('#panel-databases', (panel) => ({
       hidden: panel.hidden,
@@ -172,6 +208,8 @@ async function main() {
       title: await page.title(),
       domains: domains.length,
       groups: groups.length,
+      unimixDomains: REQUIRED_UNIMIX_DOMAINS,
+      unimixHealthy: REQUIRED_UNIMIX_DOMAINS.length,
       tabs,
       incidents: incidentCount,
       databaseDependencies: dependencies.length,
