@@ -22,8 +22,8 @@ claims below come from the authenticated live verifier in deployment run
 | Design workflow | Ten sequential ChatGPT Pro directions; three deterministic Jinja2/Tailwind builds | Exactly 10 final Pro images retained after the 20-minute cutoff; SHA-256 index complete; concepts 01/03/04 score 96.4097%/97.6084%/97.0438% with no masks, crops, or self-comparison | N/A | Proven |
 | Browser quality | Desktop/mobile, tabs, disclosure, requests, console and overflow | Production image suite: 177 passed, 4 skipped; quality ratchet passed | Live verifier passed all five tabs, 390px fit, and zero console/page/request/HTTP errors | Proven |
 | Commit/PR/merge/deploy | Feature PRs #54-#58 merged, including Unimix coverage and responsive live-summary proof | Quality ratchets and production-image HTTP/Playwright suite passed | SHA `d7b9c683758b8977b8747a3c8e9ca00609eaf3ae`; run `33094213981` succeeded | Proven |
-| Private proof | Retained requester-private evidence bundle with SHA, run, URL, counts and Unimix health | Live proof receipt is complete and sanitized | Exactly one requester-private Seth/ORI Telegram handoff is authorized as the final communication step | Ready for handoff |
-| PM closure | Task `MONITORING-DOMAIN-COVERAGE-20260824` | Authoritative PM state is `Done` | Final Unimix rollout receipt is appended before private handoff | Ready |
+| Private proof | Retained requester-private evidence bundle with SHA, run, URL, counts and Unimix health | Live proof receipt is complete and sanitized | One sensitive requester-private Seth/ORI Telegram handoff was accepted with `route_kind=private`, `status=sent`, and no group copy | Proven |
+| PM closure | Task `MONITORING-DOMAIN-COVERAGE-20260824` | Authoritative PM state is `Done` | Final rollout and private-send receipts are retained in changelog entries 8 and 9 | Done |
 
 ## Safety boundaries
 
