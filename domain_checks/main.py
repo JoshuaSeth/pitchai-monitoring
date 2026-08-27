@@ -40,7 +40,6 @@ from domain_checks.dispatch_client import (
 )
 from domain_checks.event_bus import EventBusOutbox, load_event_bus_config
 from domain_checks.history import append_sample, coerce_history, prune_history
-from domain_checks.incident_contract import domain_down_details, domain_recovered_details
 from domain_checks.inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
 from domain_checks.metrics_container_health import ContainerHealthIssue, check_container_health
@@ -3697,16 +3696,13 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             _append_event(
                                 "domain_down",
                                 ts=float(cycle_started),
-                                **domain_down_details(
-                                    domain=domain,
-                                    raw_entry=domain_entry.raw_entry,
-                                    routes_telegram=domain_entry.routes_telegram,
-                                    alert_policy=domain_entry.alert_policy.telegram,
-                                    disabled=domain_entry.is_disabled(float(cycle_started)),
-                                    reason=result.reason,
-                                    check_details=det,
-                                    fail_streak=int(next_fail),
-                                ),
+                                domain=domain,
+                                reason=result.reason,
+                                status_code=det.get("status_code"),
+                                error=(det.get("error")[:800] if isinstance(det.get("error"), str) else None),
+                                fail_streak=int(next_fail),
+                                telegram_alert=domain_entry.routes_telegram,
+                                alert_policy=domain_entry.alert_policy.telegram,
                             )
                             # Transition UP -> DOWN (debounced), or startup DOWN after threshold.
                             enriched = DomainCheckResult(
@@ -3768,17 +3764,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 )
                         else:
                             if recovered:
-                                domain_entry = entries_by_domain[domain]
-                                _append_event(
-                                    "domain_up",
-                                    ts=float(cycle_started),
-                                    **domain_recovered_details(
-                                        domain=domain,
-                                        raw_entry=domain_entry.raw_entry,
-                                        routes_telegram=domain_entry.routes_telegram,
-                                        disabled=domain_entry.is_disabled(float(cycle_started)),
-                                    ),
-                                )
+                                _append_event("domain_up", ts=float(cycle_started), domain=domain)
                             if result.ok is False and prev_effective is True and next_effective is True:
                                 LOGGER.warning(
                                     "Domain failing (alert suppressed) domain=%s fail_streak=%s/%s reason=%s details=%s",

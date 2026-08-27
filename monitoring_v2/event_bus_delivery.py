@@ -4,20 +4,37 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-from domain_checks.event_bus import EventBusOutbox, load_event_bus_config
+from domain_checks.event_bus import load_event_bus_config
+from domain_checks.event_bus_delivery import build_incident_payload, deliver_event_bus_payload
 
 from .incident_events import database_transition_events
-from .json_types import normalize_json, object_list
+from .json_types import (
+    float_value,
+    int_value,
+    json_object,
+    normalize_json,
+    object_list,
+    optional_object,
+    text_value,
+)
 
 if TYPE_CHECKING:
-    from domain_checks.event_bus import EventBusConfig
+    from httpx import BaseTransport
+
+    from domain_checks.event_bus import DeliveryAttempt, EventBusConfig
+    from domain_checks.event_bus_delivery import JsonObject as DeliveryPayload
 
     from .json_types import JsonInput, JsonObject, JsonValue
 
 LOGGER = logging.getLogger(__name__)
+
+_MAX_BATCH = 100
+_MAX_BACKOFF_SECONDS = 300.0
+_MAX_BACKOFF_EXPONENT = 8
 
 
 @dataclass
@@ -25,31 +42,32 @@ class DatabaseEventBus:
     """One persisted Events Bus producer queue for database transitions."""
 
     config: EventBusConfig
-    outbox: EventBusOutbox
+    entries: list[JsonObject]
 
     @classmethod
     def from_state(cls, state: JsonObject) -> DatabaseEventBus | None:
-        """Load optional delivery configuration and validate retained entries.
+        """Load optional delivery configuration and retained entries.
 
         Returns:
-            A configured database producer, or ``None`` when both event-bus
-            settings are intentionally absent.
+            A configured producer, or ``None`` when delivery is unconfigured.
 
         Raises:
-            TypeError: If the persisted outbox is not an array.
+            TypeError: If the persisted outbox shape is invalid.
         """
         config = load_event_bus_config()
         if config is None:
             return None
         raw_entries = state.get("event_bus_outbox", [])
-        if not isinstance(raw_entries, list):
-            message = "Persisted database Events Bus outbox must be a list"
-            raise TypeError(message)
         entries = object_list(raw_entries)
-        if len(entries) != len(raw_entries):
-            message = "Persisted database Events Bus outbox entries must be objects"
+        if not isinstance(raw_entries, list) or len(entries) != len(raw_entries):
+            message = "persisted database Events Bus outbox must contain only objects"
             raise TypeError(message)
-        return cls(config=config, outbox=EventBusOutbox(config, entries=entries))
+        return cls(config=config, entries=[_validated_entry(entry) for entry in entries])
+
+    @property
+    def pending_count(self) -> int:
+        """Return the number of retained deliveries."""
+        return len(self.entries)
 
     def staged_for_cycle(
         self,
@@ -60,38 +78,113 @@ class DatabaseEventBus:
         """Clone the retained queue and append this cycle's transitions.
 
         Returns:
-            A staged producer that replaces this instance only after the state
-            checkpoint succeeds.
+            A staged producer to checkpoint atomically with collector state.
         """
-        staged = DatabaseEventBus(
-            config=self.config,
-            outbox=EventBusOutbox(self.config, entries=self.outbox.to_state()),
-        )
+        copied_entries = object_list(normalize_json(cast("JsonInput", self.entries)))
+        staged = DatabaseEventBus(config=self.config, entries=copied_entries)
+        known_delivery_ids = {
+            text_value(optional_object(entry.get("payload")).get("delivery_id"))
+            for entry in staged.entries
+        }
         for event in database_transition_events(previous=previous, updated=updated):
-            staged.outbox.enqueue(
-                event.kind,
+            payload = build_incident_payload(
+                self.config,
+                kind=event.kind,
                 occurred_at=event.occurred_at,
-                details=event.details,
+                details=cast("DeliveryPayload", event.details),
             )
+            delivery_id = text_value(payload.get("delivery_id"))
+            if delivery_id in known_delivery_ids:
+                continue
+            staged.entries.append(
+                json_object(
+                    {
+                        "payload": normalize_json(cast("JsonInput", payload)),
+                        "attempts": 0,
+                        "next_attempt_at": 0.0,
+                        "last_error": None,
+                    },
+                ),
+            )
+            known_delivery_ids.add(delivery_id)
         return staged
 
     def state_value(self) -> JsonValue:
-        """Return a strict JSON snapshot suitable for the collector state."""
-        return normalize_json(cast("JsonInput", self.outbox.to_state()))
+        """Return a strict JSON snapshot suitable for collector state."""
+        return normalize_json(cast("JsonInput", self.entries))
 
-    def flush(self) -> None:
-        """Attempt a bounded batch and retain failures for backoff retry."""
-        if self.outbox.pending_count == 0:
-            return
-        attempts = self.outbox.flush_sync()
-        for attempt in attempts:
-            log = LOGGER.info if attempt.success else LOGGER.warning
-            log(
+    def flush(
+        self,
+        *,
+        now: float | None = None,
+        transport: BaseTransport | None = None,
+    ) -> tuple[DeliveryAttempt, ...]:
+        """Attempt a bounded due batch and retain failures for retry.
+
+        Returns:
+            Completed delivery receipts in attempted order.
+        """
+        selected_now = time.time() if now is None else now
+        attempts: list[DeliveryAttempt] = []
+        for entry in list(self.entries)[:_MAX_BATCH]:
+            due_at = float_value(entry.get("next_attempt_at"))
+            if due_at is None or due_at > selected_now:
+                break
+            payload = cast("DeliveryPayload", optional_object(entry.get("payload")))
+            attempt = deliver_event_bus_payload(
+                self.config,
+                payload,
+                now=selected_now,
+                transport=transport,
+            )
+            attempts.append(attempt)
+            if attempt.success:
+                self.entries.remove(entry)
+            else:
+                _record_failure(entry, attempt=attempt, now=selected_now)
+            LOGGER.info(
                 "database Events Bus delivery success=%s delivery_id=%s status=%s event_id=%s error=%s pending=%s",
                 attempt.success,
                 attempt.delivery_id,
                 attempt.status_code,
                 attempt.event_id,
                 attempt.error,
-                self.outbox.pending_count,
+                self.pending_count,
             )
+            if not attempt.success:
+                break
+        return tuple(attempts)
+
+
+def _validated_entry(entry: JsonObject) -> JsonObject:
+    payload = optional_object(entry.get("payload"))
+    attempts = int_value(entry.get("attempts"))
+    next_attempt_at = float_value(entry.get("next_attempt_at"))
+    last_error = entry.get("last_error")
+    delivery_id = text_value(payload.get("delivery_id"))
+    if not delivery_id.startswith("monitoring-"):
+        message = "persisted database Events Bus delivery id is invalid"
+        raise TypeError(message)
+    if attempts is None or attempts < 0 or next_attempt_at is None:
+        message = "persisted database Events Bus retry metadata is invalid"
+        raise TypeError(message)
+    if last_error is not None and not isinstance(last_error, str):
+        message = "persisted database Events Bus last error is invalid"
+        raise TypeError(message)
+    return json_object(
+        {
+            "payload": payload,
+            "attempts": attempts,
+            "next_attempt_at": next_attempt_at,
+            "last_error": last_error,
+        },
+    )
+
+
+def _record_failure(entry: JsonObject, *, attempt: DeliveryAttempt, now: float) -> None:
+    prior_attempts = int_value(entry.get("attempts")) or 0
+    attempt_count = prior_attempts + 1
+    entry["attempts"] = attempt_count
+    entry["last_error"] = attempt.error or "unknown_delivery_error"
+    exponent = min(attempt_count, _MAX_BACKOFF_EXPONENT)
+    entry["next_attempt_at"] = now + min(_MAX_BACKOFF_SECONDS, 2.0**exponent)

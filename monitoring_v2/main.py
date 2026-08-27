@@ -123,20 +123,19 @@ def _run_cycle(
     )
 
 
-def _run_and_checkpoint(  # noqa: PLR0913
+def _run_and_checkpoint(
     gateway: DockerGateway,
     retained: JsonObject,
     settings: DatabaseDependencySettings,
     *,
     state_path: Path,
-    observed_at_ts: float,
     event_bus: DatabaseEventBus | None,
 ) -> tuple[JsonObject, DatabaseEventBus | None]:
     updated = _run_cycle(
         gateway,
         retained,
         settings,
-        observed_at_ts=observed_at_ts,
+        observed_at_ts=time.time(),
     )
     staged_event_bus = event_bus.staged_for_cycle(previous=retained, updated=updated) if event_bus is not None else None
     if staged_event_bus is not None:
@@ -147,6 +146,17 @@ def _run_and_checkpoint(  # noqa: PLR0913
         len(object_list(updated.get("dependencies"))),
     )
     return updated, staged_event_bus
+
+
+def _flush_event_bus(
+    event_bus: DatabaseEventBus,
+    retained: JsonObject,
+    *,
+    state_path: Path,
+) -> None:
+    event_bus.flush()
+    retained["event_bus_outbox"] = event_bus.state_value()
+    write_state(state_path, retained)
 
 
 if __name__ == "__main__":
@@ -172,7 +182,7 @@ if __name__ == "__main__":
     if database_event_bus is not None:
         LOGGER.info(
             "loaded database Events Bus outbox pending=%d",
-            database_event_bus.outbox.pending_count,
+            database_event_bus.pending_count,
         )
     docker_gateway = DockerGateway(
         socket_path=collector_settings.docker_socket_path,
@@ -180,14 +190,12 @@ if __name__ == "__main__":
     )
     while True:
         cycle_started = time.monotonic()
-        cycle_observed_at_ts = time.time()
         try:
             retained_state, database_event_bus = _run_and_checkpoint(
                 docker_gateway,
                 retained_state,
                 collector_settings,
                 state_path=configured_state_path,
-                observed_at_ts=cycle_observed_at_ts,
                 event_bus=database_event_bus,
             )
         except (OSError, RuntimeError, TypeError, ValueError) as error:
@@ -206,10 +214,12 @@ if __name__ == "__main__":
             write_state(configured_state_path, retained_state)
         if database_event_bus is not None:
             try:
-                database_event_bus.flush()
-                retained_state["event_bus_outbox"] = database_event_bus.state_value()
-                write_state(configured_state_path, retained_state)
-            except (OSError, RuntimeError, TypeError, ValueError):
+                _flush_event_bus(
+                    database_event_bus,
+                    retained_state,
+                    state_path=configured_state_path,
+                )
+            except (HTTPError, OSError, RuntimeError, TypeError, ValueError):
                 LOGGER.exception("database Events Bus flush/checkpoint failed")
         try:
             retained_state = deliver_pending_alerts(
