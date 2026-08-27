@@ -232,6 +232,12 @@ async function main() {
     );
 
     const tabs = await verifyTabs(page);
+    await page.click('#tab-domains');
+    const domainsPanelVisible = await page.$eval(
+      '#panel-domains',
+      (panel) => !panel.hidden && panel.innerText.trim().length > 0,
+    );
+    assert.equal(domainsPanelVisible, true, 'domains panel was not visible for Unimix verification');
     await page.click('[data-testid="dash-domain-groups"] button[data-group="unimix"]');
     for (const hostname of REQUIRED_UNIMIX_DOMAINS) {
       const rowText = await page.$eval(`[data-domain="${hostname}"]`, (row) => row.innerText.toLowerCase());
