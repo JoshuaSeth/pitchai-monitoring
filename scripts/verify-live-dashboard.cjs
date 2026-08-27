@@ -11,6 +11,7 @@ const EXPECTED_SHA = process.env.MONITORING_DASHBOARD_EXPECTED_SHA || 'unknown';
 const EXPECTED_DOMAINS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_DOMAINS || '62');
 const EXPECTED_GROUPS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_GROUPS || '15');
 const SCREENSHOT_PATH = '/tmp/monitoring-live-dashboard-proof.png';
+const SUMMARY_FETCH_TIMEOUT_MS = 5000;
 const REQUIRED_TABS = ['domains', 'databases', 'infrastructure', 'reliability', 'journeys'];
 const REQUIRED_UNIMIX_DOMAINS = ['unimixbrasil.com.br', 'www.unimixbrasil.com.br'];
 
@@ -22,33 +23,53 @@ function list(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function phase(name) {
+  process.stdout.write('LIVE_DASHBOARD_PHASE=' + name + '\n');
+}
+
 async function summaryFromPage(page) {
-  return page.evaluate(async (cacheBuster) => {
-    const response = await fetch('/dashboard/api/v1/monitoring/summary?range=24h&_=' + cacheBuster, {
-      credentials: 'same-origin',
-      cache: 'no-store',
-    });
-    if (!response.ok) throw new Error('summary HTTP ' + response.status);
-    return response.json();
-  }, Date.now());
+  return page.evaluate(async (cacheBuster, fetchTimeoutMs) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs);
+    try {
+      const response = await fetch('/dashboard/api/v1/monitoring/summary?range=24h&_=' + cacheBuster, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error('summary HTTP ' + response.status);
+      return response.json();
+    } finally {
+      clearTimeout(timeout);
+    }
+  }, Date.now(), SUMMARY_FETCH_TIMEOUT_MS);
 }
 
 async function waitForUnimixHealth(page) {
   try {
-    await page.waitForFunction(async (requiredDomains) => {
-      const response = await fetch(
-        '/dashboard/api/v1/monitoring/summary?range=24h&_=' + Date.now(),
-        {credentials: 'same-origin', cache: 'no-store'},
-      );
-      if (!response.ok) return false;
-      const summary = await response.json();
-      const domains = Array.isArray(summary.domains) ? summary.domains : [];
-      return requiredDomains.every((hostname) => {
-        const domain = domains.find((item) => item && item.domain === hostname);
-        const last = domain && domain.last && typeof domain.last === 'object' ? domain.last : {};
-        return domain && domain.group === 'unimix' && last.ok === true && Number(last.status_code) === 200;
-      });
-    }, {timeout: 120000, polling: 2000}, REQUIRED_UNIMIX_DOMAINS);
+    await page.waitForFunction(async (requiredDomains, fetchTimeoutMs) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs);
+      try {
+        const response = await fetch(
+          '/dashboard/api/v1/monitoring/summary?range=24h&_=' + Date.now(),
+          {credentials: 'same-origin', cache: 'no-store', signal: controller.signal},
+        );
+        if (!response.ok) return false;
+        const summary = await response.json();
+        const domains = Array.isArray(summary.domains) ? summary.domains : [];
+        return requiredDomains.every((hostname) => {
+          const domain = domains.find((item) => item && item.domain === hostname);
+          const last = domain && domain.last && typeof domain.last === 'object' ? domain.last : {};
+          return domain && domain.group === 'unimix' && last.ok === true && Number(last.status_code) === 200;
+        });
+      } catch (error) {
+        if (error && error.name !== 'AbortError') throw error;
+        return false;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }, {timeout: 120000, polling: 2000}, REQUIRED_UNIMIX_DOMAINS, SUMMARY_FETCH_TIMEOUT_MS);
   } catch (error) {
     const summary = await summaryFromPage(page);
     const domains = list(summary.domains)
@@ -60,36 +81,45 @@ async function waitForUnimixHealth(page) {
 
 async function waitForInfrastructureData(page) {
   try {
-    await page.waitForFunction(async () => {
-      const response = await fetch(
-        '/dashboard/api/v1/monitoring/summary?range=24h&_=' + Date.now(),
-        {credentials: 'same-origin', cache: 'no-store'},
-      );
-      if (!response.ok) return false;
-      const summary = await response.json();
-      const dashboards = summary && typeof summary.dashboards === 'object' ? summary.dashboards : {};
-      const infrastructure =
-        dashboards && typeof dashboards.infrastructure === 'object' ? dashboards.infrastructure : {};
-      const containers =
-        infrastructure && typeof infrastructure.containers === 'object' ? infrastructure.containers : {};
-      const items = Array.isArray(containers.items) ? containers.items : [];
-      const counts = containers && typeof containers.counts === 'object' ? containers.counts : {};
-      const total = Number(counts.total);
-      const restartTotal = Number(containers.restart_total);
-      const hasRows =
-        containers.data_state === 'available' &&
-        items.length > 0 &&
-        Number.isInteger(total) &&
-        total === items.length;
-      const hasSummary =
-        containers.data_state === 'summary_only' &&
-        items.length === 0 &&
-        Number.isInteger(total) &&
-        total > 0 &&
-        Number.isInteger(restartTotal) &&
-        restartTotal >= 0;
-      return hasRows || hasSummary;
-    }, {timeout: 120000, polling: 2000});
+    await page.waitForFunction(async (fetchTimeoutMs) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs);
+      try {
+        const response = await fetch(
+          '/dashboard/api/v1/monitoring/summary?range=24h&_=' + Date.now(),
+          {credentials: 'same-origin', cache: 'no-store', signal: controller.signal},
+        );
+        if (!response.ok) return false;
+        const summary = await response.json();
+        const dashboards = summary && typeof summary.dashboards === 'object' ? summary.dashboards : {};
+        const infrastructure =
+          dashboards && typeof dashboards.infrastructure === 'object' ? dashboards.infrastructure : {};
+        const containers =
+          infrastructure && typeof infrastructure.containers === 'object' ? infrastructure.containers : {};
+        const items = Array.isArray(containers.items) ? containers.items : [];
+        const counts = containers && typeof containers.counts === 'object' ? containers.counts : {};
+        const total = Number(counts.total);
+        const restartTotal = Number(containers.restart_total);
+        const hasRows =
+          containers.data_state === 'available' &&
+          items.length > 0 &&
+          Number.isInteger(total) &&
+          total === items.length;
+        const hasSummary =
+          containers.data_state === 'summary_only' &&
+          items.length === 0 &&
+          Number.isInteger(total) &&
+          total > 0 &&
+          Number.isInteger(restartTotal) &&
+          restartTotal >= 0;
+        return hasRows || hasSummary;
+      } catch (error) {
+        if (error && error.name !== 'AbortError') throw error;
+        return false;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }, {timeout: 120000, polling: 2000}, SUMMARY_FETCH_TIMEOUT_MS);
   } catch (error) {
     const summary = await summaryFromPage(page);
     const infrastructure = object(object(summary.dashboards).infrastructure);
@@ -156,6 +186,7 @@ async function main() {
     });
     await page.setExtraHTTPHeaders({'x-pitchai-email': IDENTITY});
     await page.setViewport({width: 1440, height: 1000, deviceScaleFactor: 1});
+    phase('navigate');
     const response = await page.goto(BASE_URL + '/dashboard', {waitUntil: 'networkidle0', timeout: 60000});
     assert.ok(response, 'dashboard navigation returned no response');
     assert.equal(response.status(), 200, 'dashboard navigation failed');
@@ -163,9 +194,14 @@ async function main() {
       const note = document.querySelector('#domain-inventory-note');
       return Boolean(note && note.textContent && note.textContent.includes('monitored domains'));
     }, {timeout: 30000});
+    phase('wait_unimix');
     await waitForUnimixHealth(page);
+    phase('unimix_healthy');
+    phase('wait_infrastructure');
     await waitForInfrastructureData(page);
+    phase('infrastructure_ready');
 
+    phase('verify_summary_contract');
     const summary = await summaryFromPage(page);
     const domains = list(summary.domains);
     const groups = list(summary.domain_groups);
@@ -231,6 +267,7 @@ async function main() {
       'database probe coverage is missing relation/permission checks',
     );
 
+    phase('verify_tabs');
     const tabs = await verifyTabs(page);
     await page.click('#tab-domains');
     const domainsPanelVisible = await page.$eval(
@@ -238,12 +275,14 @@ async function main() {
       (panel) => !panel.hidden && panel.innerText.trim().length > 0,
     );
     assert.equal(domainsPanelVisible, true, 'domains panel was not visible for Unimix verification');
+    phase('verify_unimix_rows');
     await page.click('[data-testid="dash-domain-groups"] button[data-group="unimix"]');
     for (const hostname of REQUIRED_UNIMIX_DOMAINS) {
       const rowText = await page.$eval(`[data-domain="${hostname}"]`, (row) => row.innerText.toLowerCase());
       assert.ok(rowText.includes(hostname), 'rendered dashboard row omitted ' + hostname);
       assert.ok(rowText.includes('healthy'), 'rendered dashboard row is not healthy for ' + hostname);
     }
+    phase('verify_database_copy');
     await page.click('#tab-databases');
     const databasePanel = await page.$eval('#panel-databases', (panel) => ({
       hidden: panel.hidden,
@@ -253,6 +292,7 @@ async function main() {
     for (const expected of ['Runtime credentials / grants', 'PgBouncer/tunnel', 'query-permission', 'Credential state']) {
       assert.ok(databasePanel.text.includes(expected.toLowerCase()), 'database panel omitted ' + expected);
     }
+    phase('verify_incidents_and_mobile');
     const incidentCount = await verifyIncidentDisclosure(page);
     const mobileViewport = await verifyMobileFit(page);
     await page.$eval('#panel-databases', (panel) => panel.scrollIntoView());
@@ -284,6 +324,7 @@ async function main() {
       screenshotSha256,
       receipts,
     };
+    phase('complete');
     process.stdout.write('LIVE_DASHBOARD_PROOF=' + JSON.stringify(proof) + '\n');
   } finally {
     await browser.close();
