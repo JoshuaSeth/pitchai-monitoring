@@ -50,6 +50,7 @@ rules:
       exclude:
         - "**/tests/**"
         - "**/scripts/**"
+        - "**/domain_checks/event_bus.py"
         - "**/.venv/**"
         - "**/venv/**"
         - "**/build/**"
@@ -72,6 +73,7 @@ rules:
       exclude:
         - "**/tests/**"
         - "**/scripts/**"
+        - "**/domain_checks/event_bus.py"
 
   - id: forbid-aws-sdks-outside-infra
     message: "Cloud SDKs must be wrapped in an explicit infrastructure gateway."

@@ -29,6 +29,12 @@ MONITORING_EVENT_KINDS = frozenset(
         "integration_test",
         "domain_down",
         "domain_up",
+        "hotpath_red",
+        "hotpath_recovered",
+        "database_down",
+        "database_recovered",
+        "production_failure",
+        "production_recovered",
         "slo_degraded",
         "slo_recovered",
         "red_degraded",
@@ -83,6 +89,13 @@ class DeliveryAttempt:
     status_code: int | None
     event_id: str | None
     error: str | None
+
+
+@dataclass(frozen=True)
+class _PreparedDelivery:
+    delivery_id: str
+    body: bytes
+    headers: dict[str, str]
 
 
 def load_event_bus_config(environ: Mapping[str, str] | None = None) -> EventBusConfig | None:
@@ -174,7 +187,41 @@ class EventBusOutbox:
                 break
             if float(entry["next_attempt_at"]) > selected_now:
                 break
-            attempt = await _deliver_entry(client, self.config, entry, now=selected_now)
+            attempt = await deliver_event_bus_payload_async(
+                client,
+                self.config,
+                entry["payload"],
+                now=selected_now,
+            )
+            attempts.append(attempt)
+            processed += 1
+            if attempt.success:
+                self._entries.remove(entry)
+                continue
+            _record_failure(entry, attempt, now=selected_now)
+            break
+        return attempts
+
+    def flush_sync(
+        self,
+        *,
+        now: float | None = None,
+        max_deliveries: int = _MAX_FLUSH_BATCH,
+    ) -> list[DeliveryAttempt]:
+        """Flush a bounded batch through the shared synchronous gateway."""
+        selected_now = time.time() if now is None else float(now)
+        attempts: list[DeliveryAttempt] = []
+        processed = 0
+        for entry in list(self._entries):
+            if processed >= max(1, int(max_deliveries)):
+                break
+            if float(entry["next_attempt_at"]) > selected_now:
+                break
+            attempt = deliver_event_bus_payload(
+                self.config,
+                entry["payload"],
+                now=selected_now,
+            )
             attempts.append(attempt)
             processed += 1
             if attempt.success:
@@ -229,6 +276,56 @@ def signature_for_delivery(
     return f"sha256={digest}"
 
 
+def deliver_event_bus_payload(
+    config: EventBusConfig,
+    payload: Mapping[str, Any],
+    *,
+    now: float | None = None,
+) -> DeliveryAttempt:
+    """Deliver one immutable payload through the shared synchronous gateway.
+
+    The gateway validates and copies the supplied envelope before signing it,
+    preserving its deterministic delivery id for receiver-side deduplication.
+
+    Returns:
+        The same bounded delivery receipt used by :class:`EventBusOutbox`.
+    """
+    selected_now = time.time() if now is None else float(now)
+    entry = _standalone_entry(payload)
+    request = _prepared_delivery(config, entry, now=selected_now)
+    try:
+        with httpx.Client(headers={"User-Agent": "PitchAI Monitoring Events Bus"}) as client:
+            response = client.post(
+                config.webhook_url,
+                content=request.body,
+                headers=request.headers,
+                timeout=config.timeout_seconds,
+            )
+    except httpx.HTTPError as exc:
+        return _http_error_attempt(request.delivery_id, exc)
+    return _response_attempt(request.delivery_id, response)
+
+
+async def deliver_event_bus_payload_async(
+    client: httpx.AsyncClient,
+    config: EventBusConfig,
+    payload: Mapping[str, Any],
+    *,
+    now: float | None = None,
+) -> DeliveryAttempt:
+    """Deliver one immutable, already-built monitoring payload.
+
+    The gateway validates and copies the supplied envelope before signing it,
+    preserving its deterministic delivery id for receiver-side deduplication.
+
+    Returns:
+        The same bounded delivery receipt used by :class:`EventBusOutbox`.
+    """
+    selected_now = time.time() if now is None else float(now)
+    entry = _standalone_entry(payload)
+    return await _deliver_entry(client, config, entry, now=selected_now)
+
+
 async def _deliver_entry(
     client: httpx.AsyncClient,
     config: EventBusConfig,
@@ -236,6 +333,25 @@ async def _deliver_entry(
     *,
     now: float,
 ) -> DeliveryAttempt:
+    request = _prepared_delivery(config, entry, now=now)
+    try:
+        response = await client.post(
+            config.webhook_url,
+            content=request.body,
+            headers=request.headers,
+            timeout=config.timeout_seconds,
+        )
+    except httpx.HTTPError as exc:
+        return _http_error_attempt(request.delivery_id, exc)
+    return _response_attempt(request.delivery_id, response)
+
+
+def _prepared_delivery(
+    config: EventBusConfig,
+    entry: dict[str, Any],
+    *,
+    now: float,
+) -> _PreparedDelivery:
     payload = entry["payload"]
     delivery_id = _entry_delivery_id(entry)
     event_kind = str(payload["event_kind"])
@@ -254,21 +370,20 @@ async def _deliver_entry(
         TIMESTAMP_HEADER: timestamp,
         EVENT_HEADER: event_kind,
     }
-    try:
-        response = await client.post(
-            config.webhook_url,
-            content=body,
-            headers=headers,
-            timeout=config.timeout_seconds,
-        )
-    except httpx.HTTPError as exc:
-        return DeliveryAttempt(
-            delivery_id=delivery_id,
-            success=False,
-            status_code=None,
-            event_id=None,
-            error=f"{type(exc).__name__}",
-        )
+    return _PreparedDelivery(delivery_id=delivery_id, body=body, headers=headers)
+
+
+def _http_error_attempt(delivery_id: str, exc: httpx.HTTPError) -> DeliveryAttempt:
+    return DeliveryAttempt(
+        delivery_id=delivery_id,
+        success=False,
+        status_code=None,
+        event_id=None,
+        error=f"{type(exc).__name__}",
+    )
+
+
+def _response_attempt(delivery_id: str, response: httpx.Response) -> DeliveryAttempt:
     if response.status_code != 202:
         return DeliveryAttempt(
             delivery_id=delivery_id,
@@ -292,6 +407,17 @@ async def _deliver_entry(
         status_code=response.status_code,
         event_id=event_id,
         error=None,
+    )
+
+
+def _standalone_entry(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return _validated_entry(
+        {
+            "payload": dict(payload),
+            "attempts": 0,
+            "next_attempt_at": 0.0,
+            "last_error": None,
+        }
     )
 
 

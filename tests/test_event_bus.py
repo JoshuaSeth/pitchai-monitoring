@@ -14,6 +14,7 @@ from domain_checks.event_bus import (
     EventBusConfig,
     EventBusOutbox,
     build_payload,
+    deliver_event_bus_payload,
     load_event_bus_config,
     signature_for_delivery,
 )
@@ -182,6 +183,30 @@ async def test_successful_delivery_removes_outbox_entry_and_sends_required_heade
     assert seen[0].headers["X-PitchAI-Monitoring-Signature-256"].startswith("sha256=")
 
 
+def test_shared_payload_gateway_preserves_identity_and_rejects_tampering(monkeypatch):
+    payload = build_payload(
+        _config(),
+        kind="hotpath_red",
+        occurred_at=1_784_001_600.0,
+        details={"hotpath_id": "safe-proof", "critical": True},
+    )
+    transport = httpx.MockTransport(_accepted)
+    client_type = httpx.Client
+    monkeypatch.setattr(
+        "domain_checks.event_bus.httpx.Client",
+        lambda **kwargs: client_type(transport=transport, **kwargs),
+    )
+    attempt = deliver_event_bus_payload(_config(), payload, now=1_784_001_601.0)
+
+    assert attempt.success is True
+    assert attempt.delivery_id == payload["delivery_id"]
+    assert attempt.event_id == f"event-for-{payload['delivery_id']}"
+
+    payload["details"]["hotpath_id"] = "tampered"
+    with pytest.raises(RuntimeError, match="delivery identity"):
+        deliver_event_bus_payload(_config(), payload, now=1_784_001_601.0)
+
+
 @pytest.mark.asyncio
 async def test_failure_is_persisted_and_retried_after_backoff():
     statuses = [503, 202]
@@ -214,6 +239,45 @@ async def test_failure_is_persisted_and_retried_after_backoff():
     assert SECRET not in json.dumps(persisted, sort_keys=True)
     assert second[0].success is True
     assert second[0].delivery_id == delivery_id
+    assert reloaded.pending_count == 0
+
+
+def test_sync_outbox_uses_shared_gateway_and_preserves_retry_identity(monkeypatch):
+    statuses = [503, 202]
+    seen_delivery_ids: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_delivery_ids.append(request.headers["X-PitchAI-Monitoring-Delivery"])
+        status = statuses.pop(0)
+        if status == 202:
+            return _accepted(request)
+        return httpx.Response(status, request=request)
+
+    transport = httpx.MockTransport(handler)
+    client_type = httpx.Client
+    monkeypatch.setattr(
+        "domain_checks.event_bus.httpx.Client",
+        lambda **kwargs: client_type(transport=transport, **kwargs),
+    )
+    outbox = EventBusOutbox(_config())
+    delivery_id = outbox.enqueue(
+        "database_down",
+        occurred_at=1_784_001_600.0,
+        details={"alert_group": "pitchai-production-database"},
+    )
+
+    first = outbox.flush_sync(now=100.0)
+    too_soon = outbox.flush_sync(now=101.0)
+    persisted = outbox.to_state()
+    reloaded = EventBusOutbox(_config(), entries=persisted)
+    second = reloaded.flush_sync(now=102.0)
+
+    assert first[0].success is False
+    assert too_soon == []
+    assert persisted[0]["attempts"] == 1
+    assert second[0].success is True
+    assert second[0].delivery_id == delivery_id
+    assert seen_delivery_ids == [delivery_id, delivery_id]
     assert reloaded.pending_count == 0
 
 
@@ -326,6 +390,8 @@ def test_production_workflow_provides_authenticated_event_bus_configuration():
     assert "{{.State.Restarting}}" in workflow
     assert "{{.RestartCount}}" in workflow
     assert "load_event_bus_config() is not None" in workflow
+    assert workflow.count("PITCHAI_MONITORING_EVENT_BUS_URL") >= 2
+    assert "pitchai-main-database-dependencies" in workflow
     assert '"docs/**"' in workflow
     assert '"README.md"' in workflow
 

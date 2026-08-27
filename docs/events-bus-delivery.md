@@ -4,7 +4,8 @@
 
 `service-monitoring` is a distinct PitchAI-owned production service. It emits
 debounced operational transitions to the central Events Bus without replacing
-its existing Telegram alerts or Dispatcher investigations.
+its existing Telegram alerts. Critical production events are consumed by the
+native PitchAI Events Inbox rules; the retired Dispatcher path is not used.
 
 Production receiver:
 
@@ -47,6 +48,24 @@ monitor state volume. It sends oldest-first, requires HTTP 202 plus one receiver
 event id, and retries failures with exponential backoff capped at five minutes.
 The receiver deduplicates on `pitchai-monitoring:<delivery-id>`.
 
+## Shared Delivery Gateway
+
+Producers that already persist immutable envelopes use the one approved HTTP
+boundary instead of implementing another raw request path:
+
+```python
+from domain_checks.event_bus import deliver_event_bus_payload
+
+attempt = deliver_event_bus_payload(config, immutable_payload)
+```
+
+`deliver_event_bus_payload()` validates and copies the envelope, recomputes its
+delivery identity, signs the canonical bytes, and returns `DeliveryAttempt`.
+Tampered payloads fail before network IO. The original delivery id is retained,
+so receiver-side deduplication remains authoritative. `EventBusOutbox.flush_sync()`
+uses this gateway for synchronous collectors; the existing async `flush(client)`
+uses the same validation and request preparation.
+
 ## Event Catalog
 
 The complete initial catalog is:
@@ -55,6 +74,9 @@ The complete initial catalog is:
 | --- | --- |
 | Lifecycle/probe | `service_started`, `integration_test` |
 | Domain | `domain_down`, `domain_up` |
+| Hotpath | `hotpath_red`, `hotpath_recovered` |
+| Database | `database_down`, `database_recovered` |
+| Critical production surface | `production_failure`, `production_recovered` |
 | SLO | `slo_degraded`, `slo_recovered` |
 | RED | `red_degraded`, `red_recovered` |
 | Host health | `host_health_degraded`, `host_health_recovered` |
