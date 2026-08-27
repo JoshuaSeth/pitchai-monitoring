@@ -15,8 +15,8 @@ if TYPE_CHECKING:
     from .browser_runtime import BrowserRequest, ConsoleMessage, Locator, Page, Route
     from .json_types import JsonInput, JsonObject
 
-_EXPECTED_DOMAIN_COUNT = 60
-_EXPECTED_GROUP_BUTTON_COUNT = 15
+_EXPECTED_DOMAIN_COUNT = 62
+_EXPECTED_GROUP_BUTTON_COUNT = 16
 _EXPECTED_INCIDENT_COUNT = 2
 _EXPECTED_TAB_COUNT = 5
 _MOBILE_WIDTH = 390
@@ -170,7 +170,7 @@ async def _verify_mobile_width(page: Page) -> None:
 async def exercise_actionable_dashboard(page: Page, base_url: str, receipts: BrowserReceipts) -> None:
     """Verify inventory, incident disclosure, tabs, filtering, and mobile fit."""
     await page.goto(f"{base_url}/dashboard")
-    await page.wait_for_function("document.querySelector('#kpi-services').textContent === '59/60'")
+    await page.wait_for_function("document.querySelector('#kpi-services').textContent === '61/62'")
     tabs = page.locator("[data-testid=dash-tabs] [role=tab]")
     if await tabs.count() != _EXPECTED_TAB_COUNT:
         pytest.fail("dashboard did not render all five requested tabs")
@@ -178,6 +178,9 @@ async def exercise_actionable_dashboard(page: Page, base_url: str, receipts: Bro
     if await group_buttons.count() != _EXPECTED_GROUP_BUTTON_COUNT:
         pytest.fail("dashboard did not render all production domain groups")
     await _require_text(page.locator("#domain-inventory-note"), f"{_EXPECTED_DOMAIN_COUNT} monitored domains")
+    await page.locator("[data-testid=dash-domain-groups] button[data-group=unimix]").click()
+    for domain in ("unimixbrasil.com.br", "www.unimixbrasil.com.br"):
+        await _require_text(page.locator(f"[data-domain='{domain}']"), domain)
     await _verify_incidents(page)
     await _verify_tabs(page)
     await _verify_mobile_width(page)
