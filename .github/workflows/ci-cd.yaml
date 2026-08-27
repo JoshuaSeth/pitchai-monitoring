@@ -42,6 +42,9 @@ jobs:
           docker run --rm service-monitoring:ci \
             python -c "from e2e_registry.monitoring_v2_runtime import install_monitoring_v2, production_registry_app; assert callable(install_monitoring_v2); assert callable(production_registry_app)"
 
+      - name: Verify live dashboard proof script syntax
+        run: node --check scripts/verify-live-dashboard.cjs
+
       - name: Run tests (HTTP + Playwright UI)
         run: |
           docker run --rm \
@@ -317,6 +320,14 @@ jobs:
               docker logs "$DB_MONITOR_NAME" --tail 200 || true
               exit 1
             fi
+
+            echo "🌐 Verifying the live dashboard contract..."
+            docker exec -i \
+              -e MONITORING_DASHBOARD_BASE_URL="http://127.0.0.1:8111" \
+              -e MONITORING_DASHBOARD_IDENTITY="info@pitchai.net" \
+              -e MONITORING_DASHBOARD_EXPECTED_SHA="${{ github.sha }}" \
+              "$REGISTRY_NAME" \
+              node - < scripts/verify-live-dashboard.cjs
 
             echo "✅ Containers running"
             docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}|${DB_MONITOR_NAME}"
