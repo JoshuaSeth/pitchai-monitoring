@@ -13,6 +13,7 @@ from .domain_runtime import (
 from .inventory import (
     EXPECTED_ACTIVE_DOMAINS,
     EXPECTED_DASHBOARD_ONLY_DOMAINS,
+    EXPECTED_RETIRED_DOMAINS,
     REQUIRED_CONTAINER_NAMES,
     entry_by_domain,
     production_config,
@@ -31,9 +32,9 @@ if TYPE_CHECKING:
     from .domain_runtime import AlertPolicy, DomainCheckSpec
     from .json_types import JsonInput
 
-_EXPECTED_ACTIVE_DOMAIN_COUNT = 62
+_EXPECTED_ACTIVE_DOMAIN_COUNT = 69
 _EXPECTED_DATABASE_RULE_COUNT = 27
-_EXPECTED_DOMAIN_GROUP_COUNT = 15
+_EXPECTED_DOMAIN_GROUP_COUNT = 16
 _EXPECTED_ROUTING_POLICY_COUNT = 3
 
 
@@ -54,6 +55,13 @@ def test_authoritative_active_inventory_is_exact() -> None:
     disabled_entries = [*explicitly_disabled, *explicitly_not_enabled]
     if disabled_entries:
         pytest.fail("disabled entry remained in active domain inventory")
+
+    retired = object_list(config.get("retired_domains"))
+    retired_names = {text_value(entry.get("domain")) for entry in retired}
+    if frozenset(retired_names) != EXPECTED_RETIRED_DOMAINS:
+        pytest.fail("explicitly excluded domain inventory changed")
+    if len(retired) != len(retired_names) or retired_names.intersection(actual):
+        pytest.fail("excluded domain inventory is duplicate or active")
 
 
 def test_every_active_domain_has_an_executable_browser_contract() -> None:
@@ -131,6 +139,39 @@ def test_unimix_domains_preserve_canonical_redirect_and_alert_contracts() -> Non
             pytest.fail(f"Unimix title readiness contract changed: {domain}")
         if not policy.telegram_enabled or policy.telegram != "critical":
             pytest.fail(f"Unimix production downtime stopped alerting: {domain}")
+
+
+def test_newly_discovered_domains_preserve_critical_contracts() -> None:
+    """Keep every actionable 2026-08-27 discovery on normal incident routing."""
+    expected = {
+        "aigenda.pitchai.net": ("aigenda-calendar", [401]),
+        "aigenda-monitor.pitchai.net": ("aigenda-calendar", [401]),
+        "livedocuments.pitchai.net": ("platform-apps", [401]),
+        "lfs.pitchai.net": ("infrastructure", [200]),
+        "servers.pitchai.net": ("operations", [200]),
+        "autopar-staging-web.37.27.67.52.nip.io": ("autopar", [200]),
+    }
+    for domain, (group, statuses) in expected.items():
+        entry = entry_by_domain(domain)
+        spec = load_domain_spec(entry)
+        policy = inventory_runtime.parse_domain_alert_policy(entry)
+        if text_value(entry.get("group")) != group:
+            pytest.fail(f"discovered domain escaped its ownership group: {domain}")
+        if spec.allowed_status_codes != statuses:
+            pytest.fail(f"discovered domain response contract changed: {domain}")
+        if not policy.telegram_enabled or policy.telegram != "critical":
+            pytest.fail(f"discovered domain stopped normal incident routing: {domain}")
+
+    alias_entry = entry_by_domain("theplanbook.pitchai.net")
+    alias_spec = load_domain_spec(alias_entry)
+    alias_policy = inventory_runtime.parse_domain_alert_policy(alias_entry)
+    if alias_policy.telegram_enabled or alias_policy.telegram != "dashboard-only":
+        pytest.fail("DePlanBook redirect alias became a duplicate incident route")
+    alias_check = optional_object(alias_entry.get("check"))
+    if text_value(alias_check.get("expected_final_host_suffix")) != "deplanbook.com":
+        pytest.fail("DePlanBook redirect alias lost its canonical destination contract")
+    if alias_spec.allowed_status_codes != [200]:
+        pytest.fail("DePlanBook redirect alias final response contract changed")
 
 
 def test_container_patterns_cover_production_runtime_dependencies() -> None:
