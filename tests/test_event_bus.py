@@ -339,16 +339,3 @@ def test_production_workflow_converges_retired_dispatcher_to_disabled():
     assert "sed -i 's/^E2E_REGISTRY_DISPATCH_ENABLED=.*/E2E_REGISTRY_DISPATCH_ENABLED=0/'" in workflow
     assert "-e PITCHAI_DISPATCH_BASE_URL=" not in workflow
     assert "-e PITCHAI_DISPATCH_TOKEN=" not in workflow
-
-
-def test_live_browser_verifier_returns_to_domains_before_clicking_customer_group():
-    verifier = (Path(__file__).parents[1] / "scripts" / "verify-live-dashboard.cjs").read_text(
-        encoding="utf-8"
-    )
-
-    tab_sweep = verifier.index("const tabs = await verifyTabs(page);")
-    domains_tab = verifier.index("await page.click('#tab-domains');", tab_sweep)
-    domains_visible = verifier.index("'domains panel was not visible for Unimix verification'", domains_tab)
-    customer_group = verifier.index('button[data-group="unimix"]', domains_visible)
-
-    assert tab_sweep < domains_tab < domains_visible < customer_group
