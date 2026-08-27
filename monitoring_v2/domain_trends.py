@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 from .json_types import (
     bool_value,
     float_value,
-    optional_object,
-    value_list,
+    normalized_list_reference,
+    normalized_object_reference,
 )
 
 if TYPE_CHECKING:
@@ -29,7 +29,7 @@ def domain_trend(history: list[JsonValue], *, now_ts: float) -> JsonObject:
     """
     recent: list[list[JsonValue]] = []
     for raw in history:
-        sample = value_list(raw)
+        sample = normalized_list_reference(raw)
         timestamp = float_value(sample[0]) if sample else None
         if (
             len(sample) >= _MIN_OBSERVATION_FIELDS
@@ -65,5 +65,5 @@ def history_for_domain(state: JsonObject, domain: str) -> list[JsonValue]:
     Returns:
         The retained sample list, or an empty list when absent.
     """
-    history = optional_object(state.get("history"))
-    return value_list(history.get(domain))
+    history = normalized_object_reference(state.get("history"))
+    return normalized_list_reference(history.get(domain))

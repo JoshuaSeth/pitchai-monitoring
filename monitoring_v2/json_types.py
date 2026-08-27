@@ -82,6 +82,36 @@ def value_list(value: JsonValue | object) -> list[JsonValue]:
     return [normalize_json(cast("JsonInput", item)) for item in raw_items]
 
 
+def normalized_object_reference(value: JsonValue) -> JsonObject:
+    """Return an already-normalized object without recursively copying it.
+
+    This accessor is only for values reached through a ``JsonObject`` that has
+    already crossed a normalization boundary. Callers must treat the returned
+    object as read-only.
+
+    Returns:
+        The existing object, or an explicit missing-state object.
+    """
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def normalized_list_reference(value: JsonValue) -> list[JsonValue]:
+    """Return an already-normalized list without recursively copying it.
+
+    This accessor is only for values reached through a ``JsonObject`` that has
+    already crossed a normalization boundary. Callers must treat the returned
+    list as read-only.
+
+    Returns:
+        The existing list, or an explicit missing-state list.
+    """
+    if isinstance(value, list):
+        return value
+    return []
+
+
 def text_value(value: JsonValue | object, *, default: str = "") -> str:
     """Return text without coercing structured data into misleading copy."""
     if isinstance(value, str):

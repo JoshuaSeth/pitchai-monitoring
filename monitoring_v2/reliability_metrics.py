@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING
 from .json_types import (
     bool_value,
     float_value,
-    optional_object,
+    normalized_list_reference,
+    normalized_object_reference,
     text_value,
-    value_list,
 )
 
 if TYPE_CHECKING:
@@ -30,14 +30,14 @@ def samples_for_group(
     now_ts: float,
 ) -> list[list[JsonValue]]:
     """Return valid 24-hour samples for enabled members of one group."""
-    history = optional_object(state.get("history"))
+    history = normalized_object_reference(state.get("history"))
     samples: list[list[JsonValue]] = []
     for domain in domains:
         if text_value(domain.get("group")) != group_id or bool_value(domain.get("disabled")) is True:
             continue
         domain_name = text_value(domain.get("domain"))
-        for raw in value_list(history.get(domain_name)):
-            sample = value_list(raw)
+        for raw in normalized_list_reference(history.get(domain_name)):
+            sample = normalized_list_reference(raw)
             timestamp = float_value(sample[0]) if sample else None
             if (
                 len(sample) >= _MIN_SAMPLE_FIELDS
