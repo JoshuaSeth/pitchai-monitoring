@@ -164,6 +164,12 @@ def test_critical_transition_dedupes_changes_and_recovers(tmp_path: Path) -> Non
         pytest.fail("recovery did not close the exact latest material incident")
     if details[0]["alertable"] is not True or details[0]["repair_dispatch"] != "asap":
         pytest.fail("real critical failure is not eligible for ASAP incident response")
+    if details[2]["critical"] is not True or details[2]["alertable"] is not True:
+        pytest.fail("recovery cannot close the matching critical incident")
+    if details[0]["project_id"] != lane.project or details[0]["artifact_links"] != [
+        reports[0].evidence_uri,
+    ]:
+        pytest.fail("critical event lost exact project routing or evidence")
 
 
 def test_out_of_order_and_synthetic_reports_never_replace_real_lane_state(tmp_path: Path) -> None:

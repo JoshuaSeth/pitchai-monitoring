@@ -13,6 +13,8 @@ from .hotpath_codec import decode_object
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from httpx import BaseTransport
+
     from .hotpath_event_bus_runtime import EventBusConfig
     from .hotpath_types import JsonValue
 
@@ -36,6 +38,7 @@ class DeliveryGateway(Protocol):
         payload: Mapping[str, JsonValue],
         *,
         now: float | None = None,
+        transport: BaseTransport | None = None,
     ) -> DeliveryAttempt:
         """Deliver one immutable event envelope and return its receipt."""
         raise NotImplementedError
@@ -63,7 +66,13 @@ class GatewayResult:
     error: str | None
 
 
-async def deliver_event(config: EventBusConfig, work: EventWork, *, now_ts: float) -> GatewayResult:
+async def deliver_event(
+    config: EventBusConfig,
+    work: EventWork,
+    *,
+    now_ts: float,
+    transport: BaseTransport | None = None,
+) -> GatewayResult:
     """Deliver a persisted payload through the canonical shared gateway.
 
     Returns:
@@ -78,6 +87,7 @@ async def deliver_event(config: EventBusConfig, work: EventWork, *, now_ts: floa
         config,
         payload,
         now=now_ts,
+        transport=transport,
     )
     if attempt.delivery_id != work.delivery_id:
         return GatewayResult(event_id=None, error="shared_gateway_delivery_id_mismatch")
@@ -88,6 +98,6 @@ async def deliver_event(config: EventBusConfig, work: EventWork, *, now_ts: floa
 
 
 def _delivery_gateway() -> DeliveryGateway | None:
-    module = import_module("domain_checks.event_bus")
+    module = import_module("domain_checks.event_bus_delivery")
     candidate = getattr(module, "deliver_event_bus_payload", None)
     return cast("DeliveryGateway", candidate) if callable(candidate) else None

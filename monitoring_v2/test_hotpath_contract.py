@@ -80,10 +80,13 @@ def test_inventory_is_the_exact_reviewed_thirteen_lane_set() -> None:
     names = {lane.name for lane in inventory.lanes}
     reminder_ids = {lane.reminder_id for lane in inventory.lanes}
     agent_ids = {lane.agent_global_id for lane in inventory.lanes}
+    primary_domains = {lane.primary_domain for lane in inventory.lanes}
     if len(inventory.lanes) != len(_REQUIRED_NAMES) or names != _REQUIRED_NAMES:
         pytest.fail(f"unexpected hotpath inventory: {sorted(names)}")
     if len(reminder_ids) != len(_REQUIRED_NAMES) or len(agent_ids) != len(_REQUIRED_NAMES):
         pytest.fail("hotpath reminders and agents must be one-to-one with lanes")
+    if len(primary_domains) != len(_REQUIRED_NAMES):
+        pytest.fail("every hotpath lane must expose one exact primary domain")
     if inventory.canonical_tag != "hot-path-testing":
         pytest.fail(f"unexpected hotpath tag: {inventory.canonical_tag}")
     if inventory.expected_interval_seconds != _EXPECTED_INTERVAL_SECONDS:

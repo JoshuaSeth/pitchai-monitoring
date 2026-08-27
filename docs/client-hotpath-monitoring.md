@@ -6,7 +6,7 @@ Client hotpaths are visible, value-bearing product journeys. They are deliberate
 
 `e2e_registry/hotpath_inventory.json` is the checked-in runtime inventory. Version 1 contains the complete 13-lane estate: DFT, AutoPAR, AIPC/SkyBuyFly, potAIto, AFASAsk/GZB, Orthoparse, QuickChat RSR, DePlanBook Play, CISNL, AIGENDA Rules, DePlanBook CMS, Apologetica CMS, and AIGENDA Calendar. OrthoShare is not admitted because it has no deployed product surface.
 
-Every row binds lane ID, project, display name, target surface, PitchAI live-agent global ID, exact reminder ID, and the expected visible behavior. Callers cannot rename those values. The canonical PitchAI engine tag is `hot-path-testing`; normal cadence is 172,800 seconds, stale threshold is 259,200 seconds, and incident cooldown is exactly 1,800 seconds.
+Every row binds lane ID, project, display name, target surface, primary domain, PitchAI live-agent global ID, exact reminder ID, and the expected visible behavior. Callers cannot rename those values. The canonical PitchAI engine tag is `hot-path-testing`; normal cadence is 172,800 seconds, stale threshold is 259,200 seconds, and incident cooldown is exactly 1,800 seconds.
 
 ## HTTP interface and authentication
 
@@ -28,7 +28,7 @@ For critical real failures, the material incident fingerprint binds lane ID, sev
 
 ## Events Inbox delivery
 
-The outbox worker claims due intents transactionally and passes an immutable event payload through the shared `domain_checks.event_bus.deliver_event_bus_payload` gateway. Real RED payloads are production, critical, alertable, non-synthetic, and use incident key `hotpath:<lane_id>` plus `repair_dispatch=asap`. Recovery uses the same incident identity. Project routing prefers exact project ownership, then project group, then the loud `pitchai_monitoring` fallback.
+The outbox worker claims due intents transactionally and passes an immutable event payload through the shared `domain_checks.event_bus_delivery.deliver_event_bus_payload` gateway. Real RED payloads are production, critical, alertable, non-synthetic, and use incident key `hotpath:<lane_id>` plus `repair_dispatch=asap`. Recovery retains that critical, alertable incident identity so the receiver can close the same repair lane. Project routing prefers the exact project ID, then project ownership and project group, then the loud `pitchai_monitoring` fallback. Primary domain and private artifact fields are normalized into the Events Inbox while the complete raw payload remains retained.
 
 The shared receiver normalizes events to `pitchai.monitoring.hotpath.red` and `pitchai.monitoring.hotpath.recovered`. It applies the same 1,800-second persistent-incident cooldown, allows changed fingerprints immediately, and closes the matching incident on recovery. The registry records the receiver event ID and delivery status. Retryable transport failures remain in the durable outbox with bounded backoff rather than being silently dropped.
 

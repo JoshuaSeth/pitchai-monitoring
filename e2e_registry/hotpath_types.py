@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Literal, Self, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple, Self, cast
 
 import pydantic
 
@@ -28,8 +28,7 @@ class HotpathContractError(ValueError):
     """A report or inventory violates the versioned hotpath contract."""
 
 
-@dataclass(frozen=True)
-class HotpathLane:
+class HotpathLane(NamedTuple):
     """One canonical client hotpath lane."""
 
     lane_id: str
@@ -37,6 +36,7 @@ class HotpathLane:
     project: str
     name: str
     target_surface: str
+    primary_domain: str
     reminder_id: str
     expected_behavior: str
 
@@ -159,8 +159,7 @@ def load_inventory(path: str) -> HotpathInventory:
     root = _mapping(_decode_json(Path(path).read_text(encoding="utf-8")), "inventory")
     raw_lanes = _list(root.get("lanes"), "inventory.lanes")
     lanes = tuple(_parse_lane(item, index) for index, item in enumerate(raw_lanes))
-    lane_ids = {lane.lane_id for lane in lanes}
-    if len(lanes) < _MIN_LANE_COUNT or len(lane_ids) != len(lanes):
+    if len(lanes) < _MIN_LANE_COUNT or len({lane.lane_id for lane in lanes}) != len(lanes):
         error = "hotpath inventory must contain at least 13 unique lanes"
         raise HotpathContractError(error)
     return HotpathInventory(
@@ -200,8 +199,7 @@ def validate_report_identity(
         error = "unknown canonical hotpath lane"
         raise HotpathContractError(error)
     report_identity = (report.project, report.name, report.target_surface)
-    canonical_identity = (lane.project, lane.name, lane.target_surface)
-    if report_identity != canonical_identity:
+    if report_identity != (lane.project, lane.name, lane.target_surface):
         error = "report identity does not match the canonical hotpath inventory"
         raise HotpathContractError(error)
     return lane
@@ -215,6 +213,7 @@ def _parse_lane(value: JsonValue, index: int) -> HotpathLane:
         project=_string(row, "project"),
         name=_string(row, "name"),
         target_surface=_string(row, "target_surface"),
+        primary_domain=_string(row, "primary_domain"),
         reminder_id=_string(row, "reminder_id"),
         expected_behavior=_string(row, "expected_behavior"),
     )

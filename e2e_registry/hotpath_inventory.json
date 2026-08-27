@@ -12,6 +12,7 @@
       "project": "dft",
       "name": "DFT formative assessment",
       "target_surface": "formatief-toetsen.pitchai.net and staging variants",
+      "primary_domain": "formatief-toetsen.pitchai.net",
       "reminder_id": "reminder-20260701T102617489989-10448316",
       "expected_behavior": "A synthetic teacher completes a fresh assessment through submissions, analysis, feedback, and two persistence reads."
     },
@@ -21,6 +22,7 @@
       "project": "autopar",
       "name": "AutoPAR",
       "target_surface": "autopar.pitchai.net and the staging web boundary",
+      "primary_domain": "autopar.pitchai.net",
       "reminder_id": "reminder-central-520babad-a9e8-4318-a74d-d41be0d627ce",
       "expected_behavior": "A synthetic practice user traverses dashboard views, opens one sanitized completed case, loads 3D and PAR evidence, highlights a known tooth, and verifies the tooth-scoped popup."
     },
@@ -30,6 +32,7 @@
       "project": "ai_price_crawler",
       "name": "AIPC / SkyBuyFly",
       "target_surface": "skybuyfly.pitchai.net",
+      "primary_domain": "skybuyfly.pitchai.net",
       "reminder_id": "reminder-20260625T073318961453-9821bdd1",
       "expected_behavior": "A public user proves coherent current card and PDP facts and safe commercial-control visibility, then proves historical and identity-only states suppress those controls."
     },
@@ -39,6 +42,7 @@
       "project": "potaito",
       "name": "potAIto / Aardappelprijs",
       "target_surface": "aardappelprijs.nl and staging.potaito.pitchai.net",
+      "primary_domain": "aardappelprijs.nl",
       "reminder_id": "reminder-central-c0328c15-1cfc-4add-b997-eeab73f957ef",
       "expected_behavior": "A synthetic market user reads the forecast, band, and freshness, switches snapshot and permitted model mode, and verifies raw-source and method provenance."
     },
@@ -48,6 +52,7 @@
       "project": "afasask",
       "name": "AFASAsk / GZB",
       "target_surface": "afasask.gzb.nl with staging and demo",
+      "primary_domain": "afasask.gzb.nl",
       "reminder_id": "reminder-central-2ef6b64f-954e-4810-a7ce-700f5184c4ff",
       "expected_behavior": "A dedicated synthetic GZB user asks an approved question, receives a completed sourced answer, and verifies the persisted conversation after reload."
     },
@@ -57,6 +62,7 @@
       "project": "orthoparse",
       "name": "Orthoparse",
       "target_surface": "orthoparse.pitchai.net",
+      "primary_domain": "orthoparse.pitchai.net",
       "reminder_id": "reminder-central-0e0a312c-e0a9-440c-94eb-3c4fc6766dc5",
       "expected_behavior": "A synthetic clinician opens one sanitized case, exercises STL, CBCT, editor, and compare, then proves a least-privilege short-lived share only in an approved synthetic environment."
     },
@@ -66,6 +72,7 @@
       "project": "quickchat",
       "name": "QuickChat RSR",
       "target_surface": "studentenreisproduct.demos.pitchai.net/rsr/demo/embed-preview",
+      "primary_domain": "studentenreisproduct.demos.pitchai.net",
       "reminder_id": "reminder-central-3fa4c376-b152-46f5-a422-8293d765004f",
       "expected_behavior": "A public traveller asks the stop-product question in the embed, observes progress, receives a source-bounded answer, and regains a ready input."
     },
@@ -75,6 +82,7 @@
       "project": "deplanbook_play",
       "name": "DePlanBook Play",
       "target_surface": "deplanbook.com",
+      "primary_domain": "deplanbook.com",
       "reminder_id": "reminder-central-2f625a89-3dc5-407d-8bb3-98cc2057ccda",
       "expected_behavior": "A synthetic participant completes the diary loop and proves fruit, activity, note, challenge, and exactly-one reward persistence after reload."
     },
@@ -84,6 +92,7 @@
       "project": "cisnl",
       "name": "CISNL Maatje",
       "target_surface": "www.hetcis.nl and staging",
+      "primary_domain": "www.hetcis.nl",
       "reminder_id": "reminder-central-54c31fb8-acea-432f-93cd-db8656436c14",
       "expected_behavior": "A public user advances Maatje through contribution and identity validation; final submission runs only against a proven synthetic staging sink."
     },
@@ -93,6 +102,7 @@
       "project": "driestar",
       "name": "AIGENDA Business Rules",
       "target_surface": "aigenda-rules.demos.pitchai.net",
+      "primary_domain": "aigenda-rules.demos.pitchai.net",
       "reminder_id": "reminder-central-5c4543d0-1335-4502-841a-13bc3772b105",
       "expected_behavior": "A public demo user searches and inspects a rule, authors a synthetic rule through clarification and validation, and commits exactly once in the isolated fixture."
     },
@@ -102,6 +112,7 @@
       "project": "deplanbook_cms",
       "name": "DePlanBook CMS",
       "target_surface": "cms.deplanbook.com",
+      "primary_domain": "cms.deplanbook.com",
       "reminder_id": "reminder-central-9c6dedfa-1a42-4ecc-b00e-0b4a27d8def2",
       "expected_behavior": "A public reader switches locale, searches a known published fixture, opens it, and verifies coherent title, body, navigation, and language."
     },
@@ -111,6 +122,7 @@
       "project": "geloofsverdediging_cms",
       "name": "Apologetica CMS",
       "target_surface": "apologetica-wagtail-staging.pitchai.net",
+      "primary_domain": "apologetica-wagtail-staging.pitchai.net",
       "reminder_id": "reminder-central-6f42854d-f73d-487f-afd1-023d42e0cb65",
       "expected_behavior": "A public reader searches or filters the library, opens a pinned article, and verifies heading, body, table of contents, context, copy-link, and responsive navigation."
     },
@@ -120,6 +132,7 @@
       "project": "driestar",
       "name": "AIGENDA calendar",
       "target_surface": "aigenda.pitchai.net and isolated aigenda-monitor.pitchai.net",
+      "primary_domain": "aigenda.pitchai.net",
       "reminder_id": "reminder-central-43f01740-aac9-41ff-97d2-952162657608",
       "expected_behavior": "A synthetic planner creates and edits an event, finds it in Jaarkaart and Kalender, verifies matching ICS export, and cleans up the isolated fixture."
     }

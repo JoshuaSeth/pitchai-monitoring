@@ -4,10 +4,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
 from httpx import MockTransport, Response
+
+from e2e_registry.hotpath_event_bus_runtime import EventBusConfig as HotpathEventBusConfig
+from e2e_registry.hotpath_event_gateway import EventWork, deliver_event
 
 from .event_bus_runtime import DELIVERY_RUNTIME, EventBusConfig
 from .json_types import optional_object, text_value
@@ -97,3 +101,45 @@ def test_gateway_rejects_payload_mutation_before_network_delivery() -> None:
             now=_DELIVERY_TIME,
             transport=transport_factory(),
         )
+
+
+@pytest.mark.asyncio
+async def test_hotpath_adapter_uses_the_strict_shared_gateway() -> None:
+    """Keep hotpath outbox delivery bound to the final shared module path."""
+    config = _config()
+    payload = DELIVERY_RUNTIME.build_incident_payload(
+        config,
+        kind="hotpath_red",
+        occurred_at=_EVENT_TIME,
+        details={
+            "hotpath_id": "safe-synthetic-proof",
+            "severity": "critical",
+            "synthetic": True,
+        },
+    )
+    delivery_id = text_value(payload.get("delivery_id"))
+    hotpath_config = HotpathEventBusConfig(
+        config.webhook_url,
+        config.secret,
+        config.environment,
+        config.instance,
+        config.deployment_sha,
+        config.timeout_seconds,
+    )
+    work = EventWork(
+        intent_id="hotpath-intent-safe-synthetic-proof",
+        event_kind="hotpath_red",
+        delivery_id=delivery_id,
+        payload_json=json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True),
+    )
+    transport_factory = partial(MockTransport, _accepted)
+
+    result = await deliver_event(
+        hotpath_config,
+        work,
+        now_ts=_DELIVERY_TIME,
+        transport=transport_factory(),
+    )
+
+    if result.error is not None or result.event_id != f"event-for-{delivery_id}":
+        pytest.fail(f"hotpath adapter did not reach the shared gateway: {result}")
