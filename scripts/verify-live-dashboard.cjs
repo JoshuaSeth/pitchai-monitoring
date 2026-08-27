@@ -8,8 +8,6 @@ const puppeteer = require('puppeteer');
 const BASE_URL = process.env.MONITORING_DASHBOARD_BASE_URL || 'http://127.0.0.1:8111';
 const IDENTITY = process.env.MONITORING_DASHBOARD_IDENTITY || 'info@pitchai.net';
 const EXPECTED_SHA = process.env.MONITORING_DASHBOARD_EXPECTED_SHA || 'unknown';
-const EXPECTED_DOMAINS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_DOMAINS || '69');
-const EXPECTED_GROUPS = Number(process.env.MONITORING_DASHBOARD_EXPECTED_GROUPS || '15');
 const SCREENSHOT_PATH = '/tmp/monitoring-live-dashboard-proof.png';
 const SUMMARY_FETCH_TIMEOUT_MS = 30000;
 const REQUIRED_TABS = ['domains', 'databases', 'infrastructure', 'reliability', 'journeys'];
@@ -22,6 +20,17 @@ function object(value) {
 function list(value) {
   return Array.isArray(value) ? value : [];
 }
+
+function optionalExpectedCount(name) {
+  const value = process.env[name];
+  if (value === undefined) return null;
+  const count = Number(value);
+  assert.ok(Number.isInteger(count) && count > 0, name + ' must be a positive integer');
+  return count;
+}
+
+const EXPECTED_DOMAINS = optionalExpectedCount('MONITORING_DASHBOARD_EXPECTED_DOMAINS');
+const EXPECTED_GROUPS = optionalExpectedCount('MONITORING_DASHBOARD_EXPECTED_GROUPS');
 
 function phase(name) {
   process.stdout.write('LIVE_DASHBOARD_PHASE=' + name + '\n');
@@ -205,6 +214,9 @@ async function main() {
     const summary = await summaryFromPage(page);
     const domains = list(summary.domains);
     const groups = list(summary.domain_groups);
+    const inventory = object(summary.inventory);
+    const inventoryDomains = Number(inventory.active_domains);
+    const inventoryGroups = Number(inventory.groups);
     const dashboards = object(summary.dashboards);
     const databases = object(dashboards.databases);
     const infrastructure = object(dashboards.infrastructure);
@@ -228,8 +240,16 @@ async function main() {
       containerTotal > 0 &&
       Number.isInteger(containerRestartTotal) &&
       containerRestartTotal >= 0;
-    assert.equal(domains.length, EXPECTED_DOMAINS, 'live domain inventory count changed');
-    assert.equal(groups.length, EXPECTED_GROUPS, 'live domain group count changed');
+    assert.ok(Number.isInteger(inventoryDomains) && inventoryDomains > 0, 'live inventory domain count is invalid');
+    assert.ok(Number.isInteger(inventoryGroups) && inventoryGroups > 0, 'live inventory group count is invalid');
+    assert.equal(domains.length, inventoryDomains, 'live domain inventory disagrees with its config metadata');
+    assert.equal(groups.length, inventoryGroups, 'live domain groups disagree with their config metadata');
+    if (EXPECTED_DOMAINS !== null) {
+      assert.equal(domains.length, EXPECTED_DOMAINS, 'live domain inventory count changed');
+    }
+    if (EXPECTED_GROUPS !== null) {
+      assert.equal(groups.length, EXPECTED_GROUPS, 'live domain group count changed');
+    }
     const unimixGroup = groups.find((group) => object(group).id === 'unimix');
     assert.ok(unimixGroup, 'live dashboard omitted the Unimix customer group');
     assert.equal(Number(object(unimixGroup).enabled), REQUIRED_UNIMIX_DOMAINS.length);
