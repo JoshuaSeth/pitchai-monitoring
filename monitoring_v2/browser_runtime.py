@@ -131,6 +131,10 @@ class Page(Protocol):
         """Evaluate one browser-side expression."""
         raise NotImplementedError
 
+    async def screenshot(self, *, path: str, full_page: bool) -> None:
+        """Capture the rendered page as a browser proof artifact."""
+        raise NotImplementedError
+
     @overload
     def on(self, event: Literal["console"], callback: Callable[[ConsoleMessage], None]) -> None:
         ...
@@ -167,11 +171,7 @@ class BrowserContext(Protocol):
 class Browser(Protocol):
     """Browser process surface used by proof and legacy checks."""
 
-    async def new_context(
-        self,
-        *,
-        extra_http_headers: Mapping[str, str],
-    ) -> BrowserContext:
+    async def new_context(self, *, extra_http_headers: Mapping[str, str]) -> BrowserContext:
         """Create one isolated browser context."""
         raise NotImplementedError
 

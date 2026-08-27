@@ -25,6 +25,18 @@ class MonitoringInstaller(Protocol):
         raise NotImplementedError
 
 
+class HotpathInstaller(Protocol):
+    """Client hotpath monitoring installer contract."""
+
+    def __call__(self, application: RegistryApplication) -> None:
+        """Install first-class hotpath monitoring into one registry application."""
+        raise NotImplementedError
+
+    def contract_name(self) -> str:
+        """Return the boundary contract name."""
+        raise NotImplementedError
+
+
 class RegistryApplicationFactory(Protocol):
     """Production registry application factory contract."""
 
@@ -45,6 +57,10 @@ class _LegacyModule(NamedTuple):
     production_registry_app: object
 
 
+class _HotpathModule(NamedTuple):
+    install_hotpath_monitoring: object
+
+
 _DASHBOARD = cast(
     "_DashboardModule",
     cast("object", import_module("monitoring_v2.install")),
@@ -53,7 +69,12 @@ _LEGACY = cast(
     "_LegacyModule",
     cast("object", import_module("monitoring_v2.registry_runtime")),
 )
+_HOTPATH = cast(
+    "_HotpathModule",
+    cast("object", import_module("e2e_registry.hotpath_install")),
+)
 install_monitoring_v2 = cast("MonitoringInstaller", _DASHBOARD.install_monitoring_v2)
+install_hotpath_monitoring = cast("HotpathInstaller", _HOTPATH.install_hotpath_monitoring)
 production_registry_app = cast(
     "RegistryApplicationFactory",
     _LEGACY.production_registry_app,

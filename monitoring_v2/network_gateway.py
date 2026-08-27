@@ -14,6 +14,8 @@ from httpx import AsyncClient
 if TYPE_CHECKING:
     from httpx import Response
 
+    from .json_types import JsonObject
+
 
 class DashboardLocation(Protocol):
     """Connection details required by the local dashboard gateway."""
@@ -53,6 +55,7 @@ class AuthorizedRouteReceipts:
 
     browser_summary: HttpReceipt
     machine_summary: HttpReceipt
+    hotpath_summary: HttpReceipt
     stylesheet: HttpReceipt
     script: HttpReceipt
 
@@ -63,6 +66,18 @@ class DashboardContractReceipts:
 
     identity: IdentityReceipts
     authorized: AuthorizedRouteReceipts
+
+
+@dataclass(frozen=True)
+class HotpathApiReceipts:
+    """Report-auth, idempotency, event-intent, and summary receipts."""
+
+    anonymous: HttpReceipt
+    wrong_token: HttpReceipt
+    accepted: HttpReceipt
+    duplicate: HttpReceipt
+    synthetic: HttpReceipt
+    summary: HttpReceipt
 
 
 def _receipt(response: Response) -> HttpReceipt:
@@ -103,6 +118,10 @@ async def fetch_dashboard_contract(server: DashboardLocation) -> DashboardContra
             "/api/v1/monitoring/summary",
             headers={"Authorization": f"Bearer {server.monitor_token}"},
         )
+        hotpath_summary = await client.get(
+            "/dashboard/api/v1/hotpaths/summary",
+            headers={"X-PitchAI-Email": "operator@pitchai.net"},
+        )
         browser_with_token = await client.get(
             "/dashboard/api/v1/monitoring/summary",
             headers={"Authorization": f"Bearer {server.monitor_token}"},
@@ -120,7 +139,49 @@ async def fetch_dashboard_contract(server: DashboardLocation) -> DashboardContra
         authorized=AuthorizedRouteReceipts(
             browser_summary=_receipt(browser_summary),
             machine_summary=_receipt(machine_summary),
+            hotpath_summary=_receipt(hotpath_summary),
             stylesheet=_receipt(stylesheet),
             script=_receipt(script),
         ),
+    )
+
+
+async def exercise_hotpath_api(
+    server: DashboardLocation,
+    real_report: JsonObject,
+    synthetic_report: JsonObject,
+    reporter_token: str,
+) -> HotpathApiReceipts:
+    """Exercise the complete local hotpath HTTP boundary.
+
+    Returns:
+        Typed receipts for report and summary assertions.
+    """
+    client_factory = partial(AsyncClient, base_url=server.base_url)
+    async with client_factory() as client:
+        anonymous = await client.post("/api/v1/hotpaths/reports", json=real_report)
+        wrong_token = await client.post(
+            "/api/v1/hotpaths/reports",
+            headers={"Authorization": "Bearer wrong-token"},
+            json=real_report,
+        )
+        headers = {"Authorization": f"Bearer {reporter_token}"}
+        accepted = await client.post("/api/v1/hotpaths/reports", headers=headers, json=real_report)
+        duplicate = await client.post("/api/v1/hotpaths/reports", headers=headers, json=real_report)
+        synthetic = await client.post(
+            "/api/v1/hotpaths/reports",
+            headers=headers,
+            json=synthetic_report,
+        )
+        summary = await client.get(
+            "/dashboard/api/v1/hotpaths/summary",
+            headers={"X-PitchAI-Email": "operator@pitchai.net"},
+        )
+    return HotpathApiReceipts(
+        anonymous=_receipt(anonymous),
+        wrong_token=_receipt(wrong_token),
+        accepted=_receipt(accepted),
+        duplicate=_receipt(duplicate),
+        synthetic=_receipt(synthetic),
+        summary=_receipt(summary),
     )

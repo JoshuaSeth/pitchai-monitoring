@@ -5,7 +5,7 @@
       <div class="dashboard-hero__copy">
         <p class="eyebrow">PitchAI operations</p>
         <h1 id="dashboard-title" data-testid="dash-title">System health,<br><span>without the guesswork.</span></h1>
-        <p class="dashboard-hero__lede">Current service, domain, database dependency, and end-to-end signals from the production monitor.</p>
+        <p class="dashboard-hero__lede">Current service, domain, database dependency, scheduled journey, and agent-run client hotpath signals from the production monitor.</p>
       </div>
       <div class="dashboard-hero__controls">
         <div class="posture" id="overall-posture" data-testid="dash-pill-overall" aria-live="polite">
@@ -130,7 +130,10 @@
         <span>Reliability</span><small>SLOs & history</small>
       </button>
       <button class="dashboard-tab" id="tab-journeys" type="button" role="tab" aria-selected="false" aria-controls="panel-journeys" tabindex="-1" data-dashboard-tab="journeys">
-        <span>Journeys</span><small>Live hotpaths</small>
+        <span>Journeys</span><small>Registry-run E2E</small>
+      </button>
+      <button class="dashboard-tab" id="tab-hotpaths" type="button" role="tab" aria-selected="false" aria-controls="panel-hotpaths" tabindex="-1" data-dashboard-tab="hotpaths">
+        <span>Client hotpaths</span><small>Agent-run flows</small>
       </button>
     </nav>
 
@@ -325,14 +328,50 @@
         <div>
           <p class="section-kicker">Black-box user impact</p>
           <h2>Journeys</h2>
-          <p>Live end-to-end hotpaths, effective state, scheduling freshness, and investigation status.</p>
+          <p>Registry-scheduled end-to-end journeys, effective state, scheduling freshness, and investigation status.</p>
         </div>
         <span class="status-label" id="journeys-status">Loading</span>
       </div>
       <div class="journey-summary" id="journey-summary" data-testid="dash-journey-summary"></div>
       <article class="section-card journeys-card">
-        <header class="section-heading"><div><p class="section-kicker">Registry-backed</p><h3>Monitored hotpaths</h3></div><span class="section-count" id="journey-count">—</span></header>
+        <header class="section-heading"><div><p class="section-kicker">Registry-backed</p><h3>Scheduled journeys</h3></div><span class="section-count" id="journey-count">—</span></header>
         <div class="journey-list" id="journey-list" data-testid="dash-journeys"></div>
+      </article>
+    </section>
+
+    <section class="dashboard-panel" id="panel-hotpaths" role="tabpanel" aria-labelledby="tab-hotpaths" data-dashboard-panel="hotpaths" hidden>
+      <div class="panel-intro">
+        <div>
+          <p class="section-kicker">Agent-run client behavior</p>
+          <h2>Client hotpaths</h2>
+          <p>Reminder-fired and manual client workflows report signed evidence here independently of domain uptime and registry-scheduled journeys.</p>
+        </div>
+        <span class="status-label" id="hotpaths-status">Loading</span>
+      </div>
+      <div class="hotpath-contract-note" data-testid="dash-hotpath-contract">
+        <div><span>Canonical engine tag</span><strong id="hotpath-tag">—</strong></div>
+        <div><span>Reminder cadence</span><strong id="hotpath-cadence">—</strong></div>
+        <div><span>Incident cooldown</span><strong id="hotpath-cooldown">—</strong></div>
+        <div><span>Inventory reviewed</span><strong id="hotpath-reviewed">—</strong></div>
+      </div>
+      <div class="hotpath-summary" id="hotpath-summary" data-testid="dash-hotpath-summary"></div>
+      <article class="section-card hotpaths-card">
+        <header class="section-heading">
+          <div><p class="section-kicker">Every canonical lane</p><h3>Latest reported client state</h3></div>
+          <span class="section-count" id="hotpath-count">—</span>
+        </header>
+        <div class="hotpath-list" id="hotpath-list" data-testid="dash-hotpaths">
+          <p class="empty-state">Loading client hotpath state…</p>
+        </div>
+      </article>
+      <article class="section-card hotpath-proofs-card">
+        <header class="section-heading">
+          <div><p class="section-kicker">Non-disruptive protocol exercise</p><h3>Synthetic PASS / FAIL proofs</h3></div>
+          <span class="section-count" id="hotpath-proof-count">—</span>
+        </header>
+        <div class="hotpath-proof-list" id="hotpath-proof-list" data-testid="dash-hotpath-proofs">
+          <p class="empty-state">No synthetic proof received yet.</p>
+        </div>
       </article>
     </section>
 
