@@ -2,27 +2,8 @@ name: Python strict gate
 
 on:
   pull_request:
-    branches: [main]
-    paths:
-      - "**/*.py"
-      - ".github/workflows/python-strict.yml"
-      - ".semgrep.yml"
-      - ".semgrepignore"
-      - "docs/python-quality-gate.md"
-      - "pyproject.toml"
-      - "scripts/check*.py"
-      - "uv.lock"
   push:
-    branches: [main]
-    paths:
-      - "**/*.py"
-      - ".github/workflows/python-strict.yml"
-      - ".semgrep.yml"
-      - ".semgrepignore"
-      - "docs/python-quality-gate.md"
-      - "pyproject.toml"
-      - "scripts/check*.py"
-      - "uv.lock"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -32,19 +13,95 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  python-strict:
+  integrity:
+    name: Enforcement integrity
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Verify the anti-bypass trust anchor
+        shell: bash
+        run: |
+          set -euo pipefail
+          verifier_path="quality/pitchai_quality/check_no_validation_bypasses.py"
+          expected_verifier_sha256="de7a964d7902d564fc8f27a77a09d810510879b69b10c6a204941f16e26281ea"
+          actual_verifier_sha256="$(sha256sum "$verifier_path" | awk '{print $1}')"
+          if [[ "$actual_verifier_sha256" != "$expected_verifier_sha256" ]]; then
+            printf '%s: SHA-256 trust anchor mismatch (expected %s, got %s)\n' \
+              "$verifier_path" "$expected_verifier_sha256" "$actual_verifier_sha256" >&2
+            exit 1
+          fi
+
+  ratchet:
+    name: Quality ratchet
+    needs: integrity
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          version: "0.10.0"
+          python-version: "3.12.12"
+          enable-cache: true
+
+      - name: Verify the main activation baseline trust anchor
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline_path=".github/quality-baselines/python-strict-activation-main.json"
+          expected_baseline_sha256="0000000000000000000000000000000000000000000000000000000000000000"
+          actual_baseline_sha256="$(sha256sum "$baseline_path" | awk '{print $1}')"
+          if [[ "$actual_baseline_sha256" != "$expected_baseline_sha256" ]]; then
+            printf '%s: SHA-256 trust anchor mismatch (expected %s, got %s)\n' \
+              "$baseline_path" "$expected_baseline_sha256" "$actual_baseline_sha256" >&2
+            exit 1
+          fi
+
+      - name: Verify ratchet unit contracts
+        run: uv run --project quality --python 3.12.12 --frozen python -m unittest quality.tests.test_ratchet
+
+      - name: Reject every new or moved Python violation
+        run: >-
+          uv run --project quality --python 3.12.12 --frozen ratchet verify
+          --baseline .github/quality-baselines/python-strict-activation-main.json
+          --base github-event
+          --candidate-report quality-ratchet-candidate.json
+
+      - name: Preserve the complete candidate report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: python-quality-ratchet-${{ github.run_id }}-${{ github.run_attempt }}
+          path: quality-ratchet-candidate.json
+          if-no-files-found: error
+          retention-days: 30
+
+  check:
+    name: Full zero-debt gate
+    needs: integrity
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
         with:
-          python-version: "3.12"
-          enable-cache: false
-      - name: Install locked dependencies
-        run: uv sync --python 3.12 --frozen
-      - name: Run hyper-strict Python gate
-        run: uv run --python 3.12 check
+          version: "0.10.0"
+          python-version: "3.12.12"
+          enable-cache: true
+
+      - name: Install the locked quality environment
+        run: uv sync --project quality --python 3.12.12 --frozen
+
+      - name: Run every fail-closed Python gate
+        run: uv run --project quality --python 3.12.12 --frozen check
