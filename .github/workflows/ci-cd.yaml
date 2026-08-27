@@ -274,6 +274,11 @@ jobs:
               -v /etc/nginx/conf.d:/routing/nginx-conf:ro \
               -e PYTHONDONTWRITEBYTECODE="1" \
               -e DATABASE_DEPENDENCY_STATE_PATH="/data/database-dependencies.json" \
+              -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
+              -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
+              -e PITCHAI_MONITORING_ENVIRONMENT="production" \
+              -e PITCHAI_MONITORING_INSTANCE="pitchai-main-database-dependencies" \
+              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
               "$IMAGE_SHA" \
