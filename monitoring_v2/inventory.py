@@ -37,6 +37,8 @@ EXPECTED_ACTIVE_DOMAINS = _words(
     jeff-dispatch.pitchai.net jeff-work-inbox.pitchai.net aardappelprijs.nl akkerbouwprijs.nl afasask.gzb.nl
     deplanbook.com cms.deplanbook.com hetcis.nl www.hetcis.nl agentcloud.pitchai.net dashboards.pitchai.net
     support.pitchai.net
+    aigenda.pitchai.net aigenda-monitor.pitchai.net livedocuments.pitchai.net lfs.pitchai.net
+    servers.pitchai.net theplanbook.pitchai.net autopar-staging-web.37.27.67.52.nip.io
     unimixbrasil.com.br www.unimixbrasil.com.br
     """,
 )
@@ -47,7 +49,24 @@ EXPECTED_DASHBOARD_ONLY_DOMAINS = frozenset({
     "dashboards.pitchai.net",
     "support.pitchai.net",
     "cursussen.pitchai.net",
+    "theplanbook.pitchai.net",
 })
+
+EXPECTED_RETIRED_DOMAINS = _words(
+    """
+    n8n.pitchai.net quickchat.pitchai.net digibead.demos.pitchai.net
+    apologetica-react-staging.pitchai.net chat-staging.pitchai.net cowork.pitchai.net
+    www.afasask.pitchai.net www.demo.afasask.pitchai.net jeff.codex-voice.pitchai.net
+    jeff.dispatch.pitchai.net jeff.work-inbox.pitchai.net autodiscover.pitchai.net demos.pitchai.net
+    www.afasask.gzb.nl app.doorstroomtoets.nl app-staging-no-spend.doorstroomtoets.nl
+    cms.hetcis.nl weblog.hetcis.nl hetcis.pitchai.net staging.dispatch.pitchai.net
+    aigenda.37.27.67.52.nip.io aigenda-rules.135-181-182-48.sslip.io
+    driestar-aigenda.demos.pitchai.net theplanbook.com www.theplanbook.com staging.afasask.gzb.nl
+    staging.hetcis.nl suggestions.demos.pitchai.net staging.potai.pitchai.net
+    staging.potato.pitchai.net studentenreisproduct.nl www.centrumvoorisraelstudies.nl
+    www.intern.centrumvoorisraelstudies.nl
+    """,
+)
 
 REQUIRED_CONTAINER_NAMES = _words(
     """
@@ -67,7 +86,7 @@ REQUIRED_CONTAINER_NAMES = _words(
     meilisync-formatief-toetsen-staging pgbouncer-dft pgbouncer-dft-staging orthoparse-web-app
     orthoparse-web-app-green orthoparse-ceph-worker orthoparse-worker orthoparse-worker-green
     pgbouncer-orthoparse pitchai-onboarding-course-onboarding-course-1 pitchai-breakglass-web-terminal
-    quickchat-rsr-demo
+    quickchat-rsr-demo aigenda-webapp aigenda-webapp-monitor autopar-staging-web autopar-staging-db
     """,
 )
 
