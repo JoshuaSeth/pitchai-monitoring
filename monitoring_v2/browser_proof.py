@@ -8,15 +8,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from .domain_runtime import common_runtime
-from .json_types import int_value, json_object
+from .json_types import int_value, json_object, optional_object
 from .testing_runtime import pytest
 
 if TYPE_CHECKING:
     from .browser_runtime import BrowserRequest, ConsoleMessage, Locator, Page, Route
     from .json_types import JsonInput, JsonObject
 
-_EXPECTED_DOMAIN_COUNT = 60
-_EXPECTED_GROUP_BUTTON_COUNT = 15
 _EXPECTED_INCIDENT_COUNT = 2
 _EXPECTED_TAB_COUNT = 6
 _EXPECTED_HOTPATH_LANES = 13
@@ -95,6 +93,13 @@ async def _require_text(locator: Locator, expected: str) -> None:
     rendered = await locator.inner_text()
     if expected.casefold() not in rendered.casefold():
         pytest.fail(f"missing rendered dashboard text {expected!r}: {rendered!r}")
+
+
+def _summary_count(summary: JsonObject, section: str, key: str) -> int:
+    value = int_value(optional_object(summary.get(section)).get(key))
+    if value is None:
+        pytest.fail(f"dashboard proof summary is missing {section}.{key}")
+    return value
 
 
 async def _verify_incidents(page: Page) -> None:
@@ -195,19 +200,28 @@ async def exercise_actionable_dashboard(
     page: Page,
     base_url: str,
     receipts: BrowserReceipts,
+    summary: JsonObject,
 ) -> None:
     """Verify inventory, incident disclosure, tabs, filtering, and mobile fit."""
+    healthy_services = _summary_count(summary, "service_health", "healthy")
+    enabled_services = _summary_count(summary, "service_health", "enabled")
+    active_domains = _summary_count(summary, "inventory", "active_domains")
+    domain_groups = _summary_count(summary, "inventory", "groups")
+    expected_service_kpi = f"{healthy_services}/{enabled_services}"
+    kpi_expression = (
+        f"document.querySelector('#kpi-services').textContent === '{expected_service_kpi}'"
+    )
     await page.goto(f"{base_url}/dashboard")
-    await page.wait_for_function("document.querySelector('#kpi-services').textContent === '59/60'")
+    await page.wait_for_function(kpi_expression)
     tabs = page.locator("[data-testid=dash-tabs] [role=tab]")
     if await tabs.count() != _EXPECTED_TAB_COUNT:
         pytest.fail("dashboard did not render all six requested tabs")
     group_buttons = page.locator("[data-testid=dash-domain-groups] button")
-    if await group_buttons.count() != _EXPECTED_GROUP_BUTTON_COUNT:
+    if await group_buttons.count() != domain_groups + 1:
         pytest.fail("dashboard did not render all production domain groups")
     await _require_text(
         page.locator("#domain-inventory-note"),
-        f"{_EXPECTED_DOMAIN_COUNT} monitored domains",
+        f"{active_domains} monitored domains",
     )
     await _verify_incidents(page)
     await _verify_tabs(page)

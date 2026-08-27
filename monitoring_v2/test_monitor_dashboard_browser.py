@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
     from .browser_runtime import Page
     from .dashboard_server import DashboardServer
-    from .json_types import JsonInput
+    from .json_types import JsonInput, JsonObject
 
 _HTTP_OK = 200
 _HTTP_UNAUTHORIZED = 401
@@ -49,9 +49,10 @@ async def _exercise_and_capture(
     page: Page,
     base_url: str,
     receipts: BrowserReceipts,
+    summary: JsonObject,
 ) -> None:
     """Run the browser contract and retain an optional headed proof image."""
-    await exercise_actionable_dashboard(page, base_url, receipts)
+    await exercise_actionable_dashboard(page, base_url, receipts, summary)
     screenshot_path = os.environ.get("PITCHAI_BROWSER_SCREENSHOT")
     if screenshot_path:
         await page.set_viewport_size(
@@ -136,7 +137,12 @@ async def test_dashboard_renders_production_inventory_incidents_and_tabs(
             partial(serve_monitor_data, hotpaths),
         )
         try:
-            await _exercise_and_capture(page, dashboard_server.base_url, receipts)
+            await _exercise_and_capture(
+                page,
+                dashboard_server.base_url,
+                receipts,
+                summary,
+            )
         finally:
             await context.close()
             await browser.close()
