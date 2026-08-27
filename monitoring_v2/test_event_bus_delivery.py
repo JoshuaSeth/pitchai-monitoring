@@ -4,12 +4,18 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
 from httpx import MockTransport, Response
 
 from .event_bus_runtime import DELIVERY_RUNTIME, EVENT_BUS_RUNTIME
+from .hotpath_event_runtime import (
+    HOTPATH_EVENT_GATEWAY,
+    HotpathEventBusConfig,
+    HotpathEventWork,
+)
 from .json_types import optional_object, text_value
 from .testing_runtime import pytest
 
@@ -25,18 +31,13 @@ _ACCEPTED_STATUS = 202
 
 def _config() -> EventBusConfig:
     signing_key = hashlib.sha256(b"monitoring-delivery-test-key").hexdigest()
-    config = EVENT_BUS_RUNTIME.load_event_bus_config(
-        {
-            "PITCHAI_MONITORING_EVENT_BUS_URL": "https://pitchai.net/events-bus/webhooks/pitchai-monitoring",
-            "PITCHAI_MONITORING_EVENT_BUS_SECRET": signing_key,
-            "PITCHAI_MONITORING_ENVIRONMENT": "production",
-            "PITCHAI_MONITORING_INSTANCE": "pytest-monitoring",
-            "PITCHAI_MONITORING_DEPLOYMENT_SHA": "a" * 40,
-        },
+    return EVENT_BUS_RUNTIME.EventBusConfig(
+        webhook_url="https://pitchai.net/events-bus/webhooks/pitchai-monitoring",
+        secret=signing_key,
+        environment="production",
+        instance="pytest-monitoring",
+        deployment_sha="a" * 40,
     )
-    if config is None:
-        pytest.fail("complete test delivery configuration was ignored")
-    return config
 
 
 def _accepted(request: Request) -> Response:
@@ -104,3 +105,51 @@ def test_gateway_rejects_payload_mutation_before_network_delivery() -> None:
             now=_DELIVERY_TIME,
             transport=transport_factory(),
         )
+
+
+@pytest.mark.asyncio
+async def test_hotpath_adapter_uses_the_strict_shared_gateway() -> None:
+    """Keep hotpath outbox delivery bound to the final shared module path."""
+    shared_config = _config()
+    payload = DELIVERY_RUNTIME.build_incident_payload(
+        shared_config,
+        kind="hotpath_red",
+        occurred_at=_EVENT_TIME,
+        details={
+            "hotpath_id": "safe-synthetic-proof",
+            "severity": "critical",
+            "synthetic": True,
+        },
+    )
+    delivery_id = text_value(payload.get("delivery_id"))
+    payload_json = json.dumps(
+        payload,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    hotpath_config = HotpathEventBusConfig(
+        timeout_seconds=10.0,
+        deployment_sha="a" * 40,
+        instance="pytest-monitoring",
+        environment="production",
+        secret=shared_config.secret,
+        webhook_url=shared_config.webhook_url,
+    )
+    work = HotpathEventWork(
+        payload_json=payload_json,
+        delivery_id=delivery_id,
+        event_kind="hotpath_red",
+        intent_id="hotpath-intent-safe-synthetic-proof",
+    )
+    transport_factory = partial(MockTransport, _accepted)
+    result = await HOTPATH_EVENT_GATEWAY.deliver_event(
+        hotpath_config,
+        work,
+        now_ts=_DELIVERY_TIME,
+        transport=transport_factory(),
+    )
+
+    if result.error is not None or result.event_id != f"event-for-{delivery_id}":
+        pytest.fail(f"hotpath adapter did not reach the shared gateway: {result}")

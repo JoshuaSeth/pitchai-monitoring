@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from importlib import import_module
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 
 from .json_types import JsonValue
 
@@ -16,74 +16,38 @@ if TYPE_CHECKING:
 type DeliveryPayload = dict[str, JsonValue]
 
 
-class EventBusConfig(Protocol):
-    """Typed structural view of the shared monitoring producer configuration."""
+class EventBusConfig(NamedTuple):
+    """Structural view of the shared producer configuration."""
 
-    @property
-    def webhook_url(self) -> str:
-        """Return the configured receiver URL."""
-        raise NotImplementedError
-
-    @property
-    def secret(self) -> str:
-        """Return the shared signing secret."""
-        raise NotImplementedError
-
-    @property
-    def environment(self) -> str:
-        """Return the producer environment."""
-        raise NotImplementedError
-
-    @property
-    def instance(self) -> str:
-        """Return the producer instance."""
-        raise NotImplementedError
-
-    @property
-    def deployment_sha(self) -> str | None:
-        """Return the optional deployed source revision."""
-        raise NotImplementedError
-
-    @property
-    def timeout_seconds(self) -> float:
-        """Return the delivery timeout."""
-        raise NotImplementedError
+    instance: str
+    environment: str
+    webhook_url: str
+    deployment_sha: str | None
+    secret: str
+    timeout_seconds: float = 10.0
 
 
-class DeliveryAttempt(Protocol):
-    """Typed structural view of a shared monitoring delivery receipt."""
+class DeliveryAttempt(NamedTuple):
+    """Structural view of one shared delivery receipt."""
 
-    @property
-    def delivery_id(self) -> str:
-        """Return the stable delivery identity."""
-        raise NotImplementedError
+    error: str | None
+    event_id: str | None
+    status_code: int | None
+    success: bool
+    delivery_id: str
 
-    @property
-    def success(self) -> bool:
-        """Return whether the receiver accepted the event."""
-        raise NotImplementedError
 
-    @property
-    def status_code(self) -> int | None:
-        """Return the HTTP status when an exchange completed."""
-        raise NotImplementedError
-
-    @property
-    def event_id(self) -> str | None:
-        """Return the receiver event identity when accepted."""
-        raise NotImplementedError
-
-    @property
-    def error(self) -> str | None:
-        """Return a stable failure description."""
-        raise NotImplementedError
+type EventBusConfigClass = type[EventBusConfig]
+type EventBusConfigValue = EventBusConfig
 
 
 class _EventBusRuntime(Protocol):
+    EventBusConfig: EventBusConfigClass
+
     def load_event_bus_config(
         self,
         environ: Mapping[str, str] | None = None,
-    ) -> EventBusConfig | None:
+    ) -> EventBusConfigValue | None:
         """Load the shared producer configuration."""
         raise NotImplementedError
 

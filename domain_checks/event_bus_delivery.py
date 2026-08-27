@@ -74,7 +74,7 @@ def build_incident_payload(
     }
     identity = hashlib.sha256(_canonical_json(payload)).hexdigest()
     payload["delivery_id"] = f"{_DELIVERY_PREFIX}{identity}"
-    _validate_payload(payload)
+    _ = _validate_payload(payload)
     return payload
 
 
@@ -100,17 +100,19 @@ def deliver_event_bus_payload(
     delivery_id, event_kind = _validate_payload(payload)
     body = _canonical_json(payload)
     timestamp = str(int(time.time() if now is None else now))
-    signature = signature_for_delivery(
+    headers = {
+        "content-type": "application/json",
+        DELIVERY_HEADER: delivery_id,
+        TIMESTAMP_HEADER: timestamp,
+        EVENT_HEADER: event_kind,
+    }
+    headers[SIGNATURE_HEADER] = signature_for_delivery(
         body=body,
         secret=config.secret,
         timestamp=timestamp,
         delivery_id=delivery_id,
         event_kind=event_kind,
     )
-    headers = {"content-type": "application/json", SIGNATURE_HEADER: signature}
-    headers[DELIVERY_HEADER] = delivery_id
-    headers[TIMESTAMP_HEADER] = timestamp
-    headers[EVENT_HEADER] = event_kind
     client_factory = partial(
         Client,
         headers={"User-Agent": _USER_AGENT},
@@ -143,7 +145,7 @@ def _validate_payload(payload: JsonObject) -> tuple[str, str]:
         message = "monitoring event delivery id is invalid"
         raise ValueError(message)
     identity_payload = dict(payload)
-    identity_payload.pop("delivery_id")
+    del identity_payload["delivery_id"]
     expected = f"{_DELIVERY_PREFIX}{hashlib.sha256(_canonical_json(identity_payload)).hexdigest()}"
     if delivery_id != expected:
         message = "monitoring event delivery identity does not match its immutable payload"
