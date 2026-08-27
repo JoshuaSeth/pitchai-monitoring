@@ -3,9 +3,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from importlib import import_module
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 
 from .json_types import JsonValue
 
@@ -17,34 +16,38 @@ if TYPE_CHECKING:
 type DeliveryPayload = dict[str, JsonValue]
 
 
-@dataclass(frozen=True)
-class EventBusConfig:
-    """Typed structural view of the shared monitoring producer configuration."""
+class EventBusConfig(NamedTuple):
+    """Structural view of the shared producer configuration."""
 
-    webhook_url: str
-    secret: str
-    environment: str
     instance: str
+    environment: str
+    webhook_url: str
     deployment_sha: str | None
+    secret: str
     timeout_seconds: float = 10.0
 
 
-@dataclass(frozen=True)
-class DeliveryAttempt:
-    """Typed structural view of a shared monitoring delivery receipt."""
+class DeliveryAttempt(NamedTuple):
+    """Structural view of one shared delivery receipt."""
 
-    delivery_id: str
-    success: bool
-    status_code: int | None
-    event_id: str | None
     error: str | None
+    event_id: str | None
+    status_code: int | None
+    success: bool
+    delivery_id: str
+
+
+type EventBusConfigClass = type[EventBusConfig]
+type EventBusConfigValue = EventBusConfig
 
 
 class _EventBusRuntime(Protocol):
+    EventBusConfig: EventBusConfigClass
+
     def load_event_bus_config(
         self,
         environ: Mapping[str, str] | None = None,
-    ) -> EventBusConfig | None:
+    ) -> EventBusConfigValue | None:
         """Load the shared producer configuration."""
         raise NotImplementedError
 

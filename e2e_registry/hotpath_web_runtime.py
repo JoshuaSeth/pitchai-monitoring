@@ -9,39 +9,27 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-
-class FunctionDecorator(Protocol):
-    """Typed decorator preserving one endpoint signature."""
-
-    def __call__[**Parameters, ReturnValue](
-        self,
-        endpoint: Callable[Parameters, ReturnValue],
-    ) -> Callable[Parameters, ReturnValue]:
-        """Return the registered endpoint without obscuring its type."""
-        raise NotImplementedError
-
-    def contract_name(self) -> str:
-        """Return the boundary contract name."""
-        raise NotImplementedError
+    type EndpointDecorator[**Parameters, ReturnValue] = Callable[
+        [Callable[Parameters, ReturnValue]],
+        Callable[Parameters, ReturnValue],
+    ]
 
 
 class Router(Protocol):
     """Route-registration surface consumed by hotpath monitoring."""
 
-    def get(self, path: str) -> FunctionDecorator:
-        """Create one typed GET route decorator."""
+    def post[**Parameters, ReturnValue](
+        self,
+        path: str,
+    ) -> EndpointDecorator[Parameters, ReturnValue]:
+        """Create one POST route decorator."""
         raise NotImplementedError
 
-    def post(self, path: str) -> FunctionDecorator:
-        """Create one typed POST route decorator."""
-        raise NotImplementedError
-
-
-class Application(Protocol):
-    """Application surface needed to install hotpath routes."""
-
-    def include_router(self, router_value: Router) -> None:
-        """Attach the hotpath router."""
+    def get[**Parameters, ReturnValue](
+        self,
+        path: str,
+    ) -> EndpointDecorator[Parameters, ReturnValue]:
+        """Create one GET route decorator."""
         raise NotImplementedError
 
     def contract_name(self) -> str:
@@ -49,10 +37,22 @@ class Application(Protocol):
         raise NotImplementedError
 
 
+class Application(Protocol):
+    """Host application surface needed by hotpath installation."""
+
+    def contract_name(self) -> str:
+        """Return the boundary contract name."""
+        raise NotImplementedError
+
+    def include_router(self, router_value: Router) -> None:
+        """Attach the hotpath router."""
+        raise NotImplementedError
+
+
 class _FastAPIModule(NamedTuple):
     APIRouter: Callable[[], object]
-    HTTPException: type[Exception]
     Request: type[object]
+    HTTPException: type[Exception]
 
 
 _FASTAPI = cast("_FastAPIModule", cast("object", import_module("fastapi")))
@@ -60,18 +60,11 @@ router = cast("Router", _FASTAPI.APIRouter())
 
 if TYPE_CHECKING:
 
-    class Request(Protocol):
+    class Request(NamedTuple):
         """Request fields consumed by protected hotpath routes."""
 
-        @property
-        def headers(self) -> Mapping[str, str]:
-            """Return normalized request headers."""
-            raise NotImplementedError
-
-        @property
-        def app(self) -> Application:
-            """Return the bound application."""
-            raise NotImplementedError
+        app: Application
+        headers: Mapping[str, str]
 
     class HTTPExceptionError(Exception):
         """Framework HTTP exception shape used by hotpath routes."""
@@ -81,9 +74,8 @@ if TYPE_CHECKING:
 
         def __init__(self, *, status_code: int, detail: str) -> None:
             """Initialize the typed HTTP error."""
-            super().__init__(detail)
-            self.status_code = status_code
-            self.detail = detail
+            self.status_code, self.detail = status_code, detail
+            Exception.__init__(self, detail)
 
     HTTPException = HTTPExceptionError
 

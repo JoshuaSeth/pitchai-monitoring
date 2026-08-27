@@ -6,8 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from e2e_registry.hotpath_types import load_inventory
-
+from .hotpath_contract_runtime import HOTPATH_TYPES
 from .json_types import json_object
 
 if TYPE_CHECKING:
@@ -52,7 +51,7 @@ def hotpath_dashboard_fixture() -> JsonObject:
     Returns:
         The deterministic hotpath projection consumed by headed-browser proof.
     """
-    inventory = load_inventory(str(_INVENTORY_PATH))
+    inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
     lanes: list[JsonInput] = []
     for index, lane in enumerate(inventory.lanes):
         lanes.append(

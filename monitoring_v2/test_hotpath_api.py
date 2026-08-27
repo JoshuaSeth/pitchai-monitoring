@@ -8,15 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from e2e_registry.hotpath_types import (
-    SYNTHETIC_LANE_ID,
-    SYNTHETIC_NAME,
-    SYNTHETIC_PROJECT,
-    SYNTHETIC_TARGET,
-    load_inventory,
-)
-
 from .dashboard_server import running_dashboard_server
+from .hotpath_contract_runtime import HOTPATH_TYPES
 from .json_types import json_object, object_list, optional_object
 from .network_gateway import exercise_hotpath_api
 from .testing_runtime import pytest
@@ -32,12 +25,16 @@ _ARTIFACT_SHA = "b" * 64
 _HTTP_OK = 200
 _HTTP_UNAUTHORIZED = 401
 _HTTP_FORBIDDEN = 403
+_SYNTHETIC_LANE_ID = HOTPATH_TYPES.SYNTHETIC_LANE_ID
+_SYNTHETIC_NAME = HOTPATH_TYPES.SYNTHETIC_NAME
+_SYNTHETIC_PROJECT = HOTPATH_TYPES.SYNTHETIC_PROJECT
+_SYNTHETIC_TARGET = HOTPATH_TYPES.SYNTHETIC_TARGET
 
 
 def _report_payload(*, synthetic: bool, success: bool) -> JsonObject:
-    inventory = load_inventory(str(_INVENTORY_PATH))
+    inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
     lane = inventory.lanes[0]
-    lane_id = SYNTHETIC_LANE_ID if synthetic else lane.lane_id
+    lane_id = _SYNTHETIC_LANE_ID if synthetic else lane.lane_id
     occurred_at = datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
     raw: JsonInput = {
         "artifact_receipt_sha256": _ARTIFACT_SHA,
@@ -52,9 +49,9 @@ def _report_payload(*, synthetic: bool, success: bool) -> JsonObject:
         "failure_phase": None if success else "event-path",
         "failure_reason": None if success else "Intentional safe synthetic FAIL proof.",
         "lane_id": lane_id,
-        "name": SYNTHETIC_NAME if synthetic else lane.name,
+        "name": _SYNTHETIC_NAME if synthetic else lane.name,
         "occurred_at": occurred_at,
-        "project": SYNTHETIC_PROJECT if synthetic else lane.project,
+        "project": _SYNTHETIC_PROJECT if synthetic else lane.project,
         "run_id": "manual-api-proof" if not synthetic else "synthetic-api-proof",
         "schema_version": 1,
         "severity": "info" if success else "critical",
@@ -62,7 +59,7 @@ def _report_payload(*, synthetic: bool, success: bool) -> JsonObject:
         "success": success,
         "synthetic": synthetic,
         "synthetic_scenario": "safe-fail-event-path-proof" if synthetic else None,
-        "target_surface": SYNTHETIC_TARGET if synthetic else lane.target_surface,
+        "target_surface": _SYNTHETIC_TARGET if synthetic else lane.target_surface,
     }
     return json_object(raw)
 
@@ -85,10 +82,18 @@ async def test_report_route_auth_idempotency_state_and_safe_event_intent(
             _report_payload(synthetic=True, success=False),
             _REPORTER_TOKEN,
         )
-    if receipts.anonymous.status_code != _HTTP_UNAUTHORIZED or receipts.wrong_token.status_code != _HTTP_FORBIDDEN:
+    invalid_auth = (
+        receipts.anonymous.status_code != _HTTP_UNAUTHORIZED
+        or receipts.wrong_token.status_code != _HTTP_FORBIDDEN
+    )
+    if invalid_auth:
         pytest.fail("hotpath report route accepted absent or invalid reporter authentication")
     if receipts.accepted.status_code != _HTTP_OK or receipts.synthetic.status_code != _HTTP_OK:
-        pytest.fail(f"hotpath reports were rejected: {receipts.accepted.text} / {receipts.synthetic.text}")
+        message = (
+            f"hotpath reports were rejected: "
+            f"{receipts.accepted.text} / {receipts.synthetic.text}"
+        )
+        pytest.fail(message)
     accepted_body = _body(receipts.accepted.text)
     duplicate_body = _body(receipts.duplicate.text)
     if accepted_body.get("duplicate") is not False or duplicate_body.get("duplicate") is not True:

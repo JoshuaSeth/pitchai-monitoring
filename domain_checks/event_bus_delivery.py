@@ -74,7 +74,7 @@ def build_incident_payload(
     }
     identity = hashlib.sha256(_canonical_json(payload)).hexdigest()
     payload["delivery_id"] = f"{_DELIVERY_PREFIX}{identity}"
-    _validate_payload(payload)
+    _ = _validate_payload(payload)
     return payload
 
 
@@ -102,17 +102,17 @@ def deliver_event_bus_payload(
     timestamp = str(int(time.time() if now is None else now))
     headers = {
         "content-type": "application/json",
-        SIGNATURE_HEADER: signature_for_delivery(
-            body=body,
-            secret=config.secret,
-            timestamp=timestamp,
-            delivery_id=delivery_id,
-            event_kind=event_kind,
-        ),
         DELIVERY_HEADER: delivery_id,
         TIMESTAMP_HEADER: timestamp,
         EVENT_HEADER: event_kind,
     }
+    headers[SIGNATURE_HEADER] = signature_for_delivery(
+        body=body,
+        secret=config.secret,
+        timestamp=timestamp,
+        delivery_id=delivery_id,
+        event_kind=event_kind,
+    )
     client_factory = partial(
         Client,
         headers={"User-Agent": _USER_AGENT},
@@ -145,7 +145,7 @@ def _validate_payload(payload: JsonObject) -> tuple[str, str]:
         message = "monitoring event delivery id is invalid"
         raise ValueError(message)
     identity_payload = dict(payload)
-    identity_payload.pop("delivery_id")
+    del identity_payload["delivery_id"]
     expected = f"{_DELIVERY_PREFIX}{hashlib.sha256(_canonical_json(identity_payload)).hexdigest()}"
     if delivery_id != expected:
         message = "monitoring event delivery identity does not match its immutable payload"
@@ -154,13 +154,13 @@ def _validate_payload(payload: JsonObject) -> tuple[str, str]:
 
 
 def _canonical_json(payload: JsonObject) -> bytes:
-    return json.dumps(
-        payload,
+    encoder = json.JSONEncoder(
         ensure_ascii=True,
         allow_nan=False,
         separators=(",", ":"),
         sort_keys=True,
-    ).encode()
+    )
+    return encoder.encode(payload).encode()
 
 
 def _delivery_attempt(*, delivery_id: str, response: Response) -> DeliveryAttempt:

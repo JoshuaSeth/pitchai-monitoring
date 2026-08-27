@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import time
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 from . import hotpath_web_runtime as web_runtime
 from .hotpath_config import load_hotpath_config
@@ -20,17 +20,17 @@ from .hotpath_types import (
 )
 
 if TYPE_CHECKING:
-    from dataclasses import dataclass
-
     from .hotpath_config import HotpathRuntimeConfig
     from .settings import RegistrySettings
 
-    @dataclass(frozen=True)
-    class _RegistryState:
+    class _RegistryState(NamedTuple):
+        """Typed application-state boundary for runtime configuration."""
+
         settings: RegistrySettings
 
-    @dataclass(frozen=True)
-    class _RegistryApplication:
+    class _RegistryApplication(NamedTuple):
+        """Typed application boundary exposed by a request."""
+
         state: _RegistryState
 
 _MAX_FUTURE_SKEW_SECONDS = 300.0

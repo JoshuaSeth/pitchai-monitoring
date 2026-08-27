@@ -7,16 +7,7 @@ import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from e2e_registry.hotpath_types import (
-    SYNTHETIC_LANE_ID,
-    SYNTHETIC_NAME,
-    SYNTHETIC_PROJECT,
-    SYNTHETIC_TARGET,
-    HotpathReportRequest,
-    load_inventory,
-    validate_report_identity,
-)
-
+from .hotpath_contract_runtime import HOTPATH_REPORT_MODEL, HOTPATH_TYPES
 from .json_types import float_value, json_object
 from .testing_runtime import pytest
 
@@ -30,6 +21,10 @@ _DURATION_SECONDS = 12.5
 _EXPECTED_INTERVAL_SECONDS = 172_800
 _STALE_AFTER_SECONDS = 259_200
 _INCIDENT_COOLDOWN_SECONDS = 1_800
+_SYNTHETIC_LANE_ID = HOTPATH_TYPES.SYNTHETIC_LANE_ID
+_SYNTHETIC_NAME = HOTPATH_TYPES.SYNTHETIC_NAME
+_SYNTHETIC_PROJECT = HOTPATH_TYPES.SYNTHETIC_PROJECT
+_SYNTHETIC_TARGET = HOTPATH_TYPES.SYNTHETIC_TARGET
 _REQUIRED_NAMES = {
     "AFASAsk / GZB",
     "AIGENDA Business Rules",
@@ -48,7 +43,7 @@ _REQUIRED_NAMES = {
 
 
 def _report_payload(*, success: bool = True) -> JsonObject:
-    inventory = load_inventory(str(_INVENTORY_PATH))
+    inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
     lane = inventory.lanes[0]
     raw: JsonInput = {
         "artifact_receipt_sha256": _ARTIFACT_SHA,
@@ -76,7 +71,7 @@ def _report_payload(*, success: bool = True) -> JsonObject:
 
 def test_inventory_is_the_exact_reviewed_thirteen_lane_set() -> None:
     """Keep every discovered lane, tag, reminder, and timing policy canonical."""
-    inventory = load_inventory(str(_INVENTORY_PATH))
+    inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
     names = {lane.name for lane in inventory.lanes}
     reminder_ids = {lane.reminder_id for lane in inventory.lanes}
     agent_ids = {lane.agent_global_id for lane in inventory.lanes}
@@ -100,9 +95,9 @@ def test_inventory_is_the_exact_reviewed_thirteen_lane_set() -> None:
 
 def test_real_report_binds_to_inventory_and_canonical_private_evidence() -> None:
     """Accept a complete report only when its caller identity matches inventory."""
-    inventory = load_inventory(str(_INVENTORY_PATH))
-    report = HotpathReportRequest.model_validate(_report_payload())
-    lane = validate_report_identity(report, inventory)
+    inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
+    report = HOTPATH_REPORT_MODEL.model_validate(_report_payload())
+    lane = HOTPATH_TYPES.validate_report_identity(report, inventory)
     if lane is None or lane.lane_id != report.lane_id:
         pytest.fail("valid canonical report did not bind to its lane")
     payload = report.canonical_payload()
@@ -127,7 +122,7 @@ def test_report_semantics_fail_closed() -> None:
         payload = _report_payload(success=False)
         payload.update(changes)
         with pytest.raises(ValueError) as captured:
-            _ = HotpathReportRequest.model_validate(payload)
+            _ = HOTPATH_REPORT_MODEL.model_validate(payload)
         if message not in str(captured.value):
             pytest.fail(f"missing validation detail {message!r}: {captured.value}")
 
@@ -139,16 +134,17 @@ def test_synthetic_identity_is_reserved_and_cannot_impersonate_real_state() -> N
         {
             "evidence_uri": (
                 "s3://pitchai-hotpath-artifacts/client-hotpaths/v1/"
-                f"{SYNTHETIC_LANE_ID}/{_SOURCE_SHA}/pass.json"
+                f"{_SYNTHETIC_LANE_ID}/{_SOURCE_SHA}/pass.json"
             ),
-            "lane_id": SYNTHETIC_LANE_ID,
-            "name": SYNTHETIC_NAME,
-            "project": SYNTHETIC_PROJECT,
+            "lane_id": _SYNTHETIC_LANE_ID,
+            "name": _SYNTHETIC_NAME,
+            "project": _SYNTHETIC_PROJECT,
             "synthetic": True,
             "synthetic_scenario": "safe-pass-proof",
-            "target_surface": SYNTHETIC_TARGET,
+            "target_surface": _SYNTHETIC_TARGET,
         },
     )
-    report = HotpathReportRequest.model_validate(payload)
-    if validate_report_identity(report, load_inventory(str(_INVENTORY_PATH))) is not None:
+    report = HOTPATH_REPORT_MODEL.model_validate(payload)
+    inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
+    if HOTPATH_TYPES.validate_report_identity(report, inventory) is not None:
         pytest.fail("synthetic proof unexpectedly resolved to a real lane")

@@ -10,15 +10,19 @@ from typing import TYPE_CHECKING, cast
 
 from httpx import MockTransport, Response
 
-from e2e_registry.hotpath_event_bus_runtime import EventBusConfig as HotpathEventBusConfig
-from e2e_registry.hotpath_event_gateway import EventWork, deliver_event
-
-from .event_bus_runtime import DELIVERY_RUNTIME, EventBusConfig
+from .event_bus_runtime import DELIVERY_RUNTIME, EVENT_BUS_RUNTIME
+from .hotpath_event_runtime import (
+    HOTPATH_EVENT_GATEWAY,
+    HotpathEventBusConfig,
+    HotpathEventWork,
+)
 from .json_types import optional_object, text_value
 from .testing_runtime import pytest
 
 if TYPE_CHECKING:
     from httpx import Request
+
+    from .event_bus_runtime import EventBusConfig
 
 _EVENT_TIME = 1_787_855_200.0
 _DELIVERY_TIME = _EVENT_TIME + 1.0
@@ -27,7 +31,7 @@ _ACCEPTED_STATUS = 202
 
 def _config() -> EventBusConfig:
     signing_key = hashlib.sha256(b"monitoring-delivery-test-key").hexdigest()
-    return EventBusConfig(
+    return EVENT_BUS_RUNTIME.EventBusConfig(
         webhook_url="https://pitchai.net/events-bus/webhooks/pitchai-monitoring",
         secret=signing_key,
         environment="production",
@@ -106,9 +110,9 @@ def test_gateway_rejects_payload_mutation_before_network_delivery() -> None:
 @pytest.mark.asyncio
 async def test_hotpath_adapter_uses_the_strict_shared_gateway() -> None:
     """Keep hotpath outbox delivery bound to the final shared module path."""
-    config = _config()
+    shared_config = _config()
     payload = DELIVERY_RUNTIME.build_incident_payload(
-        config,
+        shared_config,
         kind="hotpath_red",
         occurred_at=_EVENT_TIME,
         details={
@@ -118,23 +122,29 @@ async def test_hotpath_adapter_uses_the_strict_shared_gateway() -> None:
         },
     )
     delivery_id = text_value(payload.get("delivery_id"))
-    hotpath_config = HotpathEventBusConfig(
-        config.webhook_url,
-        config.secret,
-        config.environment,
-        config.instance,
-        config.deployment_sha,
-        config.timeout_seconds,
+    payload_json = json.dumps(
+        payload,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
     )
-    work = EventWork(
-        intent_id="hotpath-intent-safe-synthetic-proof",
-        event_kind="hotpath_red",
+    hotpath_config = HotpathEventBusConfig(
+        timeout_seconds=10.0,
+        deployment_sha="a" * 40,
+        instance="pytest-monitoring",
+        environment="production",
+        secret=shared_config.secret,
+        webhook_url=shared_config.webhook_url,
+    )
+    work = HotpathEventWork(
+        payload_json=payload_json,
         delivery_id=delivery_id,
-        payload_json=json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True),
+        event_kind="hotpath_red",
+        intent_id="hotpath-intent-safe-synthetic-proof",
     )
     transport_factory = partial(MockTransport, _accepted)
-
-    result = await deliver_event(
+    result = await HOTPATH_EVENT_GATEWAY.deliver_event(
         hotpath_config,
         work,
         now_ts=_DELIVERY_TIME,
