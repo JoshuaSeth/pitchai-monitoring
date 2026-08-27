@@ -104,6 +104,23 @@ async function main() {
     const reliability = object(dashboards.reliability);
     const journeys = object(dashboards.journeys);
     const dependencies = list(databases.items);
+    const containerProjection = object(infrastructure.containers);
+    const containerItems = list(containerProjection.items);
+    const containerCounts = object(containerProjection.counts);
+    const containerTotal = Number(containerCounts.total);
+    const containerRestartTotal = Number(containerProjection.restart_total);
+    const hasLiveContainerRows =
+      containerProjection.data_state === 'available' &&
+      containerItems.length > 0 &&
+      Number.isInteger(containerTotal) &&
+      containerTotal === containerItems.length;
+    const hasLiveContainerSummary =
+      containerProjection.data_state === 'summary_only' &&
+      containerItems.length === 0 &&
+      Number.isInteger(containerTotal) &&
+      containerTotal > 0 &&
+      Number.isInteger(containerRestartTotal) &&
+      containerRestartTotal >= 0;
     assert.equal(domains.length, EXPECTED_DOMAINS, 'live domain inventory count changed');
     assert.equal(groups.length, EXPECTED_GROUPS, 'live domain group count changed');
     assert.deepEqual(Object.keys(dashboards).sort(), ['databases', 'infrastructure', 'journeys', 'reliability']);
@@ -111,7 +128,10 @@ async function main() {
     assert.equal(databases.data_state, 'live', 'database dependency state is not live');
     assert.ok(dependencies.length > 0, 'database dependency inventory is empty');
     assert.equal(object(infrastructure.polling).dashboard_extra_probes, 0, 'dashboard introduced extra infrastructure probes');
-    assert.ok(list(object(infrastructure.containers).items).length > 0, 'infrastructure tab has no live containers');
+    assert.ok(
+      hasLiveContainerRows || hasLiveContainerSummary,
+      'infrastructure tab has neither current container rows nor a current retained container summary',
+    );
     assert.ok(list(reliability.groups).length > 0, 'reliability tab has no live groups');
     assert.ok(list(journeys.items).length > 0, 'journeys tab has no live registry rows');
 
@@ -153,7 +173,10 @@ async function main() {
       databaseDependencies: dependencies.length,
       databaseCollector: databases.collector_status,
       databaseDataState: databases.data_state,
-      infrastructureContainers: list(object(infrastructure.containers).items).length,
+      infrastructureDataState: containerProjection.data_state,
+      infrastructureContainers: containerItems.length,
+      infrastructureTracked: containerTotal,
+      infrastructureRestartTotal: containerRestartTotal,
       reliabilityGroups: list(reliability.groups).length,
       journeys: list(journeys.items).length,
       mobileViewport,
