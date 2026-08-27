@@ -150,9 +150,13 @@ async function main() {
 
     const tabs = await verifyTabs(page);
     await page.click('#tab-databases');
-    const databaseText = await page.$eval('#panel-databases', (panel) => panel.innerText);
+    const databasePanel = await page.$eval('#panel-databases', (panel) => ({
+      hidden: panel.hidden,
+      text: panel.innerText.toLowerCase(),
+    }));
+    assert.equal(databasePanel.hidden, false, 'database panel was not visible for copy verification');
     for (const expected of ['Runtime credentials / grants', 'PgBouncer/tunnel', 'query-permission', 'Credential state']) {
-      assert.ok(databaseText.includes(expected), 'database panel omitted ' + expected);
+      assert.ok(databasePanel.text.includes(expected.toLowerCase()), 'database panel omitted ' + expected);
     }
     const incidentCount = await verifyIncidentDisclosure(page);
     const mobileViewport = await verifyMobileFit(page);
