@@ -1,0 +1,5 @@
+{% extends "layouts/base.html" %}
+{% from "components/infrastructure.html" import infrastructure_workspace %}
+{% block content %}
+  {{ infrastructure_workspace(scenario) }}
+{% endblock %}
