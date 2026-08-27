@@ -10,7 +10,7 @@ const IDENTITY = process.env.MONITORING_DASHBOARD_IDENTITY || 'info@pitchai.net'
 const EXPECTED_SHA = process.env.MONITORING_DASHBOARD_EXPECTED_SHA || 'unknown';
 const SCREENSHOT_PATH = '/tmp/monitoring-live-dashboard-proof.png';
 const SUMMARY_FETCH_TIMEOUT_MS = 30000;
-const REQUIRED_TABS = ['domains', 'databases', 'infrastructure', 'reliability', 'journeys'];
+const REQUIRED_TABS = ['domains', 'databases', 'infrastructure', 'reliability', 'journeys', 'hotpaths'];
 const REQUIRED_UNIMIX_DOMAINS = ['unimixbrasil.com.br', 'www.unimixbrasil.com.br'];
 
 function object(value) {
