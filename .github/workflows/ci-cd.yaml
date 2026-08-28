@@ -429,6 +429,8 @@ jobs:
               -e MONITORING_DASHBOARD_BASE_URL="http://127.0.0.1:8111" \
               -e MONITORING_DASHBOARD_IDENTITY="info@pitchai.net" \
               -e MONITORING_DASHBOARD_EXPECTED_SHA="${{ github.sha }}" \
+              -e MONITORING_DASHBOARD_EXPECTED_DOMAINS="69" \
+              -e MONITORING_DASHBOARD_EXPECTED_GROUPS="16" \
               "$REGISTRY_NAME" \
               node - < scripts/verify-live-dashboard.cjs
 
