@@ -30,7 +30,8 @@ CHECK = {
             "steps": [
                 {"type": "goto"},
                 {"type": "click", "selector": "a[href=\"/diary\"]"},
-                {"type": "expect_url_contains", "value": "/diary"},
+                {"type": "expect_url_contains", "value": "/login-page?next=%2Fdiary"},
+                {"type": "wait_for_selector", "selector": "text=Log in bij DePlanBook", "state": "visible"},
             ],
         }
     ],
