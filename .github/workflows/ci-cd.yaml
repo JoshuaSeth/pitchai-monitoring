@@ -27,7 +27,7 @@ jobs:
           sudo rm -rf "$GITHUB_WORKSPACE"/* "$GITHUB_WORKSPACE"/.[!.]* "$GITHUB_WORKSPACE"/..?* || true
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Build test image
         run: docker build -t service-monitoring:ci .
@@ -45,7 +45,7 @@ jobs:
     needs: test
     steps:
       - name: Deploy to production (SSH + Docker)
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
@@ -58,6 +58,7 @@ jobs:
             OLD_NAME="monitoring"
             REGISTRY_NAME="e2e-registry"
             RUNNER_NAME="e2e-runner"
+            DB_MONITOR_NAME="database-dependency-monitor"
             NET_NAME="pitchai-shared"
             IMAGE_SHA="service-monitoring:${{ github.sha }}"
             IMAGE_LATEST="service-monitoring:latest"
@@ -68,7 +69,7 @@ jobs:
               exit 1
             fi
 
-            echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} @ ${{ github.sha }}"
+            echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} + ${DB_MONITOR_NAME} @ ${{ github.sha }}"
 
             DEPLOY_DIR="/tmp/${APP_NAME}-deploy-${{ github.run_id }}-${{ github.run_attempt }}"
             mkdir -p "$DEPLOY_DIR"
@@ -107,6 +108,7 @@ jobs:
             stop_rm_if_exists "$APP_NAME"
             stop_rm_if_exists "$REGISTRY_NAME"
             stop_rm_if_exists "$RUNNER_NAME"
+            stop_rm_if_exists "$DB_MONITOR_NAME"
 
             echo "🔨 Building image..."
             docker build -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
@@ -125,10 +127,12 @@ jobs:
               admin="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
               monitor="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
               runner="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+              hotpath="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
               {
                 echo "E2E_REGISTRY_ADMIN_TOKEN=${admin}"
                 echo "E2E_REGISTRY_MONITOR_TOKEN=${monitor}"
                 echo "E2E_REGISTRY_RUNNER_TOKEN=${runner}"
+                echo "E2E_HOTPATH_REPORTER_TOKEN=${hotpath}"
                 echo "E2E_REGISTRY_DB_PATH=/data/e2e-registry.db"
                 echo "E2E_ARTIFACTS_DIR=/artifacts"
                 echo "E2E_TESTS_DIR=/data/e2e-tests"
@@ -149,9 +153,29 @@ jobs:
             if ! grep -qE '^E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=' "$E2E_ENV_FILE"; then
               echo "E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=1" >>"$E2E_ENV_FILE"
             fi
+            if ! grep -qE '^E2E_HOTPATH_REPORTER_TOKEN=' "$E2E_ENV_FILE"; then
+              hotpath="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+              echo "E2E_HOTPATH_REPORTER_TOKEN=${hotpath}" >>"$E2E_ENV_FILE"
+            fi
+            chmod 600 "$E2E_ENV_FILE"
             E2E_MONITOR_TOKEN="$(grep -E '^E2E_REGISTRY_MONITOR_TOKEN=' "$E2E_ENV_FILE" | head -n1 | cut -d= -f2-)"
             if [[ -z "${E2E_MONITOR_TOKEN}" ]]; then
               echo "❌ Missing E2E_REGISTRY_MONITOR_TOKEN in $E2E_ENV_FILE"
+              exit 1
+            fi
+            E2E_HOTPATH_REPORTER_TOKEN="$(grep -E '^E2E_HOTPATH_REPORTER_TOKEN=' "$E2E_ENV_FILE" | head -n1 | cut -d= -f2-)"
+            if [[ "${#E2E_HOTPATH_REPORTER_TOKEN}" -lt 32 ]]; then
+              echo "❌ Missing or invalid E2E_HOTPATH_REPORTER_TOKEN in $E2E_ENV_FILE"
+              exit 1
+            fi
+            HOTPATH_REPORTER_TOKEN_FILE="$SECRETS_DIR/hotpath-reporter.token"
+            hotpath_token_tmp="$(mktemp "$SECRETS_DIR/.hotpath-reporter.token.XXXXXX")"
+            printf '%s\n' "$E2E_HOTPATH_REPORTER_TOKEN" >"$hotpath_token_tmp"
+            chmod 600 "$hotpath_token_tmp"
+            mv -f -- "$hotpath_token_tmp" "$HOTPATH_REPORTER_TOKEN_FILE"
+            if [[ "$(stat -c '%a' "$HOTPATH_REPORTER_TOKEN_FILE")" != "600" ]] || \
+              ! cmp -s <(printf '%s\n' "$E2E_HOTPATH_REPORTER_TOKEN") "$HOTPATH_REPORTER_TOKEN_FILE"; then
+              echo "❌ Dedicated hotpath reporter token file verification failed"
               exit 1
             fi
             AFASASK_MONITOR_ENV_FILE="$SECRETS_DIR/afasask-monitor.env"
@@ -180,7 +204,14 @@ jobs:
               -v e2e-registry-data:/data \
               -v e2e-artifacts:/artifacts \
               --env-file "$E2E_ENV_FILE" \
+              -e E2E_REGISTRY_HOST="0.0.0.0" \
               -e SERVICE_MONITOR_STATE_PATH="/monitor_state/state.json" \
+              -e DATABASE_DEPENDENCY_STATE_PATH="/monitor_state/database-dependencies.json" \
+              -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
+              -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
+              -e PITCHAI_MONITORING_ENVIRONMENT="production" \
+              -e PITCHAI_MONITORING_INSTANCE="pitchai-main-hotpaths" \
+              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
               -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
@@ -230,6 +261,29 @@ jobs:
               -e AFASASK_MONITOR_TOKEN="${AFASASK_MONITOR_TOKEN}" \
               "$IMAGE_SHA"
 
+            echo "🚀 Starting database dependency monitor..."
+            docker run -d \
+              --name "$DB_MONITOR_NAME" \
+              --restart unless-stopped \
+              --init \
+              --network "$NET_NAME" \
+              --read-only \
+              --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+              -v service-monitoring-state:/data \
+              -v /var/run/docker.sock:/var/run/docker.sock:ro \
+              -v /etc/nginx/conf.d:/routing/nginx-conf:ro \
+              -e PYTHONDONTWRITEBYTECODE="1" \
+              -e DATABASE_DEPENDENCY_STATE_PATH="/data/database-dependencies.json" \
+              -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
+              -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
+              -e PITCHAI_MONITORING_ENVIRONMENT="production" \
+              -e PITCHAI_MONITORING_INSTANCE="pitchai-main-database-dependencies" \
+              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
+              -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+              -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
+              "$IMAGE_SHA" \
+              python -m monitoring_v2.main
+
             echo "⏳ Waiting for startup..."
             sleep 10
 
@@ -247,7 +301,7 @@ jobs:
             }
 
             for stability_check in 1 2; do
-              for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME"; do
+              for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME" "$DB_MONITOR_NAME"; do
                 assert_container_stable "$name"
               done
               if [[ "$stability_check" == "1" ]]; then
@@ -257,12 +311,34 @@ jobs:
 
             docker exec "$APP_NAME" python -c \
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
+            docker exec "$REGISTRY_NAME" python -c \
+              'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
+            docker exec "$REGISTRY_NAME" python -c \
+              'import os; assert len(os.environ.get("E2E_HOTPATH_REPORTER_TOKEN", "")) >= 32'
+
+            echo "⏳ Waiting for the first database dependency snapshot..."
+            db_snapshot_ready="false"
+            for attempt in $(seq 1 36); do
+              if docker exec "$DB_MONITOR_NAME" python -c \
+                'import json; from pathlib import Path; state=json.loads(Path("/data/database-dependencies.json").read_text()); assert state["version"] == 2; assert state["collector"]["status"] == "healthy"; assert state["generated_at_ts"] > 0; assert len(state["dependencies"]) > 0' \
+                >/dev/null 2>&1; then
+                db_snapshot_ready="true"
+                break
+              fi
+              sleep 5
+            done
+            if [[ "$db_snapshot_ready" != "true" ]]; then
+              echo "❌ Database dependency monitor did not produce a healthy v2 snapshot"
+              docker logs "$DB_MONITOR_NAME" --tail 200 || true
+              exit 1
+            fi
 
             echo "✅ Containers running"
-            docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}"
+            docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}|${DB_MONITOR_NAME}"
             docker logs "$REGISTRY_NAME" --tail 40 || true
             docker logs "$RUNNER_NAME" --tail 40 || true
             docker logs "$APP_NAME" --tail 80 || true
+            docker logs "$DB_MONITOR_NAME" --tail 80 || true
 
             cd /
             rm -rf "$DEPLOY_DIR"

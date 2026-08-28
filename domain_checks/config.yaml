@@ -1,7 +1,7 @@
 interval_seconds: 60
 # Limits overall parallelism across domains (HTTP + browser). Helps avoid false positives during load spikes.
 check_concurrency: 25
-browser_concurrency: 1
+browser_concurrency: 4
 
 # Reduce noise from transient network/browser hiccups:
 # - Mark a domain DOWN only after N consecutive failing cycles.
@@ -151,25 +151,629 @@ container_health:
   monitor_all: false
   include_name_patterns:
     - "^service-monitoring$"
-    - "^pitchai-codex-dispatcher$"
+    - "^database-dependency-monitor$"
     - "^e2e-registry$"
     - "^e2e-runner$"
-    - "^autopar$"
-    - "^autopar-auth$"
+    - "^registry$"
     - "^afasask$"
     - "^afasask-demo$"
-    - "^afasask-quick-chat$"
-    - "^aipc$"
-    - "^aipc-stable$"
+    - "^afasask-quick-chat(?:-staging)?$"
+    - "^afas-sync$"
+    - "^pgbouncer-(?:afasask|autopar|potaito)$"
+    - "^autopar$"
+    - "^autopar-auth$"
+    - "^autopar-staging-(?:web|db)$"
+    - "^aigenda-webapp(?:-monitor)?$"
+    - "^codex-cowork-webapp$"
+    - "^apologetica-wagtail-staging(?:-db)?$"
+    - "^potaito-web-harvest$"
+    - "^potai-staging$"
+    - "^aipc-(?:skybuyfly-(?:primary|backup)|crawler|match-dependent-ops|product-image-refresher|qdrant-sync|search-derived-fields|meilisync)$"
+    - "^(?:qdrant|meilisearch|pgbouncer-aipc)$"
     - "^skybuyfly-quick-chat$"
-    - "^deplanbook-play$"
+    - "^deplanbook-play(?:-blue|-green)?$"
     - "^deplanbook-cms$"
+    - "^deplanbook-(?:libretranslate|db-proxy)$"
+    - "^pgbouncer-deplanbook$"
+    - "^twofa-server-prod$"
+    - "^dft-web-app(?:-green|-staging|-staging-spend-enabled)?$"
+    - "^staging-temp-web$"
+    - "^dft-worker(?:-green|-staging|-staging-spend-enabled)?$"
+    - "^dft-batch-progress-redis(?:-main-candidate|-staging|-staging-spend-enabled|-staging-temp-bas)?$"
+    - "^dft-llm-mock-openai-staging$"
+    - "^meilisearch-formatief-toetsen$"
+    - "^meilisync-formatief-toetsen(?:-staging)?$"
+    - "^pgbouncer-dft(?:-staging)?$"
+    - "^orthoparse-(?:web-app(?:-green)?|ceph-worker|worker(?:-green)?)$"
+    - "^pgbouncer-orthoparse$"
+    - "^pitchai-onboarding-course-onboarding-course-1$"
+    - "^pitchai-breakglass-web-terminal$"
+    - "^quickchat-rsr-demo$"
   exclude_name_patterns: []
   timeout_seconds: 3
   down_after_failures: 2
   up_after_successes: 1
   dispatch_on_degraded: true
   notify_on_recovery: false
+
+# First-class database dependency monitoring. The sidecar executes one bounded,
+# read-only probe inside each database-backed production app container so the
+# exact runtime credential and network/PgBouncer path are exercised. It never
+# copies DSNs, passwords, query results, or raw container environment values into
+# monitoring state or logs.
+database_dependencies:
+  enabled: true
+  interval_seconds: 300
+  timeout_seconds: 12
+  down_after_failures: 2
+  up_after_successes: 2
+  max_parallel_probes: 4
+  docker_socket_path: /var/run/docker.sock
+  state_path: /data/database-dependencies.json
+  python_executable: python
+  environment_key_patterns:
+    - '^(?:[A-Z0-9]+_)*(?:DATABASE|DB)(?:_[A-Z0-9]+)*(?:_URL|_URI|_DSN|_PATH)$'
+  environment_key_exclude_patterns:
+    - '(?:ADMIN|ALEMBIC|DIRECT|MIGRATION|SHADOW|STAGING|TEST)'
+  exclude_name_patterns:
+    - '^service-monitoring$'
+    - '^database-dependency-monitor$'
+    - '(^|[-_])(?:demo|deprecated|rehearsal|rollback|staging|test)(?:[-_]|$)'
+    - '^(?:postgres|pgbouncer|redis|qdrant|meilisearch|libretranslate)(?:[-_].*)?$'
+    - '^(?:apologetica-wagtail-staging|potai-staging)$'
+  routing_policies:
+    - id: dft-blue-green
+      kind: http_header
+      source: https://formatief-toetsen.pitchai.net/healthz
+      header_name: X-DFT-Blue-Green
+      slots: [blue, green]
+    - id: orthoparse-blue-green
+      kind: http_header
+      source: https://orthoparse.pitchai.net/healthz
+      header_name: X-Orthoparse-Blue-Green
+      slots: [blue, green]
+    - id: deplanbook-blue-green
+      kind: nginx_upstream_file
+      source: /routing/nginx-conf/deplanbook-play-upstream.conf
+      slots: [legacy, blue, green]
+      slot_ports: {legacy: 3140, blue: 13140, green: 13141}
+  rules:
+    - id: autopar-primary
+      container_pattern: '^autopar$'
+      app_name: AutoPAR
+      owner_project: AutoPAR
+      database_label: Production PostgreSQL via AutoPAR runtime/PgBouncer
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: autopar-primary
+      domains: [autopar.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:sync_engine
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks:
+        - caseanalysisstate
+        - meditlinkcase
+        - meditlinkuser
+        - overjet_details
+        - serverstate
+        - patient_longitudinal_pairs
+        - dashboard_overview_case_facts
+        - dashboard_overview_pair_candidates
+        - dashboard_policy_trajectory_denominator
+      alert_group: autopar-production-database
+      likely_fix_path: Restore LOGIN/password on the AutoPAR runtime role, then restore AutoPAR schema/table/materialized-view grants and verify the PgBouncer route.
+    - id: autopar-auth
+      container_pattern: '^autopar-auth$'
+      app_name: AutoPAR authentication
+      owner_project: AutoPAR
+      database_label: Production PostgreSQL via AutoPAR auth runtime
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: autopar-auth
+      domains: [auth.autopar.pitchai.net, autopar.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:sync_engine
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [meditlinkuser]
+      alert_group: autopar-production-database
+      likely_fix_path: Restore the AutoPAR auth runtime role LOGIN/password and SELECT grant, then verify its mounted runtime config and PgBouncer path.
+    - id: autopar-dashboard-refresh
+      container_pattern: '^autopar-dashboard-mv-refresh$'
+      app_name: AutoPAR dashboard refresh
+      owner_project: AutoPAR
+      database_label: AutoPAR dashboard materialized-view chain
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [autopar.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:sync_engine
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks:
+        - patient_longitudinal_pairs
+        - dashboard_overview_case_facts
+        - dashboard_overview_pair_candidates
+        - dashboard_policy_trajectory_denominator
+      alert_group: autopar-dashboard-refresh
+      likely_fix_path: Restore runtime-role read grants and the refresher role's materialized-view refresh grants; then run the AutoPAR dashboard runtime verifier.
+    - id: autopar-production-worker
+      container_pattern: '^autopar-'
+      app_name: AutoPAR production worker
+      owner_project: AutoPAR
+      database_label: AutoPAR production PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [autopar.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:sync_engine
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [caseanalysisstate]
+      alert_group: autopar-production-workers
+      likely_fix_path: Verify the worker's mounted runtime config, runtime-role LOGIN/password, PgBouncer route, and SELECT/UPDATE grants.
+    - id: afasask-primary
+      container_pattern: '^afasask$'
+      app_name: AFASAsk
+      owner_project: AFASAsk
+      database_label: AFASAsk production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: afasask-primary
+      domains: [afasask.pitchai.net, afasask.gzb.nl]
+      connection_mode: sqlalchemy_url
+      environment_keys: [AFASASK_DATABASE_URL, DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [pipeline_session, conversation_message_log, org_signal_run]
+      alert_group: afasask-production-database
+      likely_fix_path: Verify the AFASAsk runtime DB credential, database route, schema USAGE, and application relation grants.
+    - id: skybuyfly-primary
+      container_pattern: '^aipc-skybuyfly-primary$'
+      app_name: SkyBuyFly primary
+      owner_project: AIPC / SkyBuyFly
+      database_label: SkyBuyFly primary PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: skybuyfly-primary
+      domains: [skybuyfly.pitchai.net]
+      connection_mode: sqlalchemy_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [product, users, user_sessions]
+      alert_group: skybuyfly-primary-database
+      likely_fix_path: Verify the primary AIPC runtime credential and PgBouncer/tunnel, then restore schema and relation grants for the runtime role.
+    - id: skybuyfly-stable
+      container_pattern: '^aipc-stable$'
+      app_name: SkyBuyFly stable
+      owner_project: AIPC / SkyBuyFly
+      database_label: SkyBuyFly stable PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [stable.skybuyfly.pitchai.net]
+      connection_mode: sqlalchemy_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [product, users, user_sessions]
+      alert_group: skybuyfly-stable-database
+      likely_fix_path: Verify the stable AIPC runtime credential, PgBouncer/tunnel, and schema/relation grants before promotion.
+    - id: dft-web-blue
+      container_pattern: '^dft-web-app$'
+      app_name: Formatief Toetsen
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: dft-web
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [auth_users, formative_flows, system_status_banners]
+      routing_policy_id: dft-blue-green
+      traffic_slot: blue
+      alert_group: dft-production-database
+      likely_fix_path: Verify the DFT web runtime credential and PgBouncer route, then restore schema and application table grants.
+    - id: dft-web-green
+      container_pattern: '^dft-web-app-green$'
+      app_name: Formatief Toetsen
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: dft-web
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [auth_users, formative_flows, system_status_banners]
+      routing_policy_id: dft-blue-green
+      traffic_slot: green
+      alert_group: dft-production-database
+      likely_fix_path: Verify the green DFT web runtime credential and PgBouncer route, then restore schema and application table grants before promotion.
+    - id: dft-worker-blue
+      container_pattern: '^dft-worker$'
+      app_name: Formatief Toetsen worker
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: dft-worker
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [formative_flows]
+      routing_policy_id: dft-blue-green
+      traffic_slot: blue
+      alert_group: dft-production-database
+      likely_fix_path: Verify the active DFT worker runtime credential, PgBouncer route, and formative-flow grants.
+    - id: dft-worker-green
+      container_pattern: '^dft-worker-green$'
+      app_name: Formatief Toetsen worker
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: dft-worker
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [formative_flows]
+      routing_policy_id: dft-blue-green
+      traffic_slot: green
+      alert_group: dft-production-database
+      likely_fix_path: Verify the green DFT worker runtime credential, PgBouncer route, and formative-flow grants before promotion.
+    - id: deplanbook-legacy
+      container_pattern: '^deplanbook-play$'
+      app_name: DePlanBook
+      owner_project: DePlanBook
+      database_label: DePlanBook production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: deplanbook-app
+      domains: [deplanbook.com, deplanbook.pitchai.net, dpb.pitchai.net]
+      connection_mode: asyncpg_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [user, foodlogentry, activitylogentry]
+      routing_policy_id: deplanbook-blue-green
+      traffic_slot: legacy
+      alert_group: deplanbook-production-database
+      likely_fix_path: Verify the DePlanBook app runtime credential, DB proxy/PgBouncer path, and schema/table grants.
+    - id: deplanbook-blue
+      container_pattern: '^deplanbook-play-blue$'
+      app_name: DePlanBook
+      owner_project: DePlanBook
+      database_label: DePlanBook production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: deplanbook-app
+      domains: [deplanbook.com, deplanbook.pitchai.net, dpb.pitchai.net]
+      connection_mode: asyncpg_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [user, foodlogentry, activitylogentry]
+      routing_policy_id: deplanbook-blue-green
+      traffic_slot: blue
+      alert_group: deplanbook-production-database
+      likely_fix_path: Verify the blue DePlanBook runtime credential, DB proxy path, and application table grants.
+    - id: deplanbook-green
+      container_pattern: '^deplanbook-play-green$'
+      app_name: DePlanBook
+      owner_project: DePlanBook
+      database_label: DePlanBook production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: deplanbook-app
+      domains: [deplanbook.com, deplanbook.pitchai.net, dpb.pitchai.net]
+      connection_mode: asyncpg_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [user, foodlogentry, activitylogentry]
+      routing_policy_id: deplanbook-blue-green
+      traffic_slot: green
+      alert_group: deplanbook-production-database
+      likely_fix_path: Verify the green DePlanBook runtime credential, DB proxy path, and application table grants.
+    - id: deplanbook-cms
+      container_pattern: '^deplanbook-cms$'
+      app_name: DePlanBook CMS
+      owner_project: DePlanBook
+      database_label: DePlanBook CMS database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: deplanbook-cms
+      domains: [cms.deplanbook.com]
+      connection_mode: sqlite
+      environment_keys: [SQLITE_DB_PATH]
+      file_environment_keys: []
+      default_sqlite_path: /data/db.sqlite3
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [django_migrations, wagtailcore_page]
+      alert_group: deplanbook-cms-database
+      likely_fix_path: Verify the CMS runtime database path/credential and filesystem/database read permission.
+    - id: orthoparse-web-blue
+      container_pattern: '^orthoparse-web-app$'
+      app_name: Orthoparse
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: orthoparse-web
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [ortho_users, orthoparse_cases, orthoparse_pipeline_runs]
+      routing_policy_id: orthoparse-blue-green
+      traffic_slot: blue
+      alert_group: orthoparse-production-database
+      likely_fix_path: Verify the Orthoparse runtime credential and PgBouncer route, then restore schema and application relation grants.
+    - id: orthoparse-web-green
+      container_pattern: '^orthoparse-web-app-green$'
+      app_name: Orthoparse
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: orthoparse-web
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [ortho_users, orthoparse_cases, orthoparse_pipeline_runs]
+      routing_policy_id: orthoparse-blue-green
+      traffic_slot: green
+      alert_group: orthoparse-production-database
+      likely_fix_path: Verify the green Orthoparse runtime credential and PgBouncer route, then restore schema and application relation grants before promotion.
+    - id: orthoparse-worker-blue
+      container_pattern: '^orthoparse-worker$'
+      app_name: Orthoparse worker
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: orthoparse-worker
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [orthoparse_cases, orthoparse_pipeline_runs]
+      routing_policy_id: orthoparse-blue-green
+      traffic_slot: blue
+      alert_group: orthoparse-production-database
+      likely_fix_path: Verify the active Orthoparse worker runtime credential, PgBouncer route, and pipeline grants.
+    - id: orthoparse-worker-green
+      container_pattern: '^orthoparse-worker-green$'
+      app_name: Orthoparse worker
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: orthoparse-worker
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [orthoparse_cases, orthoparse_pipeline_runs]
+      routing_policy_id: orthoparse-blue-green
+      traffic_slot: green
+      alert_group: orthoparse-production-database
+      likely_fix_path: Verify the green Orthoparse worker runtime credential, PgBouncer route, and pipeline grants before promotion.
+    - id: potaito-model-lab
+      container_pattern: '^potaito-web-harvest$'
+      app_name: Potaito
+      owner_project: Potaito
+      database_label: Potaito model-lab SQLite registry
+      environment: production
+      critical: false
+      telegram_enabled: false
+      required_group: potaito-model-lab
+      domains: [potaito.pitchai.net, aardappelprijs.nl]
+      connection_mode: sqlite
+      environment_keys: [POTATO_MODEL_LAB_DB_PATH]
+      file_environment_keys: []
+      default_sqlite_path: /data/model_lab/model_lab.sqlite3
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [model_registry_models]
+      alert_group: potaito-model-lab-database
+      likely_fix_path: Verify the Potaito model-lab volume and SQLite read permission; this dashboard-only store does not page Telegram.
+    - id: twofa-primary
+      container_pattern: '^twofa-server-prod$'
+      app_name: PitchAI 2FA
+      owner_project: PitchAI infrastructure
+      database_label: 2FA production database
+      environment: production
+      critical: true
+      telegram_enabled: true
+      required_group: twofa-primary
+      domains: [2fa-server.37.27.67.52.nip.io]
+      connection_mode: sqlalchemy_url
+      environment_keys: [TWOFA_DATABASE_URL, DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [totp_entries, api_tokens, audit_events]
+      alert_group: twofa-production-database
+      likely_fix_path: Verify the 2FA runtime database path/credential and database read permission without rotating unrelated secrets.
+    - id: onboarding-primary
+      container_pattern: '^pitchai-onboarding-course-onboarding-course-1$'
+      app_name: PitchAI onboarding course
+      owner_project: PitchAI infrastructure
+      database_label: Onboarding application database
+      environment: production
+      critical: false
+      telegram_enabled: false
+      required_group: onboarding-primary
+      domains: [onboarding-course.pitchai.net]
+      connection_mode: sqlite
+      environment_keys: [PITCHAI_COURSE_DATABASE_PATH]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [schema_migrations, accounts, mission_progress]
+      alert_group: onboarding-course-database
+      likely_fix_path: Verify the onboarding runtime SQLite path and relation readability; this dashboard-only surface does not page Telegram.
+    - id: e2e-registry-state
+      container_pattern: '^e2e-registry$'
+      app_name: E2E registry
+      owner_project: PitchAI monitoring
+      database_label: E2E registry SQLite state
+      environment: production
+      critical: false
+      telegram_enabled: false
+      required_group: e2e-registry
+      domains: [monitoring.pitchai.net]
+      connection_mode: sqlite
+      environment_keys: [E2E_REGISTRY_DB_PATH]
+      file_environment_keys: []
+      default_sqlite_path: /data/e2e-registry.db
+      engine_callable: false
+      schema_checks: []
+      relation_checks: [schema_meta, tests, runs]
+      alert_group: e2e-registry-database
+      likely_fix_path: Verify the registry data-volume mount and SQLite file read/write ownership, then inspect registry logs.
+    - id: dft-production-component
+      container_pattern: '^dft-'
+      app_name: DFT production component
+      owner_project: DFT
+      database_label: DFT production PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [formatief-toetsen.pitchai.net]
+      connection_mode: psycopg_url
+      environment_keys: [DFT_WEB_DATABASE_URL]
+      file_environment_keys: [DFT_WEB_DATABASE_URL_FILE]
+      default_credential_path: /run/credentials/dft-web-database-url
+      engine_callable: false
+      sync_driver: psycopg
+      schema_checks: [public]
+      relation_checks: [formative_flows]
+      alert_group: dft-production-components
+      likely_fix_path: Verify this DFT component's runtime credential, PgBouncer route, and least-privilege grants.
+    - id: orthoparse-production-component
+      container_pattern: '^orthoparse-'
+      app_name: Orthoparse production component
+      owner_project: Orthoparse
+      database_label: Orthoparse production PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [orthoparse.pitchai.net]
+      connection_mode: engine
+      environment_keys: []
+      file_environment_keys: []
+      engine_attr: web_app.db:get_engine
+      engine_callable: true
+      schema_checks: [public]
+      relation_checks: [orthoparse_cases]
+      alert_group: orthoparse-production-components
+      likely_fix_path: Verify this Orthoparse component's runtime credential, PgBouncer route, and least-privilege grants.
+    - id: aipc-production-component
+      container_pattern: '^aipc-'
+      app_name: AIPC production component
+      owner_project: AIPC / SkyBuyFly
+      database_label: AIPC production PostgreSQL
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: [skybuyfly.pitchai.net]
+      connection_mode: sqlalchemy_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: [product]
+      alert_group: aipc-production-components
+      likely_fix_path: Verify this component's runtime credential, database/PgBouncer/tunnel route, and least-privilege grants.
+    - id: discovered-production
+      container_pattern: '.*'
+      app_name: Discovered production database consumer
+      owner_project: PitchAI platform / ownership review
+      database_label: Discovered runtime database
+      environment: production
+      critical: false
+      telegram_enabled: false
+      domains: []
+      connection_mode: sqlalchemy_url
+      environment_keys: [DATABASE_URL]
+      file_environment_keys: []
+      engine_callable: false
+      schema_checks: [public]
+      relation_checks: []
+      alert_group: discovered-production-database
+      likely_fix_path: Assign the owning project, confirm whether this is a critical production dependency, and verify its runtime credential and grants.
 
 # Reverse proxy / failover monitoring (uses upstream headers + optional Nginx logs).
 proxy:
@@ -217,18 +821,963 @@ external_e2e:
   monitor_token: ""
   timeout_seconds: 8
 
-# Domains to check every minute.
-# For each domain, add `domain_checks/<domain>/check.py` defining the element checks.
+# Reviewed domain inventory. This is the single source consumed by the minute
+# monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
+inventory:
+  version: 1
+  reviewed_at: "2026-08-27"
+  authoritative_sources:
+    - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
+    - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
+    - "pitchai-main, pitchai-dev, file-storage, Jeff, AX41 and DFT ingress/runtime"
+    - "last-nine-day live-agent, PM DB, repository and deployment evidence sweep"
+    - "current production monitoring routes and deep-check plugins"
+    - "PitchAI live-agent/app-server registry and tools portal routing"
+    - "live public DNS, TLS, HTTP and container/service contract probes (2026-08-27)"
+    - "known client deployment zones"
+    - "Unimix repair confirmation and live public probes (2026-08-27)"
+
+domain_groups:
+  corporate:
+    label: "PitchAI public web"
+    description: "Corporate website and public asset edge"
+    order: 10
+  platform-apps:
+    label: "Platform apps"
+    description: "PitchAI chat, navigation and document applications"
+    order: 20
+  operations:
+    label: "Operations & identity"
+    description: "SSO portals, internal tools and operator surfaces"
+    order: 30
+  infrastructure:
+    label: "Platform infrastructure"
+    description: "Health, privacy, storage, registry and owned service routes"
+    order: 40
+  afasask:
+    label: "AFASAsk"
+    description: "Production, demo, staging and GZB deployments"
+    order: 50
+  autopar:
+    label: "AutoPAR"
+    description: "Production and staging application/authentication routes"
+    order: 60
+  dft:
+    label: "Formatief Toetsen (DFT)"
+    description: "Canonical production, staging and marketing routes"
+    order: 70
+  potaito:
+    label: "Potaito"
+    description: "Potaito production, staging and Potato market-product routes"
+    order: 80
+  skybuyfly:
+    label: "SkyBuyFly"
+    description: "Primary and stable production lanes"
+    order: 90
+  deplanbook:
+    label: "DePlanbook"
+    description: "PitchAI aliases, public app and CMS"
+    order: 100
+  hetcis:
+    label: "HetCIS"
+    description: "Public production site and PitchAI staging service"
+    order: 110
+  learning-demos:
+    label: "Learning & demos"
+    description: "Courses, demos and staging content applications"
+    order: 120
+  aigenda-calendar:
+    label: "AIGENDA calendar"
+    description: "Production calendar application and isolated synthetic monitor"
+    order: 125
+  jeff-internal:
+    label: "Jeff internal"
+    description: "Jeff environment service aliases"
+    order: 130
+  market-insights:
+    label: "Market insights"
+    description: "Protected client-facing price services"
+    order: 140
+  unimix:
+    label: "Unimix"
+    description: "Unimix Brasil production website and canonical alias"
+    order: 150
+
+check_profiles:
+  html_200: &html_200
+    allowed_status_codes: [200]
+    required_selectors_all:
+      - selector: body
+        state: attached
+  json_200: &json_200
+    allowed_status_codes: [200]
+    required_selectors_all:
+      - selector: body
+        state: visible
+  sso_edge: &sso_edge
+    allowed_status_codes: [200]
+    expected_final_host_suffix: login.microsoftonline.com
+    required_selectors_all:
+      - selector: body
+        state: attached
+  protected_401: &protected_401
+    allowed_status_codes: [401]
+    browser_enabled: false
+    required_selectors_all:
+      - selector: body
+        state: attached
+  edge_403: &edge_403
+    allowed_status_codes: [403]
+    required_selectors_all:
+      - selector: body
+        state: attached
+
 domains:
+  - domain: pitchai.net
+    label: "PitchAI website"
+    group: corporate
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://pitchai.net/
+      required_text_all: [PitchAI]
+  - domain: www.pitchai.net
+    label: "PitchAI website alias"
+    group: corporate
+    environment: production
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://www.pitchai.net/
+      expected_final_host_suffix: pitchai.net
+      required_text_all: [PitchAI]
+  - domain: assets.pitchai.net
+    label: "PitchAI asset edge"
+    group: corporate
+    environment: production
+    kind: infrastructure
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *edge_403
+      url: https://assets.pitchai.net/
+
+  - domain: chat.pitchai.net
+    label: "PitchAI Chat"
+    group: platform-apps
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://chat.pitchai.net/health
+      required_text_all: [status, ok]
+  - domain: staging.chat.pitchai.net
+    label: "PitchAI Chat staging"
+    group: platform-apps
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://staging.chat.pitchai.net/health
+      required_text_all: [status, ok]
+  - domain: navigation.pitchai.net
+    label: "Navigation"
+    group: platform-apps
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://navigation.pitchai.net/healthz
+      required_text_all: [ok, db_ok]
+  - domain: orthoparse.pitchai.net
+    label: "Orthoparse"
+    group: platform-apps
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://orthoparse.pitchai.net/healthz
+      required_text_all: [ok, db_ok]
+
+  - domain: auth.pitchai.net
+    label: "PitchAI SSO"
+    group: operations
+    environment: internal
+    kind: auth
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://auth.pitchai.net/
+  - domain: tools.pitchai.net
+    label: "Tools portal"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, tools-portal-routing, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://tools.pitchai.net/
+  - domain: dispatch.pitchai.net
+    label: "PitchAI Dispatcher"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, app-server-registry, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://dispatch.pitchai.net/
+      api_contract_checks:
+        - name: api_health_18440
+          url: https://dispatch.pitchai.net:18440/healthz
+          expected_status_codes: [200]
+          expected_content_type_contains: text/plain
+        - name: web_ui_8443
+          url: https://dispatch.pitchai.net:8443/
+          expected_status_codes: [200]
+          expected_content_type_contains: text/html
+        - name: web_ui_18441
+          url: https://dispatch.pitchai.net:18441/
+          expected_status_codes: [200]
+          expected_content_type_contains: text/html
+        - name: active_service_24021
+          url: https://dispatch.pitchai.net:24021/
+          expected_status_codes: [200]
+          expected_content_type_contains: null
+  - domain: whatsapp.pitchai.net
+    label: "WhatsApp Bridge operator"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-25, pitchai-dev-ingress, whatsapp-bridge-runtime, live-probe-2026-08-25]
+    check:
+      <<: *json_200
+      url: https://whatsapp.pitchai.net/readyz
+      browser_enabled: false
+      required_text_all: [ok, ready]
+      api_contract_checks:
+        - name: operator_auth_boundary
+          url: https://whatsapp.pitchai.net/operator
+          expected_status_codes: [401]
+          expected_content_type_contains: text/html
+  - domain: livedocuments.pitchai.net
+    label: "PitchAI Live Documents"
+    group: platform-apps
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-27, pitchai-dev-ingress, live-documents-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *protected_401
+      url: https://livedocuments.pitchai.net/
+  - domain: servers.pitchai.net
+    label: "PitchAI server fleet"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-27, pitchai-dev-ingress, server-fleet-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *sso_edge
+      url: https://servers.pitchai.net/
+  - domain: suggestions.pitchai.net
+    label: "Suggestions"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://suggestions.pitchai.net/
+  - domain: filedrop.pitchai.net
+    label: "FileDrop"
+    group: operations
+    environment: internal
+    kind: storage
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://filedrop.pitchai.net/
+  - domain: codex-voice.pitchai.net
+    label: "Codex Voice"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://codex-voice.pitchai.net/
+      api_contract_checks:
+        - name: sso_edge_8443
+          url: https://codex-voice.pitchai.net:8443/
+          expected_status_codes: [200]
+          expected_content_type_contains: text/html
   - domain: codexusage.pitchai.net
+    label: "Codex Usage"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+  - domain: codex-cowork.pitchai.net
+    label: "Codex Cowork"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://codex-cowork.pitchai.net/healthz
+      required_text_all: [status, ok]
+  - domain: monitoring.pitchai.net
+    label: "Monitoring dashboard"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://monitoring.pitchai.net/health
+      required_text_all: [ok]
+  - domain: breakglass.pitchai.net
+    label: "Break-glass access"
+    group: operations
+    environment: internal
+    kind: auth
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://breakglass.pitchai.net/
+  - domain: wiki.pitchai.net
+    label: "Internal wiki"
+    group: operations
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://wiki.pitchai.net/
+
+  - domain: route-anchor.pitchai.net
+    label: "Route Anchor"
+    group: infrastructure
+    environment: production
+    kind: api
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://route-anchor.pitchai.net/healthz
+      required_text_all: [status, ok]
+  - domain: privacy-gateway.pitchai.net
+    label: "Privacy Gateway"
+    group: infrastructure
+    environment: production
+    kind: api
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://privacy-gateway.pitchai.net/ready
+      required_text_all: [status, ready]
+  - domain: privacy-gateway-staging.pitchai.net
+    label: "Privacy Gateway staging"
+    group: infrastructure
+    environment: staging
+    kind: api
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://privacy-gateway-staging.pitchai.net/ready
+      required_text_all: [status, ready]
+  - domain: storage.pitchai.net
+    label: "PitchAI storage"
+    group: infrastructure
+    environment: internal
+    kind: storage
+    sources: [namecheap-zone-2026-08-24, file-storage-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://storage.pitchai.net/status
+  - domain: lfs.pitchai.net
+    label: "PitchAI Git LFS"
+    group: infrastructure
+    environment: production
+    kind: storage
+    sources: [namecheap-zone-2026-08-27, file-storage-ingress, git-lfs-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      allowed_status_codes: [200]
+      browser_enabled: false
+      url: https://lfs.pitchai.net/readyz
+      required_selectors_all:
+        - selector: body
+          state: attached
+      required_text_all: [ok]
+  - domain: onboarding-course.pitchai.net
+    label: "Onboarding course"
+    group: infrastructure
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://onboarding-course.pitchai.net/
+  - domain: registry.pitchai.net
+    label: "Container registry"
+    group: infrastructure
+    environment: internal
+    kind: infrastructure
+    sources: [namecheap-zone-2026-08-24, ax41-registry-runtime, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Internal registry status is retained for visibility but is not operationally alertable right now."
+    check:
+      allowed_status_codes: [401]
+      browser_enabled: false
+      url: https://registry.pitchai.net:5000/v2/
+      required_selectors_all:
+        - selector: body
+          state: attached
+      required_text_all: [UNAUTHORIZED]
+  - domain: agentcloud.pitchai.net
+    label: "AgentCloud"
+    group: infrastructure
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, pm-deployment-records, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "AgentCloud is not actively used right now; downtime remains dashboard-visible."
+    check:
+      <<: *json_200
+      url: https://agentcloud.pitchai.net/healthz
+      required_text_all: [status]
+  - domain: dashboards.pitchai.net
+    label: "Dashboards"
+    group: infrastructure
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, pm-deployment-records, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "The dashboards surface is not operationally important right now; downtime remains dashboard-visible."
+    check:
+      <<: *html_200
+      url: https://dashboards.pitchai.net/
+  - domain: support.pitchai.net
+    label: "Support portal"
+    group: infrastructure
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, pm-deployment-records, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "The support surface is not operationally important right now; downtime remains dashboard-visible."
+    check:
+      <<: *html_200
+      url: https://support.pitchai.net/
+
+  - domain: 2fa-server.37.27.67.52.nip.io
+    label: "PitchAI 2FA service"
+    group: infrastructure
+    environment: production
+    kind: api
+    ownership: pitchai-operated-non-owned-dns
+    sources: [current-production-monitoring-config, pitchai-main-ingress, live-probe-2026-08-24]
+
   - domain: afasask.pitchai.net
-    disabled: true
-    disabled_reason: 'temporary disable (requested)'
-  - domain: autopar.pitchai.net
-  - domain: afasask.gzb.nl
+    label: "AFASAsk production"
+    group: afasask
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
   - domain: demo.afasask.pitchai.net
+    label: "AFASAsk demo"
+    group: afasask
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: staging.afasask.pitchai.net
+    label: "AFASAsk staging"
+    group: afasask
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, pm-deployment-records, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://staging.afasask.pitchai.net/
+  - domain: afasask.gzb.nl
+    label: "AFASAsk for GZB"
+    group: afasask
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+
+  - domain: autopar.pitchai.net
+    label: "AutoPAR production"
+    group: autopar
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: auth.autopar.pitchai.net
+    label: "AutoPAR auth compatibility"
+    group: autopar
+    environment: production
+    kind: auth
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://auth.autopar.pitchai.net/
+      required_text_all: [AutoPAR]
+  - domain: staging.autopar.pitchai.net
+    label: "AutoPAR staging"
+    group: autopar
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://staging.autopar.pitchai.net/
+      required_text_all: [AutoPAR]
+  - domain: autopar-staging-web.37.27.67.52.nip.io
+    label: "AutoPAR staging web app"
+    group: autopar
+    environment: staging
+    kind: application
+    ownership: pitchai-operated-non-owned-dns
+    sources: [autopar-staging-runtime, pitchai-main-ingress, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://autopar-staging-web.37.27.67.52.nip.io/
+      expected_final_host_suffix: autopar-staging-web.37.27.67.52.nip.io
+      expected_title_contains: "AutoPAR"
+      required_text_all: [AutoPAR]
+
+  - domain: formatief-toetsen.pitchai.net
+    label: "DFT production"
+    group: dft
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, dft-production-runtime, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://formatief-toetsen.pitchai.net/healthz
+      required_text_all: [ok, db_ok]
+  - domain: staging.formatief-toetsen.pitchai.net
+    label: "DFT staging"
+    group: dft
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, dft-staging-runtime, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://staging.formatief-toetsen.pitchai.net/healthz
+      required_text_all: [ok, db_ok]
+  - domain: dft-marketing-staging.pitchai.net
+    label: "DFT marketing staging"
+    group: dft
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, dft-staging-runtime, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://dft-marketing-staging.pitchai.net/
+
+  - domain: potaito.pitchai.net
+    label: "Potaito production"
+    group: potaito
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://potaito.pitchai.net/
+  - domain: staging.potaito.pitchai.net
+    label: "Potaito staging"
+    group: potaito
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://staging.potaito.pitchai.net/
+
   - domain: skybuyfly.pitchai.net
-  - domain: deplanbook.com
-  - domain: cms.deplanbook.com
+    label: "SkyBuyFly production"
+    group: skybuyfly
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: stable.skybuyfly.pitchai.net
+    label: "SkyBuyFly stable"
+    group: skybuyfly
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://stable.skybuyfly.pitchai.net/
+      required_text_all: [SkyBuyFly]
+
+  - domain: deplanbook.pitchai.net
+    label: "DePlanBook PitchAI alias"
+    group: deplanbook
+    environment: production
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://deplanbook.pitchai.net/
+      expected_final_host_suffix: deplanbook.com
+      required_text_all: [Deplanbook]
+  - domain: theplanbook.pitchai.net
+    label: "DePlanBook legacy-name alias"
+    group: deplanbook
+    environment: production
+    kind: alias
+    sources: [namecheap-zone-2026-08-27, pitchai-main-ingress, deplanbook-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Intentional redirect alias for critical deplanbook.com; independent paging would duplicate incidents."
+    check:
+      <<: *html_200
+      url: https://theplanbook.pitchai.net/
+      expected_final_host_suffix: deplanbook.com
+      required_text_all: [DePlanBook]
   - domain: dpb.pitchai.net
+    label: "DePlanBook short alias"
+    group: deplanbook
+    environment: production
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: deplanbook.com
+    label: "DePlanBook application"
+    group: deplanbook
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: cms.deplanbook.com
+    label: "DePlanBook CMS"
+    group: deplanbook
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+
   - domain: hetcis.nl
+    label: "HetCIS public site"
+    group: hetcis
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
+  - domain: www.hetcis.nl
+    label: "HetCIS production alias"
+    group: hetcis
+    environment: production
+    kind: alias
+    sources: [client-zone-dns-and-tls, cisnl-runtime-contract, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://www.hetcis.nl/
+      expected_title_contains: "Centrum voor Israëlstudies"
+      required_text_all: ["Centrum voor Israëlstudies"]
+  - domain: staging.hetcis.pitchai.net
+    label: "HetCIS staging"
+    group: hetcis
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://staging.hetcis.pitchai.net/healthz
+      required_text_all: [status, ok]
+
+  - domain: cursussen.pitchai.net
+    label: "PitchAI courses"
+    group: learning-demos
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "The courses page is not actively operated right now; downtime remains dashboard-visible."
+    check:
+      <<: *html_200
+      url: https://cursussen.pitchai.net/
+  - domain: aigenda-rules.demos.pitchai.net
+    label: "AIGENDA rules demo"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *json_200
+      url: https://aigenda-rules.demos.pitchai.net/readyz
+      required_text_all: [status, ready, database]
+  - domain: digibeat.demos.pitchai.net
+    label: "DigiBeat demo"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-dev-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://digibeat.demos.pitchai.net/
+  - domain: studentenreisproduct.demos.pitchai.net
+    label: "Studentenreisproduct demo"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://studentenreisproduct.demos.pitchai.net/
+  - domain: apologetica-wagtail-staging.pitchai.net
+    label: "Apologetica Wagtail staging"
+    group: learning-demos
+    environment: staging
+    kind: application
+    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *html_200
+      url: https://apologetica-wagtail-staging.pitchai.net/
+
+  - domain: aigenda.pitchai.net
+    label: "AIGENDA calendar"
+    group: aigenda-calendar
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-27, pitchai-dev-ingress, aigenda-calendar-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *protected_401
+      url: https://aigenda.pitchai.net/
+  - domain: aigenda-monitor.pitchai.net
+    label: "AIGENDA synthetic monitor"
+    group: aigenda-calendar
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-27, pitchai-dev-ingress, aigenda-calendar-monitor-runtime, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *protected_401
+      url: https://aigenda-monitor.pitchai.net/
+
+  - domain: jeff-codex-voice.pitchai.net
+    label: "Jeff Codex Voice"
+    group: jeff-internal
+    environment: internal
+    kind: application
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://jeff-codex-voice.pitchai.net/
+  - domain: jeff-dispatch.pitchai.net
+    label: "Jeff Dispatcher"
+    group: jeff-internal
+    environment: internal
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://jeff-dispatch.pitchai.net/
+  - domain: jeff-work-inbox.pitchai.net
+    label: "Jeff work inbox"
+    group: jeff-internal
+    environment: internal
+    kind: alias
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, live-probe-2026-08-24]
+    check:
+      <<: *sso_edge
+      url: https://jeff-work-inbox.pitchai.net/
+
+  - domain: aardappelprijs.nl
+    label: "Aardappelprijs"
+    group: potaito
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://aardappelprijs.nl/
+  - domain: akkerbouwprijs.nl
+    label: "Akkerbouwprijs"
+    group: market-insights
+    environment: production
+    kind: application
+    sources: [client-zone-dns-and-tls, pitchai-main-ingress, live-probe-2026-08-24]
+    check:
+      <<: *protected_401
+      url: https://akkerbouwprijs.nl/
+
+  - domain: unimixbrasil.com.br
+    label: "Unimix Brasil"
+    group: unimix
+    environment: production
+    kind: application
+    sources: [unimix-repair-confirmation-2026-08-27, client-zone-dns-and-tls, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://unimixbrasil.com.br/
+      expected_final_host_suffix: unimixbrasil.com.br
+      expected_title_contains: "Unimix"
+      required_text_all: ["Since 2003", "Unimix"]
+  - domain: www.unimixbrasil.com.br
+    label: "Unimix Brasil canonical alias"
+    group: unimix
+    environment: production
+    kind: alias
+    sources: [unimix-repair-confirmation-2026-08-27, client-zone-dns-and-tls, live-probe-2026-08-27]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://www.unimixbrasil.com.br/
+      expected_final_host_suffix: unimixbrasil.com.br
+      expected_title_contains: "Unimix"
+      required_text_all: ["Since 2003", "Unimix"]
+
+retired_domains:
+  - domain: n8n.pitchai.net
+    classification: retired
+    reason: "Decommissioned automation route; no live service contract"
+    sources: [namecheap-zone-2026-08-24, pm-decommission-record]
+  - domain: quickchat.pitchai.net
+    classification: historical
+    reason: "Historical repository check; hostname is NXDOMAIN"
+    sources: [repository-config, authoritative-dns-probe-2026-08-24]
+  - domain: digibead.demos.pitchai.net
+    classification: historical
+    reason: "Misspelled historical demo hostname; NXDOMAIN"
+    sources: [domain-engineer-namecheap-dns, authoritative-dns-probe-2026-08-24]
+  - domain: apologetica-react-staging.pitchai.net
+    classification: pending
+    reason: "Firebase handoff is pending and hostname is currently NXDOMAIN"
+    sources: [domain-engineer-namecheap-dns, authoritative-dns-probe-2026-08-24]
+  - domain: chat-staging.pitchai.net
+    classification: replaced
+    reason: "Replaced by canonical staging.chat.pitchai.net"
+    sources: [namecheap-zone-2026-08-24, active-ingress]
+  - domain: cowork.pitchai.net
+    classification: replaced
+    reason: "Replaced by canonical codex-cowork.pitchai.net"
+    sources: [namecheap-zone-2026-08-24, active-ingress]
+  - domain: www.afasask.pitchai.net
+    classification: replaced
+    reason: "Non-canonical alias; monitor afasask.pitchai.net"
+    sources: [namecheap-zone-2026-08-24, active-ingress]
+  - domain: www.demo.afasask.pitchai.net
+    classification: replaced
+    reason: "Non-canonical alias; monitor demo.afasask.pitchai.net"
+    sources: [namecheap-zone-2026-08-24, active-ingress]
+  - domain: jeff.codex-voice.pitchai.net
+    classification: invalid-alias
+    reason: "DNS exists without a matching Caddy route or TLS identity"
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, tls-probe-2026-08-24]
+  - domain: jeff.dispatch.pitchai.net
+    classification: invalid-alias
+    reason: "DNS exists without a matching Caddy route or TLS identity"
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, tls-probe-2026-08-24]
+  - domain: jeff.work-inbox.pitchai.net
+    classification: invalid-alias
+    reason: "DNS exists without a matching Caddy route or TLS identity"
+    sources: [namecheap-zone-2026-08-24, jeff-caddy-runtime, tls-probe-2026-08-24]
+  - domain: autodiscover.pitchai.net
+    classification: non-http
+    reason: "Mail autodiscovery record, not an application health target"
+    sources: [namecheap-zone-2026-08-24, domain-engineer-namecheap-dns]
+  - domain: demos.pitchai.net
+    classification: namespace
+    reason: "Namespace parent with no wildcard or standalone service contract"
+    sources: [namecheap-zone-2026-08-24, domain-engineer-namecheap-dns]
+  - domain: www.afasask.gzb.nl
+    classification: invalid-alias
+    reason: "No DNS record; canonical client deployment is afasask.gzb.nl"
+    sources: [client-zone-dns-probe-2026-08-24, domain-engineer-namecheap-dns]
+  - domain: app.doorstroomtoets.nl
+    classification: not-owned
+    reason: "Explicitly confirmed not owned or operated by PitchAI/DFT"
+    sources: [domain-engineer-namecheap-dns, external-zone-probe-2026-08-24]
+  - domain: app-staging-no-spend.doorstroomtoets.nl
+    classification: not-owned
+    reason: "Explicitly confirmed not owned or operated by PitchAI/DFT"
+    sources: [domain-engineer-namecheap-dns, external-zone-probe-2026-08-24]
+  - domain: cms.hetcis.nl
+    classification: replaced
+    reason: "Inactive DNS residue; current HetCIS CMS is embedded at /dashboard on the main site"
+    sources: [domain-engineer-namecheap-dns, cisnl-runtime-contract, live-probe-2026-08-24]
+  - domain: weblog.hetcis.nl
+    classification: historical
+    reason: "Archived WordPress deployment was removed; current response is a Hostnet parking page"
+    sources: [domain-engineer-namecheap-dns, operations-archive-record, live-probe-2026-08-24]
+  - domain: hetcis.pitchai.net
+    classification: historical
+    reason: "Unprovisioned historical candidate with no DNS, ingress or deployment"
+    sources: [domain-engineer-namecheap-dns, authoritative-dns-probe-2026-08-24]
+  - domain: staging.dispatch.pitchai.net
+    classification: pending
+    reason: "Referenced by the staging service lane but not provisioned in authoritative DNS"
+    sources: [server-space-agent-2026-08-27, authoritative-dns-probe-2026-08-27]
+  - domain: aigenda.37.27.67.52.nip.io
+    classification: invalid-alias
+    reason: "Legacy direct-IP alias has no matching TLS identity; monitor canonical aigenda.pitchai.net"
+    sources: [repository-deployment-evidence, tls-probe-2026-08-27]
+  - domain: aigenda-rules.135-181-182-48.sslip.io
+    classification: replaced
+    reason: "Duplicate direct-IP route for the canonical aigenda-rules.demos.pitchai.net service"
+    sources: [pitchai-dev-ingress, live-probe-2026-08-27]
+  - domain: driestar-aigenda.demos.pitchai.net
+    classification: pending
+    reason: "Fallback recommendation was never provisioned; the live AIGENDA calendar uses its canonical hosts"
+    sources: [pm-deployment-records, authoritative-dns-probe-2026-08-27]
+  - domain: theplanbook.com
+    classification: not-owned
+    reason: "Unrelated external spelling variant with no PitchAI DNS or deployment contract"
+    sources: [repository-evidence-sweep, external-zone-probe-2026-08-27]
+  - domain: www.theplanbook.com
+    classification: not-owned
+    reason: "Unrelated external spelling variant with no PitchAI DNS or deployment contract"
+    sources: [repository-evidence-sweep, external-zone-probe-2026-08-27]
+  - domain: staging.afasask.gzb.nl
+    classification: replaced
+    reason: "Historical client-zone staging name is NXDOMAIN; monitor staging.afasask.pitchai.net"
+    sources: [repository-evidence-sweep, authoritative-dns-probe-2026-08-27]
+  - domain: staging.hetcis.nl
+    classification: replaced
+    reason: "Historical self-signed client-zone host; monitor staging.hetcis.pitchai.net"
+    sources: [repository-evidence-sweep, tls-probe-2026-08-27]
+  - domain: suggestions.demos.pitchai.net
+    classification: historical
+    reason: "Historical demo reference is NXDOMAIN and has no current ingress contract"
+    sources: [repository-evidence-sweep, authoritative-dns-probe-2026-08-27]
+  - domain: staging.potai.pitchai.net
+    classification: replaced
+    reason: "Historical typo is NXDOMAIN; monitor staging.potaito.pitchai.net"
+    sources: [repository-evidence-sweep, authoritative-dns-probe-2026-08-27]
+  - domain: staging.potato.pitchai.net
+    classification: replaced
+    reason: "Historical product-name alias is NXDOMAIN; monitor staging.potaito.pitchai.net"
+    sources: [repository-evidence-sweep, authoritative-dns-probe-2026-08-27]
+  - domain: studentenreisproduct.nl
+    classification: not-owned
+    reason: "External source website, not a PitchAI-operated deployment target"
+    sources: [project-evidence-sweep, external-zone-probe-2026-08-27]
+  - domain: www.centrumvoorisraelstudies.nl
+    classification: replaced
+    reason: "Legacy Solcon hostname has an invalid TLS contract; monitor www.hetcis.nl"
+    sources: [repository-evidence-sweep, tls-probe-2026-08-27]
+  - domain: www.intern.centrumvoorisraelstudies.nl
+    classification: replaced
+    reason: "Legacy Solcon internal hostname has an invalid TLS contract; monitor current HetCIS routes"
+    sources: [repository-evidence-sweep, tls-probe-2026-08-27]

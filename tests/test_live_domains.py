@@ -30,7 +30,10 @@ EXPECTED_UP = {
     "demo.afasask.pitchai.net",
     "dpb.pitchai.net",
     "hetcis.nl",
+    "www.hetcis.nl",
     "skybuyfly.pitchai.net",
+    "formatief-toetsen.pitchai.net",
+    "staging.formatief-toetsen.pitchai.net",
 }
 
 

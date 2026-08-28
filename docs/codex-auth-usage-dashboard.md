@@ -8,6 +8,7 @@
 - Nginx injects a normalized `X-PitchAI-Email` only after successful Microsoft 365 authentication.
 - The dashboard listens only on `127.0.0.1:8124` and rejects UI/API requests without that trusted header.
 - The container mounts `/srv/auth-token-server/data/accounts` read-only and reads only `metadata.json` and `state.json`. It never opens `auth.json`.
+- The inventory is directory-driven: every broker account with `metadata.json` is sampled, including disabled, auth-invalid, and temporarily state-missing accounts. No separate dashboard allowlist can silently omit an account.
 - The broker admin token is passed only to the container process so it can trigger the broker's account usage probe endpoint. It is never returned, logged, or embedded in the page.
 - `/healthz` is intentionally unauthenticated and exposes only service health, generation time, and a stale boolean. All account-bearing routes require authentication.
 
@@ -70,11 +71,17 @@ Capacity arrivals list automatic provider-window resets across the next eight da
 
 Banked resets use the provider's read-only reset inventory. The UI shows every grant and expiry date returned by the provider, ordered by expiry. When only a count is available, the dashboard says dated detail is unavailable rather than inventing it. Neither the broker analytics endpoint nor the dashboard implements the provider's reset-consumption action; redeeming a reset is outside this service's capability.
 
-## Hourly history and runout forecast
+## Durable usage-limit history, hourly history, and runout forecast
 
 The provider profile route reports historical token totals by UTC day, not hour. The dashboard reconstructs 168 hourly points with an even, daily-total-constrained allocation and applies a three-hour smoothing window for the line plot. Every complete raw reconstructed day still sums exactly to the provider total. The API marks each hour as `reconstructed`, `blended`, or `observed`; it does not present reconstructed hours as provider-observed facts.
 
-The production container writes a redacted sample every five minutes to `/srv/codex-usage-dashboard/usage-samples.json`. The directory is mode `700` and the atomic sample file is mode `600`, both root-owned. Samples contain account labels, quota percentages/reset times, and current-day usage counters only. They contain no broker account IDs, auth files, credentials, auth tokens, device codes, or provider response bodies. Retention is eight days. Native usage deltas progressively replace reconstructed hourly allocations, and native percentage deltas for the declared provider-window basis provide the preferred trailing two-hour burn estimate. Historical samples written before schema v4 are recovered as weekly only when their reset was more than six hours away at observation time, which makes a five-hour interpretation impossible.
+The production container appends one complete inventory batch every five minutes to `/srv/codex-usage-dashboard/usage-history.sqlite3`. This matches the broker's existing no-generation quota-probe cadence, so collecting history does not add prompts, model turns, token use, or provider calls. The collector rereads redacted broker state and never opens `auth.json`. Five minutes is the minimum supported cadence; sampling faster would duplicate unchanged provider snapshots and grow the store without adding operational information.
+
+The SQLite database uses WAL mode, full synchronization, foreign keys, a 30-second busy timeout, schema-version validation, and append-only batch/account tables. Each account row stores the UTC sample time, label, SHA-256 broker-account fingerprint, enabled/auth/availability state, five-hour and weekly used/remaining percentages, reset times and window durations, redeemable count, provider and analytics observation times/staleness, sanitized error codes, data provenance, source, and full collector Git SHA. Auth-invalid accounts still receive a row. Missing measurements are copied from that account's most recent row only when available and are explicitly marked `values_source=last_known`, never current.
+
+The root-owned database directory is mode `700`; the database, WAL, shared-memory files, and deployment backups are mode `600`. The SQLite series is not automatically pruned. At the current small account inventory, this preserves long-running structural history while reporting queries remain time- and row-bounded. Before each production replacement, the deployment script uses SQLite's online backup API and `quick_check` to create a timestamped copy under `/srv/codex-usage-dashboard/backups`. The former `/srv/codex-usage-dashboard/usage-samples.json` is transactionally imported once on first collection and then retained as migration evidence.
+
+The JSON ledger continues as an eight-day compatibility input for the dashboard's token reconstruction and burn-rate calculations. Native usage deltas progressively replace reconstructed hourly allocations, and native percentage deltas for the declared provider-window basis provide the preferred trailing two-hour burn estimate. Historical samples written before schema v4 are recovered as weekly only when their reset was more than six hours away at observation time, which makes a five-hour interpretation impossible. It is no longer the authoritative durable history.
 
 Runout probability uses deterministic burn-rate scenarios around the trailing two-hour sample rate. Until enough native samples exist, the UI labels a current-window average estimate and lowers confidence. Capacity is consumed earliest-reset-first and automatic resets for the declared basis are modeled. If no five-hour window is reported but weekly data is authoritative, the forecast explicitly uses weekly percentage points; if neither window is available, the forecast is unavailable rather than inferred as 0% or 100%. Banked resets never enter forecast capacity because they require a forbidden manual redemption action.
 
@@ -113,9 +120,24 @@ curl --fail --silent http://127.0.0.1:8124/healthz
 curl --fail --silent -H 'X-PitchAI-Email: deployment-check@pitchai.net' \
   http://127.0.0.1:8124/api/v1/capacity | jq '.summary'
 docker inspect codex-usage-dashboard --format '{{.State.Status}} {{.State.Health.Status}}'
+docker exec codex-usage-dashboard python -m auth_usage_dashboard.history_cli \
+  --database /dashboard-data/usage-history.sqlite3 status
+docker exec codex-usage-dashboard python -m auth_usage_dashboard.history_cli \
+  --database /dashboard-data/usage-history.sqlite3 summary --hours 24
 ```
 
 Do not print the full API response in shared logs. It contains account labels and usage state, though it contains no credentials.
+
+Read recent history for one exact broker label, or bounded rows from the last 24 hours:
+
+```bash
+docker exec codex-usage-dashboard python -m auth_usage_dashboard.history_cli \
+  recent --account 'seth.vanderbijl@pitchai.net' --limit 20
+docker exec codex-usage-dashboard python -m auth_usage_dashboard.history_cli \
+  history --hours 24 --limit 10000
+```
+
+All reports are read-only JSON. `summary --hours 24` is the preferred monitoring proof because it returns per-account sample counts, first/last timestamps, maximum gap, auth-invalid count, provider-stale count, and last-known count without exposing credentials or broker account IDs.
 
 ## Nginx, DNS, and access
 
@@ -140,6 +162,8 @@ To redeploy a known image:
 ```bash
 sudo ops/deploy_codex_usage_dashboard.sh codex-usage-dashboard:<git-sha>
 ```
+
+Application rollback does not roll back or replace the append-only history database. If a database migration must be reversed, stop the dashboard container, preserve the current database, validate the selected file from `/srv/codex-usage-dashboard/backups` with `PRAGMA quick_check`, and only then restore it. The legacy JSON ledger remains available for migration recovery.
 
 For an Nginx rollback, restore the timestamped backup beside `/etc/nginx/sites-available/codexusage.pitchai.net`, run `nginx -t`, and reload Nginx. DNS removal is not needed for a short application rollback; the protected proxy can return a controlled maintenance response while the prior container is restored.
 

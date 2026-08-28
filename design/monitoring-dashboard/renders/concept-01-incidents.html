@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PitchAI Monitoring — Incident accordion</title>
+    <link rel="stylesheet" href="../static/tailwind.css">
+  </head>
+  <body class="min-h-screen bg-[#f0f7f3] text-[#15231d] antialiased">
+    <main class="mx-auto min-h-screen max-w-[1505px] py-5 px-[34px]">
+      <header class="flex items-center justify-between">
+  <div class="flex items-center gap-4">
+    <div class="grid h-11 w-11 place-items-center rounded-[13px] bg-[#0e2a1e] text-[14px] font-black tracking-[-0.04em] text-[#b9ff75] shadow-[inset_0_0_12px_rgba(74,196,89,0.12)]">PA</div>
+    <div>
+      <p class="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#648072]">PitchAI operations</p>
+      <p class="text-[19px] font-semibold tracking-[-0.02em] text-[#10271d]">Production monitoring</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-3 text-[12px] font-semibold text-[#4d695b]">
+    <span class="rounded-full border border-[#c9ddd1] bg-white px-3 py-2">Production</span>
+    <span>25 Aug 2026 · 19:44 UTC</span>
+  </div>
+</header>
+<nav class="mt-7 flex items-end gap-1 border-b border-[#d2ded7]" aria-label="Monitoring views">
+    <span class="relative px-5 py-3 text-[13px] font-bold text-[#0b654f]">
+      Domains
+<span class="absolute inset-x-3 -bottom-px h-[3px] rounded-t bg-[#62bf45]"></span>    </span>
+    <span class="relative px-5 py-3 text-[13px] font-bold text-[#667b70]">
+      Databases
+    </span>
+    <span class="relative px-5 py-3 text-[13px] font-bold text-[#667b70]">
+      Infrastructure
+    </span>
+    <span class="relative px-5 py-3 text-[13px] font-bold text-[#667b70]">
+      Reliability
+    </span>
+    <span class="relative px-5 py-3 text-[13px] font-bold text-[#667b70]">
+      Journeys
+    </span>
+</nav>
+      <section class="mt-[10px] overflow-hidden rounded-[18px] border border-[#d2dfd7] bg-[#fefefe] shadow-[0_14px_48px_rgba(23,56,40,0.06)]">
+        <header class="flex items-start justify-between gap-10 border-b border-[#dbe5df] px-8 pb-[26px] pt-[30px]">
+          <div class="max-w-[900px]">
+            <p class="text-[11px] font-extrabold tracking-[0.18em] text-[#527061]">CURRENT INCIDENTS</p>
+            <h1 class="mt-2 text-[32px] font-semibold leading-tight tracking-[-0.035em] text-[#10271d]">Three incidents need an owner</h1>
+            <p class="mt-2 text-[14px] leading-[22px] text-[#587064]">The monitor is fresh. A critical route, a production database dependency, and one expected dashboard-only route are down.</p>
+          </div>
+          <div class="mt-1 flex items-center gap-2 rounded-full border border-[#bcd9c8] bg-[#f7fbf8] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#08775e]">
+            <span class="h-2 w-2 rounded-full bg-[#66c54a]"></span>
+            Updated 18s ago
+          </div>
+        </header>
+        <section class="grid grid-cols-4 border-b border-[#dbe5df] bg-[#fefefe]">
+    <div class="px-8 pb-[2px] pt-5 ">
+      <p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]">Active checks</p>
+      <div class="mt-3 flex items-baseline justify-between gap-3">
+        <strong class="text-[27px] font-semibold tracking-[-0.035em] text-[#173328]">60</strong>
+        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.11em] border-[#bee3ca] bg-[#eefaf1] text-[#16714e]">
+  <span class="h-1.5 w-1.5 rounded-full bg-[#58b83d]"></span>
+  healthy
+</span>
+      </div>
+      <p class="mt-2 text-[11px] leading-4 text-[#6b7e74]">55 healthy · 5 dashboard-only</p>
+    </div>
+    <div class="px-8 pb-[2px] pt-5 border-l border-[#dbe5df]">
+      <p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]">Current incidents</p>
+      <div class="mt-3 flex items-baseline justify-between gap-3">
+        <strong class="text-[27px] font-semibold tracking-[-0.035em] text-[#ae2d28]">3</strong>
+        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.11em] border-[#f0b6b2] bg-[#fff0ef] text-[#a22925]">
+  <span class="h-1.5 w-1.5 rounded-full bg-[#cc3a32]"></span>
+  critical
+</span>
+      </div>
+      <p class="mt-2 text-[11px] leading-4 text-[#6b7e74]">2 critical · 1 expected</p>
+    </div>
+    <div class="px-8 pb-[2px] pt-5 border-l border-[#dbe5df]">
+      <p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]">24h availability</p>
+      <div class="mt-3 flex items-baseline justify-between gap-3">
+        <strong class="text-[27px] font-semibold tracking-[-0.035em] text-[#91620c]">99.86%</strong>
+        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.11em] border-[#efd09e] bg-[#fff8e8] text-[#8d5b08]">
+  <span class="h-1.5 w-1.5 rounded-full bg-[#c48c21]"></span>
+  attention
+</span>
+      </div>
+      <p class="mt-2 text-[11px] leading-4 text-[#6b7e74]">8,640 retained samples</p>
+    </div>
+    <div class="px-8 pb-[2px] pt-5 border-l border-[#dbe5df]">
+      <p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]">Alert route</p>
+      <div class="mt-3 flex items-baseline justify-between gap-3">
+        <strong class="text-[27px] font-semibold tracking-[-0.035em] text-[#173328]">Telegram</strong>
+        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.11em] border-[#bee3ca] bg-[#eefaf1] text-[#16714e]">
+  <span class="h-1.5 w-1.5 rounded-full bg-[#58b83d]"></span>
+  healthy
+</span>
+      </div>
+      <p class="mt-2 text-[11px] leading-4 text-[#6b7e74]">Critical policy enabled</p>
+    </div>
+</section>
+  <section class="grid grid-cols-[minmax(0,0.86fr)_minmax(0,1.36fr)]">
+  <div class="border-r border-[#dbe7df]">
+    <div class="flex items-center justify-between border-b border-[#e3ebe6] px-8 py-4">
+      <div>
+        <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#587064]">Incident queue</p>
+        <p class="mt-1 text-[12px] text-[#71837a]">Enter or Space opens details</p>
+      </div>
+      <span class="text-[11px] font-bold text-[#7a8c83]">3 open</span>
+    </div>
+      <article class="border-b border-[#e3ebe6] pr-8 border-l-2 border-l-transparent bg-[#fefefe] py-[12px] pl-[30px]">
+        <div class="flex items-center justify-between gap-4">
+          <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.11em] border-[#f0b6b2] bg-[#fff0ef] text-[#a22925]">
+  <span class="h-1.5 w-1.5 rounded-full bg-[#cc3a32]"></span>
+  critical
+</span>
+          <span class="text-[11px] font-semibold text-[#7b8a82]">19:43:18 UTC</span>
+        </div>
+        <h2 class="mt-3 text-[15px] font-semibold leading-5 text-[#1c3328]">dispatch.pitchai.net is down</h2>
+        <p class="mt-1.5 text-[11px] leading-5 text-[#687c71]">Operations · page/readiness check · 2 failing cycles</p>
+        <div class="mt-4 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#557166]">
+          <span>View details</span>
+          <span aria-hidden="true">↓</span>
+        </div>
+      </article>
+      <article class="border-b border-[#e3ebe6] pr-8 border-l-2 border-l-[#119b62] bg-[#f8fbf9] py-[22px] pl-[30px]">
+        <div class="flex items-center justify-between gap-4">
+          <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.11em] border-[#f0b6b2] bg-[#fff0ef] text-[#a22925]">
+  <span class="h-1.5 w-1.5 rounded-full bg-[#cc3a32]"></span>
+  critical
+</span>
+          <span class="text-[11px] font-semibold text-[#7b8a82]">19:43:18 UTC</span>
+        </div>
+        <h2 class="mt-3 text-[15px] font-semibold leading-5 text-[#1c3328]">Billing web cannot authenticate to runtime Postgres</h2>
+        <p class="mt-1.5 text-[11px] leading-5 text-[#687c71]">Billing · database dependency · login/password probe · 3 failing cycles</p>
+        <div class="mt-4 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#557166]">
+          <span>Expanded</span>
+          <span aria-hidden="true">↑</span>
+        </div>
+      </article>
+      <article class="border-b border-[#e3ebe6] pr-8 border-l-2 border-l-transparent bg-[#fefefe] py-[15px] pl-[30px]">
+        <div class="flex items-center justify-between gap-4">
+          <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.11em] border-[#e5c87d] bg-[#fff9e6] text-[#8a650c]">
+  <span class="h-1.5 w-1.5 rounded-full bg-[#c48c21]"></span>
+  expected
+</span>
+          <span class="text-[11px] font-semibold text-[#7b8a82]">19:43:18 UTC</span>
+        </div>
+        <h2 class="mt-3 text-[15px] font-semibold leading-5 text-[#1c3328]">agentcloud.pitchai.net is down — expected / dashboard only</h2>
+        <p class="mt-1.5 text-[11px] leading-5 text-[#687c71]">Infrastructure · readiness check · Telegram suppressed by policy</p>
+        <div class="mt-4 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#557166]">
+          <span>View details</span>
+          <span aria-hidden="true">↓</span>
+        </div>
+      </article>
+  </div>
+    <article class="px-7 pb-6 pt-5">
+      <div class="flex items-start justify-between gap-8">
+        <div>
+          <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#6c8075]">Active inspection</p>
+          <h2 class="mt-2 text-[22px] font-semibold tracking-[-0.025em] text-[#163025]">Billing web cannot authenticate to runtime Postgres</h2>
+          <p class="mt-2 text-[12px] text-[#536b5f]">◯&nbsp; Owner needed · DB Platform</p>
+        </div>
+        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.11em] border-[#f0b6b2] bg-[#fff0ef] text-[#a22925]">
+  <span class="h-1.5 w-1.5 rounded-full bg-[#cc3a32]"></span>
+  Down
+</span>
+      </div>
+      <dl class="mt-5 grid grid-cols-3 border-t border-[#dbe7df]">
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+  <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="grid h-4 w-4 place-items-center rounded-full border border-[#71857a] text-[8px]">▱</span>Affected check</dt>
+  <dd class="mt-1 pl-6 text-[12px] font-semibold leading-5 text-[#263d32]">Runtime PostgreSQL login and bounded query</dd>
+</div>
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+  <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="grid h-4 w-4 place-items-center rounded-full border border-[#71857a] text-[8px]">◇</span>Service / project</dt>
+  <dd class="mt-1 pl-6 text-[12px] font-semibold leading-5 text-[#263d32]">Billing web · green slot · 100% traffic · PitchAI core / Billing</dd>
+</div>
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+  <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="grid h-4 w-4 place-items-center rounded-full border border-[#71857a] text-[8px]">!</span>Error / status code</dt>
+  <dd class="mt-1 pl-6 text-[12px] font-semibold leading-5 text-[#263d32]">invalid_password</dd>
+</div>
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+  <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="grid h-4 w-4 place-items-center rounded-full border border-[#71857a] text-[8px]">◷</span>First seen</dt>
+  <dd class="mt-1 pl-6 text-[12px] font-semibold leading-5 text-[#263d32]">19:40:18 UTC</dd>
+</div>
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+  <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="grid h-4 w-4 place-items-center rounded-full border border-[#71857a] text-[8px]">◷</span>Latest seen</dt>
+  <dd class="mt-1 pl-6 text-[12px] font-semibold leading-5 text-[#263d32]">19:43:18 UTC</dd>
+</div>
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+  <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="grid h-4 w-4 place-items-center rounded-full border border-[#71857a] text-[8px]">◷</span>Last successful sample</dt>
+  <dd class="mt-1 pl-6 text-[12px] font-semibold leading-5 text-[#263d32]">19:39:18 UTC · authentication and SELECT 1 passed</dd>
+</div>
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+          <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="text-[15px]">⌁</span>Trend / signals</dt>
+          <dd class="mt-1 pl-6 text-[9px] font-medium leading-[13px] text-[#263d32]"><ul class="list-disc pl-3"><li>Stale credential after secret rotation</li><li>Login/password probe failures (3 cycles)</li><li>Possible grants drift on login role</li><li>PgBouncer or tunnel path suspect</li><li>Timeout on retry; routing slot healthy but auth failing</li></ul></dd>
+        </div>
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+  <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="grid h-4 w-4 place-items-center rounded-full border border-[#71857a] text-[8px]">♧</span>Alert policy</dt>
+  <dd class="mt-1 pl-6 text-[12px] font-semibold leading-5 text-[#263d32]">Critical production dependency · Telegram incident open</dd>
+</div>
+        <div class="border-b border-[#e2e9e5] py-[11px] pr-4">
+  <dt class="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#71857a]"><span class="grid h-4 w-4 place-items-center rounded-full border border-[#71857a] text-[8px]">▦</span>Environment</dt>
+  <dd class="mt-1 pl-6 text-[12px] font-semibold leading-5 text-[#263d32]">Production</dd>
+</div>
+      </dl>
+      <div class="mt-1 flex items-center gap-4 rounded-md border border-[#dbe7df] bg-[#f6faf7] px-4 py-2">
+        <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#173d2c] text-[10px] text-white">➜</span>
+        <p class="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#263d32]">Next action</p>
+        <p class="text-[11px] leading-4 text-[#294236]">Confirm secret version in app/container, validate login role grants, test direct Postgres vs PgBouncer/tunnel, then re-run probe.</p>
+      </div>
+      <div class="mt-3 rounded-md border border-[#f0dfb8] border-l-[3px] border-l-[#d3a138] bg-[#fffaf0] px-5 py-4">
+        <p class="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#8a6617]">Safe failure evidence</p>
+        <p class="mt-2 font-mono text-[11px] leading-5 text-[#5f4a18]">authentication failed for configured role · hostname, user, password, DSN, tunnel target, and secret ref redacted</p>
+      </div>
+    </article>
+</section>
+      </section>
+    </main>
+  </body>
+</html>

@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ title or "E2E Registry" }}</title>
+    {% if operator_identity %}
+    <meta name="theme-color" content="#f4f7f5" />
+    <link rel="icon" type="image/svg+xml" href="/dashboard/assets/monitoring-favicon.svg" />
+    <link rel="stylesheet" href="/dashboard/assets/monitoring-dashboard.css" />
+    {% endif %}
     <style>
       :root {
         --bg: #0b1020;
@@ -85,24 +90,47 @@
       }
     </style>
   </head>
-  <body>
+  <body{% if operator_identity %} class="operator-shell"{% endif %}>
     <div class="wrap">
-      <header>
-        <div class="brand"><a href="{% if operator_identity %}/dashboard{% else %}/ui/tests{% endif %}" data-testid="nav-home">{% if operator_identity %}PitchAI Monitoring{% else %}E2E Registry{% endif %}</a></div>
-        <div class="nav">
-          {% if operator_identity %}
-          <a href="https://tools.pitchai.net" data-testid="nav-tools">Tools</a>
-          <span class="badge" data-testid="operator-identity">{{ operator_identity }}</span>
+      {% if operator_identity %}
+      <header class="operator-header">
+        <a class="operator-brand" href="/dashboard" data-testid="nav-home" aria-label="PitchAI Monitoring home">
+          <span class="operator-brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40">
+              <path d="M20 4.5 33.5 12v16L20 35.5 6.5 28V12Z"></path>
+              <path d="m13.5 20 4.2 4.2 9-9.3"></path>
+            </svg>
+          </span>
+          <span class="operator-brand__name">PitchAI</span>
+          <span class="operator-brand__rule" aria-hidden="true"></span>
+          <span class="operator-brand__section">System monitoring</span>
+        </a>
+        <nav class="operator-nav" aria-label="Operator navigation">
+          <a href="https://tools.pitchai.net/" data-testid="nav-tools">All tools</a>
+          <span class="operator-identity" data-testid="operator-identity" title="{{ operator_identity }}">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4.5 20a7.5 7.5 0 0 1 15 0"></path>
+            </svg>
+            <span>{{ operator_identity }}</span>
+          </span>
           <a href="https://auth.pitchai.net/oauth2/sign_out" data-testid="nav-logout">Sign out</a>
-          {% else %}
+        </nav>
+      </header>
+      {% else %}
+      <header>
+        <div class="brand"><a href="/ui/tests" data-testid="nav-home">E2E Registry</a></div>
+        <div class="nav">
           <a href="/dashboard" data-testid="nav-monitoring">Monitoring</a>
           <a href="/ui/upload" data-testid="nav-upload">Upload</a>
           <a href="/ui/tests" data-testid="nav-tests">Tests</a>
           <a href="/ui/logout" data-testid="nav-logout">Logout</a>
-          {% endif %}
         </div>
       </header>
+      {% endif %}
       {% block content %}{% endblock %}
     </div>
+    {% if operator_identity %}
+    <script src="/dashboard/assets/monitoring-dashboard.js" defer></script>
+    {% endif %}
   </body>
 </html>

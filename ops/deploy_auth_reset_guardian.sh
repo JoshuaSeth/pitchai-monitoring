@@ -8,6 +8,8 @@ readonly CURRENT_LINK="${INSTALL_BASE}/current"
 readonly DATA_DIR="/var/lib/pitchai-auth-reset-guardian"
 readonly AUDIT_DB="${DATA_DIR}/audit.sqlite3"
 readonly RUNNER="/usr/local/sbin/pitchai-auth-reset-guardian"
+readonly NOTIFIER="/usr/local/sbin/pitchai-auth-reset-guardian-notifier"
+readonly NOTIFIER_PREFLIGHT="/usr/local/sbin/pitchai-auth-reset-guardian-notification-preflight"
 readonly ENV_FILE="/etc/pitchai-auth-reset-guardian.env"
 readonly SERVICE_FILE="/etc/systemd/system/pitchai-auth-reset-guardian.service"
 readonly TIMER_FILE="/etc/systemd/system/pitchai-auth-reset-guardian.timer"
@@ -38,17 +40,7 @@ done
 }
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:38188/healthz >/dev/null
 [[ -r "${TELEGRAM_REPO}/main.py" ]] || { printf 'Canonical Telegram helper is unavailable.\n' >&2; exit 1; }
-(
-  cd "${TELEGRAM_REPO}"
-  /usr/bin/env -i HOME=/root PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 - <<'PY'
-from telegram_agent_server.config import load_settings
-settings = load_settings()
-if "seth-ori" not in settings.route_registry.private:
-    raise SystemExit("Seth requester-private Telegram route is unavailable")
-if not settings.bot_token:
-    raise SystemExit("Telegram bot configuration is unavailable")
-PY
-)
+/usr/bin/bash "${REPO_ROOT}/ops/auth_reset_guardian_notification_preflight.sh" >/dev/null
 
 mapfile -d '' -t source_files < <(
   cd "${REPO_ROOT}"
@@ -58,6 +50,8 @@ mapfile -d '' -t source_files < <(
       fixtures/auth-reset-guardian-expiring.json \
       docs/auth-reset-guardian.md \
       ops/run_auth_reset_guardian.sh \
+      ops/auth_reset_guardian_notifier.sh \
+      ops/auth_reset_guardian_notification_preflight.sh \
       ops/deploy_auth_reset_guardian.sh \
       ops/auth-reset-guardian.env \
       ops/systemd/pitchai-auth-reset-guardian.service \
@@ -125,6 +119,9 @@ ln -s "${release_dir}" "${temporary_link}"
 mv -Tf "${temporary_link}" "${CURRENT_LINK}"
 
 install -m 755 -o root -g root "${REPO_ROOT}/ops/run_auth_reset_guardian.sh" "${RUNNER}"
+install -m 755 -o root -g root "${REPO_ROOT}/ops/auth_reset_guardian_notifier.sh" "${NOTIFIER}"
+install -m 755 -o root -g root \
+  "${REPO_ROOT}/ops/auth_reset_guardian_notification_preflight.sh" "${NOTIFIER_PREFLIGHT}"
 install -m 600 -o root -g root "${REPO_ROOT}/ops/auth-reset-guardian.env" "${ENV_FILE}"
 install -m 644 -o root -g root \
   "${REPO_ROOT}/ops/systemd/pitchai-auth-reset-guardian.service" "${SERVICE_FILE}"
@@ -132,6 +129,8 @@ install -m 644 -o root -g root \
   "${REPO_ROOT}/ops/systemd/pitchai-auth-reset-guardian.timer" "${TIMER_FILE}"
 systemctl daemon-reload
 systemd-analyze verify "${SERVICE_FILE}" "${TIMER_FILE}"
+/usr/bin/env -i HOME=/root PATH=/usr/bin:/bin LANG=C.UTF-8 \
+  "${NOTIFIER}" --preflight-only >/dev/null
 
 validation_dir="$(mktemp -d /run/pitchai-auth-reset-guardian-validation.XXXXXX)"
 cleanup_validation() {

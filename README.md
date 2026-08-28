@@ -42,6 +42,10 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
     - `disabled: true` (or `enabled: false`)
     - `disabled_until`: unix timestamp or ISO-8601 datetime/date (optional)
     - `disabled_reason`: shown in heartbeats/logs (optional)
+  - Keep a domain checked and dashboard-visible without Telegram alerts:
+    - `alert_policy.telegram: dashboard-only`
+    - `alert_policy.reason`: required operator-facing explanation
+    - Omit `alert_policy` for the default `critical` routing contract. Critical domains continue to route domain, performance, SLO/RED, TLS/DNS, API, synthetic, web-vitals, and attributable proxy alerts. Host-wide signals without domain attribution remain globally alertable.
   - `check_concurrency`: max concurrent domain checks (HTTP + browser) to reduce load spikes / false positives
   - `browser_concurrency`: max concurrent Playwright page checks (lower if Chromium is unstable)
   - Alerting debounce (reduces transient false positives):
@@ -265,7 +269,7 @@ This repository also contains the protected operational dashboard for the author
 - Deployment: `ops/deploy_codex_usage_dashboard.sh`
 - Operations, capacity methodology, security, and rollback: `docs/codex-auth-usage-dashboard.md`
 
-The dashboard reads only redacted broker metadata/state, refreshes quota with the broker's no-generation usage probe, and charts a seven-day hourly burn series constrained to provider-reported daily totals. A root-private sample ledger progressively replaces reconstructed hours with native deltas and drives reset-aware 1h/6h/24h runout probabilities. Banked-reset dates remain read-only and excluded from automatic capacity; the service never reads broker `auth.json` files and has no reset-redemption capability.
+The dashboard reads only redacted broker metadata/state, refreshes quota with the broker's no-generation usage probe, and charts a seven-day hourly burn series constrained to provider-reported daily totals. A root-private, append-only SQLite series records every configured account at five-minute cadence with quota windows, auth/error/freshness state, reset-credit count, one-way account fingerprint, and collector SHA. Auth-invalid rows retain explicitly labeled last-known measurements when available. The short JSON ledger still feeds native burn deltas but is no longer the durable authority. Banked-reset dates remain read-only and excluded from automatic capacity; the service never reads broker `auth.json` files and has no reset-redemption capability.
 
 The repository also contains Seth's personal native companion in `ios/`. Its
 iPhone, Apple Watch, iOS WidgetKit, and watchOS Smart Stack targets consume a
