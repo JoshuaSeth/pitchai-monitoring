@@ -64,10 +64,13 @@ def safe_events(value: JsonValue | object) -> list[JsonObject]:
         final_url = safe_public_url(raw.get("final_url"))
         if final_url:
             event["final_url"] = final_url
-        for key in ("status_code", "failures", "fail_streak"):
+        for key in ("status_code", "failures", "fail_streak", "upstream_issues", "upstream_events"):
             number = int_value(raw.get(key))
             if number is not None:
                 event[key] = number
+        upstream_percent = float_value(raw.get("access_502_504_percent"))
+        if upstream_percent is not None:
+            event["access_502_504_percent"] = upstream_percent
         telegram_alert = bool_value(raw.get("telegram_alert"))
         if telegram_alert is not None:
             event["telegram_alert"] = telegram_alert

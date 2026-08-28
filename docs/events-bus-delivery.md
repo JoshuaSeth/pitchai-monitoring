@@ -92,9 +92,39 @@ The complete initial catalog is:
 | Browser infrastructure | `browser_degraded_notice`, `browser_recovered` |
 | Monitor pipeline | `meta_degraded`, `meta_recovered` |
 
-The main monitor emits only debounced state transitions. `service_started` is
-emitted after a configured process starts. `integration_test` is emitted only
-by the explicit internal probe command.
+### Critical repair-dispatch projection
+
+The main monitor retains its debounced raw transitions and existing private
+Telegram behavior in `state.json`. Production does not give that legacy generic
+producer Events Bus credentials, because its raw `domain_down` payload lacks the
+owner, expectation, evidence, and message-boundary context required by the ASAP
+repair rule. Dedicated durable producers own the critical projection instead:
+
+- the critical incident sidecar emits `domain_down` / `domain_up` only for
+  active inventory entries whose environment is `production` and whose alert
+  policy is `critical`;
+- the same sidecar emits `production_failure` / `production_recovered` for
+  debounced production API-contract failures, real synthetic-transaction
+  failures, and the global reverse-proxy signal;
+- the database sidecar emits `database_down` / `database_recovered` only for
+  alert-enabled production dependency groups; and
+- the hotpath registry emits `hotpath_red` / `hotpath_recovered` from the
+  versioned central report contract.
+
+Container health, host pressure, SLO, latency, Web Vitals, browser
+infrastructure, and other raw degradation signals do not independently prove a
+production surface is broken and therefore do not enter the repair-agent rule.
+They remain dashboard/Telegram diagnostic evidence. Dashboard-only, internal,
+staging, disabled, deprecated, and explicitly suppressed domain policies are
+also excluded. A broken public surface still enters through its domain,
+transaction, hotpath, proxy, or database signal, with the exact project route
+when known and the generic `pitchai_monitoring` project otherwise.
+
+Every critical producer uses a durable outbox, a stable delivery id, receiver
+deduplication, a 1,800-second incident cooldown, material-change escalation,
+and persistent-failure re-escalation. Safe synthetic routing proofs set the
+synthetic marker and are consumed by the proof-only rule, never the real repair
+rule.
 
 ## Deployment Order
 

@@ -841,66 +841,82 @@ domain_groups:
   corporate:
     label: "PitchAI public web"
     description: "Corporate website and public asset edge"
+    owner_project: pitchai_net
     order: 10
   platform-apps:
     label: "Platform apps"
     description: "PitchAI chat, navigation and document applications"
+    owner_project: pitchai_monitoring
     order: 20
   operations:
     label: "Operations & identity"
     description: "SSO portals, internal tools and operator surfaces"
+    owner_project: pitchai_infrastructure
     order: 30
   infrastructure:
     label: "Platform infrastructure"
     description: "Health, privacy, storage, registry and owned service routes"
+    owner_project: pitchai_infrastructure
     order: 40
   afasask:
     label: "AFASAsk"
     description: "Production, demo, staging and GZB deployments"
+    owner_project: afasask
     order: 50
   autopar:
     label: "AutoPAR"
     description: "Production and staging application/authentication routes"
+    owner_project: autopar
     order: 60
   dft:
     label: "Formatief Toetsen (DFT)"
     description: "Canonical production, staging and marketing routes"
+    owner_project: dft
     order: 70
   potaito:
     label: "Potaito"
     description: "Potaito production, staging and Potato market-product routes"
+    owner_project: potaito
     order: 80
   skybuyfly:
     label: "SkyBuyFly"
     description: "Primary and stable production lanes"
+    owner_project: ai_price_crawler
     order: 90
   deplanbook:
     label: "DePlanbook"
     description: "PitchAI aliases, public app and CMS"
+    owner_project: deplanbook_play
     order: 100
   hetcis:
     label: "HetCIS"
     description: "Public production site and PitchAI staging service"
+    owner_project: hetcis_backend
     order: 110
   learning-demos:
     label: "Learning & demos"
     description: "Courses, demos and staging content applications"
+    owner_project: pitchai_monitoring
     order: 120
   aigenda-calendar:
     label: "AIGENDA calendar"
     description: "Production calendar application and isolated synthetic monitor"
+    owner_project: driestar
     order: 125
   jeff-internal:
     label: "Jeff internal"
     description: "Jeff environment service aliases"
+    owner_project: pitchai_monitoring
     order: 130
   market-insights:
     label: "Market insights"
     description: "Protected client-facing price services"
+    owner_project: ai_price_crawler
     order: 140
   unimix:
     label: "Unimix"
     description: "Unimix Brasil production website and canonical alias"
+    owner_project: pitchai_monitoring
     order: 150
 
 check_profiles:
@@ -997,6 +1013,7 @@ domains:
   - domain: orthoparse.pitchai.net
     label: "Orthoparse"
     group: platform-apps
+    owner_project: orthoparse
     environment: production
     kind: application
     sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
@@ -1286,6 +1303,7 @@ domains:
   - domain: 2fa-server.37.27.67.52.nip.io
     label: "PitchAI 2FA service"
     group: infrastructure
+    owner_project: two_factor_server
     environment: production
     kind: api
     ownership: pitchai-operated-non-owned-dns
@@ -1467,6 +1485,7 @@ domains:
   - domain: cms.deplanbook.com
     label: "DePlanBook CMS"
     group: deplanbook
+    owner_project: deplanbook_cms
     environment: production
     kind: application
     sources: [client-zone-dns-and-tls, pitchai-main-ingress, repository-specialized-check, live-probe-2026-08-24]
