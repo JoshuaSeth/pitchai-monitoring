@@ -30,6 +30,7 @@ WidgetKit/Smart Stack surfaces.
 - `CodexStatusWatch`: paired Watch dashboard with iPhone-mediated refresh.
 - `CodexStatusWatchWidget`: accessory families for the watchOS Smart Stack.
 - `CodexStatusTests`: native contract, nil-capacity, and cache-privacy tests.
+- `CodexStatusUITests`: a sanitized iPhone live-status render gate.
 - `CodexStatusWatchUITests`: launch proof plus a strict live-snapshot assertion
   for simulator and physical-Watch evidence.
 
@@ -76,6 +77,11 @@ The Watch UI-test target keeps launch proof separate from live-data proof. Run
 `testDashboardLaunches` to validate the root UI, and count
 `testLiveSnapshotRenders` only when the Watch received a real snapshot through
 the signed app data path.
+
+The `CodexStatusPhysicalLive` scheme is intentionally device-only. Its explicit
+environment enables the guarded App Attest/cache integration tests and the
+hero-only iPhone UI screenshot, while normal simulator test runs skip all live
+network and App Group assertions.
 
 Run the simulator app with `-CodexStatusFixture` only for sanitized UI evidence.
 The normal app has no fixture fallback: it fails clearly when App Attest or the

@@ -191,6 +191,21 @@ targets:
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/CodexStatus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CodexStatus
         BUNDLE_LOADER: $(TEST_HOST)
 
+  CodexStatusUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests/iOS
+    dependencies:
+      - target: CodexStatus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pitchai.codexstatus.uitests
+        PRODUCT_NAME: CodexStatusUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: CodexStatus
+        CODE_SIGN_STYLE: Automatic
+
   CodexStatusWatchUITests:
     type: bundle.ui-testing
     platform: watchOS
@@ -225,6 +240,19 @@ schemes:
       config: Debug
     archive:
       config: Release
+  CodexStatusPhysicalLive:
+    build:
+      targets:
+        CodexStatus: all
+        CodexStatusTests: [test]
+        CodexStatusUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - CodexStatusTests
+        - CodexStatusUITests
+      environmentVariables:
+        CODEX_STATUS_PHYSICAL_LIVE: "1"
   CodexStatusWatch:
     build:
       targets:
