@@ -53,7 +53,10 @@ PNG with ImageMagick:
 ```
 
 The Xcode project is generated from `project.yml`; do not commit the generated
-`.xcodeproj` or DerivedData.
+`.xcodeproj` or DerivedData. Asset catalogs and privacy manifests are explicit
+`sources` entries with `buildPhase: resources`; XcodeGen otherwise ignores an
+unknown target-level `resources` key without creating a Copy Bundle Resources
+phase.
 
 ## Build and test
 

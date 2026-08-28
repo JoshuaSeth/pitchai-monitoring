@@ -31,6 +31,21 @@ target_contains() {
   ' "${project_yaml}"
 }
 
+target_resource_source() {
+  local target="$1"
+  local path="$2"
+  awk -v header="  ${target}:" -v path_line="      - path: ${path}" '
+    $0 == header { inside = 1; next }
+    inside && $0 ~ /^  [[:alnum:]_]+:$/ { exit }
+    inside && $0 == path_line {
+      if ((getline next_line) > 0 && next_line == "        buildPhase: resources") {
+        found = 1
+      }
+    }
+    END { exit found ? 0 : 1 }
+  ' "${project_yaml}"
+}
+
 validate_contract() {
   command -v identify >/dev/null 2>&1 || fail 'ImageMagick identify is required to validate the app icon PNG.'
   command -v jq >/dev/null 2>&1 || fail 'jq is required to validate the app icon asset catalog.'
@@ -52,10 +67,14 @@ validate_contract() {
     ]
   ' "${contents_json}" >/dev/null || fail 'Asset catalog must assign the same master to iOS and watchOS.'
 
-  target_contains CodexStatus 'path: Resources/Assets.xcassets' || fail 'iPhone target must compile the shared asset catalog.'
+  target_resource_source CodexStatus 'Resources/Assets.xcassets' || fail 'iPhone target must compile the shared asset catalog in the resources build phase.'
   target_contains CodexStatus 'ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon' || fail 'iPhone target must compile AppIcon.'
-  target_contains CodexStatusWatch 'path: Resources/Assets.xcassets' || fail 'Watch target must compile the shared asset catalog.'
+  target_resource_source CodexStatusWatch 'Resources/Assets.xcassets' || fail 'Watch target must compile the shared asset catalog in the resources build phase.'
   target_contains CodexStatusWatch 'ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon' || fail 'Watch target must compile AppIcon.'
+  target_resource_source CodexStatus 'Resources/PrivacyInfo.xcprivacy' || fail 'iPhone target must compile its privacy manifest in the resources build phase.'
+  target_resource_source CodexStatusWidget 'Resources/PrivacyInfo.xcprivacy' || fail 'iPhone widget must compile its privacy manifest in the resources build phase.'
+  target_resource_source CodexStatusWatch 'Resources/PrivacyInfo.xcprivacy' || fail 'Watch target must compile its privacy manifest in the resources build phase.'
+  target_resource_source CodexStatusWatchWidget 'Resources/PrivacyInfo.xcprivacy' || fail 'Watch widget must compile its privacy manifest in the resources build phase.'
   target_contains CodexStatus 'target: CodexStatusWidget' || fail 'iPhone app must contain its widget extension.'
   target_contains CodexStatus 'target: CodexStatusWatch' || fail 'iPhone app must embed the Watch app.'
   target_contains CodexStatusWatch 'target: CodexStatusWatchWidget' || fail 'Watch app must contain its widget extension.'

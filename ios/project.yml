@@ -30,9 +30,10 @@ targets:
     sources:
       - path: Shared
       - path: App
-    resources:
       - path: Resources/Assets.xcassets
+        buildPhase: resources
       - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Generated/CodexStatus-Info.plist
       properties:
@@ -80,8 +81,8 @@ targets:
     sources:
       - path: Shared
       - path: Widgets/iOS
-    resources:
       - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Generated/CodexStatusWidget-Info.plist
       properties:
@@ -112,9 +113,10 @@ targets:
     sources:
       - path: Shared
       - path: WatchApp
-    resources:
       - path: Resources/Assets.xcassets
+        buildPhase: resources
       - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Generated/CodexStatusWatch-Info.plist
       properties:
@@ -149,8 +151,8 @@ targets:
     sources:
       - path: Shared
       - path: Widgets/Watch
-    resources:
       - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Generated/CodexStatusWatchWidget-Info.plist
       properties:
