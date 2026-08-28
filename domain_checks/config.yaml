@@ -778,7 +778,7 @@ database_dependencies:
 # Reverse proxy / failover monitoring (uses upstream headers + optional Nginx logs).
 proxy:
   enabled: true
-  access_log_path: /var/log/nginx/access.log
+  access_log_path: /var/log/nginx/service-monitoring-access.log
   error_log_path: /var/log/nginx/error.log
   timezone: "Europe/Amsterdam"
   window_seconds: 300
