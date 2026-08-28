@@ -1,4 +1,9 @@
-CHECK = {
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Production monitoring configuration for deplanbook.com."""
+
+from __future__ import annotations
+
+CHECK: dict[str, object] = {
     "domain": "deplanbook.com",
     "url": "https://deplanbook.com",
     "expected_title_contains": "Deplanbook",
@@ -21,18 +26,18 @@ CHECK = {
             "json_paths_required": ["status"],
             "json_paths_equal": {"status": "ok"},
             "max_elapsed_ms": 1500,
-        }
+        },
     ],
     "synthetic_transactions": [
         {
             "name": "open_diary_page",
             "steps": [
                 {"type": "goto"},
-                {"type": "click", "selector": "a[href=\"/diary\"]"},
+                {"type": "click", "selector": 'a[href="/diary"]'},
                 {"type": "expect_url_contains", "value": "/login-page?next=%2Fdiary"},
                 {"type": "wait_for_selector", "selector": "text=Log in bij DePlanBook", "state": "visible"},
             ],
-        }
+        },
     ],
     "forbidden_text_any": [
         "maintenance",

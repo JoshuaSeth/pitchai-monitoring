@@ -1,45 +1,25 @@
-CHECK = {
-    "domain": "dpb.pitchai.net",
-    "url": "https://dpb.pitchai.net",
-    "expected_title_contains": "Deplanbook",
-    "expected_final_host_suffix": "deplanbook.com",
-    "required_selectors_all": [
-        {"selector": "#main", "state": "visible"},
-        {"selector": 'a[href="/diary"]', "state": "visible"},
-        {"selector": 'a[href="/account"]', "state": "visible"},
-        {"selector": "text=Rondleiding", "state": "visible"},
-    ],
-    "required_selectors_any": [
-        {"selector": 'a[href="/diary"]', "state": "attached"},
-    ],
-    "api_contract_checks": [
-        {
-            "name": "health",
-            "method": "GET",
-            "path": "/health",
-            "expected_status_codes": [200],
-            "expected_content_type_contains": "application/json",
-            "json_paths_required": ["status"],
-            "json_paths_equal": {"status": "ok"},
-            "max_elapsed_ms": 1500,
-        }
-    ],
-    "synthetic_transactions": [
-        {
-            "name": "open_diary_page",
-            "steps": [
-                {"type": "goto"},
-                {"type": "click", "selector": "a[href=\"/diary\"]"},
-                {"type": "expect_url_contains", "value": "/login-page?next=%2Fdiary"},
-                {"type": "wait_for_selector", "selector": "text=Log in bij DePlanBook", "state": "visible"},
-            ],
-        }
-    ],
-    "forbidden_text_any": [
-        "maintenance",
-        "bad gateway",
-        "service unavailable",
-        "gateway timeout",
-        "not found",
-    ],
-}
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Production monitoring configuration for dpb.pitchai.net."""
+
+from __future__ import annotations
+
+import runpy
+from pathlib import Path
+from typing import cast
+
+_CANONICAL_CHECK_PATH = Path(__file__).parents[1] / "deplanbook.com" / "check.py"
+_INVALID_CHECK_ERROR = "canonical DePlanBook plugin did not define a CHECK mapping"
+
+_module_variables = cast("dict[str, object]", runpy.run_path(str(_CANONICAL_CHECK_PATH)))
+_canonical_check = _module_variables.get("CHECK")
+if not isinstance(_canonical_check, dict):
+    raise TypeError(_INVALID_CHECK_ERROR)
+
+CHECK = cast("dict[str, object]", _canonical_check.copy())
+CHECK.update(
+    {
+        "domain": "dpb.pitchai.net",
+        "url": "https://dpb.pitchai.net",
+        "expected_final_host_suffix": "deplanbook.com",
+    },
+)
