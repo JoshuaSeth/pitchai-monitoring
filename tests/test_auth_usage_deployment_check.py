@@ -5,10 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from auth_usage_dashboard.deployment_check import (
-    validate_capacity_payload,
-    validate_scheduling_capacity_payload,
-)
+from auth_usage_dashboard.deployment_check import validate_capacity_payload
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -77,30 +74,3 @@ def test_deployment_validator_rejects_secret_key_names() -> None:
     except AssertionError:
         return
     raise AssertionError("secret-bearing payload passed deployment validation")
-
-
-def test_scheduling_deployment_validator_accepts_redacted_contract() -> None:
-    payload = {
-        "schema_version": 2,
-        "status": "available",
-        "source": {
-            "stale": False,
-            "error": None,
-            "history_error": None,
-            "newest_probe_at": "2026-08-28T12:00:00Z",
-            "freshness_seconds": 10,
-        },
-        "capacity": {
-            "basis_key": "five_hour",
-            "measurement_status": "complete",
-            "timeline_status": "complete",
-        },
-        "burn": {"confidence": "high"},
-        "token_burn": {"diagnostic_only": True},
-        "automatic_resets": [{"kind": "five_hour_reset"}],
-        "expiry_buckets": [{"kind": "five_hour_window"}],
-        "banked_resets": {"included_as_automatic_capacity": False},
-        "methodology": {"identity_scope": "aggregate_only"},
-    }
-
-    validate_scheduling_capacity_payload(payload)

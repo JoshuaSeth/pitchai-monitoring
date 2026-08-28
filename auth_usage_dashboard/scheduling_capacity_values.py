@@ -3,10 +3,13 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from .scheduling_capacity_timeline_values import aware_datetime
+
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from .timeseries_types import JsonValue
 
 
@@ -62,17 +65,9 @@ def runout_risk(value: JsonValue) -> str:
 
 
 def _datetime(value: JsonValue) -> datetime | None:
-    """Parse an aware ISO-8601 timestamp and normalize it to UTC.
+    """Parse an internal aware ISO-8601 timestamp.
 
     Returns:
         UTC timestamp when valid and timezone-aware, otherwise None.
     """
-    if not isinstance(value, str) or not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return None
-    return parsed.astimezone(UTC)
+    return aware_datetime(value if isinstance(value, str) else None)

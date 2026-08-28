@@ -111,9 +111,6 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
         assert denied.status_code == 401
         assert denied.headers["x-robots-tag"] == "noindex, nofollow, noarchive"
 
-        scheduling_denied = client.get("/api/v1/scheduling-capacity")
-        assert scheduling_denied.status_code == 401
-
         foreign_identity = client.get(
             "/api/v1/capacity",
             headers={"X-PitchAI-Email": "operator@example.com"},
@@ -138,25 +135,6 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
         assert response.headers["content-security-policy"].startswith(
             "default-src 'self'"
         )
-
-        scheduling = client.get(
-            "/api/v1/scheduling-capacity",
-            headers={"X-PitchAI-Email": "priority-engine@pitchai.net"},
-        )
-        assert scheduling.status_code == 200
-        scheduling_payload = scheduling.json()
-        assert scheduling_payload["schema_version"] == 2
-        assert scheduling_payload["status"] == "available"
-        assert scheduling_payload["capacity"]["basis_key"] == "five_hour"
-        assert scheduling_payload["capacity"]["remaining_points"] == 75.0
-        assert scheduling_payload["capacity"]["timeline_status"] == "complete"
-        assert scheduling_payload["expiry_buckets"][0]["remaining_points"] == 75.0
-        assert scheduling_payload["banked_resets"] == {
-            "available_count": 1,
-            "included_as_automatic_capacity": False,
-        }
-        assert "safe@example.com" not in scheduling.text
-        assert "internal-id" not in scheduling.text
 
         dashboard = client.get(
             "/",

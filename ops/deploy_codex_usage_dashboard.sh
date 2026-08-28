@@ -191,8 +191,8 @@ check_dashboard() {
         if scheduling_output="$(curl --fail --silent --show-error --max-time 3 \
           --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
           "http://127.0.0.1:${port}/api/v1/scheduling-capacity" 2>/dev/null)" \
-          && python3 "${REPO_ROOT}/auth_usage_dashboard/deployment_check.py" \
-            --contract scheduling-capacity <<<"${scheduling_output}"; then
+          && PYTHONPATH="${REPO_ROOT}" python3 -m \
+            auth_usage_dashboard.scheduling_capacity_check <<<"${scheduling_output}"; then
           return 0
         fi
       fi

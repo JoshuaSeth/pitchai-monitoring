@@ -117,11 +117,6 @@ def create_app(
         require_operator(request)
         return JSONResponse(await service.snapshot())
 
-    @app.get("/api/v1/scheduling-capacity")
-    async def scheduling_capacity(request: Request) -> JSONResponse:
-        require_operator(request)
-        return JSONResponse(await service.scheduling_snapshot())
-
     @app.post("/api/v1/refresh")
     async def refresh(
         request: Request,
