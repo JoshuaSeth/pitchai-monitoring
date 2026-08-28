@@ -3,20 +3,21 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
-from fastapi import HTTPException, Request, status
-from fastapi.responses import JSONResponse
-
-from . import app as dashboard_app
 from .scheduling_capacity import build_scheduling_capacity_snapshot
+from .scheduling_web_runtime import (
+    HTTPException,
+    dashboard_app_factory,
+    header_factory,
+    json_response_factory,
+)
 from .service import CapacityService
 from .settings import DashboardSettings
 from .source import BrokerStateSource
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI
-
+    from .scheduling_web_runtime import Application, Response
     from .service import StateSource
     from .timeseries_types import JsonObject
 
@@ -24,7 +25,19 @@ _ALLOWED_IDENTITY_DOMAIN = "pitchai.net"
 _MAX_EMAIL_LENGTH = 254
 _VISIBLE_ASCII_MINIMUM = 33
 _VISIBLE_ASCII_MAXIMUM = 126
-_RequestClass = Request
+_HTTP_UNAUTHORIZED = 401
+
+
+class _CapacitySnapshotReader(Protocol):
+    """Strict snapshot surface consumed by the scheduling projection."""
+
+    async def snapshot(self) -> JsonObject:
+        """Return the current operator snapshot."""
+        raise NotImplementedError
+
+    def contract_name(self) -> str:
+        """Return the boundary contract name."""
+        raise NotImplementedError
 
 
 def create_scheduling_app(
@@ -32,7 +45,7 @@ def create_scheduling_app(
     *,
     source: StateSource | None = None,
     service: CapacityService | None = None,
-) -> FastAPI:
+) -> Application:
     """Extend the operator dashboard with its aggregate scheduler contract.
 
     Returns:
@@ -46,42 +59,51 @@ def create_scheduling_app(
         request_timeout_seconds=selected_settings.request_timeout_seconds,
     )
     selected_service = service or CapacityService(selected_settings, selected_source)
-    application = dashboard_app.create_app(
+    application = dashboard_app_factory(
         selected_settings,
         source=selected_source,
         service=selected_service,
     )
+    capacity_reader = cast(
+        "_CapacitySnapshotReader",
+        cast("object", selected_service),
+    )
+    identity_header = cast(
+        "str | None",
+        cast(
+            "object",
+            header_factory(None, alias=selected_settings.proxy_auth_header),
+        ),
+    )
 
-    async def scheduling_capacity(request: Request) -> JSONResponse:
-        _require_operator(selected_settings, request)
-        snapshot = cast("JsonObject", await selected_service.snapshot())
-        return JSONResponse(build_scheduling_capacity_snapshot(snapshot))
+    async def scheduling_capacity(
+        proxy_identity: str | None = identity_header,
+    ) -> Response:
+        _require_operator(selected_settings, proxy_identity)
+        snapshot = await capacity_reader.snapshot()
+        payload = build_scheduling_capacity_snapshot(snapshot)
+        return json_response_factory(payload)
 
     application.add_api_route(
         "/api/v1/scheduling-capacity",
         scheduling_capacity,
         methods=["GET"],
+        response_model=None,
     )
     return application
 
 
-def _require_operator(settings: DashboardSettings, request: Request) -> None:
+def _require_operator(settings: DashboardSettings, raw_email: str | None) -> None:
     """Require one trusted PitchAI proxy identity.
 
     Raises:
         HTTPException: If the proxy identity is absent or outside PitchAI.
-        TypeError: If FastAPI supplies an invalid request value.
     """
-    raw_request = cast("object", request)
-    if not isinstance(raw_request, _RequestClass):
-        message = "scheduler endpoint requires a Starlette request"
-        raise TypeError(message)
     if not settings.require_proxy_auth:
         return
-    raw_email = request.headers.get(settings.proxy_auth_header)
     if _normalize_pitchai_email(raw_email) is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=_HTTP_UNAUTHORIZED,
             detail="PitchAI Entra SSO identity required",
         )
 

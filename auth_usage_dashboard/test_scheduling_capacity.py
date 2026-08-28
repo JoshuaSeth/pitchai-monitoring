@@ -7,8 +7,6 @@ import json
 from http import HTTPStatus
 from typing import TYPE_CHECKING, cast, final
 
-from fastapi.testclient import TestClient
-
 from ._scheduling_capacity_test_fixtures import (
     StaticCapacityService,
     dashboard_settings,
@@ -27,10 +25,10 @@ from .scheduling_capacity import (
     build_scheduling_capacity_snapshot,
 )
 from .scheduling_capacity_check import validate_scheduling_capacity_payload
+from .scheduling_web_runtime import test_client_factory
 from .timeseries_types import optional_object, require_object
 
 if TYPE_CHECKING:
-    from ._scheduling_capacity_test_fixtures import HttpClientContract
     from .service import CapacityService, StateSource
     from .timeseries_types import JsonObject
 
@@ -150,8 +148,7 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
             service=cast("CapacityService", cast("object", service)),
         )
 
-        with TestClient(application) as raw_client:
-            client = cast("HttpClientContract", cast("object", raw_client))
+        with test_client_factory(application) as client:
             denied = client.get("/api/v1/scheduling-capacity")
             foreign = client.get(
                 "/api/v1/scheduling-capacity",

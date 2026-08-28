@@ -10,11 +10,9 @@ from typing import TYPE_CHECKING, final
 from .settings import DashboardSettings
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
     from pathlib import Path
-    from typing import Protocol
 
-    from .timeseries_types import JsonObject, JsonValue
+    from .timeseries_types import JsonObject
 
 
 @final
@@ -41,40 +39,6 @@ class StaticCapacityService:
     async def snapshot(self) -> JsonObject:
         """Return an isolated copy of the aggregate source fixture."""
         return deepcopy(self._snapshot)
-
-
-if TYPE_CHECKING:
-
-    class HttpResponseContract(Protocol):
-        """Typing-only shape used to isolate untyped TestClient dependencies."""
-
-        status_code: int
-        headers: Mapping[str, str]
-        text: str
-
-        def json(self) -> JsonValue:
-            """Decode one response body."""
-            raise NotImplementedError
-
-        def contract_name(self) -> str:
-            """Return the boundary contract name."""
-            raise NotImplementedError
-
-    class HttpClientContract(Protocol):
-        """Typing-only subset of the synchronous test client."""
-
-        def get(
-            self,
-            url: str,
-            *,
-            headers: Mapping[str, str] | None = None,
-        ) -> HttpResponseContract:
-            """Issue one local GET request."""
-            raise NotImplementedError
-
-        def close(self) -> None:
-            """Close the client."""
-            raise NotImplementedError
 
 
 def dashboard_settings(root: Path) -> DashboardSettings:
