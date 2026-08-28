@@ -9,6 +9,7 @@ from typing import Any, Protocol
 
 from .capacity import build_dashboard_snapshot, isoformat, utc_now
 from .history import UsageSampleStore
+from .scheduling_capacity import build_scheduling_capacity_snapshot
 from .settings import DashboardSettings
 
 
@@ -72,6 +73,11 @@ class CapacityService:
             await self.refresh(force_probe=False)
         assert self._snapshot is not None
         return copy.deepcopy(self._snapshot)
+
+    async def scheduling_snapshot(self) -> dict[str, Any]:
+        """Return the aggregate-only contract consumed by the queue drainer."""
+
+        return build_scheduling_capacity_snapshot(await self.snapshot())
 
     async def health(self) -> dict[str, Any]:
         snapshot = await self.snapshot()

@@ -182,12 +182,19 @@ check_dashboard() {
   # Production startup includes live broker probes and can legitimately take over 15s.
   local attempts=240
   local output
+  local scheduling_output
   while (( attempts > 0 )); do
     if output="$(curl --fail --silent --show-error --max-time 3 \
       --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
       "http://127.0.0.1:${port}/api/v1/capacity" 2>/dev/null)"; then
       if python3 "${REPO_ROOT}/auth_usage_dashboard/deployment_check.py" <<<"${output}"; then
-        return 0
+        if scheduling_output="$(curl --fail --silent --show-error --max-time 3 \
+          --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
+          "http://127.0.0.1:${port}/api/v1/scheduling-capacity" 2>/dev/null)" \
+          && python3 "${REPO_ROOT}/auth_usage_dashboard/deployment_check.py" \
+            --contract scheduling-capacity <<<"${scheduling_output}"; then
+          return 0
+        fi
       fi
     fi
     attempts=$((attempts - 1))

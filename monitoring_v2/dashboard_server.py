@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from .json_types import JsonObject
     from .registry_runtime import RegistrySettings
 
-_START_ATTEMPTS = 80
+_START_TIMEOUT_SECONDS = 15.0
 _START_RETRY_SECONDS = 0.05
 _SHUTDOWN_TIMEOUT_SECONDS = 5.0
 
@@ -109,10 +109,14 @@ def _settings(root: Path, state_path: Path, config_path: Path) -> RegistrySettin
     )
 
 
-def _wait_until_ready(server: uvicorn.Server) -> None:
-    for _attempt in range(_START_ATTEMPTS):
+def _wait_until_ready(server: uvicorn.Server, thread: threading.Thread) -> None:
+    deadline = time.monotonic() + _START_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
         if server.started:
             return
+        if not thread.is_alive():
+            message = "registry dashboard fixture stopped before becoming healthy"
+            raise RuntimeError(message)
         time.sleep(_START_RETRY_SECONDS)
     message = "registry dashboard fixture did not become healthy"
     raise RuntimeError(message)
@@ -120,6 +124,7 @@ def _wait_until_ready(server: uvicorn.Server) -> None:
 
 def _ready_server(
     server: uvicorn.Server,
+    thread: threading.Thread,
     base_url: str,
     monitor_token: str,
 ) -> Generator[DashboardServer]:
@@ -128,7 +133,7 @@ def _ready_server(
     Yields:
         Connection details after the health route succeeds.
     """
-    _wait_until_ready(server)
+    _wait_until_ready(server, thread)
     yield DashboardServer(base_url=base_url, monitor_token=monitor_token)
 
 
@@ -164,7 +169,7 @@ def running_dashboard_server(root: Path) -> Generator[DashboardServer]:
     thread.start()
     base_url = f"http://127.0.0.1:{port}"
     try:
-        yield from _ready_server(server, base_url, settings.monitor_token)
+        yield from _ready_server(server, thread, base_url, settings.monitor_token)
     finally:
         server.should_exit = True
         thread.join(timeout=_SHUTDOWN_TIMEOUT_SECONDS)
