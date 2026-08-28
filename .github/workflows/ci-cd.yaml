@@ -93,6 +93,35 @@ jobs:
             git clone https://github.com/JoshuaSeth/pitchai-monitoring.git .
             git checkout ${{ github.sha }}
 
+            echo "🧭 Installing host-aware monitoring access log..."
+            MONITORING_NGINX_SOURCE="deploy/nginx/service-monitoring-access-log.conf"
+            MONITORING_NGINX_TARGET="/etc/nginx/conf.d/service-monitoring-access-log.conf"
+            MONITORING_NGINX_BACKUP="$DEPLOY_DIR/service-monitoring-access-log.conf.previous"
+            monitoring_nginx_had_previous="false"
+            if [[ -f "$MONITORING_NGINX_TARGET" ]]; then
+              cp -a "$MONITORING_NGINX_TARGET" "$MONITORING_NGINX_BACKUP"
+              monitoring_nginx_had_previous="true"
+            fi
+            restore_monitoring_nginx() {
+              if [[ "$monitoring_nginx_had_previous" == "true" ]]; then
+                install -o root -g root -m 0644 "$MONITORING_NGINX_BACKUP" "$MONITORING_NGINX_TARGET"
+              else
+                rm -f -- "$MONITORING_NGINX_TARGET"
+              fi
+            }
+            install -o root -g root -m 0644 "$MONITORING_NGINX_SOURCE" "$MONITORING_NGINX_TARGET"
+            if ! nginx -t; then
+              restore_monitoring_nginx
+              nginx -t
+              exit 1
+            fi
+            if ! systemctl reload nginx; then
+              restore_monitoring_nginx
+              nginx -t
+              systemctl reload nginx || true
+              exit 1
+            fi
+
             echo "🌐 Ensuring docker network exists: $NET_NAME"
             if ! docker network ls --format '{{.Name}}' | grep -qx "$NET_NAME"; then
               docker network create "$NET_NAME" >/dev/null
