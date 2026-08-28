@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from .event_bus_runtime import (
     DELIVERY_RUNTIME,
@@ -24,10 +24,32 @@ from .json_types import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from httpx import BaseTransport
 
     from .event_bus_runtime import DeliveryAttempt, EventBusConfig
     from .json_types import JsonInput, JsonObject, JsonValue
+
+
+class IncidentEvent(Protocol):
+    """Structural transition accepted by the shared durable outbox."""
+
+    @property
+    def kind(self) -> str:
+        """Return the monitoring event kind."""
+        raise NotImplementedError
+
+    @property
+    def occurred_at(self) -> float:
+        """Return the source transition timestamp."""
+        raise NotImplementedError
+
+    @property
+    def details(self) -> JsonObject:
+        """Return the complete immutable event details."""
+        raise NotImplementedError
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -78,14 +100,31 @@ class DatabaseEventBus:
 
         Returns:
             A staged producer to checkpoint atomically with collector state.
+
+        Raises:
+            RuntimeError: If the database transition builder violates its scope.
+        """
+        transitions = database_transition_events(previous=previous, updated=updated)
+        if any(not event.kind.startswith("database_") for event in transitions):
+            message = "database transition builder returned an unrelated event"
+            raise RuntimeError(message)
+        return self.staged_events(transitions)
+
+    def staged_events(
+        self,
+        events: Sequence[IncidentEvent],
+    ) -> DatabaseEventBus:
+        """Clone the retained queue and append immutable incident transitions.
+
+        Returns:
+            A staged producer suitable for an atomic state checkpoint.
         """
         copied_entries = object_list(normalize_json(cast("JsonInput", self.entries)))
         staged = DatabaseEventBus(config=self.config, entries=copied_entries)
         known_delivery_ids = {
-            text_value(optional_object(entry.get("payload")).get("delivery_id"))
-            for entry in staged.entries
+            text_value(optional_object(entry.get("payload")).get("delivery_id")) for entry in staged.entries
         }
-        for event in database_transition_events(previous=previous, updated=updated):
+        for event in events:
             payload = DELIVERY_RUNTIME.build_incident_payload(
                 self.config,
                 kind=event.kind,

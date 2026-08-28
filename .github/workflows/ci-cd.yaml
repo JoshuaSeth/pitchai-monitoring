@@ -72,6 +72,7 @@ jobs:
             REGISTRY_NAME="e2e-registry"
             RUNNER_NAME="e2e-runner"
             DB_MONITOR_NAME="database-dependency-monitor"
+            DOMAIN_EVENT_NAME="domain-incident-events"
             NET_NAME="pitchai-shared"
             IMAGE_SHA="service-monitoring:${{ github.sha }}"
             IMAGE_LATEST="service-monitoring:latest"
@@ -82,7 +83,7 @@ jobs:
               exit 1
             fi
 
-            echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} + ${DB_MONITOR_NAME} @ ${{ github.sha }}"
+            echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} + ${DB_MONITOR_NAME} + ${DOMAIN_EVENT_NAME} @ ${{ github.sha }}"
 
             DEPLOY_DIR="/tmp/${APP_NAME}-deploy-${{ github.run_id }}-${{ github.run_attempt }}"
             mkdir -p "$DEPLOY_DIR"
@@ -122,6 +123,7 @@ jobs:
             stop_rm_if_exists "$REGISTRY_NAME"
             stop_rm_if_exists "$RUNNER_NAME"
             stop_rm_if_exists "$DB_MONITOR_NAME"
+            stop_rm_if_exists "$DOMAIN_EVENT_NAME"
 
             echo "🔨 Building image..."
             docker build -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
@@ -274,16 +276,31 @@ jobs:
               -v /var/log/nginx:/var/log/nginx:ro \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
-              -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
-              -e PITCHAI_MONITORING_ENVIRONMENT="production" \
-              -e PITCHAI_MONITORING_INSTANCE="pitchai-main" \
-              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
               -e STATE_PATH="/data/state.json" \
               -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
               -e E2E_REGISTRY_MONITOR_TOKEN="${E2E_MONITOR_TOKEN}" \
               -e AFASASK_MONITOR_TOKEN="${AFASASK_MONITOR_TOKEN}" \
               "$IMAGE_SHA"
+
+            echo "🚀 Starting domain incident Events Bus producer..."
+            docker run -d \
+              --name "$DOMAIN_EVENT_NAME" \
+              --restart unless-stopped \
+              --init \
+              --network "$NET_NAME" \
+              --read-only \
+              --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+              -v service-monitoring-state:/data \
+              -e PYTHONDONTWRITEBYTECODE="1" \
+              -e STATE_PATH="/data/state.json" \
+              -e DOMAIN_INCIDENT_EVENT_STATE_PATH="/data/domain-incident-events.json" \
+              -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
+              -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
+              -e PITCHAI_MONITORING_ENVIRONMENT="production" \
+              -e PITCHAI_MONITORING_INSTANCE="pitchai-main-domain-incidents" \
+              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
+              "$IMAGE_SHA" \
+              python -m monitoring_v2.domain_event_sidecar
 
             echo "🚀 Starting database dependency monitor..."
             docker run -d \
@@ -325,7 +342,7 @@ jobs:
             }
 
             for stability_check in 1 2; do
-              for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME" "$DB_MONITOR_NAME"; do
+              for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME" "$DB_MONITOR_NAME" "$DOMAIN_EVENT_NAME"; do
                 assert_container_stable "$name"
               done
               if [[ "$stability_check" == "1" ]]; then
@@ -334,11 +351,32 @@ jobs:
             done
 
             docker exec "$APP_NAME" python -c \
-              'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
+              'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is None'
             docker exec "$REGISTRY_NAME" python -c \
+              'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
+            docker exec "$DOMAIN_EVENT_NAME" python -c \
+              'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
+            docker exec "$DB_MONITOR_NAME" python -c \
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
             docker exec "$REGISTRY_NAME" python -c \
               'import os; assert len(os.environ.get("E2E_HOTPATH_REPORTER_TOKEN", "")) >= 32'
+
+            echo "⏳ Waiting for the domain incident producer to bootstrap and drain..."
+            domain_event_ready="false"
+            for attempt in $(seq 1 36); do
+              if docker exec "$DOMAIN_EVENT_NAME" python -c \
+                'import json; from pathlib import Path; state=json.loads(Path("/data/domain-incident-events.json").read_text()); producer=state["producer"]; assert state["version"] == 1; assert producer["status"] == "healthy"; assert producer["bootstrapped"] is True; assert producer["last_error"] is None; assert producer["pending_count"] == 0' \
+                >/dev/null 2>&1; then
+                domain_event_ready="true"
+                break
+              fi
+              sleep 5
+            done
+            if [[ "$domain_event_ready" != "true" ]]; then
+              echo "❌ Domain incident producer did not bootstrap and drain"
+              docker logs "$DOMAIN_EVENT_NAME" --tail 200 || true
+              exit 1
+            fi
 
             echo "⏳ Waiting for the first database dependency snapshot..."
             db_snapshot_ready="false"
@@ -366,11 +404,12 @@ jobs:
               node - < scripts/verify-live-dashboard.cjs
 
             echo "✅ Containers running"
-            docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}|${DB_MONITOR_NAME}"
+            docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}|${DB_MONITOR_NAME}|${DOMAIN_EVENT_NAME}"
             docker logs "$REGISTRY_NAME" --tail 40 || true
             docker logs "$RUNNER_NAME" --tail 40 || true
             docker logs "$APP_NAME" --tail 80 || true
             docker logs "$DB_MONITOR_NAME" --tail 80 || true
+            docker logs "$DOMAIN_EVENT_NAME" --tail 80 || true
 
             cd /
             rm -rf "$DEPLOY_DIR"
