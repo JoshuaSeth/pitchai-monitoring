@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, cast
 
 import uvicorn
 
-from . import app as dashboard_app
+from . import mobile_app as dashboard_app
 from .settings import DashboardSettings
 from .timeseries_collector import UsageHistoryCollector
 

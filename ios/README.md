@@ -33,6 +33,25 @@ WidgetKit/Smart Stack surfaces.
 - `CodexStatusWatchUITests`: launch proof plus a strict live-snapshot assertion
   for simulator and physical-Watch evidence.
 
+## App icon
+
+The app targets share the single-size `AppIcon` asset catalog entry. Its
+source-of-truth is `Design/CodexStatusIcon.svg`; the committed 1024 px sRGB PNG
+is full-bleed and opaque so iOS can apply its rounded-rectangle mask and
+watchOS can apply its circular mask without a baked edge. Keep the capacity
+ring and checkmark centered because watchOS crops the square master to a
+circle. WidgetKit uses the icon of the containing iPhone or Watch app in system
+galleries and complication pickers; the extensions must not declare a second
+primary app icon.
+
+Regenerate and validate the flattened asset deterministically from the `ios`
+directory. The script uses Chrome's SVG renderer, then normalizes and checks the
+PNG with ImageMagick:
+
+```bash
+./render_app_icon.sh
+```
+
 The Xcode project is generated from `project.yml`; do not commit the generated
 `.xcodeproj` or DerivedData.
 

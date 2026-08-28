@@ -1,17 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="background" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#14334A"/>
-      <stop offset="1" stop-color="#07131E"/>
+    <linearGradient id="background" x1="112" y1="64" x2="912" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#174765"/>
+      <stop offset=".54" stop-color="#0D2E44"/>
+      <stop offset="1" stop-color="#091E2E"/>
     </linearGradient>
-    <linearGradient id="capacity" x1="286" y1="260" x2="756" y2="790" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#66E2C5"/>
-      <stop offset="1" stop-color="#2AB7F6"/>
+    <radialGradient id="highlight" cx="0" cy="0" r="1" gradientTransform="translate(760 164) rotate(130) scale(724)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#39BEEB" stop-opacity=".28"/>
+      <stop offset=".66" stop-color="#39BEEB" stop-opacity=".04"/>
+      <stop offset="1" stop-color="#39BEEB" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="capacity" x1="300" y1="246" x2="750" y2="792" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7AF0D0"/>
+      <stop offset=".48" stop-color="#4FD7D8"/>
+      <stop offset="1" stop-color="#32B8FF"/>
+    </linearGradient>
+    <linearGradient id="check" x1="390" y1="410" x2="646" y2="612" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E9F8FF"/>
     </linearGradient>
   </defs>
-  <rect width="1024" height="1024" rx="224" fill="url(#background)"/>
-  <circle cx="512" cy="512" r="274" fill="none" stroke="#213E52" stroke-width="72"/>
-  <path d="M512 238a274 274 0 1 1-241 143" fill="none" stroke="url(#capacity)" stroke-width="72" stroke-linecap="round"/>
-  <path d="M388 514l83 84 177-190" fill="none" stroke="#F4FAFD" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="512" cy="512" r="362" fill="none" stroke="#FFFFFF" stroke-opacity=".08" stroke-width="2"/>
+  <rect width="1024" height="1024" fill="url(#background)"/>
+  <rect width="1024" height="1024" fill="url(#highlight)"/>
+  <circle cx="512" cy="512" r="342" fill="#061923" fill-opacity=".34"/>
+  <circle cx="512" cy="512" r="342" fill="none" stroke="#B5F4FF" stroke-opacity=".12" stroke-width="3"/>
+  <circle cx="512" cy="512" r="272" fill="none" stroke="#31566B" stroke-width="76"/>
+  <path d="M512 240a272 272 0 1 1-239 142" fill="none" stroke="url(#capacity)" stroke-width="76" stroke-linecap="round"/>
+  <path d="M388 514l83 84 177-190" fill="none" stroke="url(#check)" stroke-width="66" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
