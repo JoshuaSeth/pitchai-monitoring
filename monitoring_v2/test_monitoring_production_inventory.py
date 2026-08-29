@@ -190,16 +190,16 @@ def test_container_patterns_cover_production_runtime_dependencies() -> None:
 
 
 def test_afasask_entries_check_current_user_surfaces() -> None:
-    """Keep production and demo AFASAsk contracts on their real user routes."""
+    """Keep production and demo AFASAsk contracts on their protected user routes."""
     production_spec = load_domain_spec(entry_by_domain("afasask.gzb.nl"))
     if "mode=codex" not in production_spec.url:
         pytest.fail("AFASAsk production mode changed")
     if "intensity=medium" not in production_spec.url:
         pytest.fail("AFASAsk production intensity changed")
-    if not any(item.selector == "#chat-input" for item in production_spec.required_selectors_all):
-        pytest.fail("AFASAsk chat input assertion is missing")
-    if not any(item.selector == ".chat-submit" for item in production_spec.required_selectors_all):
-        pytest.fail("AFASAsk submit assertion is missing")
+    if production_spec.expected_final_path != "/login-page":
+        pytest.fail("AFASAsk production login boundary is missing")
+    if not any("login-admin" in item.selector for item in production_spec.required_selectors_all):
+        pytest.fail("AFASAsk production administrator-login assertion is missing")
     if "Mislukt" in production_spec.forbidden_text_any:
         pytest.fail("obsolete AFASAsk failure assertion returned")
 
