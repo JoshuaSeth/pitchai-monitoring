@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 from http import HTTPStatus
+from pathlib import Path
 from typing import TYPE_CHECKING, cast, final
 
 from ._scheduling_capacity_test_fixtures import (
@@ -170,6 +171,29 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
 
         check(service.started, "service did not start")
         check(service.stopped, "service did not stop")
+
+    @staticmethod
+    def test_deployer_validates_with_the_candidate_python_runtime() -> None:
+        """Keep host Python compatibility out of the artifact validation path."""
+        script_path = Path(__file__).resolve().parents[1] / "ops" / "deploy_codex_usage_dashboard.sh"
+        script = script_path.read_text(encoding="utf-8")
+
+        check(
+            'docker exec --interactive "${name}" python -m' in script,
+            "deployer does not validate with the exact candidate container",
+        )
+        check(
+            'check_dashboard "${CANARY_PORT}" "${canary}"' in script,
+            "canary name is not bound to the deployment check",
+        )
+        check(
+            'check_dashboard "${PROD_PORT}" "${CONTAINER}"' in script,
+            "production name is not bound to the deployment check",
+        )
+        check(
+            'PYTHONPATH="${REPO_ROOT}" python3 -m' not in script,
+            "deployer still imports target code with the host Python runtime",
+        )
 
 
 def _nested(payload: JsonObject, key: str) -> JsonObject:

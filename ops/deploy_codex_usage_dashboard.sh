@@ -179,6 +179,7 @@ PY
 
 check_dashboard() {
   local port="$1"
+  local name="$2"
   # Production startup includes live broker probes and can legitimately take over 15s.
   local attempts=240
   local output
@@ -191,7 +192,7 @@ check_dashboard() {
         if scheduling_output="$(curl --fail --silent --show-error --max-time 3 \
           --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
           "http://127.0.0.1:${port}/api/v1/scheduling-capacity" 2>/dev/null)" \
-          && PYTHONPATH="${REPO_ROOT}" python3 -m \
+          && docker exec --interactive "${name}" python -m \
             auth_usage_dashboard.scheduling_capacity_check <<<"${scheduling_output}"; then
           return 0
         fi
@@ -211,7 +212,7 @@ cleanup() {
 trap cleanup EXIT
 
 run_dashboard "${canary}" "${CANARY_PORT}" no 0
-if ! check_dashboard "${CANARY_PORT}"; then
+if ! check_dashboard "${CANARY_PORT}" "${canary}"; then
   printf 'Canary validation failed.\n' >&2
   docker logs --tail 30 "${canary}" >&2 || true
   exit 1
@@ -248,7 +249,7 @@ if ! run_dashboard "${CONTAINER}" "${PROD_PORT}" unless-stopped 1; then
   printf 'Production container failed to start; previous container restored.\n' >&2
   exit 1
 fi
-if ! check_dashboard "${PROD_PORT}"; then
+if ! check_dashboard "${PROD_PORT}" "${CONTAINER}"; then
   docker logs --tail 30 "${CONTAINER}" >&2 || true
   rollback
   printf 'Production validation failed; previous container restored.\n' >&2
