@@ -70,6 +70,8 @@ def operator_snapshot() -> JsonObject:
         "generated_at": "2026-08-28T12:00:00Z",
         "source": {
             "stale": False,
+            "stale_account_count": 0,
+            "analytics_stale_account_count": 0,
             "error": None,
             "history_error": None,
             "newest_account_probe_at": "2026-08-28T11:59:30Z",

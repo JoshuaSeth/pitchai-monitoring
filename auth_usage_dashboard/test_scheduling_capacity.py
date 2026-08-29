@@ -131,14 +131,31 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
             check_equal(optional_object(event).get("kind"), "weekly_reset", "weekly reset kind")
 
     @staticmethod
-    def test_stale_inputs_are_degraded() -> None:
-        """Expose staleness instead of silently treating capacity as fresh."""
+    def test_diagnostic_analytics_staleness_does_not_degrade_capacity() -> None:
+        """Keep unselectable diagnostic analytics out of capacity freshness."""
         snapshot = operator_snapshot()
-        _nested(snapshot, "source")["stale"] = True
+        source = _nested(snapshot, "source")
+        source["stale"] = True
+        source["analytics_stale_account_count"] = 1
 
         projection = build_scheduling_capacity_snapshot(snapshot)
-        check_equal(projection.get("status"), "degraded", "stale status")
-        check(_nested(projection, "source").get("stale") is True, "stale flag was lost")
+        check_equal(projection.get("status"), "available", "diagnostic staleness status")
+        check(_nested(projection, "source").get("stale") is False, "diagnostic staleness escaped")
+
+    @staticmethod
+    def test_capacity_staleness_remains_fail_closed() -> None:
+        """Degrade real probe staleness, source errors, and legacy stale input."""
+        cases: tuple[tuple[str, JsonObject], ...] = (
+            ("stale account", {"stale": False, "stale_account_count": 1, "error": None}),
+            ("source error", {"stale": False, "stale_account_count": 0, "error": "probe failed"}),
+            ("legacy stale", {"stale": True, "error": None}),
+        )
+        for label, source in cases:
+            snapshot = operator_snapshot()
+            snapshot["source"] = source
+            projection = build_scheduling_capacity_snapshot(snapshot)
+            check_equal(projection.get("status"), "degraded", f"{label} status")
+            check(_nested(projection, "source").get("stale") is True, f"{label} flag was lost")
 
     def test_endpoint_is_protected_and_identity_free(self) -> None:
         """Require PitchAI identity and return only the validated aggregate shape."""
