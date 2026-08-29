@@ -48,7 +48,8 @@ def build_scheduling_capacity_snapshot(
         basis_key=basis_key,
         generated_at=generated_at,
     )
-    status, capacity = _capacity_projection(summary, source, timeline=timeline)
+    source_projection = _source_projection(source, generated_at=generated_at)
+    status, capacity = _capacity_projection(summary, source_projection, timeline=timeline)
     token_summary = optional_object(
         optional_object(dashboard_snapshot.get("usage_history")).get("summary"),
     )
@@ -57,7 +58,7 @@ def build_scheduling_capacity_snapshot(
         "schema_version": SCHEDULING_CAPACITY_SCHEMA_VERSION,
         "generated_at": generated_at,
         "status": status,
-        "source": _source_projection(source, generated_at=generated_at),
+        "source": source_projection,
         "capacity": capacity,
         "burn": _burn_projection(runout),
         "token_burn": _token_burn_projection(token_summary),
@@ -91,12 +92,26 @@ def _basis_key(summary: JsonObject) -> str | None:
 def _source_projection(source: JsonObject, *, generated_at: str | None) -> JsonObject:
     newest_probe_at = text_value(source.get("newest_account_probe_at"))
     return {
-        "stale": source.get("stale") is True,
+        "stale": _scheduling_source_stale(source),
         "error": text_value(source.get("error")),
         "history_error": text_value(source.get("history_error")),
         "newest_probe_at": newest_probe_at,
         "freshness_seconds": freshness_seconds(generated_at, newest_probe_at),
     }
+
+
+def _scheduling_source_stale(source: JsonObject) -> bool:
+    """Keep capacity fail-closed without coupling it to diagnostic analytics.
+
+    Returns:
+        Whether scheduler-relevant capacity evidence is stale.
+    """
+    if source.get("error") is not None:
+        return True
+    stale_account_count = nonnegative_integer(source.get("stale_account_count"))
+    if stale_account_count is None:
+        return source.get("stale") is True
+    return stale_account_count > 0
 
 
 def _burn_projection(runout: JsonObject) -> JsonObject:
