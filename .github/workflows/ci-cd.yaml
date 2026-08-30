@@ -425,11 +425,19 @@ jobs:
             fi
 
             echo "🌐 Verifying the live dashboard contract..."
+            expected_domain_count="$(
+              docker exec "$REGISTRY_NAME" python -c \
+                'from monitoring_v2.deploy_contract import production_domain_count; print(production_domain_count())'
+            )"
+            if [[ ! "$expected_domain_count" =~ ^[1-9][0-9]*$ ]]; then
+              echo "❌ Invalid production domain count: $expected_domain_count"
+              exit 1
+            fi
             docker exec -i \
               -e MONITORING_DASHBOARD_BASE_URL="http://127.0.0.1:8111" \
               -e MONITORING_DASHBOARD_IDENTITY="info@pitchai.net" \
               -e MONITORING_DASHBOARD_EXPECTED_SHA="${{ github.sha }}" \
-              -e MONITORING_DASHBOARD_EXPECTED_DOMAINS="69" \
+              -e MONITORING_DASHBOARD_EXPECTED_DOMAINS="$expected_domain_count" \
               -e MONITORING_DASHBOARD_EXPECTED_GROUPS="16" \
               "$REGISTRY_NAME" \
               node - < scripts/verify-live-dashboard.cjs
