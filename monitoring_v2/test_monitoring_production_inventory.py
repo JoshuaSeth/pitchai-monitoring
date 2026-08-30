@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .domain_runtime import AlertPolicy, DomainCheckSpec
     from .json_types import JsonInput
 
-_EXPECTED_ACTIVE_DOMAIN_COUNT = 69
+_EXPECTED_ACTIVE_DOMAIN_COUNT = 71
 _EXPECTED_DATABASE_RULE_COUNT = 27
 _EXPECTED_DOMAIN_GROUP_COUNT = 16
 _EXPECTED_ROUTING_POLICY_COUNT = 3
@@ -121,6 +121,25 @@ def test_alert_policy_routes_only_actionable_domains() -> None:
         pytest.fail("Aardappelprijs alerts were disabled")
     if text_value(entry_by_domain("aardappelprijs.nl").get("group")) != "potaito":
         pytest.fail("Aardappelprijs ownership group changed")
+
+
+def test_formatiefleren_domains_preserve_launch_and_alert_contracts() -> None:
+    """Keep the DFT marketing launch and canonical redirect actionable."""
+    for domain in ("formatiefleren.nl", "www.formatiefleren.nl"):
+        entry = entry_by_domain(domain)
+        specification = load_domain_spec(entry)
+        policy = inventory_runtime.parse_domain_alert_policy(entry)
+        if text_value(entry.get("group")) != "dft":
+            pytest.fail(f"DFT marketing domain escaped its owner group: {domain}")
+        if specification.allowed_status_codes != [200]:
+            pytest.fail(f"DFT marketing response contract changed: {domain}")
+        check = optional_object(entry.get("check"))
+        if text_value(check.get("expected_final_host_suffix")) != "formatiefleren.nl":
+            pytest.fail(f"DFT marketing canonical host changed: {domain}")
+        if specification.expected_title_contains != "DFT":
+            pytest.fail(f"DFT marketing title readiness changed: {domain}")
+        if not policy.telegram_enabled or policy.telegram != "critical":
+            pytest.fail(f"DFT marketing downtime stopped alerting: {domain}")
 
 
 def test_newly_discovered_domains_preserve_critical_contracts() -> None:
