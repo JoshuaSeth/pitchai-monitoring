@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .domain_runtime import AlertPolicy, DomainCheckSpec
     from .json_types import JsonInput
 
-_EXPECTED_ACTIVE_DOMAIN_COUNT = 69
+_EXPECTED_ACTIVE_DOMAIN_COUNT = 71
 _EXPECTED_DATABASE_RULE_COUNT = 27
 _EXPECTED_DOMAIN_GROUP_COUNT = 16
 _EXPECTED_ROUTING_POLICY_COUNT = 3
@@ -123,22 +123,27 @@ def test_alert_policy_routes_only_actionable_domains() -> None:
         pytest.fail("Aardappelprijs ownership group changed")
 
 
-def test_unimix_domains_preserve_canonical_redirect_and_alert_contracts() -> None:
-    """Keep both Unimix production hosts healthy across canonical redirects."""
-    for domain in ("unimixbrasil.com.br", "www.unimixbrasil.com.br"):
-        entry = entry_by_domain(domain)
-        specification = load_domain_spec(entry)
-        policy = inventory_runtime.parse_domain_alert_policy(entry)
-        if text_value(entry.get("group")) != "unimix":
-            pytest.fail(f"Unimix domain escaped its customer group: {domain}")
-        if specification.allowed_status_codes != [200]:
-            pytest.fail(f"Unimix final response contract changed: {domain}")
-        if specification.expected_final_host_suffix != "unimixbrasil.com.br":
-            pytest.fail(f"Unimix canonical redirect contract changed: {domain}")
-        if specification.expected_title_contains != "Unimix":
-            pytest.fail(f"Unimix title readiness contract changed: {domain}")
-        if not policy.telegram_enabled or policy.telegram != "critical":
-            pytest.fail(f"Unimix production downtime stopped alerting: {domain}")
+def test_customer_domains_preserve_canonical_and_alert_contracts() -> None:
+    """Keep the Unimix and DFT apex and alias contracts actionable."""
+    contracts = (
+        ("Unimix", ("unimixbrasil.com.br", "www.unimixbrasil.com.br"), "unimix", "unimixbrasil.com.br", "Unimix"),
+        ("DFT marketing", ("formatiefleren.nl", "www.formatiefleren.nl"), "dft", "formatiefleren.nl", "DFT"),
+    )
+    for label, domains, expected_group, expected_suffix, expected_title in contracts:
+        for domain in domains:
+            entry = entry_by_domain(domain)
+            specification = load_domain_spec(entry)
+            policy = inventory_runtime.parse_domain_alert_policy(entry)
+            if text_value(entry.get("group")) != expected_group:
+                pytest.fail(f"{label} domain escaped its owner group: {domain}")
+            if specification.allowed_status_codes != [200]:
+                pytest.fail(f"{label} response contract changed: {domain}")
+            if specification.expected_final_host_suffix != expected_suffix:
+                pytest.fail(f"{label} canonical host changed: {domain}")
+            if specification.expected_title_contains != expected_title:
+                pytest.fail(f"{label} title readiness changed: {domain}")
+            if not policy.telegram_enabled or policy.telegram != "critical":
+                pytest.fail(f"{label} production downtime stopped alerting: {domain}")
 
 
 def test_newly_discovered_domains_preserve_critical_contracts() -> None:
