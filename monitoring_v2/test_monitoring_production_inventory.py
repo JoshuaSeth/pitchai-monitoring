@@ -142,6 +142,8 @@ def test_customer_domains_preserve_canonical_and_alert_contracts() -> None:
                 pytest.fail(f"{label} canonical host changed: {domain}")
             if specification.expected_title_contains != expected_title:
                 pytest.fail(f"{label} title readiness changed: {domain}")
+            if label == "DFT marketing" and specification.required_text_all != ["Formatief toetsen"]:
+                pytest.fail(f"DFT marketing body readiness changed: {domain}")
             if not policy.telegram_enabled or policy.telegram != "critical":
                 pytest.fail(f"{label} production downtime stopped alerting: {domain}")
 
