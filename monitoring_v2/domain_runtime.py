@@ -92,6 +92,7 @@ class _CommonModule(NamedTuple):
 class _InventoryModule(NamedTuple):
     DomainAlertPolicy: AlertPolicyFactory
     parse_domain_alert_policy: Callable[[JsonObject], AlertPolicy]
+    validate_domain_inventory: Callable[[JsonObject], None]
 
 
 class _MainModule(NamedTuple):
