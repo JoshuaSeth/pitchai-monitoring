@@ -43,7 +43,7 @@ Minute-by-minute uptime + “correct page” monitoring for PitchAI domains.
   - Keep a domain checked and dashboard-visible without Telegram alerts:
     - `alert_policy.telegram: dashboard-only`
     - `alert_policy.reason`: required operator-facing explanation
-    - Omit `alert_policy` for the default `critical` routing contract. Critical domains continue to route domain, performance, SLO/RED, TLS/DNS, API, synthetic, web-vitals, and attributable proxy alerts. Host-wide signals without domain attribution remain globally alertable.
+    - Omit `alert_policy` for the default `critical` routing contract. Critical domains continue to route domain, performance, SLO/RED, TLS/DNS, API, synthetic, and web-vitals alerts. The global proxy signal includes known critical production hosts plus unknown hosts, while known non-production and dashboard-only hosts remain excluded.
   - `check_concurrency`: max concurrent domain checks (HTTP + browser) to reduce load spikes / false positives
   - `browser_concurrency`: max concurrent Playwright page checks (lower if Chromium is unstable)
   - Alerting debounce (reduces transient false positives):

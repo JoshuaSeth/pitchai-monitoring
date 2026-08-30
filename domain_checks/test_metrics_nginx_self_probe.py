@@ -8,7 +8,10 @@ import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from .metrics_nginx import SERVICE_MONITOR_USER_AGENT, compute_access_window_stats
+from .common_check import DomainCheckResult, DomainCheckSpec
+from .metrics_nginx import SERVICE_MONITOR_USER_AGENT, compute_access_window_stats, parse_recent_upstream_errors
+from .metrics_proxy import check_upstream_header_expectations
+from .production_signal_scope import production_signal_excluded_domains
 
 _EXPECTED_COUNTERS = (2, 1, 1)
 _STATS_ERROR = "monitor self-probes changed the customer-traffic Nginx counters"
@@ -18,7 +21,11 @@ _STRUCTURED_COUNTER_ERROR = "structured access-log counters changed unexpectedly
 _ALERTABLE_SAMPLE_ERROR = "alertable customer error was not retained as bounded evidence"
 _LOG_FIELDS_ERROR = "managed Nginx log format lost a required traffic field"
 _LOG_PRIVACY_ERROR = "managed Nginx log format records unnecessary request data"
-_LOG_POLICY_ERROR = "managed Nginx host allowlist diverged from critical Telegram routing"
+_LOG_POLICY_ERROR = "managed Nginx host exclusions diverged from production inventory scope"
+_UPSTREAM_SCOPE_ERROR = "Nginx upstream errors diverged from production inventory scope"
+_HEADER_SCOPE_ERROR = "proxy header issues diverged from production inventory scope"
+_STAGING_POTAITO = "staging.potaito.pitchai.net"
+_UNKNOWN_SERVER = "new-production-route.example"
 
 
 def test_access_stats_exclude_service_monitor_probes(tmp_path: Path) -> None:
@@ -132,30 +139,94 @@ def test_managed_nginx_log_format_is_host_aware_and_privacy_minimized() -> None:
         raise AssertionError(_LOG_FIELDS_ERROR)
     if any(variable in config for variable in forbidden_variables):
         raise AssertionError(_LOG_PRIVACY_ERROR)
-    if "if=$pitchai_service_monitoring_alertable" not in config:
+    if "if=$pitchai_service_monitoring_production" not in config:
         raise AssertionError(_LOG_POLICY_ERROR)
-
-    inventory_path = Path(__file__).with_name("config.yaml")
-    inventory_text = inventory_path.read_text(encoding="utf-8")
-    domains_block = inventory_text.split("\ndomains:\n", 1)[1].split("\nretired_domains:\n", 1)[0]
-    inventory_hosts: set[str] = set()
-    for entry in ("\n" + domains_block).split("\n  - domain: ")[1:]:
-        lines = entry.splitlines()
-        host = lines[0].strip()
-        if "      telegram: dashboard-only" not in entry:
-            inventory_hosts.add(host)
 
     map_hosts: set[str] = set()
     inside_map = False
     for line in config.splitlines():
-        if line == "map $host $pitchai_service_monitoring_alertable {":
+        if line == "map $host $pitchai_service_monitoring_production {":
             inside_map = True
             continue
         if inside_map and line == "}":
             break
         if inside_map:
-            match = re.fullmatch(r"  ([a-z0-9.-]+) 1;", line)
+            match = re.fullmatch(r"  ([a-z0-9.-]+) 0;", line)
             if match is not None:
                 map_hosts.add(match.group(1))
-    if map_hosts != inventory_hosts:
+    if "  default 1;" not in config or map_hosts != set(production_signal_excluded_domains()):
         raise AssertionError(_LOG_POLICY_ERROR)
+
+
+def _upstream_error_line(*, timestamp: datetime, server: str) -> str:
+    timestamp_text = timestamp.strftime("%Y/%m/%d %H:%M:%S")
+    return (
+        f"{timestamp_text} [error] 1#1: *1 recv() failed while reading response header from upstream, "
+        f'client: 1.1.1.1, server: {server}, upstream: "http://127.0.0.1:9999/"'
+    )
+
+
+def test_upstream_errors_exclude_known_staging_and_retain_unknown(tmp_path: Path) -> None:
+    """Keep staging failures out while retaining unknown error-log servers.
+
+    Raises:
+        AssertionError: Upstream error events do not follow production scope.
+    """
+    now = datetime.now(UTC)
+    error_log = tmp_path / "error.log"
+    staging_failure = _upstream_error_line(timestamp=now, server=_STAGING_POTAITO)
+    staging_failures = [staging_failure] * 5
+    error_log.write_text(
+        "\n".join((*staging_failures, _upstream_error_line(timestamp=now, server=_UNKNOWN_SERVER)))
+        + "\n",
+        encoding="utf-8",
+    )
+
+    events = parse_recent_upstream_errors(
+        error_log_path=str(error_log),
+        now=now,
+        window_seconds=120,
+        local_tz=UTC,
+        max_bytes=50_000,
+    )
+
+    if [event.server for event in events] != [_UNKNOWN_SERVER]:
+        raise AssertionError(_UPSTREAM_SCOPE_ERROR)
+
+
+def _backup_proxy_spec(domain: str) -> DomainCheckSpec:
+    return DomainCheckSpec(
+        domain=domain,
+        url=f"https://{domain}",
+        proxy={
+            "upstream_header": "x-aipc-upstream",
+            "primary_upstreams": ["127.0.0.1:3120"],
+            "backup_upstreams": ["127.0.0.1:3121"],
+            "alert_on_backup": True,
+        },
+    )
+
+
+def _backup_proxy_result(domain: str) -> DomainCheckResult:
+    return DomainCheckResult(
+        domain=domain,
+        ok=True,
+        reason="ok",
+        details={"captured_headers": {"x-aipc-upstream": "127.0.0.1:3121"}},
+    )
+
+
+def test_header_issues_exclude_known_staging_and_retain_unknown() -> None:
+    """Apply production scope to response-header proxy issues.
+
+    Raises:
+        AssertionError: Header issues do not follow production scope.
+    """
+    domains = (_STAGING_POTAITO, _UNKNOWN_SERVER)
+    specs = {domain: _backup_proxy_spec(domain) for domain in domains}
+    results = {domain: _backup_proxy_result(domain) for domain in domains}
+
+    issues = check_upstream_header_expectations(specs_by_domain=specs, cycle_results=results)
+
+    if [issue.domain for issue in issues] != [_UNKNOWN_SERVER]:
+        raise AssertionError(_HEADER_SCOPE_ERROR)
