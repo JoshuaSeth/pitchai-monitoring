@@ -133,7 +133,8 @@ def test_formatiefleren_domains_preserve_launch_and_alert_contracts() -> None:
             pytest.fail(f"DFT marketing domain escaped its owner group: {domain}")
         if specification.allowed_status_codes != [200]:
             pytest.fail(f"DFT marketing response contract changed: {domain}")
-        if specification.expected_final_host_suffix != "formatiefleren.nl":
+        check = optional_object(entry.get("check"))
+        if text_value(check.get("expected_final_host_suffix")) != "formatiefleren.nl":
             pytest.fail(f"DFT marketing canonical host changed: {domain}")
         if specification.expected_title_contains != "DFT":
             pytest.fail(f"DFT marketing title readiness changed: {domain}")
