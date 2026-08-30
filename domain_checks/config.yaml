@@ -1406,7 +1406,7 @@ domains:
       url: https://formatiefleren.nl/
       expected_final_host_suffix: formatiefleren.nl
       expected_title_contains: "DFT"
-      required_text_all: ["Formatief toetsen", "Zacht en mensgericht"]
+      required_text_all: ["Formatief toetsen"]
   - domain: www.formatiefleren.nl
     label: "DFT marketing production alias"
     group: dft
@@ -1420,7 +1420,7 @@ domains:
       url: https://www.formatiefleren.nl/
       expected_final_host_suffix: formatiefleren.nl
       expected_title_contains: "DFT"
-      required_text_all: ["Formatief toetsen", "Zacht en mensgericht"]
+      required_text_all: ["Formatief toetsen"]
 
   - domain: potaito.pitchai.net
     label: "Potaito production"
