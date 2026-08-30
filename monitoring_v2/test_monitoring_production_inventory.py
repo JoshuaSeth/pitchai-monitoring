@@ -38,6 +38,12 @@ _EXPECTED_DOMAIN_GROUP_COUNT = 16
 _EXPECTED_ROUTING_POLICY_COUNT = 3
 
 
+def test_production_config_is_accepted_by_startup_validator() -> None:
+    """Keep the deployed YAML compatible with service-monitoring startup."""
+    config = production_config()
+    inventory_runtime.validate_domain_inventory(config)
+
+
 def test_authoritative_active_inventory_is_exact() -> None:
     """Require every live surface and reject disabled active inventory entries."""
     config = production_config()

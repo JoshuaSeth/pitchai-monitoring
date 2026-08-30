@@ -1817,7 +1817,7 @@ retired_domains:
     reason: "Unprovisioned candidate; the live events bus contract is the monitored pitchai.net/events-bus route"
     sources: [events-bus-runtime-audit-2026-08-30, authoritative-dns-probe-2026-08-30]
   - domain: mockopenai.pitchai.net
-    classification: internal-only
+    classification: non-http
     reason: "DFT staging uses an in-process mock route and container; this public hostname is NXDOMAIN"
     sources: [dft-staging-runtime-audit-2026-08-30, authoritative-dns-probe-2026-08-30]
   - domain: aipc.skybuyfly.com
