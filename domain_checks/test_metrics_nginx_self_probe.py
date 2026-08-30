@@ -18,7 +18,7 @@ _STRUCTURED_COUNTER_ERROR = "structured access-log counters changed unexpectedly
 _ALERTABLE_SAMPLE_ERROR = "alertable customer error was not retained as bounded evidence"
 _LOG_FIELDS_ERROR = "managed Nginx log format lost a required traffic field"
 _LOG_PRIVACY_ERROR = "managed Nginx log format records unnecessary request data"
-_LOG_POLICY_ERROR = "managed Nginx host allowlist diverged from critical Telegram routing"
+_LOG_POLICY_ERROR = "managed Nginx host exclusions diverged from production inventory scope"
 
 
 def test_access_stats_exclude_service_monitor_probes(tmp_path: Path) -> None:
@@ -132,30 +132,32 @@ def test_managed_nginx_log_format_is_host_aware_and_privacy_minimized() -> None:
         raise AssertionError(_LOG_FIELDS_ERROR)
     if any(variable in config for variable in forbidden_variables):
         raise AssertionError(_LOG_PRIVACY_ERROR)
-    if "if=$pitchai_service_monitoring_alertable" not in config:
+    if "if=$pitchai_service_monitoring_production" not in config:
         raise AssertionError(_LOG_POLICY_ERROR)
 
-    inventory_path = Path(__file__).with_name("config.yaml")
-    inventory_text = inventory_path.read_text(encoding="utf-8")
+    inventory_text = Path(__file__).with_name("config.yaml").read_text(encoding="utf-8")
     domains_block = inventory_text.split("\ndomains:\n", 1)[1].split("\nretired_domains:\n", 1)[0]
     inventory_hosts: set[str] = set()
     for entry in ("\n" + domains_block).split("\n  - domain: ")[1:]:
-        lines = entry.splitlines()
-        host = lines[0].strip()
-        if "      telegram: dashboard-only" not in entry:
+        host = entry.splitlines()[0].strip()
+        is_production = "\n    environment: production\n" in "\n" + entry
+        is_dashboard_only = "      telegram: dashboard-only" in entry
+        if not is_production or is_dashboard_only:
             inventory_hosts.add(host)
+        if host == "staging.potaito.pitchai.net" and (is_production or is_dashboard_only):
+            raise AssertionError(_LOG_POLICY_ERROR)
 
     map_hosts: set[str] = set()
     inside_map = False
     for line in config.splitlines():
-        if line == "map $host $pitchai_service_monitoring_alertable {":
+        if line == "map $host $pitchai_service_monitoring_production {":
             inside_map = True
             continue
         if inside_map and line == "}":
             break
         if inside_map:
-            match = re.fullmatch(r"  ([a-z0-9.-]+) 1;", line)
+            match = re.fullmatch(r"  ([a-z0-9.-]+) 0;", line)
             if match is not None:
                 map_hosts.add(match.group(1))
-    if map_hosts != inventory_hosts:
+    if "  default 1;" not in config or map_hosts != inventory_hosts:
         raise AssertionError(_LOG_POLICY_ERROR)
