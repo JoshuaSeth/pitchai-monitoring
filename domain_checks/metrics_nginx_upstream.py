@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NotRequired, TypedDict, Unpack
 
 from .metrics_nginx_io import read_log_tail
+from .production_signal_scope import production_signal_includes
 
 if TYPE_CHECKING:
     from datetime import tzinfo
@@ -137,7 +138,7 @@ def parse_recent_upstream_errors(
         if record.timestamp < cutoff:
             break
         event = _as_upstream_event(record)
-        if event is None:
+        if event is None or not production_signal_includes(event.server):
             continue
         events.append(event)
         if len(events) >= max_events:
