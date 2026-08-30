@@ -144,6 +144,8 @@ def test_formatiefleren_domains_preserve_launch_and_alert_contracts() -> None:
             pytest.fail(f"DFT marketing canonical host changed: {domain}")
         if specification.expected_title_contains != "DFT":
             pytest.fail(f"DFT marketing title readiness changed: {domain}")
+        if specification.required_text_all != ["Formatief toetsen"]:
+            pytest.fail(f"DFT marketing body readiness changed: {domain}")
         if not policy.telegram_enabled or policy.telegram != "critical":
             pytest.fail(f"DFT marketing downtime stopped alerting: {domain}")
 
