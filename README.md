@@ -271,6 +271,12 @@ This repository also contains the protected operational dashboard for the author
 
 The dashboard reads only redacted broker metadata/state, refreshes quota with the broker's no-generation usage probe, and charts a seven-day hourly burn series constrained to provider-reported daily totals. A root-private, append-only SQLite series records every configured account at five-minute cadence with quota windows, auth/error/freshness state, reset-credit count, one-way account fingerprint, and collector SHA. Auth-invalid rows retain explicitly labeled last-known measurements when available. The short JSON ledger still feeds native burn deltas but is no longer the durable authority. Banked-reset dates remain read-only and excluded from automatic capacity; the service never reads broker `auth.json` files and has no reset-redemption capability.
 
+The repository also contains Seth's personal native companion in `ios/`. Its
+iPhone, Apple Watch, iOS WidgetKit, and watchOS Smart Stack targets consume a
+smaller redacted mobile contract protected by Apple App Attest; no reusable
+service or broker credential ships in the app. Native architecture, build, and
+signing notes are in `ios/README.md`.
+
 ## Live Tests (Real Domains / Real Services)
 
 This repo includes `pytest.mark.live` tests that hit real external domains and/or the real Dispatcher/E2E registry. They are skipped by default and require explicit env flags:

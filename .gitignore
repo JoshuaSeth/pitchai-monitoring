@@ -37,6 +37,9 @@ node_modules/
 *.tmp
 *.swp
 *.swo
+ios/CodexStatus.xcodeproj/
+ios/DerivedData/
+ios/build/
 
 # Docker volumes and data
 data/
