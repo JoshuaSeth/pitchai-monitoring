@@ -61,6 +61,7 @@ CHECK: dict[str, object] = {
         _JSON_200_CONTRACT
         | {
             "name": "codex_no_quota_readiness",
+            "coordination_key": "afasask_auth_broker_readiness",
             "path": "/internal/monitor/codex-readiness",
             "headers": {"Authorization": "Bearer ${AFASASK_MONITOR_TOKEN}"},
             "json_paths_equal": dict(zip(_READINESS_PATHS, _READINESS_VALUES, strict=True)),
