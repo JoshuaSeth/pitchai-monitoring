@@ -7,3 +7,5 @@ fastapi==0.115.6
 uvicorn==0.30.6
 python-multipart==0.0.12
 Jinja2==3.1.5
+cbor2==6.1.4
+cryptography==50.0.0
