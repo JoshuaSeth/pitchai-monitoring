@@ -1,4 +1,7 @@
-CHECK = {
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Monitoring configuration for the AFASAsk demo deployment."""
+
+CHECK: dict[str, object] = {
     "domain": "demo.afasask.pitchai.net",
     "url": "https://demo.afasask.pitchai.net/chat/demo/start?floating=false&reload=true&mode=codex&intensity=fast",
     "http_timeout_seconds": 30.0,
@@ -21,6 +24,7 @@ CHECK = {
         },
         {
             "name": "codex_no_quota_readiness",
+            "coordination_key": "afasask_auth_broker_readiness",
             "path": "/internal/monitor/codex-readiness",
             "headers": {"Authorization": "Bearer ${AFASASK_MONITOR_TOKEN}"},
             "expected_status_codes": [200],
@@ -55,7 +59,7 @@ CHECK = {
                 {"type": "wait_for_selector", "selector": "a[href^='/login-admin?next=']", "state": "visible"},
                 {"type": "expect_selector_count", "selector": "#chat-input", "count": 0},
             ],
-        }
+        },
     ],
     "forbidden_text_any": [
         "maintenance",
