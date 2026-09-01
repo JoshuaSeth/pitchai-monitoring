@@ -21,6 +21,7 @@ _DURATION_SECONDS = 12.5
 _EXPECTED_INTERVAL_SECONDS = 172_800
 _STALE_AFTER_SECONDS = 259_200
 _INCIDENT_COOLDOWN_SECONDS = 1_800
+_EXPECTED_AIPC_LANE_COUNT = 2
 _SYNTHETIC_LANE_ID = HOTPATH_TYPES.SYNTHETIC_LANE_ID
 _SYNTHETIC_NAME = HOTPATH_TYPES.SYNTHETIC_NAME
 _SYNTHETIC_PROJECT = HOTPATH_TYPES.SYNTHETIC_PROJECT
@@ -30,6 +31,7 @@ _REQUIRED_NAMES = {
     "AIGENDA Business Rules",
     "AIGENDA calendar",
     "AIPC / SkyBuyFly",
+    "AIPC / SkyBuyFly UI/API/browser hot path",
     "Apologetica CMS",
     "AutoPAR",
     "CISNL Maatje",
@@ -69,19 +71,36 @@ def _report_payload(*, success: bool = True) -> JsonObject:
     return json_object(raw)
 
 
-def test_inventory_is_the_exact_reviewed_thirteen_lane_set() -> None:
+def test_inventory_is_the_exact_reviewed_fourteen_lane_set() -> None:
     """Keep every discovered lane, tag, reminder, and timing policy canonical."""
     inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
     names = {lane.name for lane in inventory.lanes}
     reminder_ids = {lane.reminder_id for lane in inventory.lanes}
     agent_ids = {lane.agent_global_id for lane in inventory.lanes}
-    primary_domains = {lane.primary_domain for lane in inventory.lanes}
+    domain_counts: dict[str, int] = {}
+    for lane in inventory.lanes:
+        domain_counts[lane.primary_domain] = domain_counts.get(lane.primary_domain, 0) + 1
     if len(inventory.lanes) != len(_REQUIRED_NAMES) or names != _REQUIRED_NAMES:
         pytest.fail(f"unexpected hotpath inventory: {sorted(names)}")
     if len(reminder_ids) != len(_REQUIRED_NAMES) or len(agent_ids) != len(_REQUIRED_NAMES):
         pytest.fail("hotpath reminders and agents must be one-to-one with lanes")
-    if len(primary_domains) != len(_REQUIRED_NAMES):
-        pytest.fail("every hotpath lane must expose one exact primary domain")
+    duplicate_domains: set[str] = set()
+    for domain, count in domain_counts.items():
+        if count > 1:
+            duplicate_domains.add(domain)
+    if (
+        duplicate_domains != {"skybuyfly.pitchai.net"}
+        or domain_counts["skybuyfly.pitchai.net"] != _EXPECTED_AIPC_LANE_COUNT
+    ):
+        pytest.fail("only the two intentional AIPC lanes may share a primary domain")
+    aipc_lanes = [lane for lane in inventory.lanes if lane.project == "ai_price_crawler"]
+    if {lane.lane_id for lane in aipc_lanes} != {
+        "aipc-hotpath-monitor",
+        "aipc-pedantic-e2e-ui-qa-v2",
+    }:
+        pytest.fail("AIPC must retain its pedantic lane beside the explicit hotpath owner")
+    if {lane.primary_domain for lane in aipc_lanes} != {"skybuyfly.pitchai.net"}:
+        pytest.fail("both AIPC lanes must remain bound to the production primary domain")
     if inventory.canonical_tag != "hot-path-testing":
         pytest.fail(f"unexpected hotpath tag: {inventory.canonical_tag}")
     if inventory.expected_interval_seconds != _EXPECTED_INTERVAL_SECONDS:

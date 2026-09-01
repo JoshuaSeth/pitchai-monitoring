@@ -20,7 +20,7 @@ SYNTHETIC_LANE_ID = "monitoring-hotpath-synthetic"
 SYNTHETIC_PROJECT = "pitchai_monitoring"
 SYNTHETIC_NAME = "Monitoring hotpath protocol synthetic"
 SYNTHETIC_TARGET = "monitoring.pitchai.net/dashboard#hotpaths"
-_MIN_LANE_COUNT = 13
+_MIN_LANE_COUNT = 14
 _decode_json = cast("Callable[[str], JsonValue]", json.loads)
 
 
@@ -160,7 +160,7 @@ def load_inventory(path: str) -> HotpathInventory:
     raw_lanes = _list(root.get("lanes"), "inventory.lanes")
     lanes = tuple(_parse_lane(item, index) for index, item in enumerate(raw_lanes))
     if len(lanes) < _MIN_LANE_COUNT or len({lane.lane_id for lane in lanes}) != len(lanes):
-        error = "hotpath inventory must contain at least 13 unique lanes"
+        error = "hotpath inventory must contain at least 14 unique lanes"
         raise HotpathContractError(error)
     return HotpathInventory(
         schema_version=_integer(root, "schema_version"),
