@@ -1,5 +1,5 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Compose the unchanged operator dashboard with protected native routes."""
+"""Compose the scheduling dashboard with protected native routes."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class _BaseApplicationFactory(Protocol):
         source: StateSource,
         service: CapacityService,
     ) -> WebApplication:
-        """Create the established operator dashboard application."""
+        """Create the scheduling-capacity dashboard application."""
         raise NotImplementedError
 
     def application_factory_marker(self) -> None:
@@ -39,9 +39,12 @@ class _BaseApplicationFactory(Protocol):
 
 _APP_MODULE = cast(
     "dict[str, object]",
-    vars(import_module("auth_usage_dashboard.app")),
+    vars(import_module("auth_usage_dashboard.scheduling_app")),
 )
-_BASE_APPLICATION_FACTORY = cast("_BaseApplicationFactory", _APP_MODULE["create_app"])
+_BASE_APPLICATION_FACTORY = cast(
+    "_BaseApplicationFactory",
+    _APP_MODULE["create_scheduling_app"],
+)
 
 
 def create_app(

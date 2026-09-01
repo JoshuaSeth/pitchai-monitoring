@@ -199,22 +199,30 @@ PY
 
 check_dashboard() {
   local port="$1"
+  local name="$2"
   # Production startup includes live broker probes and can legitimately take over 15s.
   local attempts=240
   local output
+  local scheduling_output
   while (( attempts > 0 )); do
     if output="$(curl --fail --silent --show-error --max-time 3 \
       --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
       "http://127.0.0.1:${port}/api/v1/capacity" 2>/dev/null)"; then
       if python3 "${REPO_ROOT}/auth_usage_dashboard/deployment_check.py" <<<"${output}"; then
-        local mobile_status
-        mobile_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-          --max-time 3 \
-          --header 'Content-Type: application/json' \
-          --data '{"purpose":"capacity","key_id":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}' \
-          "http://127.0.0.1:${port}/api/v1/mobile/challenge" 2>/dev/null || true)"
-        if [[ "${mobile_status}" == "401" ]]; then
-          return 0
+        if scheduling_output="$(curl --fail --silent --show-error --max-time 3 \
+          --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
+          "http://127.0.0.1:${port}/api/v1/scheduling-capacity" 2>/dev/null)" \
+          && docker exec --interactive "${name}" python -m \
+            auth_usage_dashboard.scheduling_capacity_check <<<"${scheduling_output}"; then
+          local mobile_status
+          mobile_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --max-time 3 \
+            --header 'Content-Type: application/json' \
+            --data '{"purpose":"capacity","key_id":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}' \
+            "http://127.0.0.1:${port}/api/v1/mobile/challenge" 2>/dev/null || true)"
+          if [[ "${mobile_status}" == "401" ]]; then
+            return 0
+          fi
         fi
       fi
     fi
@@ -232,7 +240,7 @@ cleanup() {
 trap cleanup EXIT
 
 run_dashboard "${canary}" "${CANARY_PORT}" no 0
-if ! check_dashboard "${CANARY_PORT}"; then
+if ! check_dashboard "${CANARY_PORT}" "${canary}"; then
   printf 'Canary validation failed.\n' >&2
   docker logs --tail 30 "${canary}" >&2 || true
   exit 1
@@ -269,7 +277,7 @@ if ! run_dashboard "${CONTAINER}" "${PROD_PORT}" unless-stopped 1; then
   printf 'Production container failed to start; previous container restored.\n' >&2
   exit 1
 fi
-if ! check_dashboard "${PROD_PORT}"; then
+if ! check_dashboard "${PROD_PORT}" "${CONTAINER}"; then
   docker logs --tail 30 "${CONTAINER}" >&2 || true
   rollback
   printf 'Production validation failed; previous container restored.\n' >&2

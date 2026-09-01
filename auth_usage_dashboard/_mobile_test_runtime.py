@@ -7,6 +7,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Protocol, cast
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from types import TracebackType
 
     from .mobile_web_runtime import WebApplication
@@ -28,6 +29,15 @@ class TestResponse(Protocol):
 
 class TestClientSurface(Protocol):
     """HTTP operations used inside one application lifespan."""
+
+    def get(
+        self,
+        path: str,
+        *,
+        headers: Mapping[str, str] | None = None,
+    ) -> TestResponse:
+        """Issue one HTTP GET request."""
+        raise NotImplementedError
 
     def post(self, path: str, *, json: JsonObject) -> TestResponse:
         """Issue one JSON POST request."""

@@ -825,7 +825,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-08-27"
+  reviewed_at: "2026-08-30"
   authoritative_sources:
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
@@ -836,6 +836,9 @@ inventory:
     - "live public DNS, TLS, HTTP and container/service contract probes (2026-08-27)"
     - "known client deployment zones"
     - "Unimix repair confirmation and live public probes (2026-08-27)"
+    - "formatiefleren.nl Namecheap DNS activation and production deployment handoff (2026-08-28)"
+    - "last-nine-day live-agent, PM DB, repository and deployment evidence sweep (2026-08-30)"
+    - "live public DNS, TLS and HTTP contract probes (2026-08-30)"
 
 domain_groups:
   corporate:
@@ -1390,6 +1393,34 @@ domains:
     check:
       <<: *sso_edge
       url: https://dft-marketing-staging.pitchai.net/
+  - domain: formatiefleren.nl
+    label: "DFT marketing production"
+    group: dft
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-08-28, dft-marketing-production-runtime, live-probe-2026-08-30]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://formatiefleren.nl/
+      expected_final_host_suffix: formatiefleren.nl
+      expected_title_contains: "DFT"
+      required_text_all: ["Formatief toetsen"]
+  - domain: www.formatiefleren.nl
+    label: "DFT marketing production alias"
+    group: dft
+    environment: production
+    kind: alias
+    sources: [namecheap-zone-2026-08-28, dft-marketing-production-runtime, live-probe-2026-08-30]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://www.formatiefleren.nl/
+      expected_final_host_suffix: formatiefleren.nl
+      expected_title_contains: "DFT"
+      required_text_all: ["Formatief toetsen"]
 
   - domain: potaito.pitchai.net
     label: "Potaito production"
@@ -1781,3 +1812,19 @@ retired_domains:
     classification: replaced
     reason: "Legacy Solcon internal hostname has an invalid TLS contract; monitor current HetCIS routes"
     sources: [repository-evidence-sweep, tls-probe-2026-08-27]
+  - domain: events.pitchai.net
+    classification: pending
+    reason: "Unprovisioned candidate; the live events bus contract is the monitored pitchai.net/events-bus route"
+    sources: [events-bus-runtime-audit-2026-08-30, authoritative-dns-probe-2026-08-30]
+  - domain: mockopenai.pitchai.net
+    classification: non-http
+    reason: "DFT staging uses an in-process mock route and container; this public hostname is NXDOMAIN"
+    sources: [dft-staging-runtime-audit-2026-08-30, authoritative-dns-probe-2026-08-30]
+  - domain: aipc.skybuyfly.com
+    classification: invalid-alias
+    reason: "Legacy AIPC endpoint has no certificate-covered public contract; monitor skybuyfly.pitchai.net"
+    sources: [ai-price-crawler-runtime-audit-2026-08-28, tls-probe-2026-08-30]
+  - domain: unimixbr.netlify.app
+    classification: replaced
+    reason: "Historical Netlify origin; monitor the canonical Unimix production apex and www hosts"
+    sources: [unimix-repair-confirmation-2026-08-27, repository-evidence-sweep-2026-08-30]
