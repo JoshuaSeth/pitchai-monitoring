@@ -46,12 +46,13 @@ def _latest_report(lane_id: str) -> JsonInput:
 
 
 def hotpath_dashboard_fixture() -> JsonObject:
-    """Build a complete 13-lane browser fixture with real and synthetic proof.
+    """Build the complete browser fixture with real and synthetic proof.
 
     Returns:
         The deterministic hotpath projection consumed by headed-browser proof.
     """
     inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
+    lane_count = len(inventory.lanes)
     lanes: list[JsonInput] = []
     for index, lane in enumerate(inventory.lanes):
         lanes.append(
@@ -72,10 +73,10 @@ def hotpath_dashboard_fixture() -> JsonObject:
         "canonical_tag": inventory.canonical_tag,
         "counts": {
             "critical": 0,
-            "never_reported": 12,
+            "never_reported": lane_count - 1,
             "passing": 1,
             "stale": 0,
-            "total": 13,
+            "total": lane_count,
             "warning": 0,
         },
         "event_delivery": {"delivered": 1, "delivering": 0, "pending": 0, "retrying": 0},
