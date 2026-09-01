@@ -121,8 +121,11 @@ def _decide(
     event_kind: str | None = None
     action = "none"
     if report.success and previous is not None and not previous.current_success:
-        event_kind, action = "hotpath_recovered", "queued_recovery"
-        fingerprint = previous.last_event_fingerprint
+        if previous.last_event_fingerprint:
+            event_kind, action = "hotpath_recovered", "queued_recovery"
+            fingerprint = previous.last_event_fingerprint
+        else:
+            action = "recovered_without_incident"
     elif not report.success and report.severity == "critical":
         changed = (
             previous is None
