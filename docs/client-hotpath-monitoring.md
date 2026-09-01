@@ -4,7 +4,9 @@ Client hotpaths are visible, value-bearing product journeys. They are deliberate
 
 ## Canonical inventory and timing
 
-`e2e_registry/hotpath_inventory.json` is the checked-in runtime inventory. Version 1 contains the complete 13-lane estate: DFT, AutoPAR, AIPC/SkyBuyFly, potAIto, AFASAsk/GZB, Orthoparse, QuickChat RSR, DePlanBook Play, CISNL, AIGENDA Rules, DePlanBook CMS, Apologetica CMS, and AIGENDA Calendar. OrthoShare is not admitted because it has no deployed product surface.
+`e2e_registry/hotpath_inventory.json` is the checked-in runtime inventory. Version 1 contains the complete 14-lane estate: DFT, AutoPAR, two intentional AIPC/SkyBuyFly lanes, potAIto, AFASAsk/GZB, Orthoparse, QuickChat RSR, DePlanBook Play, CISNL, AIGENDA Rules, DePlanBook CMS, Apologetica CMS, and AIGENDA Calendar. OrthoShare is not admitted because it has no deployed product surface.
+
+The AIPC duplication is deliberate. `aipc-pedantic-e2e-ui-qa-v2` preserves the older deep UI QA lane, reminder, retained results, and incident history. `aipc-hotpath-monitor` is the explicit current UI/API/browser owner across the primary and stable SkyBuyFly HEL1 ingress boundaries. The two lanes have separate agent and reminder identities and report independent state; neither may submit under the other's lane ID.
 
 Every row binds lane ID, project, display name, target surface, primary domain, PitchAI live-agent global ID, exact reminder ID, and the expected visible behavior. Callers cannot rename those values. The canonical PitchAI engine tag is `hot-path-testing`; normal cadence is 172,800 seconds, stale threshold is 259,200 seconds, and incident cooldown is exactly 1,800 seconds.
 

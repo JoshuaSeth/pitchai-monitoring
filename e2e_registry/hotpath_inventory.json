@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-08-27",
+  "reviewed_at": "2026-09-01",
   "canonical_tag": "hot-path-testing",
   "expected_interval_seconds": 172800,
   "stale_after_seconds": 259200,
@@ -35,6 +35,16 @@
       "primary_domain": "skybuyfly.pitchai.net",
       "reminder_id": "reminder-20260625T073318961453-9821bdd1",
       "expected_behavior": "A public user proves coherent current card and PDP facts and safe commercial-control visibility, then proves historical and identity-only states suppress those controls."
+    },
+    {
+      "lane_id": "aipc-hotpath-monitor",
+      "agent_global_id": "b31527c6-2812-5954-aff8-b5d508d0c205",
+      "project": "ai_price_crawler",
+      "name": "AIPC / SkyBuyFly UI/API/browser hot path",
+      "target_surface": "skybuyfly.pitchai.net and stable.skybuyfly.pitchai.net",
+      "primary_domain": "skybuyfly.pitchai.net",
+      "reminder_id": "reminder-central-67a2f35f-7806-4b88-8e13-448e60a37972",
+      "expected_behavior": "A read-only public run proves both dedicated HEL1 ingress boundaries, coherent current search and product facts, the visible card-to-PDP browser story, and suppression of commerce controls for historical or identity-only results."
     },
     {
       "lane_id": "potaito-hotpath-monitor",
