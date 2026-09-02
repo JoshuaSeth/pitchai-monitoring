@@ -825,7 +825,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-08-30"
+  reviewed_at: "2026-09-02"
   authoritative_sources:
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
@@ -839,6 +839,9 @@ inventory:
     - "formatiefleren.nl Namecheap DNS activation and production deployment handoff (2026-08-28)"
     - "last-nine-day live-agent, PM DB, repository and deployment evidence sweep (2026-08-30)"
     - "live public DNS, TLS and HTTP contract probes (2026-08-30)"
+    - "last-nine-day live-agent, PM DB, repository and deployment evidence sweep (2026-09-02)"
+    - "Jeff Caddy/runtime inventory and live public DNS, TLS and HTTP contract probes (2026-09-02)"
+    - "SkyBuyFly legacy-domain parking and certificate audit (2026-09-02)"
 
 domain_groups:
   corporate:
@@ -1665,6 +1668,18 @@ domains:
     check:
       <<: *protected_401
       url: https://jeff-codex-voice.pitchai.net/
+  - domain: jeff-codex-voice.94.130.17.246.nip.io
+    label: "Jeff Codex Voice direct-IP alias"
+    group: jeff-internal
+    environment: internal
+    kind: alias
+    sources: [jeff-caddy-runtime-2026-09-02, jeff-voice-runtime-2026-09-02, live-probe-2026-09-02]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Direct-IP bootstrap alias duplicates the critical canonical Jeff Codex Voice route"
+    check:
+      <<: *protected_401
+      url: https://jeff-codex-voice.94.130.17.246.nip.io/
   - domain: jeff-dispatch.pitchai.net
     label: "Jeff Dispatcher"
     group: jeff-internal
@@ -1683,6 +1698,18 @@ domains:
     check:
       <<: *sso_edge
       url: https://jeff-work-inbox.pitchai.net/
+  - domain: jeff-work-inbox.94.130.17.246.nip.io
+    label: "Jeff work inbox direct-IP alias"
+    group: jeff-internal
+    environment: internal
+    kind: alias
+    sources: [jeff-caddy-runtime-2026-09-02, live-probe-2026-09-02]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Direct-IP bootstrap alias duplicates the critical canonical Jeff work-inbox route"
+    check:
+      <<: *sso_edge
+      url: https://jeff-work-inbox.94.130.17.246.nip.io/
 
   - domain: aardappelprijs.nl
     label: "Aardappelprijs"
@@ -1877,6 +1904,18 @@ retired_domains:
     classification: invalid-alias
     reason: "Legacy AIPC endpoint has no certificate-covered public contract; monitor skybuyfly.pitchai.net"
     sources: [ai-price-crawler-runtime-audit-2026-08-28, tls-probe-2026-08-30]
+  - domain: skybuyfly.com
+    classification: historical
+    reason: "Legacy product apex serves a registrar parking page; monitor the canonical PitchAI production hosts"
+    sources: [project-evidence-sweep-2026-09-02, live-probe-2026-09-02]
+  - domain: www.skybuyfly.com
+    classification: historical
+    reason: "Legacy product www host serves the same registrar parking page; monitor the canonical PitchAI production hosts"
+    sources: [project-evidence-sweep-2026-09-02, live-probe-2026-09-02]
+  - domain: api.skybuyfly.com
+    classification: invalid-alias
+    reason: "Legacy API hostname has a mismatched hosting certificate; the current client uses the monitored stable PitchAI endpoint"
+    sources: [ai-price-crawler-runtime-audit-2026-09-02, tls-probe-2026-09-02]
   - domain: unimixbr.netlify.app
     classification: replaced
     reason: "Historical Netlify origin; monitor the canonical Unimix production apex and www hosts"

@@ -35,7 +35,8 @@ EXPECTED_ACTIVE_DOMAINS = _words(
     privacy-gateway-staging.pitchai.net staging.afasask.pitchai.net staging.autopar.pitchai.net
     staging.chat.pitchai.net staging.formatief-toetsen.pitchai.net staging.hetcis.pitchai.net
     staging.potaito.pitchai.net studentenreisproduct.demos.pitchai.net jeff-codex-voice.pitchai.net
-    jeff-dispatch.pitchai.net jeff-work-inbox.pitchai.net aardappelprijs.nl akkerbouwprijs.nl afasask.gzb.nl
+    jeff-codex-voice.94.130.17.246.nip.io jeff-dispatch.pitchai.net jeff-work-inbox.pitchai.net
+    jeff-work-inbox.94.130.17.246.nip.io aardappelprijs.nl akkerbouwprijs.nl afasask.gzb.nl
     deplanbook.com cms.deplanbook.com hetcis.nl www.hetcis.nl agentcloud.pitchai.net dashboards.pitchai.net
     support.pitchai.net
     aigenda.pitchai.net aigenda-monitor.pitchai.net livedocuments.pitchai.net lfs.pitchai.net
@@ -51,6 +52,8 @@ EXPECTED_DASHBOARD_ONLY_DOMAINS = frozenset({
     "support.pitchai.net",
     "cursussen.pitchai.net",
     "theplanbook.pitchai.net",
+    "jeff-codex-voice.94.130.17.246.nip.io",
+    "jeff-work-inbox.94.130.17.246.nip.io",
 })
 
 EXPECTED_RETIRED_DOMAINS = _words(
@@ -66,7 +69,7 @@ EXPECTED_RETIRED_DOMAINS = _words(
     staging.hetcis.nl suggestions.demos.pitchai.net staging.potai.pitchai.net
     staging.potato.pitchai.net studentenreisproduct.nl www.centrumvoorisraelstudies.nl
     www.intern.centrumvoorisraelstudies.nl events.pitchai.net mockopenai.pitchai.net
-    aipc.skybuyfly.com unimixbr.netlify.app
+    aipc.skybuyfly.com skybuyfly.com www.skybuyfly.com api.skybuyfly.com unimixbr.netlify.app
     """,
 )
 

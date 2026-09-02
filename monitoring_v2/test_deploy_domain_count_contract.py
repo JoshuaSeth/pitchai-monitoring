@@ -12,7 +12,7 @@ from .inventory import production_config
 from .json_types import object_list
 from .testing_runtime import pytest
 
-_REVIEWED_DOMAIN_COUNT = 71
+_REVIEWED_DOMAIN_COUNT = 73
 _WORKFLOW_PATH = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci-cd.yaml"
 _COUNT_COMMAND = "from monitoring_v2.deploy_contract import production_domain_count; print(production_domain_count())"
 _COUNT_INPUT = '-e MONITORING_DASHBOARD_EXPECTED_DOMAINS="$expected_domain_count"'
