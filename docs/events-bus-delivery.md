@@ -109,7 +109,33 @@ repair rule. Dedicated durable producers own the critical projection instead:
 - the database sidecar emits `database_down` / `database_recovered` only for
   alert-enabled production dependency groups; and
 - the hotpath registry emits `hotpath_red` / `hotpath_recovered` from the
-  versioned central report contract.
+  versioned central report contract; and
+- the storage-independent scheduler observer emits `production_failure` /
+  `production_recovered` for terminal new-lane placement failures, scheduling-
+  cell heartbeat or runtime loss, delayed direct acceptance, unavailable local
+  delivery observation, stale central projection visibility, and critical root
+  or selected-work-storage capacity.
+  It reads the canonical central directory every 15 seconds and leaves all
+  Telegram routing decisions to the shared Events Bus receiver.
+
+The scheduler observer is deliberately outside the execution cells and keeps
+its atomic state under the monitoring service's `/data` volume. This closes the
+visibility gap seen on 2026-09-02:
+
+- Jeff stopped at 17:57:57Z after a 17:57:47Z drainer heartbeat; central reads
+  returned `503 cell_unavailable` until the cell restarted with boot
+  `692dd41b-5dcd-4879-9c39-8aeae0731636` and heartbeated at 18:04:11Z. The
+  remote observer now opens a cell-liveness incident once the central heartbeat
+  is older than 45 seconds and links recovery to the new boot.
+- Direct work `17ed7fca-a428-4009-8798-44a4dbca9657` was requested at
+  17:28:58Z but accepted only at 17:38:40Z. Per-cell read-only metrics now expose
+  requested/dispatching work older than 120 seconds, while central projection
+  receipt age independently detects adapter visibility lag.
+- The main development cell reports `/` independently from the selected new-lane
+  storage root `/mnt/pitchai-dev-data`. Root can therefore emit a capacity
+  incident even when the separate work disk remains spacious; safe new work
+  stays on the second disk and does not treat that as permission to move live
+  databases, Docker state, credentials, or existing worktrees.
 
 Container health, host pressure, SLO, latency, Web Vitals, browser
 infrastructure, and other raw degradation signals do not independently prove a
