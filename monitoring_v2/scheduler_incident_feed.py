@@ -21,6 +21,7 @@ _DIRECTORY_PATH = "/internal/global-api/v2/directory"
 _ZERO_EVENT_ID = 0
 _MAX_TIMEOUT_SECONDS = 60.0
 _MIN_TOKEN_LENGTH = 32
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
 class SchedulerIncidentFeedConfig(NamedTuple):
@@ -61,8 +62,9 @@ def load_scheduler_incident_feed_config(
     central_url = str(source.get("PITCHAI_PLATFORM_CENTRAL_URL") or "").strip().rstrip("/")
     token = str(source.get("PITCHAI_PLATFORM_USER_TOKEN") or "").strip()
     parsed = urlparse(central_url)
-    if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
-        message = "PITCHAI_PLATFORM_CENTRAL_URL must be an HTTPS origin without userinfo"
+    loopback_http = parsed.scheme == "http" and parsed.hostname in _LOOPBACK_HOSTS
+    if (parsed.scheme != "https" and not loopback_http) or not parsed.netloc or parsed.username or parsed.password:
+        message = "PITCHAI_PLATFORM_CENTRAL_URL must be HTTPS or exact loopback HTTP without userinfo"
         raise RuntimeError(message)
     if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
         message = "PITCHAI_PLATFORM_CENTRAL_URL must not contain a path, query, or fragment"
