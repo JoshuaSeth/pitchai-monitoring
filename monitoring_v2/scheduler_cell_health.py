@@ -46,8 +46,7 @@ def reduce_scheduler_cells(
         schema = pressure_number(observation.pressure, "scheduler_schema_version")
         if (schema is None or schema < _SCHEDULER_SCHEMA_MINIMUM) and not prior:
             continue
-        prior_conditions = optional_object(prior.get("conditions"))
-        conditions = optional_object(prior_conditions)
+        conditions = optional_object(prior.get("conditions"))
         feature_seen = "direct_unaccepted_observation_ready" in observation.pressure or bool_value(
             prior.get("direct_metrics_seen"),
         ) is True
@@ -64,7 +63,7 @@ def reduce_scheduler_cells(
             condition, event = _reduce_signal(
                 observation,
                 signal=signal,
-                prior=optional_object(prior_conditions.get(signal.key)),
+                prior=optional_object(conditions.get(signal.key)),
                 now=now,
             )
             conditions[signal.key] = condition

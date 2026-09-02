@@ -132,8 +132,7 @@ def _direct_signals(
     age = pressure_number(cell.pressure, "direct_unaccepted_oldest_age_seconds")
     requested = pressure_number(cell.pressure, "direct_unaccepted_requested_count")
     dispatching = pressure_number(cell.pressure, "direct_unaccepted_dispatching_count")
-    samples = (count, age, requested, dispatching)
-    complete = all(value is not None and value >= 0 for value in samples)
+    complete = all(value is not None and value >= 0 for value in (count, age, requested, dispatching))
     ready = declared_ready and complete
     evidence = (
         (
@@ -142,14 +141,15 @@ def _direct_signals(
         ),
         f"oldest_age_seconds={age if age is not None else 'unknown'} requested={requested} dispatching={dispatching}",
     )
-    unavailable_reason = "cell could not read its direct-delivery acceptance state for at least 60 seconds"
-    if declared_ready and not complete:
-        unavailable_reason = "cell reported direct-delivery observation ready with missing or malformed samples"
     unavailable = SchedulerCellSignal(
         "direct_delivery_observation",
         not ready,
         _DIRECT_OBSERVATION_GRACE_SECONDS,
-        unavailable_reason,
+        (
+            "cell reported direct-delivery observation ready with missing or malformed samples"
+            if declared_ready and not complete
+            else "cell could not read its direct-delivery acceptance state for at least 60 seconds"
+        ),
         evidence,
     )
     lagged = ready and count is not None and count > 0 and age is not None and age >= _DIRECT_ACCEPTANCE_LAG_SECONDS
@@ -161,18 +161,17 @@ def _direct_signals(
 def _storage_signal(cell: SchedulerCellObservation, *, observable: bool) -> SchedulerCellSignal:
     if not observable:
         return SchedulerCellSignal("storage_capacity", None, 0.0, "cell runtime is not observable", ())
-    pressure = cell.pressure
-    root_used = pressure_number(pressure, "root_disk_used_percent")
-    root_free = pressure_number(pressure, "root_disk_free_bytes")
-    work_used = pressure_number(pressure, "work_storage_used_percent")
-    work_free = pressure_number(pressure, "work_storage_free_bytes")
-    work_root = text_value(pressure.get("new_lane_storage_root")) or "unknown"
+    root_used = pressure_number(cell.pressure, "root_disk_used_percent")
+    root_free = pressure_number(cell.pressure, "root_disk_free_bytes")
+    work_used = pressure_number(cell.pressure, "work_storage_used_percent")
+    work_free = pressure_number(cell.pressure, "work_storage_free_bytes")
+    work_root = text_value(cell.pressure.get("new_lane_storage_root")) or "unknown"
     if root_used is None or root_free is None or work_used is None or work_free is None:
         return SchedulerCellSignal("storage_capacity", None, 0.0, "storage samples unavailable", ())
     root_critical = bool(root_used >= _CRITICAL_USED_PERCENT or root_free <= _CRITICAL_FREE_BYTES)
     work_critical = bool(work_used >= _CRITICAL_USED_PERCENT or work_free <= _CRITICAL_FREE_BYTES)
-    master = pressure_number(pressure, "master_service_host") == 1
-    same_device = pressure_number(pressure, "work_storage_same_device_as_root") == 1
+    master = pressure_number(cell.pressure, "master_service_host") == 1
+    same_device = pressure_number(cell.pressure, "work_storage_same_device_as_root") == 1
     relationship = "same-device" if same_device else "separate-device"
     evidence = (
         (
