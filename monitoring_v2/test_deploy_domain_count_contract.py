@@ -9,7 +9,7 @@ from .inventory import production_config
 from .json_types import object_list
 from .testing_runtime import pytest
 
-_REVIEWED_DOMAIN_COUNT = 71
+_REVIEWED_DOMAIN_COUNT = 73
 
 
 def test_deployment_domain_count_comes_from_validated_inventory() -> None:
