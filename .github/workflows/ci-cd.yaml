@@ -73,6 +73,7 @@ jobs:
             RUNNER_NAME="e2e-runner"
             DB_MONITOR_NAME="database-dependency-monitor"
             DOMAIN_EVENT_NAME="domain-incident-events"
+            SCHEDULER_OBSERVER_NAME="scheduler-placement-observer"
             NET_NAME="pitchai-shared"
             IMAGE_SHA="service-monitoring:${{ github.sha }}"
             IMAGE_LATEST="service-monitoring:latest"
@@ -83,7 +84,7 @@ jobs:
               exit 1
             fi
 
-            echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} + ${DB_MONITOR_NAME} + ${DOMAIN_EVENT_NAME} @ ${{ github.sha }}"
+            echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} + ${DB_MONITOR_NAME} + ${DOMAIN_EVENT_NAME} + ${SCHEDULER_OBSERVER_NAME} @ ${{ github.sha }}"
 
             DEPLOY_DIR="/tmp/${APP_NAME}-deploy-${{ github.run_id }}-${{ github.run_attempt }}"
             mkdir -p "$DEPLOY_DIR"
@@ -153,6 +154,7 @@ jobs:
             stop_rm_if_exists "$RUNNER_NAME"
             stop_rm_if_exists "$DB_MONITOR_NAME"
             stop_rm_if_exists "$DOMAIN_EVENT_NAME"
+            stop_rm_if_exists "$SCHEDULER_OBSERVER_NAME"
 
             echo "🔨 Building image..."
             docker build -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
@@ -331,6 +333,39 @@ jobs:
               "$IMAGE_SHA" \
               python -m monitoring_v2.domain_event_sidecar
 
+            echo "🚀 Starting scheduler placement incident observer..."
+            SCHEDULER_OBSERVER_PROFILE="/etc/pitchai-cli-new/platform-user-thomas.env"
+            if [[ ! -r "$SCHEDULER_OBSERVER_PROFILE" ]]; then
+              echo "❌ Missing readable scheduler observer profile: $SCHEDULER_OBSERVER_PROFILE"
+              exit 1
+            fi
+            scheduler_central_url="$(grep -E '^PITCHAI_PLATFORM_CENTRAL_URL=' "$SCHEDULER_OBSERVER_PROFILE" | head -n1 | cut -d= -f2-)"
+            scheduler_user_token="$(grep -E '^PITCHAI_PLATFORM_USER_TOKEN=' "$SCHEDULER_OBSERVER_PROFILE" | head -n1 | cut -d= -f2-)"
+            if [[ ! "$scheduler_central_url" =~ ^https://[^/]+/?$ ]] || [[ "${#scheduler_user_token}" -lt 32 ]]; then
+              echo "❌ Scheduler observer profile does not contain a valid HTTPS central origin and user token"
+              exit 1
+            fi
+            unset scheduler_user_token
+            docker run -d \
+              --name "$SCHEDULER_OBSERVER_NAME" \
+              --restart unless-stopped \
+              --init \
+              --network "$NET_NAME" \
+              --read-only \
+              --tmpfs /tmp:rw,noexec,nosuid,size=8m \
+              -v service-monitoring-state:/data \
+              --env-file "$SCHEDULER_OBSERVER_PROFILE" \
+              -e PYTHONDONTWRITEBYTECODE="1" \
+              -e SCHEDULER_INCIDENT_STATE_PATH="/data/scheduler-placement-observer.json" \
+              -e SCHEDULER_INCIDENT_POLL_SECONDS="15" \
+              -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
+              -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
+              -e PITCHAI_MONITORING_ENVIRONMENT="production" \
+              -e PITCHAI_MONITORING_INSTANCE="pitchai-main-scheduler-observer" \
+              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
+              "$IMAGE_SHA" \
+              python -m monitoring_v2.scheduler_incident_observer
+
             echo "🚀 Starting database dependency monitor..."
             docker run -d \
               --name "$DB_MONITOR_NAME" \
@@ -371,7 +406,7 @@ jobs:
             }
 
             for stability_check in 1 2; do
-              for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME" "$DB_MONITOR_NAME" "$DOMAIN_EVENT_NAME"; do
+              for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME" "$DB_MONITOR_NAME" "$DOMAIN_EVENT_NAME" "$SCHEDULER_OBSERVER_NAME"; do
                 assert_container_stable "$name"
               done
               if [[ "$stability_check" == "1" ]]; then
@@ -385,6 +420,8 @@ jobs:
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
             docker exec "$DOMAIN_EVENT_NAME" python -c \
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
+            docker exec "$SCHEDULER_OBSERVER_NAME" python -c \
+              'from domain_checks.event_bus import load_event_bus_config; from monitoring_v2.scheduler_incident_feed import load_scheduler_incident_feed_config; assert load_event_bus_config() is not None; assert load_scheduler_incident_feed_config().url.startswith("https://")'
             docker exec "$DB_MONITOR_NAME" python -c \
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
             docker exec "$REGISTRY_NAME" python -c \
@@ -404,6 +441,23 @@ jobs:
             if [[ "$domain_event_ready" != "true" ]]; then
               echo "❌ Domain incident producer did not bootstrap and drain"
               docker logs "$DOMAIN_EVENT_NAME" --tail 200 || true
+              exit 1
+            fi
+
+            echo "⏳ Waiting for the scheduler observer to complete an authenticated central poll..."
+            scheduler_observer_ready="false"
+            for attempt in $(seq 1 36); do
+              if docker exec "$SCHEDULER_OBSERVER_NAME" python -c \
+                'import json; from pathlib import Path; state=json.loads(Path("/data/scheduler-placement-observer.json").read_text()); assert state["version"] == 1; assert state["bootstrapped"] is True; assert state["last_error"] is None; assert state["last_successful_poll_at_ts"] > 0; assert isinstance(state["event_bus_outbox"], list)' \
+                >/dev/null 2>&1; then
+                scheduler_observer_ready="true"
+                break
+              fi
+              sleep 5
+            done
+            if [[ "$scheduler_observer_ready" != "true" ]]; then
+              echo "❌ Scheduler placement observer did not complete a healthy poll"
+              docker logs "$SCHEDULER_OBSERVER_NAME" --tail 200 || true
               exit 1
             fi
 
@@ -443,12 +497,13 @@ jobs:
               node - < scripts/verify-live-dashboard.cjs
 
             echo "✅ Containers running"
-            docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}|${DB_MONITOR_NAME}|${DOMAIN_EVENT_NAME}"
+            docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}|${DB_MONITOR_NAME}|${DOMAIN_EVENT_NAME}|${SCHEDULER_OBSERVER_NAME}"
             docker logs "$REGISTRY_NAME" --tail 40 || true
             docker logs "$RUNNER_NAME" --tail 40 || true
             docker logs "$APP_NAME" --tail 80 || true
             docker logs "$DB_MONITOR_NAME" --tail 80 || true
             docker logs "$DOMAIN_EVENT_NAME" --tail 80 || true
+            docker logs "$SCHEDULER_OBSERVER_NAME" --tail 80 || true
 
             cd /
             rm -rf "$DEPLOY_DIR"
