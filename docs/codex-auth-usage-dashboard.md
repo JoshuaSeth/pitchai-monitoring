@@ -75,6 +75,19 @@ affordable, but exposes no auditable currency price; the UI does not invent a
 dollar saving. The UI distinguishes observed provider-meter reliability from
 the still-pending controlled generation canary.
 
+The entitlement is volatile. Four accounts exposed 400 unused reserve points
+at 16:19-16:22 UTC on 2 September 2026, but a no-generation refresh at
+18:11-18:23 UTC removed the exact reserve meter from every auth-valid account.
+Those accounts instead exposed only `GPT-5.3-Codex-Spark` /
+`codex_bengalfox`. Read-only model-catalog calls still returned both Luna
+labels, so catalog presence is not capacity evidence. OpenAI documents
+[Codex-Spark](https://learn.chatgpt.com/docs/agent-configuration/speed.md) as a
+separate, less-capable research-preview model with its own usage limit, and
+[public Luna](https://learn.chatgpt.com/docs/models.md) as the economical choice
+for clear, repeatable work. Neither is silently counted as hidden reserve.
+Consequently the current panel correctly shows no measured or routable reserve,
+and the scheduler rollout remains disabled until the exact meter reappears.
+
 The panel shows aggregate measured remainder, provider reset, health, and
 policy-safe drain after preserving the broker's
 `AUTH_TOKEN_SERVER_MIN_LUNA_RESERVE_REMAINING_PERCENT` floor (default 20%). It
