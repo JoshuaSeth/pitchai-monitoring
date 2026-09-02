@@ -32,7 +32,7 @@ class LaneState:
 
 @dataclass(frozen=True)
 class StateUpdate:
-    """Next lane-state counters and last emitted incident identity."""
+    """Next lane-state counters and currently open incident identity."""
 
     fail_streak: int
     success_streak: int
@@ -47,6 +47,7 @@ class IncidentDecision:
     action: str
     event_kind: str | None
     fingerprint: str | None
+    event_fingerprint: str | None
     update_state: bool
     next_state: StateUpdate
 
