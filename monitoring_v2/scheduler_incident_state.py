@@ -31,6 +31,8 @@ class SchedulerStateUpdate(NamedTuple):
     cursor: JsonObject | None = None
     clear_error: bool = False
     poll_succeeded: bool = False
+    cells: JsonObject | None = None
+    directory_polled: bool = False
 
 
 def initial_scheduler_state(now: float) -> JsonObject:
@@ -40,6 +42,7 @@ def initial_scheduler_state(now: float) -> JsonObject:
             "version": _STATE_VERSION,
             "bootstrapped": True,
             "cursor": scheduler_cursor_value(initial_scheduler_cursor(now)),
+            "cells": {},
             "event_bus_outbox": [],
             "updated_at_ts": now,
             "last_error": None,
@@ -47,6 +50,7 @@ def initial_scheduler_state(now: float) -> JsonObject:
             "last_receiver_event_id": None,
             "last_delivered_at_ts": None,
             "last_successful_poll_at_ts": None,
+            "last_successful_directory_poll_at_ts": None,
         },
     )
 
@@ -67,6 +71,12 @@ def load_scheduler_state(path: Path) -> JsonObject:
         message = "scheduler observer state version or bootstrap marker is invalid"
         raise TypeError(message)
     _ = scheduler_cursor_from_value(optional_object(state.get("cursor")))
+    raw_cells = state.get("cells", {})
+    if not isinstance(raw_cells, dict):
+        message = "scheduler observer cells must be an object"
+        raise TypeError(message)
+    state["cells"] = optional_object(raw_cells)
+    state.setdefault("last_successful_directory_poll_at_ts", None)
     raw_outbox = state.get("event_bus_outbox")
     if not isinstance(raw_outbox, list) or len(object_list(raw_outbox)) != len(raw_outbox):
         message = "scheduler observer outbox must contain only objects"
@@ -96,6 +106,7 @@ def updated_scheduler_state(retained: JsonObject, update: SchedulerStateUpdate) 
         "version": _STATE_VERSION,
         "bootstrapped": True,
         "cursor": update.cursor if update.cursor is not None else optional_object(retained.get("cursor")),
+        "cells": update.cells if update.cells is not None else optional_object(retained.get("cells")),
         "event_bus_outbox": normalize_json(cast("JsonInput", update.outbox)),
         "updated_at_ts": update.now,
         "last_error": last_error,
@@ -104,6 +115,11 @@ def updated_scheduler_state(retained: JsonObject, update: SchedulerStateUpdate) 
         "last_delivered_at_ts": last_delivered_at,
         "last_successful_poll_at_ts": (
             update.now if update.poll_succeeded else retained.get("last_successful_poll_at_ts")
+        ),
+        "last_successful_directory_poll_at_ts": (
+            update.now
+            if update.directory_polled
+            else retained.get("last_successful_directory_poll_at_ts")
         ),
     }
     return json_object(cast("JsonInput", raw))

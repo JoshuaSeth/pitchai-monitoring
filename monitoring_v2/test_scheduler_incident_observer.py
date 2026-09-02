@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING
 from . import scheduler_incident_observer as observer_module
 from .domain_event_test_support import accepted_requests, configure_event_bus
 from .event_bus_runtime import DELIVERY_RUNTIME, DeliveryAttempt
-from .json_types import object_list, optional_object, text_value
+from .json_types import float_value, object_list, optional_object, text_value
+from .scheduler_cell_test_support import cell_observation
 from .scheduler_incident_feed import (
+    SchedulerIncidentPage,
     load_scheduler_incident_feed_config,
     scheduler_incident_page,
 )
@@ -25,17 +27,25 @@ if TYPE_CHECKING:
 
     from .event_bus_runtime import DeliveryPayload, EventBusConfig
     from .json_types import JsonObject
-    from .scheduler_incident_feed import SchedulerIncidentCursor, SchedulerIncidentFeedConfig, SchedulerIncidentPage
+    from .scheduler_cell_directory import SchedulerCellObservation
+    from .scheduler_incident_feed import SchedulerIncidentCursor, SchedulerIncidentFeedConfig
     from .testing_runtime import MonkeyPatch
 
 _START_TIME = 1_788_278_400.0
 _EVENT_TIME = _START_TIME + 0.5
+_FLOAT_TOLERANCE = 1e-9
 
 
 def _configure(monkeypatch: MonkeyPatch) -> None:
+    def read_empty_directory(
+        _config: SchedulerIncidentFeedConfig,
+    ) -> tuple[SchedulerCellObservation, ...]:
+        return ()
+
     configure_event_bus(monkeypatch)
     monkeypatch.setenv("PITCHAI_PLATFORM_CENTRAL_URL", "https://platform.pitchai.net")
     monkeypatch.setenv("PITCHAI_PLATFORM_USER_TOKEN", TOKEN)
+    monkeypatch.setattr(observer_module, "read_scheduler_cell_directory", read_empty_directory)
 
 
 def test_feed_config_requires_https_origin_and_bounded_token() -> None:
@@ -48,6 +58,8 @@ def test_feed_config_requires_https_origin_and_bounded_token() -> None:
     )
     if config.url != "https://platform.pitchai.net/internal/global-api/v2/scheduler/new-lane-failures":
         pytest.fail(f"unexpected scheduler feed URL: {config.url}")
+    if config.directory_url != "https://platform.pitchai.net/internal/global-api/v2/directory":
+        pytest.fail(f"unexpected scheduler directory URL: {config.directory_url}")
 
     with pytest.raises(RuntimeError):
         _ = load_scheduler_incident_feed_config(
@@ -88,6 +100,9 @@ def test_observer_checkpoints_then_delivers_through_events_bus(
     cursor = optional_object(state.get("cursor"))
     if cursor.get("event_id") != EVENT_ID:
         pytest.fail(f"central cursor was not checkpointed: {cursor}")
+    directory_polled_at = float_value(state.get("last_successful_directory_poll_at_ts"))
+    if directory_polled_at is None or abs(directory_polled_at - (_START_TIME + 1.0)) > _FLOAT_TOLERANCE:
+        pytest.fail("central cell-directory poll was not checkpointed")
     if TOKEN in state_path.read_text(encoding="utf-8"):
         pytest.fail("scheduler observer persisted its bearer token")
 
@@ -146,3 +161,42 @@ def test_failed_receiver_delivery_remains_durable_without_refetch(
         pytest.fail(f"failed delivery was not retained: {failed}, {waiting}")
     if len(object_list(state.get("event_bus_outbox"))) != 1 or len(feed_reads) != 1 or len(attempted_delivery_ids) != 1:
         pytest.fail("observer refetched incidents while a durable delivery was still pending")
+
+
+def test_observer_delivers_cell_liveness_failure_from_central_directory(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Join the canonical directory observer to the same durable receiver path."""
+    _configure(monkeypatch)
+    state_path = tmp_path / "scheduler-observer.json"
+    captured: list[JsonObject] = []
+    stale_at = _START_TIME + 360.0
+
+    def read_empty_page(
+        _config: SchedulerIncidentFeedConfig,
+        cursor: SchedulerIncidentCursor,
+    ) -> SchedulerIncidentPage:
+        return SchedulerIncidentPage(events=(), next_cursor=cursor)
+
+    def read_stale_directory(
+        _config: SchedulerIncidentFeedConfig,
+    ) -> tuple[SchedulerCellObservation, ...]:
+        return (cell_observation(now=stale_at, last_received_at=_START_TIME),)
+
+    monkeypatch.setattr(observer_module, "read_scheduler_incident_page", read_empty_page)
+    monkeypatch.setattr(
+        observer_module,
+        "read_scheduler_cell_directory",
+        read_stale_directory,
+    )
+    _ = run_cycle(state_path=state_path, now=_START_TIME, transport=accepted_requests(captured))
+    receipt = run_cycle(state_path=state_path, now=stale_at, transport=accepted_requests(captured))
+
+    if receipt.observed_count != 1 or receipt.delivered_count != 1:
+        pytest.fail(f"cell liveness transition did not reach the receiver: {receipt}")
+    if captured[-1].get("event_kind") != "production_failure":
+        pytest.fail("cell liveness transition used the wrong receiver event kind")
+    details = optional_object(captured[-1].get("details"))
+    if details.get("surface_kind") != "cell_liveness" or details.get("site") != "dev-jeff-cell-two":
+        pytest.fail(f"cell liveness receiver evidence was malformed: {details}")

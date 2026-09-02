@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .json_types import JsonObject
 
 _FEED_PATH = "/internal/global-api/v2/scheduler/new-lane-failures"
+_DIRECTORY_PATH = "/internal/global-api/v2/directory"
 _ZERO_EVENT_ID = 0
 _MAX_TIMEOUT_SECONDS = 60.0
 _MIN_TOKEN_LENGTH = 32
@@ -26,6 +27,7 @@ class SchedulerIncidentFeedConfig(NamedTuple):
     """Authenticated read-only scheduler incident feed configuration."""
 
     url: str
+    directory_url: str
     token: str
     timeout_seconds: float
 
@@ -74,6 +76,7 @@ def load_scheduler_incident_feed_config(
         raise RuntimeError(message)
     return SchedulerIncidentFeedConfig(
         url=f"{central_url}{_FEED_PATH}",
+        directory_url=f"{central_url}{_DIRECTORY_PATH}",
         token=token,
         timeout_seconds=timeout,
     )

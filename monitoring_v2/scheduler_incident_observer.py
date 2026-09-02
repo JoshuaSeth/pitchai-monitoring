@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from .event_bus_delivery import DatabaseEventBus
 from .json_types import optional_object
+from .scheduler_cell_directory import read_scheduler_cell_directory
+from .scheduler_cell_health import reduce_scheduler_cells
 from .scheduler_incident_feed import (
     load_scheduler_incident_feed_config,
     read_scheduler_incident_page,
@@ -133,7 +135,14 @@ def _poll_and_deliver(
     config = load_scheduler_incident_feed_config()
     cursor = scheduler_cursor_from_value(optional_object(retained.get("cursor")))
     page = read_scheduler_incident_page(config, cursor)
-    staged_bus = preflight.event_bus.staged_events(page.events)
+    cells = read_scheduler_cell_directory(config)
+    cell_reduction = reduce_scheduler_cells(
+        cells,
+        retained_cells=optional_object(retained.get("cells")),
+        now=context.now,
+    )
+    events = (*page.events, *cell_reduction.events)
+    staged_bus = preflight.event_bus.staged_events(events)
     checkpoint = updated_scheduler_state(
         retained,
         SchedulerStateUpdate(
@@ -143,6 +152,8 @@ def _poll_and_deliver(
             attempts=preflight.attempts,
             clear_error=True,
             poll_succeeded=True,
+            cells=cell_reduction.cells,
+            directory_polled=True,
         ),
     )
     write_state(context.state_path, checkpoint)
@@ -158,7 +169,7 @@ def _poll_and_deliver(
         ),
     )
     write_state(context.state_path, final_state)
-    return SchedulerObserverReceipt("ready", len(page.events), delivered, staged_bus.pending_count)
+    return SchedulerObserverReceipt("ready", len(events), delivered, staged_bus.pending_count)
 
 
 def _poll_seconds() -> float:

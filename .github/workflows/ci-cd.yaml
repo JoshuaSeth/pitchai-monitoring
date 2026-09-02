@@ -448,7 +448,7 @@ jobs:
             scheduler_observer_ready="false"
             for attempt in $(seq 1 36); do
               if docker exec "$SCHEDULER_OBSERVER_NAME" python -c \
-                'import json; from pathlib import Path; state=json.loads(Path("/data/scheduler-placement-observer.json").read_text()); assert state["version"] == 1; assert state["bootstrapped"] is True; assert state["last_error"] is None; assert state["last_successful_poll_at_ts"] > 0; assert isinstance(state["event_bus_outbox"], list)' \
+                'import json; from pathlib import Path; state=json.loads(Path("/data/scheduler-placement-observer.json").read_text()); assert state["version"] == 1; assert state["bootstrapped"] is True; assert state["last_error"] is None; assert state["last_successful_poll_at_ts"] > 0; assert state["last_successful_directory_poll_at_ts"] > 0; assert isinstance(state["cells"], dict); assert isinstance(state["event_bus_outbox"], list)' \
                 >/dev/null 2>&1; then
                 scheduler_observer_ready="true"
                 break

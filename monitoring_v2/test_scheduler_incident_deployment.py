@@ -23,5 +23,12 @@ def test_scheduler_observer_deploys_without_telegram_credentials() -> None:
     missing = [fragment for fragment in required_fragments if fragment not in block]
     if missing:
         pytest.fail(f"scheduler observer deployment fragments are missing: {missing}")
+    readiness_fragments = (
+        'state["last_successful_directory_poll_at_ts"] > 0',
+        'isinstance(state["cells"], dict)',
+    )
+    readiness_missing = [fragment for fragment in readiness_fragments if fragment not in workflow]
+    if readiness_missing:
+        pytest.fail(f"scheduler observer directory-readiness fragments are missing: {readiness_missing}")
     if "TELEGRAM_BOT_TOKEN" in block or "TELEGRAM_CHAT_ID" in block:
         pytest.fail("scheduler observer bypasses the shared receiver with direct Telegram credentials")
