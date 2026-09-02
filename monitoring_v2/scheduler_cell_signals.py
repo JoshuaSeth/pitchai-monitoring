@@ -17,6 +17,7 @@ _DIRECT_ACCEPTANCE_LAG_SECONDS = 120.0
 _DIRECT_OBSERVATION_GRACE_SECONDS = 60.0
 _CRITICAL_FREE_BYTES = 10 * 1024**3
 _CRITICAL_USED_PERCENT = 98.0
+_MONITORING_CELL_SLUG = "dev-monitoring-cell"
 
 
 class SchedulerCellSignal(NamedTuple):
@@ -77,7 +78,11 @@ def _runtime_contract_reasons(cell: SchedulerCellObservation) -> list[str]:
     reasons: list[str] = []
     if pressure_number(pressure, "app_server_ready") != 1:
         reasons.append("app server readiness=false")
-    if pressure_number(pressure, "general_agent_create_eligible") != 1:
+    general_create_eligible = pressure_number(pressure, "general_agent_create_eligible")
+    if cell.slug == _MONITORING_CELL_SLUG:
+        if general_create_eligible != 0:
+            reasons.append("monitoring new-lane isolation=false")
+    elif general_create_eligible != 1:
         reasons.append("general new-lane runtime readiness=false")
     if pressure_number(pressure, "new_lane_storage_ready") != 1:
         reasons.append("selected new-lane storage readiness=false")

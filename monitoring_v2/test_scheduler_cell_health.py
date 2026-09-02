@@ -51,6 +51,39 @@ def test_six_minute_jeff_outage_emits_failure_and_new_boot_recovery() -> None:
         pytest.fail("recovery did not link to the exact open cell incident")
 
 
+def test_monitoring_cell_requires_general_new_lane_isolation() -> None:
+    """Accept the monitoring profile's isolation bit and reject an unsafe value."""
+    isolated = cell_observation(
+        now=_JEFF_LAST_HEARTBEAT,
+        slug="dev-monitoring-cell",
+        pressure_updates={"general_agent_create_eligible": 0},
+    )
+    healthy = reduce_scheduler_cells((isolated,), retained_cells={}, now=_JEFF_LAST_HEARTBEAT)
+    unsafe = cell_observation(now=_JEFF_LAST_HEARTBEAT, slug="dev-monitoring-cell")
+    failed = reduce_scheduler_cells((unsafe,), retained_cells={}, now=_JEFF_LAST_HEARTBEAT)
+
+    if healthy.events:
+        pytest.fail(f"isolated monitoring cell was misclassified as unhealthy: {healthy.events}")
+    if [event.kind for event in failed.events] != ["production_failure"]:
+        pytest.fail(f"monitoring cell without isolation was not escalated: {failed.events}")
+    if "monitoring new-lane isolation=false" not in text_value(failed.events[0].details.get("reason")):
+        pytest.fail("monitoring isolation failure lost its runtime-contract reason")
+
+
+def test_general_cell_still_requires_new_lane_runtime_readiness() -> None:
+    """Do not weaken the general-create readiness contract for ordinary cells."""
+    unavailable = cell_observation(
+        now=_JEFF_LAST_HEARTBEAT,
+        pressure_updates={"general_agent_create_eligible": 0},
+    )
+    failed = reduce_scheduler_cells((unavailable,), retained_cells={}, now=_JEFF_LAST_HEARTBEAT)
+
+    if [event.kind for event in failed.events] != ["production_failure"]:
+        pytest.fail(f"general cell runtime unavailability was not escalated: {failed.events}")
+    if "general new-lane runtime readiness=false" not in text_value(failed.events[0].details.get("reason")):
+        pytest.fail("general runtime failure lost its existing contract reason")
+
+
 def test_direct_reminder_acceptance_delay_emits_failure_and_recovery() -> None:
     """Expose the historical roughly ten-minute requested-to-accepted delay."""
     baseline = reduce_scheduler_cells(
