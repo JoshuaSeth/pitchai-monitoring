@@ -97,6 +97,10 @@ account merely to harvest its reserve meter. The panel is read-only and does
 not submit a model request, acquire a lease, switch an account, or enable
 scheduler routing.
 
+The Luna endpoint has its own schema version. The existing
+`/api/v1/capacity` operator contract remains schema 4, so reserve visibility is
+additive for dashboard clients and does not relabel the main-capacity payload.
+
 Provider window names are not stable identifiers. The dashboard classifies reported windows by duration: four to six hours is the five-hour window, and six days or longer is the weekly window. A missing five-hour window remains `null` in the API and is labeled **Provider does not expose 5h** in that specific table cell; it is never interpreted as 0% remaining or as a full five-hour window. Weekly columns, aggregate forecasts, runout estimates, and reset arrivals continue to use authoritative weekly data when available. Aggregate percentages include explicit reporting and unknown-account counts.
 
 OpenAI currently appears to have temporarily removed or disabled the five-hour
