@@ -48,8 +48,8 @@ def _configure(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(observer_module, "read_scheduler_cell_directory", read_empty_directory)
 
 
-def test_feed_config_requires_https_origin_and_bounded_token() -> None:
-    """Reject ambiguous endpoints and accept the exact central API origin."""
+def test_feed_config_requires_secure_origin_and_bounded_token() -> None:
+    """Accept HTTPS or exact loopback HTTP while rejecting remote plaintext."""
     config = load_scheduler_incident_feed_config(
         {
             "PITCHAI_PLATFORM_CENTRAL_URL": "https://platform.pitchai.net/",
@@ -61,13 +61,23 @@ def test_feed_config_requires_https_origin_and_bounded_token() -> None:
     if config.directory_url != "https://platform.pitchai.net/internal/global-api/v2/directory":
         pytest.fail(f"unexpected scheduler directory URL: {config.directory_url}")
 
-    with pytest.raises(RuntimeError):
-        _ = load_scheduler_incident_feed_config(
-            {
-                "PITCHAI_PLATFORM_CENTRAL_URL": "http://platform.pitchai.net",
-                "PITCHAI_PLATFORM_USER_TOKEN": TOKEN,
-            },
-        )
+    loopback = load_scheduler_incident_feed_config(
+        {
+            "PITCHAI_PLATFORM_CENTRAL_URL": "http://127.0.0.1:18129",
+            "PITCHAI_PLATFORM_USER_TOKEN": TOKEN,
+        },
+    )
+    if loopback.directory_url != "http://127.0.0.1:18129/internal/global-api/v2/directory":
+        pytest.fail(f"unexpected loopback scheduler directory URL: {loopback.directory_url}")
+
+    for rejected_origin in ("http://platform.pitchai.net", "http://127.0.0.1.example:18129"):
+        with pytest.raises(RuntimeError):
+            _ = load_scheduler_incident_feed_config(
+                {
+                    "PITCHAI_PLATFORM_CENTRAL_URL": rejected_origin,
+                    "PITCHAI_PLATFORM_USER_TOKEN": TOKEN,
+                },
+            )
 
 
 def test_observer_checkpoints_then_delivers_through_events_bus(

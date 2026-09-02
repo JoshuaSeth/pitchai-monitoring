@@ -137,27 +137,30 @@ jobs:
               fi
             }
 
-            if docker ps -a --format '{{.Names}}' | grep -qx "$OLD_NAME"; then
-              old_image="$(docker inspect "$OLD_NAME" --format '{{.Config.Image}}' || true)"
-              echo "Found legacy container '$OLD_NAME' image=$old_image"
-              if [[ "$old_image" == monitoring-system:* || "$old_image" == monitoring-system || "$old_image" == service-monitoring:* || "$old_image" == service-monitoring ]]; then
-                echo "🛑 Stopping legacy container: $OLD_NAME"
-                docker stop "$OLD_NAME" || true
-                docker rm "$OLD_NAME" || true
-              else
-                echo "⚠️ Refusing to stop '$OLD_NAME' (unexpected image: $old_image)"
-              fi
-            fi
-
-            stop_rm_if_exists "$APP_NAME"
-            stop_rm_if_exists "$REGISTRY_NAME"
-            stop_rm_if_exists "$RUNNER_NAME"
-            stop_rm_if_exists "$DB_MONITOR_NAME"
-            stop_rm_if_exists "$DOMAIN_EVENT_NAME"
-            stop_rm_if_exists "$SCHEDULER_OBSERVER_NAME"
-
             echo "🔨 Building image..."
             docker build -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
+
+            echo "🔎 Preflighting scheduler observer profile with the runtime parser..."
+            SCHEDULER_OBSERVER_PROFILE="/etc/pitchai-cli-new/platform-user-thomas.env"
+            if [[ ! -r "$SCHEDULER_OBSERVER_PROFILE" ]]; then
+              echo "❌ Missing readable scheduler observer profile: $SCHEDULER_OBSERVER_PROFILE"
+              exit 1
+            fi
+            set -a
+            # The installed profile follows shell EnvironmentFile syntax. Source
+            # it once so Docker receives the exact normalized values.
+            # shellcheck disable=SC1090
+            . "$SCHEDULER_OBSERVER_PROFILE"
+            set +a
+            docker run --rm \
+              --network host \
+              --read-only \
+              --tmpfs /tmp:rw,noexec,nosuid,size=1m \
+              -e PITCHAI_PLATFORM_CENTRAL_URL \
+              -e PITCHAI_PLATFORM_USER_TOKEN \
+              -e PYTHONDONTWRITEBYTECODE="1" \
+              "$IMAGE_SHA" \
+              python -c 'from monitoring_v2.scheduler_cell_directory import read_scheduler_cell_directory; from monitoring_v2.scheduler_incident_feed import load_scheduler_incident_feed_config; read_scheduler_cell_directory(load_scheduler_incident_feed_config())'
 
             echo "📦 Ensuring volumes exist..."
             docker volume create service-monitoring-state >/dev/null
@@ -251,6 +254,25 @@ jobs:
               exit 1
             fi
 
+            if docker ps -a --format '{{.Names}}' | grep -qx "$OLD_NAME"; then
+              old_image="$(docker inspect "$OLD_NAME" --format '{{.Config.Image}}' || true)"
+              echo "Found legacy container '$OLD_NAME' image=$old_image"
+              if [[ "$old_image" == monitoring-system:* || "$old_image" == monitoring-system || "$old_image" == service-monitoring:* || "$old_image" == service-monitoring ]]; then
+                echo "🛑 Stopping legacy container: $OLD_NAME"
+                docker stop "$OLD_NAME" || true
+                docker rm "$OLD_NAME" || true
+              else
+                echo "⚠️ Refusing to stop '$OLD_NAME' (unexpected image: $old_image)"
+              fi
+            fi
+
+            stop_rm_if_exists "$APP_NAME"
+            stop_rm_if_exists "$REGISTRY_NAME"
+            stop_rm_if_exists "$RUNNER_NAME"
+            stop_rm_if_exists "$DB_MONITOR_NAME"
+            stop_rm_if_exists "$DOMAIN_EVENT_NAME"
+            stop_rm_if_exists "$SCHEDULER_OBSERVER_NAME"
+
             echo "🚀 Starting e2e-registry..."
             docker run -d \
               --name "$REGISTRY_NAME" \
@@ -334,27 +356,16 @@ jobs:
               python -m monitoring_v2.domain_event_sidecar
 
             echo "🚀 Starting scheduler placement incident observer..."
-            SCHEDULER_OBSERVER_PROFILE="/etc/pitchai-cli-new/platform-user-thomas.env"
-            if [[ ! -r "$SCHEDULER_OBSERVER_PROFILE" ]]; then
-              echo "❌ Missing readable scheduler observer profile: $SCHEDULER_OBSERVER_PROFILE"
-              exit 1
-            fi
-            scheduler_central_url="$(grep -E '^PITCHAI_PLATFORM_CENTRAL_URL=' "$SCHEDULER_OBSERVER_PROFILE" | head -n1 | cut -d= -f2-)"
-            scheduler_user_token="$(grep -E '^PITCHAI_PLATFORM_USER_TOKEN=' "$SCHEDULER_OBSERVER_PROFILE" | head -n1 | cut -d= -f2-)"
-            if [[ ! "$scheduler_central_url" =~ ^https://[^/]+/?$ ]] || [[ "${#scheduler_user_token}" -lt 32 ]]; then
-              echo "❌ Scheduler observer profile does not contain a valid HTTPS central origin and user token"
-              exit 1
-            fi
-            unset scheduler_user_token
             docker run -d \
               --name "$SCHEDULER_OBSERVER_NAME" \
               --restart unless-stopped \
               --init \
-              --network "$NET_NAME" \
+              --network host \
               --read-only \
               --tmpfs /tmp:rw,noexec,nosuid,size=8m \
               -v service-monitoring-state:/data \
-              --env-file "$SCHEDULER_OBSERVER_PROFILE" \
+              -e PITCHAI_PLATFORM_CENTRAL_URL \
+              -e PITCHAI_PLATFORM_USER_TOKEN \
               -e PYTHONDONTWRITEBYTECODE="1" \
               -e SCHEDULER_INCIDENT_STATE_PATH="/data/scheduler-placement-observer.json" \
               -e SCHEDULER_INCIDENT_POLL_SECONDS="15" \
@@ -365,6 +376,7 @@ jobs:
               -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
               "$IMAGE_SHA" \
               python -m monitoring_v2.scheduler_incident_observer
+            unset PITCHAI_PLATFORM_CENTRAL_URL PITCHAI_PLATFORM_USER_TOKEN
 
             echo "🚀 Starting database dependency monitor..."
             docker run -d \

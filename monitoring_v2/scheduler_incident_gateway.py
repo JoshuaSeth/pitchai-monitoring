@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 from contextlib import closing
-from http.client import HTTPSConnection
+from http.client import HTTPConnection, HTTPSConnection
 from typing import TYPE_CHECKING, cast
 from urllib.parse import urlencode, urlparse
 
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 _HTTP_OK = 200
 _MAX_RESPONSE_BYTES = 262_144
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
 def read_scheduler_json(
@@ -35,14 +36,16 @@ def read_scheduler_json(
     """
     parsed = urlparse(url)
     hostname = parsed.hostname
-    if parsed.scheme != "https" or hostname is None or parsed.username or parsed.password:
-        message = "scheduler incident gateway requires an HTTPS URL without userinfo"
+    loopback_http = parsed.scheme == "http" and hostname in _LOOPBACK_HOSTS
+    if (parsed.scheme != "https" and not loopback_http) or hostname is None or parsed.username or parsed.password:
+        message = "scheduler incident gateway requires HTTPS or exact loopback HTTP without userinfo"
         raise RuntimeError(message)
     request_path = parsed.path or "/"
     encoded_query = urlencode(query)
     if encoded_query:
         request_path = f"{request_path}?{encoded_query}"
-    connection = HTTPSConnection(hostname, port=parsed.port, timeout=timeout_seconds)
+    connection_class = HTTPConnection if loopback_http else HTTPSConnection
+    connection = connection_class(hostname, port=parsed.port, timeout=timeout_seconds)
     with closing(connection):
         connection.request(
             "GET",
