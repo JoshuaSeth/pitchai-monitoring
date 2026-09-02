@@ -30,6 +30,27 @@
     unknown: "Unavailable",
   };
 
+  const lunaHealthLabels = {
+    active_routable: "Routable",
+    available_but_stranded: "Stranded",
+    protected_only: "Protected",
+    exhausted_or_unhealthy: "Unavailable",
+    unavailable: "Not reported",
+  };
+
+  const accountLunaHealthLabels = {
+    active_routable: "Routable now",
+    stranded_no_active_lease: "No active lease",
+    stranded_main_unavailable: "Main meter blocked",
+    protected_last_resort: "Last-resort protected",
+    below_safety_floor: "At safety floor",
+    exhausted: "Exhausted",
+    auth_invalid: "Auth invalid",
+    disabled: "Disabled",
+    stale: "Stale reading",
+    not_entitled: "Not entitled",
+  };
+
   function byId(id) {
     return document.getElementById(id);
   }
@@ -214,6 +235,32 @@
     return wrapper;
   }
 
+  function lunaReserveCell(account) {
+    const wrapper = document.createElement("div");
+    const reserve = account.luna_reserve || {};
+    const window = reserve.window || {};
+    if (reserve.reported !== true || finiteNumber(window.remaining_percent) === null) {
+      wrapper.appendChild(element("span", "cell-sub is-specific", "No gpt-reserve meter"));
+      return wrapper;
+    }
+    const remaining = finiteNumber(window.remaining_percent);
+    const line = element("div", "capacity-number");
+    line.append(
+      element("strong", "", `${number(remaining, 0)}% left`),
+      element("span", "", `${number(reserve.safe_drain_percent, 0)}% safe`)
+    );
+    const health = element(
+      "div",
+      `reserve-account-health ${reserve.safe_to_drain ? "is-routable" : ""}`,
+      accountLunaHealthLabels[reserve.health] || reserve.health || "Unknown"
+    );
+    wrapper.append(line, meter(remaining, "capacity-meter"), health);
+    if (window.reset_at) {
+      wrapper.appendChild(element("div", "credit-date", `Resets ${formatTime(window.reset_at, false)}`));
+    }
+    return wrapper;
+  }
+
   function freshnessCell(account) {
     const wrapper = document.createElement("div");
     const age = element("div", `freshness${account.stale ? " is-stale" : ""}`, ageFromIso(account.last_probe_at));
@@ -236,6 +283,11 @@
       routingFocus.title = "Preferred across broker requesters while this account remains eligible";
       wrapper.appendChild(routingFocus);
     }
+    if (account.last_resort === true) {
+      const protectedTier = element("span", "routing-focus is-protected", "Last resort");
+      protectedTier.title = "Protected emergency tier; Luna reserve routing is forbidden";
+      wrapper.appendChild(protectedTier);
+    }
     return wrapper;
   }
 
@@ -250,6 +302,7 @@
         resetCell(account.five_hour, account, "five_hour"),
         capacityCell(account.weekly, account, "weekly"),
         resetCell(account.weekly, account, "weekly"),
+        lunaReserveCell(account),
         creditsCell(account),
         freshnessCell(account),
       ];
@@ -263,7 +316,7 @@
     if (!rows.length) {
       const row = document.createElement("tr");
       const cell = element("td", "empty-state", "No broker accounts are available in the current snapshot.");
-      cell.colSpan = 8;
+      cell.colSpan = 9;
       row.appendChild(cell);
       rows.push(row);
     }
@@ -288,6 +341,7 @@
         mobileField("5-hour reset", resetCell(account.five_hour, account, "five_hour")),
         mobileField("Weekly capacity", capacityCell(account.weekly, account, "weekly")),
         mobileField("Weekly reset", resetCell(account.weekly, account, "weekly")),
+        mobileField("Luna reserve", lunaReserveCell(account)),
         mobileField("Banked resets", creditsCell(account)),
         mobileField("Freshness", freshnessCell(account))
       );
@@ -337,6 +391,63 @@
       cells.push(cell);
     }
     setChildren(byId("forecast-grid"), cells);
+  }
+
+  function renderLunaReserve(reserve) {
+    const payload = reserve || {};
+    const observed = Number(payload.observed_accounts || 0);
+    const total = finiteNumber(payload.maximum_known_points);
+    const remaining = finiteNumber(payload.remaining_points);
+    const active = finiteNumber(payload.active_routable_points);
+    const stranded = finiteNumber(payload.stranded_safe_drain_points);
+    const protectedPoints = finiteNumber(payload.protected_last_resort_points);
+    const floor = finiteNumber(payload.safety_floor_percent);
+    const health = payload.health || "unavailable";
+
+    byId("luna-total").textContent = total === null || !observed ? "-" : `${number(total, 0)} pts`;
+    byId("luna-total-detail").textContent = `${observed} entitled account${observed === 1 ? "" : "s"}`;
+    byId("luna-remaining").textContent = remaining === null || !observed ? "-" : `${number(remaining, 0)} pts`;
+    byId("luna-remaining-detail").textContent = finiteNumber(payload.remaining_percent_average) === null
+      ? "No exact provider reading"
+      : `${number(payload.remaining_percent_average, 1)}% average headroom`;
+    byId("luna-routable").textContent = active === null || !observed ? "-" : `${number(active, 0)} pts`;
+    byId("luna-routable-detail").textContent = `${number(payload.active_routable_account_equivalents || 0, 2)} account-equivalents · capacity points, not a task count`;
+    byId("luna-guarded").textContent = !observed ? "-" : `${number((stranded || 0) + (protectedPoints || 0), 0)} pts`;
+    byId("luna-guarded-detail").textContent = `${number(stranded || 0, 0)} stranded · ${number(protectedPoints || 0, 0)} last-resort protected`;
+    const resetDate = parseDate(payload.next_reset_at);
+    byId("luna-reset").textContent = resetDate
+      ? `Next reserve reset: ${formatTime(payload.next_reset_at, false)} · ${formatDuration((resetDate.getTime() - Date.now()) / 1000)}`
+      : "No reserve reset reported";
+
+    const healthNode = byId("luna-health");
+    healthNode.className = `luna-health health-${health}`;
+    healthNode.textContent = lunaHealthLabels[health] || health;
+    if (active > 0) {
+      byId("luna-policy-title").textContent = `${number(active, 0)} reserve points are safely routable now`;
+      byId("luna-policy-detail").textContent = "Reviewed background and normal Luna profiles may use gpt-reserve only while main capacity is constrained. High-reasoning, critical, direct-send, and last-resort work remain forbidden.";
+    } else if (health === "available_but_stranded") {
+      byId("luna-policy-title").textContent = "Reserve exists, but no safe shared route is active";
+      byId("luna-policy-detail").textContent = "Capacity on an account without the active healthy shared lease is shown as stranded and is not advertised as runnable work.";
+    } else if (health === "protected_only") {
+      byId("luna-policy-title").textContent = "Only emergency-tier reserve is visible";
+      byId("luna-policy-detail").textContent = "Last-resort accounts are protected from low-priority Luna routing, even when their separate reserve meter has headroom.";
+    } else {
+      byId("luna-policy-title").textContent = "No Luna reserve route is currently safe";
+      byId("luna-policy-detail").textContent = "The scheduler fails closed when entitlement, freshness, lease health, or safety-floor evidence is missing.";
+    }
+    const reliability = payload.reliability_status === "meter_usage_observed"
+      ? "Meter usage observed"
+      : payload.reliability_status === "awaiting_first_canary"
+        ? "Awaiting first canary"
+        : "Reliability unverified";
+    const facts = [
+      `Model ${payload.model || "gpt-reserve"} · Luna-equivalent`,
+      `Meter ${payload.metered_feature || "base_model_inference"} · reserve-only`,
+      `Safety floor ${floor === null ? "unknown" : `${number(floor, 0)}% per account`}`,
+      `${reliability} · exact currency price not exposed`,
+      "Reasoning low / medium / max; no ultra",
+    ].map((value) => element("span", "", value));
+    setChildren(byId("luna-facts"), facts);
   }
 
   function renderRunout(forecast) {
@@ -712,6 +823,7 @@
     state.snapshot = snapshot;
     renderLiveState(snapshot);
     renderDecision(snapshot);
+    renderLunaReserve(snapshot.luna_reserve || {});
     renderRunout(snapshot.runout_forecast || {});
     renderForecasts(snapshot.forecasts || []);
     renderHistory(snapshot.usage_history || {});

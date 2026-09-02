@@ -59,6 +59,49 @@
         </div>
       </section>
 
+      <section class="luna-section" aria-labelledby="luna-title" data-testid="luna-reserve">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Separate provider meter</div>
+            <h2 id="luna-title">Luna reserve capacity</h2>
+          </div>
+          <div class="section-aside" id="luna-reset">Reserve reset unknown</div>
+        </div>
+        <div class="luna-shell">
+          <div class="luna-metrics">
+            <article class="luna-metric">
+              <span>Total reserve</span>
+              <strong id="luna-total">-</strong>
+              <small id="luna-total-detail">Entitlement pending</small>
+            </article>
+            <article class="luna-metric">
+              <span>Remaining</span>
+              <strong id="luna-remaining">-</strong>
+              <small id="luna-remaining-detail">Provider reading pending</small>
+            </article>
+            <article class="luna-metric is-primary">
+              <span>Safe for low-priority work now</span>
+              <strong id="luna-routable">-</strong>
+              <small id="luna-routable-detail">Lease route pending</small>
+            </article>
+            <article class="luna-metric">
+              <span>Guarded capacity</span>
+              <strong id="luna-guarded">-</strong>
+              <small id="luna-guarded-detail">Policy split pending</small>
+            </article>
+          </div>
+          <div class="luna-policy" id="luna-policy">
+            <div class="luna-policy-head">
+              <span class="reserve-badge">Reserve only</span>
+              <span class="luna-health" id="luna-health">Reading meter</span>
+            </div>
+            <h3 id="luna-policy-title">Checking Luna reserve eligibility</h3>
+            <p id="luna-policy-detail">Only reviewed queue work may use this meter after main capacity becomes constrained.</p>
+            <div class="luna-facts" id="luna-facts"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="runout-section" aria-labelledby="runout-title" data-testid="runout-forecast">
         <div class="section-heading">
           <div>
@@ -157,6 +200,7 @@
                 <th scope="col">5-hour reset</th>
                 <th scope="col">Weekly capacity</th>
                 <th scope="col">Weekly reset</th>
+                <th scope="col">Luna reserve</th>
                 <th scope="col">Banked resets</th>
                 <th scope="col">Freshness</th>
               </tr>

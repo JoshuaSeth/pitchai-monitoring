@@ -15,7 +15,7 @@ FORBIDDEN_KEYS = (
 
 
 def validate_capacity_payload(payload: dict[str, Any]) -> None:
-    assert payload["schema_version"] == 4
+    assert payload["schema_version"] == 5
     assert payload["summary"]["configured_accounts"] > 0
     basis = payload["summary"]["capacity_basis"]
     assert basis["key"] in {"five_hour", "weekly", None}
@@ -31,6 +31,11 @@ def validate_capacity_payload(payload: dict[str, Any]) -> None:
     assert payload["usage_history"]["point_count"] == 168
     assert "combined" in payload["usage_history"]
     assert len(payload["runout_forecast"]["horizons"]) == 3
+    reserve = payload["luna_reserve"]
+    assert reserve["model"] == "gpt-reserve"
+    assert reserve["metered_feature"] == "base_model_inference"
+    assert reserve["reserve_only"] is True
+    assert isinstance(reserve["active_routable_points"], (int, float))
     assert (
         payload["runout_forecast"]["banked_reset_policy"][
             "included_as_automatic_capacity"

@@ -67,6 +67,7 @@ class DashboardSettings:
     analytics_stale_after_seconds: int = 1800
     request_timeout_seconds: float = 25.0
     min_five_hour_remaining_percent: float = 10.0
+    min_luna_reserve_remaining_percent: float = 20.0
     safe_probe_enabled: bool = True
     probe_on_startup: bool = True
     require_proxy_auth: bool = True
@@ -127,6 +128,12 @@ class DashboardSettings:
             ),
             min_five_hour_remaining_percent=_env_float(
                 "AUTH_TOKEN_SERVER_MIN_FIVE_HOUR_REMAINING_PERCENT", 10.0, minimum=0.0, maximum=100.0
+            ),
+            min_luna_reserve_remaining_percent=_env_float(
+                "AUTH_TOKEN_SERVER_MIN_LUNA_RESERVE_REMAINING_PERCENT",
+                20.0,
+                minimum=0.0,
+                maximum=100.0,
             ),
             safe_probe_enabled=safe_probe_enabled,
             probe_on_startup=_env_bool("AUTH_USAGE_PROBE_ON_STARTUP", True),
