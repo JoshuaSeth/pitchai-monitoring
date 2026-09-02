@@ -44,8 +44,11 @@ def read_scheduler_json(
     encoded_query = urlencode(query)
     if encoded_query:
         request_path = f"{request_path}?{encoded_query}"
-    connection_class = HTTPConnection if loopback_http else HTTPSConnection
-    connection = connection_class(hostname, port=parsed.port, timeout=timeout_seconds)
+    connection = (
+        HTTPConnection(hostname, port=parsed.port, timeout=timeout_seconds)
+        if loopback_http
+        else HTTPSConnection(hostname, port=parsed.port, timeout=timeout_seconds)
+    )
     with closing(connection):
         connection.request(
             "GET",
