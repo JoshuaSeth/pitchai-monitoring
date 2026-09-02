@@ -336,12 +336,136 @@ h2 {
 }
 
 .forecast-section,
+.luna-section,
 .runout-section,
 .history-section,
 .reset-bank-section,
 .accounts-section,
 .events-section {
   margin-top: 28px;
+}
+
+.luna-shell {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.luna-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--line);
+}
+
+.luna-metric {
+  min-width: 0;
+  min-height: 112px;
+  padding: 18px 20px;
+  border-right: 1px solid var(--line);
+}
+
+.luna-metric:last-child {
+  border-right: 0;
+}
+
+.luna-metric.is-primary {
+  box-shadow: inset 0 4px 0 var(--cyan);
+}
+
+.luna-metric > span,
+.luna-metric small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.luna-metric > span {
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.luna-metric strong {
+  display: block;
+  margin: 11px 0 7px;
+  font-family: var(--mono);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.luna-metric.is-primary strong {
+  color: var(--cyan);
+}
+
+.luna-policy {
+  padding: 20px;
+  background: #f9faf8;
+}
+
+.luna-policy-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reserve-badge,
+.luna-health {
+  padding: 4px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.reserve-badge {
+  border-color: #b8dce0;
+  background: var(--cyan-soft);
+  color: var(--cyan);
+}
+
+.luna-health.health-active_routable {
+  border-color: #b5ddce;
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.luna-health.health-available_but_stranded,
+.luna-health.health-protected_only {
+  border-color: #efd5a6;
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.luna-policy h3 {
+  margin: 12px 0 6px;
+  font-size: 16px;
+}
+
+.luna-policy p {
+  max-width: 1050px;
+  margin-bottom: 15px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.luna-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.luna-facts span {
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
 }
 
 .sr-only {
@@ -1263,6 +1387,18 @@ footer {
 }
 
 @media (max-width: 900px) {
+  .luna-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .luna-metric:nth-child(2) {
+    border-right: 0;
+  }
+
+  .luna-metric:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+
   .runout-grid {
     grid-template-columns: 1fr;
   }
@@ -1508,6 +1644,20 @@ footer {
 
   .reset-bank-row {
     grid-template-columns: 1fr;
+  }
+
+  .luna-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .luna-metric,
+  .luna-metric:nth-child(2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .luna-metric:last-child {
+    border-bottom: 0;
   }
 
 }

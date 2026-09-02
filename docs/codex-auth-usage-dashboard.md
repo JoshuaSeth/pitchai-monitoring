@@ -53,6 +53,54 @@ One normalized capacity point equals one percentage point of the provider-window
 - Stale, auth-invalid, disabled, and unknown accounts do not contribute usable points.
 - The broker safety floor is honored. An account at or below `AUTH_TOKEN_SERVER_MIN_FIVE_HOUR_REMAINING_PERCENT` is shown as five-hour limited even if the provider still reports a small remainder.
 
+### Luna reserve capacity
+
+The prominent Luna panel is a separate meter; it is not another rendering of
+the main five-hour or weekly capacity pool. The browser reads a dedicated,
+PitchAI-identity-protected `/api/v1/luna-reserve` endpoint. Server-side, that
+endpoint relays and validates the broker's identity-free
+`/v1/admin/capacity` aggregate with the existing admin credential; neither the
+credential nor account identity enters the browser response. The broker counts
+only a provider additional limit whose outer record has
+`limit_name=gpt-reserve` and `metered_feature=base_model_inference`, with
+availability and windows read from that record's nested `rate_limit` object.
+Public `gpt-5.6-luna`, Spark, generic quota windows, and unrecognized additional
+limits are excluded.
+
+The provider model catalog currently exposes public `gpt-5.6-luna` and hides
+`gpt-reserve`, while reporting matching context, input, tool, output, and
+reasoning-level capabilities for both. The dashboard therefore labels the
+separate meter **Luna-equivalent reserve**. The catalog calls Luna fast and
+affordable, but exposes no auditable currency price; the UI does not invent a
+dollar saving. The UI distinguishes observed provider-meter reliability from
+the still-pending controlled generation canary.
+
+The panel shows aggregate measured remainder, provider reset, health, and
+policy-safe drain after preserving the broker's
+`AUTH_TOKEN_SERVER_MIN_LUNA_RESERVE_REMAINING_PERCENT` floor (default 20%). It
+separates:
+
+- total and remaining measured reserve points;
+- all policy-safe points after the per-account floor;
+- policy-safe points on the active standard app-server lease, which are the
+  only points the current shared scheduler can drain without changing accounts;
+- safe points stranded on a main-exhausted or otherwise unusable shared account;
+- safe points held on the protected last-resort account, which low-priority
+  reserve routing must never use.
+
+An active session alone does not make reserve routable. The same account must
+remain enabled, auth-valid, fresh, explicitly reserve-allowed, below neither
+provider nor broker floors, generic-main eligible, and standard tier. The
+dashboard intentionally omits the account behind each aggregate. This protects
+Sol/Terra continuity: the shared app server is never moved onto a main-exhausted
+account merely to harvest its reserve meter. The panel is read-only and does
+not submit a model request, acquire a lease, switch an account, or enable
+scheduler routing.
+
+The Luna endpoint has its own schema version. The existing
+`/api/v1/capacity` operator contract remains schema 4, so reserve visibility is
+additive for dashboard clients and does not relabel the main-capacity payload.
+
 Provider window names are not stable identifiers. The dashboard classifies reported windows by duration: four to six hours is the five-hour window, and six days or longer is the weekly window. A missing five-hour window remains `null` in the API and is labeled **Provider does not expose 5h** in that specific table cell; it is never interpreted as 0% remaining or as a full five-hour window. Weekly columns, aggregate forecasts, runout estimates, and reset arrivals continue to use authoritative weekly data when available. Aggregate percentages include explicit reporting and unknown-account counts.
 
 OpenAI currently appears to have temporarily removed or disabled the five-hour
