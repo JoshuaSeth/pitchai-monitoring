@@ -123,8 +123,7 @@ def test_protected_dashboard_api_and_public_health_shape(tmp_path: Path) -> None
         )
         assert response.status_code == 200
         payload = response.json()
-        assert payload["schema_version"] == 5
-        assert payload["luna_reserve"]["model"] == "gpt-reserve"
+        assert payload["schema_version"] == 4
         assert payload["summary"]["configured_accounts"] == 1
         assert payload["usage_history"]["point_count"] == 168
         assert payload["usage_history"]["accounts_reporting"] == 1

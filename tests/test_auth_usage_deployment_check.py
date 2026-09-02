@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _payload() -> dict[str, object]:
     return {
-        "schema_version": 5,
+        "schema_version": 4,
         "summary": {
             "configured_accounts": 8,
             "capacity_basis": {
@@ -43,16 +43,10 @@ def _payload() -> dict[str, object]:
             "banked_reset_policy": {"included_as_automatic_capacity": False},
         },
         "reset_bank": {"details": []},
-        "luna_reserve": {
-            "model": "gpt-reserve",
-            "metered_feature": "base_model_inference",
-            "reserve_only": True,
-            "active_routable_points": 80,
-        },
     }
 
 
-def test_deployment_validator_accepts_schema_five_capacity() -> None:
+def test_deployment_validator_accepts_schema_four_capacity() -> None:
     validate_capacity_payload(_payload())
 
 

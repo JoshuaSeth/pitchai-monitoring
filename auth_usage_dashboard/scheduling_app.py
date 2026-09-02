@@ -3,8 +3,11 @@
 
 from __future__ import annotations
 
+from asyncio import to_thread
+from functools import partial
 from typing import TYPE_CHECKING, Protocol, cast
 
+from .luna_reserve_gateway import read_luna_reserve_snapshot
 from .scheduling_capacity import build_scheduling_capacity_snapshot
 from .scheduling_web_runtime import (
     HTTPException,
@@ -17,6 +20,8 @@ from .settings import DashboardSettings
 from .source import BrokerStateSource
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from .scheduling_web_runtime import Application, Response
     from .service import StateSource
     from .timeseries_types import JsonObject
@@ -45,11 +50,12 @@ def create_scheduling_app(
     *,
     source: StateSource | None = None,
     service: CapacityService | None = None,
+    luna_capacity_reader: Callable[[], JsonObject] | None = None,
 ) -> Application:
     """Extend the operator dashboard with its aggregate scheduler contract.
 
     Returns:
-        The existing protected dashboard with one additional read-only route.
+        The existing protected dashboard with aggregate scheduler and reserve routes.
     """
     selected_settings = settings or DashboardSettings.from_env()
     selected_source = source or BrokerStateSource(
@@ -59,6 +65,12 @@ def create_scheduling_app(
         request_timeout_seconds=selected_settings.request_timeout_seconds,
     )
     selected_service = service or CapacityService(selected_settings, selected_source)
+    selected_luna_reader = luna_capacity_reader or partial(
+        read_luna_reserve_snapshot,
+        broker_url=selected_settings.broker_url,
+        admin_token=selected_settings.broker_admin_token,
+        request_timeout_seconds=selected_settings.request_timeout_seconds,
+    )
     application = dashboard_app_factory(
         selected_settings,
         source=selected_source,
@@ -84,9 +96,22 @@ def create_scheduling_app(
         payload = build_scheduling_capacity_snapshot(snapshot)
         return json_response_factory(payload)
 
+    async def luna_reserve_capacity(
+        proxy_identity: str | None = identity_header,
+    ) -> Response:
+        _require_operator(selected_settings, proxy_identity)
+        payload = await to_thread(selected_luna_reader)
+        return json_response_factory(payload)
+
     application.add_api_route(
         "/api/v1/scheduling-capacity",
         scheduling_capacity,
+        methods=["GET"],
+        response_model=None,
+    )
+    application.add_api_route(
+        "/api/v1/luna-reserve",
+        luna_reserve_capacity,
         methods=["GET"],
         response_model=None,
     )

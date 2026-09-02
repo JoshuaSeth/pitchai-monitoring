@@ -14,9 +14,6 @@ FORECAST_HORIZONS = (
     ("day", "Next 24 hours", 24 * 60 * 60),
 )
 CAPACITY_EVENT_HORIZON_SECONDS = 8 * 24 * 60 * 60
-LUNA_RESERVE_MODEL = "gpt-reserve"
-LUNA_RESERVE_QUALITY_TIER = "luna"
-LUNA_RESERVE_METERED_FEATURE = "base_model_inference"
 
 
 def utc_now() -> datetime:
@@ -35,7 +32,6 @@ def parse_account(
     now: datetime,
     stale_after_seconds: int,
     min_five_hour_remaining_percent: float,
-    min_luna_reserve_remaining_percent: float = 20.0,
     analytics_stale_after_seconds: int = 1800,
     probe_error: str | None = None,
     analytics_probe_error: str | None = None,
@@ -57,7 +53,6 @@ def parse_account(
     email = _string(usage.get("email")) or label
     enabled = metadata.get("enabled", True) is not False
     routing_preferred = metadata.get("prefer_for_all_clients") is True
-    last_resort = metadata.get("last_resort") is True
     availability = _string(state.get("availability")) or "unknown"
     named_windows = _named_rate_limit_windows(rate_limit)
     five_hour = _parse_window(
@@ -156,36 +151,12 @@ def parse_account(
             analytics_errors.get("reset_credits")
         )
     active_sessions = _integer(state.get("active_session_count"), minimum=0) or 0
-    generic_main_available = availability == "available" and not (
-        (
-            isinstance(five_remaining, (int, float))
-            and five_remaining <= 0
-            and not primary_reset_due
-        )
-        or (
-            isinstance(weekly_remaining, (int, float))
-            and weekly_remaining <= 0
-            and not weekly_reset_due
-        )
-    )
-    luna_reserve = _parse_luna_reserve(
-        usage,
-        now=now,
-        safety_floor_percent=min_luna_reserve_remaining_percent,
-        enabled=enabled,
-        auth_valid=auth_valid,
-        stale=stale,
-        last_resort=last_resort,
-        generic_main_available=generic_main_available,
-        active_sessions=active_sessions,
-    )
 
     return {
         "label": label,
         "email": email,
         "enabled": enabled,
         "routing_preferred": routing_preferred,
-        "last_resort": last_resort,
         "plan_type": _string(usage.get("plan_type")),
         "status": status,
         "status_reason": reason,
@@ -196,7 +167,6 @@ def parse_account(
         "safety_floor_active": at_safety_floor,
         "five_hour": five_hour,
         "weekly": weekly,
-        "luna_reserve": luna_reserve,
         "token_usage": token_usage,
         "reset_credits": credits,
         "active_session_count": active_sessions,
@@ -216,7 +186,6 @@ def build_dashboard_snapshot(
     now: datetime,
     stale_after_seconds: int,
     min_five_hour_remaining_percent: float,
-    min_luna_reserve_remaining_percent: float = 20.0,
     analytics_stale_after_seconds: int = 1800,
     probe_errors: dict[str, str] | None = None,
     analytics_probe_errors: dict[str, str] | None = None,
@@ -237,7 +206,6 @@ def build_dashboard_snapshot(
             stale_after_seconds=stale_after_seconds,
             analytics_stale_after_seconds=analytics_stale_after_seconds,
             min_five_hour_remaining_percent=min_five_hour_remaining_percent,
-            min_luna_reserve_remaining_percent=min_luna_reserve_remaining_percent,
             probe_error=probe_errors.get(
                 str(
                     (raw.get("metadata") or {}).get("label")
@@ -336,13 +304,9 @@ def build_dashboard_snapshot(
         "five_hour": _window_aggregate(enabled_accounts, key="five_hour"),
         "weekly": _window_aggregate(enabled_accounts, key="weekly"),
     }
-    luna_reserve = _luna_reserve_aggregate(
-        accounts,
-        safety_floor_percent=min_luna_reserve_remaining_percent,
-    )
 
     return {
-        "schema_version": 5,
+        "schema_version": 4,
         "generated_at": isoformat(now),
         "source": {
             "name": "authoritative Codex authentication broker",
@@ -372,7 +336,6 @@ def build_dashboard_snapshot(
             else None,
             "capacity_event_horizon_seconds": CAPACITY_EVENT_HORIZON_SECONDS,
         },
-        "luna_reserve": luna_reserve,
         "forecasts": forecasts,
         "runout_forecast": runout_forecast,
         "usage_history": usage_history,
@@ -389,199 +352,7 @@ def build_dashboard_snapshot(
             "token_history": "Provider daily totals are reconstructed into 168 hourly UTC points and progressively replaced by native sample deltas; the current hour is partial.",
             "runout_forecast": "Probabilities model recent percentage-point burn and automatic resets for the declared provider-window basis. Banked resets are excluded because redemption is manual and forbidden here.",
             "reset_bank": "Read-only inventory. The dashboard has no action that can consume a banked reset.",
-            "luna_reserve": "Only the exact gpt-reserve/base_model_inference weekly meter is counted. Public gpt-5.6-luna usage is excluded. Active-routable points preserve the configured floor and exclude last-resort accounts.",
         },
-    }
-
-
-def _parse_luna_reserve(
-    usage: dict[str, Any],
-    *,
-    now: datetime,
-    safety_floor_percent: float,
-    enabled: bool,
-    auth_valid: bool | None,
-    stale: bool,
-    last_resort: bool,
-    generic_main_available: bool,
-    active_sessions: int,
-) -> dict[str, Any]:
-    """Project the exact hidden Luna-equivalent provider meter for one account."""
-    routing_tier = "last_resort" if last_resort else "standard"
-    base: dict[str, Any] = {
-        "model": LUNA_RESERVE_MODEL,
-        "quality_tier": LUNA_RESERVE_QUALITY_TIER,
-        "metered_feature": LUNA_RESERVE_METERED_FEATURE,
-        "reserve_only": True,
-        "routing_tier": routing_tier,
-        "reported": False,
-        "allowed": None,
-        "limit_reached": None,
-        "generic_main_available": generic_main_available,
-        "safety_floor_percent": round(safety_floor_percent, 2),
-        "safe_drain_percent": 0.0,
-        "safe_to_drain": False,
-        "health": "not_entitled",
-        "window": _parse_window(None, now=now, default_seconds=604_800),
-    }
-    additional = usage.get("additional_rate_limits")
-    if not isinstance(additional, list):
-        return base
-    for candidate in additional:
-        if not isinstance(candidate, dict):
-            continue
-        if (_string(candidate.get("limit_name")) or "").casefold() != LUNA_RESERVE_MODEL:
-            continue
-        if (
-            (_string(candidate.get("metered_feature")) or "").casefold()
-            != LUNA_RESERVE_METERED_FEATURE
-        ):
-            continue
-        rate_limit = candidate.get("rate_limit")
-        if not isinstance(rate_limit, dict):
-            return base
-        raw_window = _weekly_additional_window(rate_limit)
-        if raw_window is None or _percent(raw_window.get("used_percent")) is None:
-            return base
-        window = _parse_window(raw_window, now=now, default_seconds=604_800)
-        remaining = float(window["remaining_percent"])
-        allowed = rate_limit.get("allowed") is True
-        limit_reached = rate_limit.get("limit_reached") is True or remaining <= 0
-        safe_drain = max(0.0, remaining - safety_floor_percent)
-        health = "healthy"
-        if not enabled:
-            health = "disabled"
-        elif auth_valid is False:
-            health = "auth_invalid"
-        elif stale:
-            health = "stale"
-        elif not allowed or limit_reached:
-            health = "exhausted"
-        elif remaining <= safety_floor_percent:
-            health = "below_safety_floor"
-        elif last_resort:
-            health = "protected_last_resort"
-        elif not generic_main_available:
-            health = "stranded_main_unavailable"
-        elif active_sessions <= 0:
-            health = "stranded_no_active_lease"
-        else:
-            health = "active_routable"
-        return {
-            **base,
-            "reported": True,
-            "allowed": allowed,
-            "limit_reached": limit_reached,
-            "safe_drain_percent": round(safe_drain, 2),
-            "safe_to_drain": health == "active_routable",
-            "health": health,
-            "window": window,
-        }
-    return base
-
-
-def _weekly_additional_window(candidate: dict[str, Any]) -> dict[str, Any] | None:
-    for field in ("primary_window", "secondary_window"):
-        window = candidate.get(field)
-        if not isinstance(window, dict):
-            continue
-        seconds = _integer(window.get("limit_window_seconds"), minimum=1)
-        if seconds is not None and 6 * 24 * 60 * 60 <= seconds <= 8 * 24 * 60 * 60:
-            return window
-    return None
-
-
-def _luna_reserve_aggregate(
-    accounts: list[dict[str, Any]], *, safety_floor_percent: float
-) -> dict[str, Any]:
-    samples = [account for account in accounts if account["luna_reserve"]["reported"]]
-    healthy_standard = [
-        account
-        for account in samples
-        if account["luna_reserve"]["health"]
-        in {"healthy", "stranded_main_unavailable", "stranded_no_active_lease", "active_routable"}
-    ]
-    protected = [
-        account
-        for account in samples
-        if account["luna_reserve"]["health"] == "protected_last_resort"
-    ]
-    active = [
-        account
-        for account in samples
-        if account["luna_reserve"]["health"] == "active_routable"
-    ]
-    remaining_values = [
-        float(account["luna_reserve"]["window"]["remaining_percent"])
-        for account in samples
-    ]
-    safe_drain_points = sum(
-        float(account["luna_reserve"]["safe_drain_percent"])
-        for account in healthy_standard
-    )
-    active_routable_points = sum(
-        float(account["luna_reserve"]["safe_drain_percent"])
-        for account in active
-    )
-    protected_points = sum(
-        float(account["luna_reserve"]["safe_drain_percent"])
-        for account in protected
-    )
-    reset_values = [
-        account["luna_reserve"]["window"]["reset_at"]
-        for account in samples
-        if account["luna_reserve"]["window"]["reset_at"]
-    ]
-    observed_values = [account["last_probe_at"] for account in samples if account["last_probe_at"]]
-    used_values = [
-        float(account["luna_reserve"]["window"]["used_percent"])
-        for account in samples
-    ]
-    if not samples:
-        health = "unavailable"
-        reliability = "unavailable"
-    elif active:
-        health = "active_routable"
-        reliability = "meter_usage_observed" if any(used_values) else "awaiting_first_canary"
-    elif healthy_standard:
-        health = "available_but_stranded"
-        reliability = "meter_usage_observed" if any(used_values) else "awaiting_first_canary"
-    elif protected:
-        health = "protected_only"
-        reliability = "meter_usage_observed" if any(used_values) else "awaiting_first_canary"
-    else:
-        health = "exhausted_or_unhealthy"
-        reliability = "meter_usage_observed" if any(used_values) else "unverified"
-    return {
-        "model": LUNA_RESERVE_MODEL,
-        "quality_tier": LUNA_RESERVE_QUALITY_TIER,
-        "metered_feature": LUNA_RESERVE_METERED_FEATURE,
-        "reserve_only": True,
-        "safety_floor_percent": round(safety_floor_percent, 2),
-        "observed_accounts": len(samples),
-        "healthy_standard_accounts": len(healthy_standard),
-        "healthy_last_resort_accounts": len(protected),
-        "active_routable_accounts": len(active),
-        "maximum_known_points": round(len(samples) * 100.0, 2),
-        "remaining_points": round(sum(remaining_values), 2),
-        "safe_drain_points": round(safe_drain_points, 2),
-        "active_routable_points": round(active_routable_points, 2),
-        "active_routable_account_equivalents": round(active_routable_points / 100.0, 2),
-        "stranded_safe_drain_points": round(max(0.0, safe_drain_points - active_routable_points), 2),
-        "protected_last_resort_points": round(protected_points, 2),
-        "remaining_percent_min": round(min(remaining_values), 2) if remaining_values else None,
-        "remaining_percent_max": round(max(remaining_values), 2) if remaining_values else None,
-        "remaining_percent_average": round(sum(remaining_values) / len(remaining_values), 2)
-        if remaining_values
-        else None,
-        "next_reset_at": min(reset_values) if reset_values else None,
-        "latest_reset_at": max(reset_values) if reset_values else None,
-        "oldest_observed_at": min(observed_values) if observed_values else None,
-        "latest_observed_at": max(observed_values) if observed_values else None,
-        "health": health,
-        "reliability_status": reliability,
-        "cost_status": "separate_meter_exact_price_not_exposed",
-        "quality_policy": "luna_equivalent_low_medium_max_only",
     }
 
 

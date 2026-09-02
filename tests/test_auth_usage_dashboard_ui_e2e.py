@@ -72,29 +72,6 @@ def _fixture_account(
     }
     if weekly_only:
         rate_limit = {"primary_window": rate_limit["secondary_window"]}
-    reserve_labels = {
-        "elise@pitchai.net",
-        "info@pitchai.net",
-        "jozuasethvanderbijl@gmail.com",
-        "svxjvmk78b@privaterelay.appleid.com",
-    }
-    additional_rate_limits = []
-    if label in reserve_labels:
-        additional_rate_limits.append(
-            {
-                "limit_name": "gpt-reserve",
-                "metered_feature": "base_model_inference",
-                "rate_limit": {
-                    "allowed": True,
-                    "limit_reached": False,
-                    "primary_window": {
-                        "used_percent": 0,
-                        "reset_at": (now + timedelta(days=6)).isoformat(),
-                        "limit_window_seconds": 604_800,
-                    },
-                },
-            }
-        )
     return {
         "metadata": {
             "account_id": f"internal-{offset_minutes}",
@@ -102,17 +79,14 @@ def _fixture_account(
             "enabled": True,
             "prefer_for_all_clients": label
             == "svxjvmk78b@privaterelay.appleid.com",
-            "last_resort": label == "svxjvmk78b@privaterelay.appleid.com",
         },
         "state": {
             "availability": availability,
-            "active_session_count": 1 if label == "elise@pitchai.net" else 0,
             "last_probe_at": (now - timedelta(seconds=22)).isoformat(),
             "usage": {
                 "email": label,
                 "plan_type": "pro",
                 "rate_limit": rate_limit,
-                "additional_rate_limits": additional_rate_limits,
                 "rate_limit_reset_credits": {"available_count": banked},
             },
             "analytics": {
@@ -315,10 +289,6 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(
                 "accounts are ready"
                 in (await desktop.locator("#decision-title").inner_text()).lower()
             )
-            assert "400 pts" in await desktop.locator("#luna-total").inner_text()
-            assert "80 pts" in await desktop.locator("#luna-routable").inner_text()
-            assert "routable" in (await desktop.locator("#luna-health").inner_text()).lower()
-            assert "reserve-only" in (await desktop.locator("#luna-facts").inner_text()).lower()
             assert await desktop.locator("#runout-grid .runout-cell").count() == 3
             assert "points/hour" in (await desktop.locator("#burn-rate").inner_text())
             assert await desktop.locator("#forecast-grid .forecast-cell").count() == 3

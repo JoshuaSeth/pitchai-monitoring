@@ -3,6 +3,7 @@
 
   const state = {
     snapshot: null,
+    lunaReserveSnapshot: null,
     zone: "utc",
     historySeries: "combined",
     bankExpanded: false,
@@ -36,19 +37,6 @@
     protected_only: "Protected",
     exhausted_or_unhealthy: "Unavailable",
     unavailable: "Not reported",
-  };
-
-  const accountLunaHealthLabels = {
-    active_routable: "Routable now",
-    stranded_no_active_lease: "No active lease",
-    stranded_main_unavailable: "Main meter blocked",
-    protected_last_resort: "Last-resort protected",
-    below_safety_floor: "At safety floor",
-    exhausted: "Exhausted",
-    auth_invalid: "Auth invalid",
-    disabled: "Disabled",
-    stale: "Stale reading",
-    not_entitled: "Not entitled",
   };
 
   function byId(id) {
@@ -235,32 +223,6 @@
     return wrapper;
   }
 
-  function lunaReserveCell(account) {
-    const wrapper = document.createElement("div");
-    const reserve = account.luna_reserve || {};
-    const window = reserve.window || {};
-    if (reserve.reported !== true || finiteNumber(window.remaining_percent) === null) {
-      wrapper.appendChild(element("span", "cell-sub is-specific", "No gpt-reserve meter"));
-      return wrapper;
-    }
-    const remaining = finiteNumber(window.remaining_percent);
-    const line = element("div", "capacity-number");
-    line.append(
-      element("strong", "", `${number(remaining, 0)}% left`),
-      element("span", "", `${number(reserve.safe_drain_percent, 0)}% safe`)
-    );
-    const health = element(
-      "div",
-      `reserve-account-health ${reserve.safe_to_drain ? "is-routable" : ""}`,
-      accountLunaHealthLabels[reserve.health] || reserve.health || "Unknown"
-    );
-    wrapper.append(line, meter(remaining, "capacity-meter"), health);
-    if (window.reset_at) {
-      wrapper.appendChild(element("div", "credit-date", `Resets ${formatTime(window.reset_at, false)}`));
-    }
-    return wrapper;
-  }
-
   function freshnessCell(account) {
     const wrapper = document.createElement("div");
     const age = element("div", `freshness${account.stale ? " is-stale" : ""}`, ageFromIso(account.last_probe_at));
@@ -283,11 +245,6 @@
       routingFocus.title = "Preferred across broker requesters while this account remains eligible";
       wrapper.appendChild(routingFocus);
     }
-    if (account.last_resort === true) {
-      const protectedTier = element("span", "routing-focus is-protected", "Last resort");
-      protectedTier.title = "Protected emergency tier; Luna reserve routing is forbidden";
-      wrapper.appendChild(protectedTier);
-    }
     return wrapper;
   }
 
@@ -302,7 +259,6 @@
         resetCell(account.five_hour, account, "five_hour"),
         capacityCell(account.weekly, account, "weekly"),
         resetCell(account.weekly, account, "weekly"),
-        lunaReserveCell(account),
         creditsCell(account),
         freshnessCell(account),
       ];
@@ -316,7 +272,7 @@
     if (!rows.length) {
       const row = document.createElement("tr");
       const cell = element("td", "empty-state", "No broker accounts are available in the current snapshot.");
-      cell.colSpan = 9;
+      cell.colSpan = 8;
       row.appendChild(cell);
       rows.push(row);
     }
@@ -341,7 +297,6 @@
         mobileField("5-hour reset", resetCell(account.five_hour, account, "five_hour")),
         mobileField("Weekly capacity", capacityCell(account.weekly, account, "weekly")),
         mobileField("Weekly reset", resetCell(account.weekly, account, "weekly")),
-        mobileField("Luna reserve", lunaReserveCell(account)),
         mobileField("Banked resets", creditsCell(account)),
         mobileField("Freshness", freshnessCell(account))
       );
@@ -435,11 +390,9 @@
       byId("luna-policy-title").textContent = "No Luna reserve route is currently safe";
       byId("luna-policy-detail").textContent = "The scheduler fails closed when entitlement, freshness, lease health, or safety-floor evidence is missing.";
     }
-    const reliability = payload.reliability_status === "meter_usage_observed"
-      ? "Meter usage observed"
-      : payload.reliability_status === "awaiting_first_canary"
-        ? "Awaiting first canary"
-        : "Reliability unverified";
+    const reliability = payload.reliability_status === "provider_meter_observed"
+      ? "Provider meter observed; generation canary pending"
+      : "Reliability unverified";
     const facts = [
       `Model ${payload.model || "gpt-reserve"} · Luna-equivalent`,
       `Meter ${payload.metered_feature || "base_model_inference"} · reserve-only`,
@@ -819,11 +772,12 @@
       : "Usage probe pending";
   }
 
-  function render(snapshot) {
+  function render(snapshot, lunaReserveSnapshot) {
     state.snapshot = snapshot;
+    if (lunaReserveSnapshot !== undefined) state.lunaReserveSnapshot = lunaReserveSnapshot;
     renderLiveState(snapshot);
     renderDecision(snapshot);
-    renderLunaReserve(snapshot.luna_reserve || {});
+    renderLunaReserve((state.lunaReserveSnapshot || {}).luna_reserve || {});
     renderRunout(snapshot.runout_forecast || {});
     renderForecasts(snapshot.forecasts || []);
     renderHistory(snapshot.usage_history || {});
@@ -840,11 +794,29 @@
 
   async function loadSnapshot(options) {
     const opts = options || {};
-    const response = await fetch("/api/v1/capacity", { credentials: "same-origin", cache: "no-store" });
+    const [response, lunaReserveSnapshot] = await Promise.all([
+      fetch("/api/v1/capacity", { credentials: "same-origin", cache: "no-store" }),
+      loadLunaReserve(),
+    ]);
     if (!response.ok) throw new Error(`capacity_http_${response.status}`);
     const snapshot = await response.json();
-    render(snapshot);
+    render(snapshot, lunaReserveSnapshot);
     if (opts.toast) showToast("Broker snapshot updated");
+  }
+
+  async function loadLunaReserve() {
+    try {
+      const response = await fetch("/api/v1/luna-reserve", { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error(`luna_reserve_http_${response.status}`);
+      return await response.json();
+    } catch (error) {
+      return {
+        luna_reserve: {
+          health: "unavailable",
+          reliability_status: "unverified",
+        },
+      };
+    }
   }
 
   async function requestRefresh() {
@@ -860,7 +832,8 @@
       });
       if (!response.ok) throw new Error(`refresh_http_${response.status}`);
       const payload = await response.json();
-      render(payload.snapshot);
+      const lunaReserveSnapshot = await loadLunaReserve();
+      render(payload.snapshot, lunaReserveSnapshot);
       if (payload.probe_started) showToast("Safe usage probe completed");
       else if (payload.reason === "probe_throttled") showToast(`Probe is fresh; retry in ${payload.retry_after_seconds}s`);
       else showToast("Snapshot refreshed without probing");

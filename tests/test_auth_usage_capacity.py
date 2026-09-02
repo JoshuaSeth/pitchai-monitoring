@@ -81,37 +81,6 @@ def _parse(raw: dict[str, object]) -> dict[str, object]:
     )
 
 
-def _add_luna_reserve(
-    raw: dict[str, object],
-    *,
-    used_percent: float = 0,
-    allowed: bool = True,
-    limit_reached: bool = False,
-    last_resort: bool = False,
-    active_sessions: int = 0,
-    limit_name: str = "gpt-reserve",
-    metered_feature: str = "base_model_inference",
-) -> dict[str, object]:
-    raw["metadata"]["last_resort"] = last_resort
-    raw["state"]["active_session_count"] = active_sessions
-    raw["state"]["usage"]["additional_rate_limits"] = [
-        {
-            "limit_name": limit_name,
-            "metered_feature": metered_feature,
-            "rate_limit": {
-                "allowed": allowed,
-                "limit_reached": limit_reached,
-                "primary_window": {
-                    "used_percent": used_percent,
-                    "reset_at": (NOW + timedelta(days=5)).isoformat(),
-                    "limit_window_seconds": 604_800,
-                },
-            },
-        }
-    ]
-    return raw
-
-
 @pytest.mark.parametrize(
     ("raw", "status", "selectable"),
     [
@@ -156,92 +125,6 @@ def test_routing_preference_is_exposed_without_broker_secrets() -> None:
     serialized = json.dumps(account)
     assert "broker_secret" not in serialized
     assert "must-not-escape" not in serialized
-
-
-def test_luna_reserve_aggregate_separates_routable_stranded_and_protected() -> None:
-    active = _add_luna_reserve(
-        _account("active@example.com"),
-        used_percent=10,
-        active_sessions=1,
-    )
-    stranded = _add_luna_reserve(
-        _account(
-            "stranded@example.com",
-            availability="rate_limited",
-            weekly_used=100,
-        ),
-    )
-    protected = _add_luna_reserve(
-        _account("protected@example.com"),
-        last_resort=True,
-        active_sessions=1,
-    )
-
-    snapshot = build_dashboard_snapshot(
-        [active, stranded, protected],
-        now=NOW,
-        stale_after_seconds=600,
-        min_five_hour_remaining_percent=10,
-        min_luna_reserve_remaining_percent=20,
-    )
-
-    reserve = snapshot["luna_reserve"]
-    assert reserve == {
-        "model": "gpt-reserve",
-        "quality_tier": "luna",
-        "metered_feature": "base_model_inference",
-        "reserve_only": True,
-        "safety_floor_percent": 20,
-        "observed_accounts": 3,
-        "healthy_standard_accounts": 2,
-        "healthy_last_resort_accounts": 1,
-        "active_routable_accounts": 1,
-        "maximum_known_points": 300,
-        "remaining_points": 290,
-        "safe_drain_points": 150,
-        "active_routable_points": 70,
-        "active_routable_account_equivalents": 0.7,
-        "stranded_safe_drain_points": 80,
-        "protected_last_resort_points": 80,
-        "remaining_percent_min": 90,
-        "remaining_percent_max": 100,
-        "remaining_percent_average": 96.67,
-        "next_reset_at": "2026-07-16T12:00:00Z",
-        "latest_reset_at": "2026-07-16T12:00:00Z",
-        "oldest_observed_at": "2026-07-11T11:59:30Z",
-        "latest_observed_at": "2026-07-11T11:59:30Z",
-        "health": "active_routable",
-        "reliability_status": "meter_usage_observed",
-        "cost_status": "separate_meter_exact_price_not_exposed",
-        "quality_policy": "luna_equivalent_low_medium_max_only",
-    }
-    by_label = {account["label"]: account for account in snapshot["accounts"]}
-    assert by_label["active@example.com"]["luna_reserve"]["safe_to_drain"] is True
-    assert by_label["stranded@example.com"]["luna_reserve"]["health"] == "stranded_main_unavailable"
-    assert by_label["protected@example.com"]["luna_reserve"]["health"] == "protected_last_resort"
-    assert by_label["protected@example.com"]["last_resort"] is True
-
-
-def test_public_luna_or_wrong_meter_is_never_counted_as_reserve() -> None:
-    public_luna = _add_luna_reserve(
-        _account("public@example.com"),
-        limit_name="gpt-5.6-luna",
-    )
-    wrong_meter = _add_luna_reserve(
-        _account("wrong-meter@example.com"),
-        metered_feature="codex_bengalfox",
-    )
-
-    snapshot = build_dashboard_snapshot(
-        [public_luna, wrong_meter],
-        now=NOW,
-        stale_after_seconds=600,
-        min_five_hour_remaining_percent=10,
-    )
-
-    assert snapshot["luna_reserve"]["observed_accounts"] == 0
-    assert snapshot["luna_reserve"]["health"] == "unavailable"
-    assert all(not account["luna_reserve"]["reported"] for account in snapshot["accounts"])
 
 
 def test_expired_provider_reset_is_unknown_until_fresh_probe() -> None:

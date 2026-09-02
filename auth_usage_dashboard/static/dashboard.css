@@ -1068,7 +1068,7 @@ h2 {
 
 .account-table {
   width: 100%;
-  min-width: 1360px;
+  min-width: 1190px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -1102,9 +1102,8 @@ h2 {
 .account-table th:nth-child(4) { width: 150px; }
 .account-table th:nth-child(5) { width: 155px; }
 .account-table th:nth-child(6) { width: 150px; }
-.account-table th:nth-child(7) { width: 175px; }
-.account-table th:nth-child(8) { width: 160px; }
-.account-table th:nth-child(9) { width: 135px; }
+.account-table th:nth-child(7) { width: 160px; }
+.account-table th:nth-child(8) { width: 135px; }
 
 .account-table tbody tr:hover {
   background: #fafcf9;
@@ -1140,24 +1139,6 @@ h2 {
   font-weight: 800;
   line-height: 1.2;
   text-transform: uppercase;
-}
-
-.routing-focus.is-protected {
-  margin-left: 5px;
-  border-color: #efd5a6;
-  background: var(--amber-soft);
-  color: var(--amber);
-}
-
-.reserve-account-health {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.reserve-account-health.is-routable {
-  color: var(--green);
 }
 
 .status-badge {

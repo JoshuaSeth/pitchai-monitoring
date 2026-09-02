@@ -56,24 +56,29 @@ One normalized capacity point equals one percentage point of the provider-window
 ### Luna reserve capacity
 
 The prominent Luna panel is a separate meter; it is not another rendering of
-the main five-hour or weekly capacity pool. It counts only a provider additional
-limit whose outer record has `limit_name=gpt-reserve` and
-`metered_feature=base_model_inference`, with availability and windows read from
-that record's nested `rate_limit` object. Public `gpt-5.6-luna`, Spark, generic
-quota windows, and unrecognized additional limits are excluded.
+the main five-hour or weekly capacity pool. The browser reads a dedicated,
+PitchAI-identity-protected `/api/v1/luna-reserve` endpoint. Server-side, that
+endpoint relays and validates the broker's identity-free
+`/v1/admin/capacity` aggregate with the existing admin credential; neither the
+credential nor account identity enters the browser response. The broker counts
+only a provider additional limit whose outer record has
+`limit_name=gpt-reserve` and `metered_feature=base_model_inference`, with
+availability and windows read from that record's nested `rate_limit` object.
+Public `gpt-5.6-luna`, Spark, generic quota windows, and unrecognized additional
+limits are excluded.
 
 The provider model catalog currently exposes public `gpt-5.6-luna` and hides
 `gpt-reserve`, while reporting matching context, input, tool, output, and
 reasoning-level capabilities for both. The dashboard therefore labels the
 separate meter **Luna-equivalent reserve**. The catalog calls Luna fast and
 affordable, but exposes no auditable currency price; the UI does not invent a
-dollar saving. Reliability remains `awaiting_first_canary` until a controlled
-production route has completed successfully.
+dollar saving. The UI distinguishes observed provider-meter reliability from
+the still-pending controlled generation canary.
 
-For each entitled account the dashboard shows the measured remainder, provider
-reset, health, routing tier, and policy-safe drain percentage after preserving
-`AUTH_TOKEN_SERVER_MIN_LUNA_RESERVE_REMAINING_PERCENT` (default 20%). The top
-panel separates:
+The panel shows aggregate measured remainder, provider reset, health, and
+policy-safe drain after preserving the broker's
+`AUTH_TOKEN_SERVER_MIN_LUNA_RESERVE_REMAINING_PERCENT` floor (default 20%). It
+separates:
 
 - total and remaining measured reserve points;
 - all policy-safe points after the per-account floor;
@@ -85,11 +90,12 @@ panel separates:
 
 An active session alone does not make reserve routable. The same account must
 remain enabled, auth-valid, fresh, explicitly reserve-allowed, below neither
-provider nor broker floors, generic-main eligible, and standard tier. This
-protects Sol/Terra continuity: the shared app server is never moved onto a
-main-exhausted account merely to harvest its reserve meter. The panel is
-read-only and does not submit a model request, acquire a lease, switch an
-account, or enable scheduler routing.
+provider nor broker floors, generic-main eligible, and standard tier. The
+dashboard intentionally omits the account behind each aggregate. This protects
+Sol/Terra continuity: the shared app server is never moved onto a main-exhausted
+account merely to harvest its reserve meter. The panel is read-only and does
+not submit a model request, acquire a lease, switch an account, or enable
+scheduler routing.
 
 Provider window names are not stable identifiers. The dashboard classifies reported windows by duration: four to six hours is the five-hour window, and six days or longer is the weekly window. A missing five-hour window remains `null` in the API and is labeled **Provider does not expose 5h** in that specific table cell; it is never interpreted as 0% remaining or as a full five-hour window. Weekly columns, aggregate forecasts, runout estimates, and reset arrivals continue to use authoritative weekly data when available. Aggregate percentages include explicit reporting and unknown-account counts.
 
