@@ -54,3 +54,14 @@ def test_scheduler_profile_uses_runtime_parser_before_container_teardown() -> No
         pytest.fail("scheduler profile values are still passed through a second env-file parser")
     if 'scheduler_central_url="$(grep' in workflow or 'scheduler_user_token="$(grep' in workflow:
         pytest.fail("scheduler profile validation still reparses Docker env-file syntax with grep")
+
+
+def test_scheduler_post_start_verification_uses_runtime_transport_policy() -> None:
+    """Do not contradict the parser by rejecting its exact-loopback HTTP transport."""
+    workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "ci-cd.yaml").read_text(encoding="utf-8")
+    verification = workflow.index('docker exec "$SCHEDULER_OBSERVER_NAME" python -c')
+    verification_block = workflow[verification : verification + 500]
+    if "load_scheduler_incident_feed_config()" not in verification_block:
+        pytest.fail("scheduler post-start verification bypasses the runtime transport policy")
+    if '.url.startswith("https://")' in verification_block:
+        pytest.fail("scheduler post-start verification rejects policy-approved loopback HTTP")

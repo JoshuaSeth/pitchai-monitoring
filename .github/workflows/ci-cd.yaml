@@ -433,7 +433,7 @@ jobs:
             docker exec "$DOMAIN_EVENT_NAME" python -c \
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
             docker exec "$SCHEDULER_OBSERVER_NAME" python -c \
-              'from domain_checks.event_bus import load_event_bus_config; from monitoring_v2.scheduler_incident_feed import load_scheduler_incident_feed_config; assert load_event_bus_config() is not None; assert load_scheduler_incident_feed_config().url.startswith("https://")'
+              'from domain_checks.event_bus import load_event_bus_config; from monitoring_v2.scheduler_incident_feed import load_scheduler_incident_feed_config; assert load_event_bus_config() is not None; load_scheduler_incident_feed_config()'
             docker exec "$DB_MONITOR_NAME" python -c \
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
             docker exec "$REGISTRY_NAME" python -c \
