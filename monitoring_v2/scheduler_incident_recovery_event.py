@@ -17,16 +17,20 @@ if TYPE_CHECKING:
 _MAX_STORAGE_PATH = 512
 
 
-def placement_recovery_event(recovery: JsonObject) -> DomainTransitionEvent:
-    """Convert one completed-create proof to a linked monitoring recovery.
+def _required_positive_integer(
+    payload: JsonObject,
+    field: str,
+    *,
+    description: str | None = None,
+) -> int:
+    value = payload.get(field)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        message = f"scheduler incident recovery {description or field} is invalid"
+        raise TypeError(message)
+    return value
 
-    Returns:
-        An immutable recovery transition for the exact prior incident.
 
-    Raises:
-        TypeError: If the recovery proof is malformed.
-        ValueError: If the proof does not follow its prior failure.
-    """
+def _validated_recovery_fields(recovery: JsonObject) -> tuple[str, str, str, str, UUID, str]:
     if recovery.get("signal_schema_version") != 1 or recovery.get("kind") != "new_lane_placement_recovered":
         message = "scheduler incident feed returned an unsupported recovery signal"
         raise ValueError(message)
@@ -34,32 +38,55 @@ def placement_recovery_event(recovery: JsonObject) -> DomainTransitionEvent:
     project_key = required_text(recovery, "project_key", limit=256)
     origin_branch = required_text(recovery, "origin_branch", limit=512)
     assigned_cell_slug = required_text(recovery, "assigned_cell_slug", limit=63)
-    command_id = required_text(recovery, "command_id", limit=64)
-    parsed_command_id = UUID(command_id)
-    audit_event_id = recovery.get("audit_event_id")
-    if isinstance(audit_event_id, bool) or not isinstance(audit_event_id, int) or audit_event_id < 1:
-        message = "scheduler incident recovery audit_event_id is invalid"
-        raise TypeError(message)
+    parsed_command_id = UUID(required_text(recovery, "command_id", limit=64))
+    _required_positive_integer(recovery, "audit_event_id")
     storage_value = recovery.get("new_lane_storage_root")
     storage_root = text_value(storage_value)
     if storage_value is not None and (not storage_root.strip() or len(storage_root) > _MAX_STORAGE_PATH):
         message = "scheduler incident recovery storage root is invalid"
         raise TypeError(message)
+    return occurred_at, project_key, origin_branch, assigned_cell_slug, parsed_command_id, storage_root
 
+
+def _validated_prior_failure(
+    recovery: JsonObject,
+    *,
+    project_key: str,
+) -> tuple[DomainTransitionEvent, int]:
     prior_value = recovery.get("prior_failure")
     if not isinstance(prior_value, dict):
         message = "scheduler incident recovery prior_failure is invalid"
         raise TypeError(message)
     prior_failure = normalized_object_reference(prior_value)
-    prior_project_key = required_text(prior_failure, "project_key", limit=256)
-    if prior_project_key != project_key:
+    if required_text(prior_failure, "project_key", limit=256) != project_key:
         message = "scheduler incident recovery project does not match its prior failure"
         raise ValueError(message)
-    prior_audit_event_id = prior_failure.get("audit_event_id")
-    if isinstance(prior_audit_event_id, bool) or not isinstance(prior_audit_event_id, int) or prior_audit_event_id < 1:
-        message = "scheduler incident recovery prior audit_event_id is invalid"
-        raise TypeError(message)
-    failure_event = placement_failure_event(prior_failure)
+    prior_audit_event_id = _required_positive_integer(
+        prior_failure,
+        "audit_event_id",
+        description="prior audit_event_id",
+    )
+    return placement_failure_event(prior_failure), prior_audit_event_id
+
+
+def placement_recovery_event(recovery: JsonObject) -> DomainTransitionEvent:
+    """Convert one completed-create proof to a linked monitoring recovery.
+
+    Returns:
+        An immutable recovery transition for the exact prior incident.
+
+    Raises:
+        ValueError: If the proof does not follow its prior failure.
+    """
+    (
+        occurred_at,
+        project_key,
+        origin_branch,
+        assigned_cell_slug,
+        parsed_command_id,
+        storage_root,
+    ) = _validated_recovery_fields(recovery)
+    failure_event, prior_audit_event_id = _validated_prior_failure(recovery, project_key=project_key)
     recovery_timestamp = datetime.fromisoformat(occurred_at).timestamp()
     if failure_event.occurred_at >= recovery_timestamp:
         message = "scheduler incident recovery does not follow its prior failure"
