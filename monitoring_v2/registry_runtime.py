@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from importlib import import_module
 from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 
+from .active_e2e_status_runtime import install_active_status_projection
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -156,6 +158,7 @@ def production_registry_app() -> Application:
     Returns:
         The configured production FastAPI registry application.
     """
+    install_active_status_projection()
     settings = _SETTINGS.RegistrySettings()
     return _APP.create_app(settings)
 
