@@ -69,6 +69,21 @@ class _ContextOperations(NamedTuple):
     request: _RequestOperations
 
 
+class _WaitForFunction(Protocol):
+    def __call__(
+        self,
+        expression: str,
+        *,
+        arg: dict[str, int | list[str]],
+    ) -> Awaitable[None]:
+        """Wait until the browser expression accepts the supplied state."""
+        raise NotImplementedError
+
+    def contract_name(self) -> str:
+        """Return the adapter contract name."""
+        raise NotImplementedError
+
+
 @dataclass(frozen=True)
 class _LocatorOperations:
     last: _LocatorOperations
@@ -86,7 +101,7 @@ class _PageOperations(NamedTuple):
     locator: Callable[[str], _LocatorOperations]
     goto: Callable[[str], Awaitable[None]]
     set_default_timeout: Callable[[float], None]
-    wait_for_function: Callable[[str, dict[str, int | list[str]]], Awaitable[None]]
+    wait_for_function: _WaitForFunction
     wait_for_selector: Callable[[str], Awaitable[None]]
 
 
@@ -169,7 +184,7 @@ async def run(page: _PageOperations, base_url: str, artifacts_dir: str) -> None:
               && /31[.,]?465/.test(text))
             || state.failureMarkers.some((marker) => lower.includes(marker));
         }""",
-        {"assistantCount": assistant_count, "failureMarkers": list(_FAILURE_MARKERS)},
+        arg={"assistantCount": assistant_count, "failureMarkers": list(_FAILURE_MARKERS)},
     )
 
     response = await page.locator('article[data-role="assistant"]').last.inner_text()
