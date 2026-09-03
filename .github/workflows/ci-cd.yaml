@@ -315,7 +315,7 @@ jobs:
               -e E2E_RUNNER_CONCURRENCY="1" \
               -e E2E_RUNNER_TRACE_ON_FAILURE="0" \
               "$IMAGE_SHA" \
-              python -m e2e_runner.main
+              python -m e2e_runner.secure_main
 
             echo "🚀 Starting service-monitoring..."
             docker run -d \
