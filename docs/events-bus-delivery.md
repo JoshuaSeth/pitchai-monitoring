@@ -115,6 +115,10 @@ repair rule. Dedicated durable producers own the critical projection instead:
   cell heartbeat or runtime loss, delayed direct acceptance, unavailable local
   delivery observation, stale central projection visibility, and critical root
   or selected-work-storage capacity.
+  The placement feed is a stable failure/recovery cursor: its recovery proof is
+  the first centrally completed `agent.create` for the affected project after
+  the terminal failure, and it retains the failure's exact incident key and
+  fingerprint.
   It reads the canonical central directory every 15 seconds and leaves all
   Telegram routing decisions to the shared Events Bus receiver.
 

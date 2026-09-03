@@ -1,5 +1,5 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Strict reader and event adapter for durable scheduler placement failures."""
+"""Strict reader and event adapter for durable scheduler placement transitions."""
 
 from __future__ import annotations
 
@@ -11,12 +11,13 @@ from urllib.parse import urlparse
 from .json_types import object_list
 from .scheduler_incident_event import placement_failure_event, required_timestamp
 from .scheduler_incident_gateway import read_scheduler_json
+from .scheduler_incident_recovery_event import placement_recovery_event
 
 if TYPE_CHECKING:
     from .domain_event_models import DomainTransitionEvent
     from .json_types import JsonObject
 
-_FEED_PATH = "/internal/global-api/v2/scheduler/new-lane-failures"
+_FEED_PATH = "/internal/global-api/v2/scheduler/new-lane-transitions"
 _DIRECTORY_PATH = "/internal/global-api/v2/directory"
 _ZERO_EVENT_ID = 0
 _MAX_TIMEOUT_SECONDS = 60.0
@@ -131,19 +132,28 @@ def scheduler_incident_page(
         TypeError: If the response does not follow the bounded feed schema.
         ValueError: If a signal or cursor value is invalid or regresses.
     """
-    raw_incidents = payload.get("incidents")
-    incidents = object_list(raw_incidents)
-    if not isinstance(raw_incidents, list) or len(incidents) != len(raw_incidents):
-        message = "scheduler incident feed incidents must be an object array"
+    raw_transitions = payload.get("transitions")
+    transitions = object_list(raw_transitions)
+    if not isinstance(raw_transitions, list) or len(transitions) != len(raw_transitions):
+        message = "scheduler incident feed transitions must be an object array"
         raise TypeError(message)
-    events = tuple(placement_failure_event(incident) for incident in incidents)
+    events: list[DomainTransitionEvent] = []
+    for transition in transitions:
+        kind = transition.get("kind")
+        if kind == "new_lane_placement_failed":
+            events.append(placement_failure_event(transition))
+        elif kind == "new_lane_placement_recovered":
+            events.append(placement_recovery_event(transition))
+        else:
+            message = "scheduler incident feed transition kind is unsupported"
+            raise ValueError(message)
     next_occurred_at = required_timestamp(payload, "next_occurred_at")
     next_event_id = _required_event_id(payload, "next_event_id")
     next_cursor = SchedulerIncidentCursor(next_occurred_at, next_event_id)
     if _cursor_order(next_cursor) < _cursor_order(prior_cursor):
         message = "scheduler incident feed cursor regressed"
         raise ValueError(message)
-    return SchedulerIncidentPage(events=events, next_cursor=next_cursor)
+    return SchedulerIncidentPage(events=tuple(events), next_cursor=next_cursor)
 
 
 def scheduler_cursor_value(cursor: SchedulerIncidentCursor) -> JsonObject:

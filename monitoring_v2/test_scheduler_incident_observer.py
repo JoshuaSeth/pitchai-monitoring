@@ -16,7 +16,7 @@ from .scheduler_incident_feed import (
     scheduler_incident_page,
 )
 from .scheduler_incident_observer import run_cycle
-from .scheduler_incident_test_support import EVENT_ID, TOKEN, incident_feed
+from .scheduler_incident_test_support import EVENT_ID, RECOVERY_EVENT_ID, TOKEN, incident_feed, recovery_feed
 from .state_io import load_state
 from .testing_runtime import pytest
 
@@ -32,7 +32,6 @@ if TYPE_CHECKING:
     from .testing_runtime import MonkeyPatch
 
 _START_TIME = 1_788_278_400.0
-_EVENT_TIME = _START_TIME + 0.5
 _FLOAT_TOLERANCE = 1e-9
 
 
@@ -56,7 +55,7 @@ def test_feed_config_requires_secure_origin_and_bounded_token() -> None:
             "PITCHAI_PLATFORM_USER_TOKEN": TOKEN,
         },
     )
-    if config.url != "https://platform.pitchai.net/internal/global-api/v2/scheduler/new-lane-failures":
+    if config.url != "https://platform.pitchai.net/internal/global-api/v2/scheduler/new-lane-transitions":
         pytest.fail(f"unexpected scheduler feed URL: {config.url}")
     if config.directory_url != "https://platform.pitchai.net/internal/global-api/v2/directory":
         pytest.fail(f"unexpected scheduler directory URL: {config.directory_url}")
@@ -121,6 +120,45 @@ def test_observer_checkpoints_then_delivers_through_events_bus(
         pytest.fail(f"unexpected receiver event: {payload}")
     if "Telegram" in state_path.read_text(encoding="utf-8"):
         pytest.fail("scheduler observer state contains a direct notification route")
+
+
+def test_observer_delivers_linked_recovery_after_completed_create(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Advance the same durable cursor from failure through proven recovery."""
+    _configure(monkeypatch)
+    state_path = tmp_path / "scheduler-observer.json"
+    captured: list[JsonObject] = []
+    reads = 0
+
+    def read_page(
+        _config: SchedulerIncidentFeedConfig,
+        cursor: SchedulerIncidentCursor,
+    ) -> SchedulerIncidentPage:
+        nonlocal reads
+        reads += 1
+        payload = incident_feed() if reads == 1 else recovery_feed()
+        return scheduler_incident_page(payload, prior_cursor=cursor)
+
+    monkeypatch.setattr(observer_module, "read_scheduler_incident_page", read_page)
+    transport = accepted_requests(captured)
+    _ = run_cycle(state_path=state_path, now=_START_TIME, transport=transport)
+    failed = run_cycle(state_path=state_path, now=_START_TIME + 1.0, transport=transport)
+    recovered = run_cycle(state_path=state_path, now=_START_TIME + 2.0, transport=transport)
+
+    kinds = [payload.get("event_kind") for payload in captured]
+    if failed.delivered_count != 1 or recovered.delivered_count != 1 or kinds != [
+        "production_failure",
+        "production_recovered",
+    ]:
+        pytest.fail(f"observer did not deliver one linked failure/recovery pair: {failed}, {recovered}, {kinds}")
+    failure_details = optional_object(captured[0].get("details"))
+    recovery_details = optional_object(captured[1].get("details"))
+    if failure_details.get("incident_fingerprint") != recovery_details.get("incident_fingerprint"):
+        pytest.fail("observer recovery changed the original incident fingerprint")
+    if optional_object(load_state(state_path).get("cursor")).get("event_id") != RECOVERY_EVENT_ID:
+        pytest.fail("observer did not checkpoint the recovery cursor")
 
 
 def test_failed_receiver_delivery_remains_durable_without_refetch(
