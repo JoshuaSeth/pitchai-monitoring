@@ -114,6 +114,7 @@ def _projection_signals(
         return ()
     age = None if cell.projection_received_at_ts is None else max(now - cell.projection_received_at_ts, 0.0)
     failed = age is None or age > _PROJECTION_FRESHNESS_SECONDS
+    grace_seconds = _PROJECTION_FRESHNESS_SECONDS if age is None else 0.0
     rendered_age = "none" if age is None else f"{age:.1f}s"
     reason = f"central projection receipt age={rendered_age} exceeds {_PROJECTION_FRESHNESS_SECONDS:.0f}s"
     evidence = (
@@ -121,7 +122,7 @@ def _projection_signals(
         f"projection_received_at={cell.projection_received_at or 'none'} age={rendered_age}",
         f"heartbeat_received_at={cell.last_received_at or 'none'} remains fresh",
     )
-    return (SchedulerCellSignal("projection_visibility", failed, 0.0, reason, evidence),)
+    return (SchedulerCellSignal("projection_visibility", failed, grace_seconds, reason, evidence),)
 
 
 def _direct_signals(
