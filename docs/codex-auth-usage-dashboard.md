@@ -64,10 +64,11 @@ it as burnable. The endpoint never decides which concrete account burns first.
 `protected_last_resort` is informational routing metadata. It says that the
 authentication broker owns account ordering and should route those accounts
 last; `included_in_admission=true` confirms their usable points remain in the
-aggregate. Missing, duplicate, or incomplete tier classification is reported
-through `classification_status` and `unclassified_account_count`, but cannot
-manufacture a critical-only admission threshold or remove otherwise burnable
-capacity.
+aggregate. An omitted `last_resort` marker follows the broker's `false`
+(standard-tier) default. Unmatched identities, duplicate labels, and malformed
+explicit markers are reported through `classification_status` and
+`unclassified_account_count`, but cannot manufacture a critical-only admission
+threshold or remove otherwise burnable capacity.
 
 `burn_windows.last_hour` and `burn_windows.last_24_hours` expose reset-aware
 capacity-point deltas and, where sampled, provider-token deltas. Native windows

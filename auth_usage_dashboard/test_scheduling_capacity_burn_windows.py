@@ -29,8 +29,8 @@ class SchedulingCapacityBurnWindowsTest(UsageTimeSeriesCase):
     """Prove burn windows and broker routing metadata remain non-blocking."""
 
     @staticmethod
-    def test_missing_routing_marker_does_not_suppress_capacity() -> None:
-        """Treat missing broker metadata as informational, not an admission gate."""
+    def test_missing_routing_marker_uses_broker_standard_tier_default() -> None:
+        """Treat an omitted broker marker as standard, matching live routing."""
         inventory = routing_inventory()
         metadata = require_object(inventory[1].get("metadata"), description="metadata")
         _ = metadata.pop("last_resort")
@@ -53,8 +53,38 @@ class SchedulingCapacityBurnWindowsTest(UsageTimeSeriesCase):
         )
         check_equal(
             actual,
+            (3, 163.5, "complete", 0),
+            "omitted last-resort markers must follow the broker's standard default",
+        )
+        validate_scheduling_capacity_payload(payload)
+
+    @staticmethod
+    def test_malformed_routing_marker_remains_an_explicit_diagnostic() -> None:
+        """Keep malformed explicit metadata visible without suppressing capacity."""
+        inventory = routing_inventory()
+        metadata = require_object(inventory[1].get("metadata"), description="metadata")
+        metadata["last_resort"] = "false"
+
+        payload = build_scheduling_capacity_snapshot(
+            operator_snapshot(),
+            raw_accounts=inventory,
+            usage_samples=[],
+        )
+        capacity = require_object(payload.get("capacity"), description="capacity")
+        protected = require_object(
+            payload.get("protected_last_resort"),
+            description="protected capacity",
+        )
+        actual = (
+            capacity.get("eligible_accounts"),
+            capacity.get("remaining_points"),
+            protected.get("classification_status"),
+            protected.get("unclassified_account_count"),
+        )
+        check_equal(
+            actual,
             (3, 163.5, "partial", 1),
-            "capacity must survive incomplete broker classification",
+            "malformed explicit metadata must remain diagnosable",
         )
         validate_scheduling_capacity_payload(payload)
 
