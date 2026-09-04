@@ -1,5 +1,5 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Standard-tier routing and burn proof for scheduling-capacity schema three."""
+"""Broker-owned routing and burn proof for scheduling-capacity schema four."""
 
 from __future__ import annotations
 
@@ -20,16 +20,16 @@ from .timeseries_types import require_object
 if TYPE_CHECKING:
     from .timeseries_types import JsonObject
 
-_STANDARD_BURN_POINTS_PER_HOUR = 12.0
+_BURNABLE_POINTS_PER_HOUR = 132.0
 
 
 @final
-class SchedulingCapacityV3Test(UsageTimeSeriesCase):
-    """Prove protected capacity never enters ordinary priority admission."""
+class SchedulingCapacityV4Test(UsageTimeSeriesCase):
+    """Prove routing metadata cannot suppress broker-burnable capacity."""
 
     @staticmethod
-    def test_raw_inventory_excludes_protected_capacity_and_burn() -> None:
-        """Use only standard-tier points and native samples for admission math."""
+    def test_raw_inventory_includes_all_burnable_capacity_and_burn() -> None:
+        """Include protected capacity while leaving its ordering to the broker."""
         payload = build_scheduling_capacity_snapshot(
             operator_snapshot(),
             raw_accounts=routing_inventory(),
@@ -43,34 +43,59 @@ class SchedulingCapacityV3Test(UsageTimeSeriesCase):
             description="protected capacity",
         )
         methodology = require_object(
-            payload.get("methodology"), description="methodology",
+            payload.get("methodology"),
+            description="methodology",
         )
-        check_equal(capacity.get("eligible_accounts"), 2, "standard eligible accounts")
-        check_close(capacity.get("remaining_points"), 75.5, "standard usable points")
+        check_equal(capacity.get("eligible_accounts"), 3, "burnable eligible accounts")
+        check_close(capacity.get("remaining_points"), 163.5, "burnable usable points")
         check_close(
-            capacity.get("maximum_known_points"), 200.0, "standard maximum points",
+            capacity.get("maximum_known_points"),
+            300.0,
+            "burnable maximum points",
         )
         check_close(
             burn.get("capacity_points_per_hour"),
-            _STANDARD_BURN_POINTS_PER_HOUR,
-            "standard-only burn rate",
+            _BURNABLE_POINTS_PER_HOUR,
+            "broker-burnable burn rate",
         )
         check_equal(protected.get("account_count"), 1, "protected account count")
         check_equal(
-            protected.get("usable_accounts_now"), 1, "protected usable accounts",
+            protected.get("usable_accounts_now"),
+            1,
+            "protected usable accounts",
         )
         check_close(
-            protected.get("remaining_points"), 88.0, "protected remaining points",
+            protected.get("remaining_points"),
+            88.0,
+            "protected remaining points",
         )
         check(
-            protected.get("included_in_admission") is False,
-            "protected capacity entered admission",
+            protected.get("included_in_admission") is True,
+            "protected capacity was omitted from admission math",
+        )
+        check_equal(
+            protected.get("routing_owner"),
+            "authentication_broker",
+            "protected routing owner",
         )
         check_equal(
             methodology.get("routing_tier_scope"),
-            "standard_only",
+            "broker_burnable",
             "routing-tier scope",
         )
+        windows = require_object(
+            payload.get("burn_windows"),
+            description="burn windows",
+        )
+        last_hour = require_object(windows.get("last_hour"), description="last hour")
+        check_close(last_hour.get("capacity_points"), 22.0, "last-hour burn points")
+        check_close(
+            last_hour.get("capacity_points_per_hour"),
+            _BURNABLE_POINTS_PER_HOUR,
+            "last-hour burn rate",
+        )
+        check_equal(last_hour.get("provider_tokens"), 600, "last-hour provider tokens")
+        check_close(last_hour.get("coverage_percent"), 16.7, "last-hour coverage")
         validate_scheduling_capacity_payload(payload)
 
     @staticmethod
@@ -84,8 +109,8 @@ class SchedulingCapacityV3Test(UsageTimeSeriesCase):
 
         resets = require_array(payload.get("automatic_resets"), "automatic resets")
         first_reset = require_object(resets[0], description="first reset")
-        check_equal(first_reset.get("count"), 2, "standard account reset count")
-        check_close(first_reset.get("capacity_points"), 200.0, "standard reset points")
+        check_equal(first_reset.get("count"), 3, "burnable account reset count")
+        check_close(first_reset.get("capacity_points"), 300.0, "burnable reset points")
         check_equal(
             first_reset.get("restores_selectability_count"),
             1,
@@ -93,24 +118,28 @@ class SchedulingCapacityV3Test(UsageTimeSeriesCase):
         )
 
     @staticmethod
-    def test_inventory_mismatch_fails_closed() -> None:
-        """Reject incomplete routing evidence instead of counting an unknown tier.
-
-        Raises:
-            AssertionError: If incomplete evidence does not fail with the expected reason.
-        """
+    def test_inventory_mismatch_is_informational_not_an_admission_gate() -> None:
+        """Retain burnable capacity when protected classification is incomplete."""
         incomplete = routing_inventory()[:-1]
-        try:
-            build_scheduling_capacity_snapshot(
-                operator_snapshot(),
-                raw_accounts=incomplete,
-                usage_samples=_mixed_routing_samples(),
-            )
-        except ValueError as error:
-            check("does not match" in str(error), "inventory failure lost its reason")
-        else:
-            message = "incomplete routing inventory did not fail closed"
-            raise AssertionError(message)
+        payload = build_scheduling_capacity_snapshot(
+            operator_snapshot(),
+            raw_accounts=incomplete,
+            usage_samples=_mixed_routing_samples(),
+        )
+        capacity = require_object(payload.get("capacity"), description="capacity")
+        protected = require_object(
+            payload.get("protected_last_resort"),
+            description="protected capacity",
+        )
+        check_equal(capacity.get("eligible_accounts"), 3, "burnable accounts")
+        check_close(capacity.get("remaining_points"), 163.5, "burnable points")
+        check_equal(protected.get("classification_status"), "partial", "classification")
+        check_equal(
+            protected.get("unclassified_account_count"),
+            1,
+            "unclassified count",
+        )
+        validate_scheduling_capacity_payload(payload)
 
     @staticmethod
     def test_disabled_and_auth_invalid_accounts_do_not_change_standard_scope() -> None:
@@ -118,10 +147,14 @@ class SchedulingCapacityV3Test(UsageTimeSeriesCase):
         snapshot = operator_snapshot()
         accounts = require_array(snapshot.get("accounts"), "accounts")
         disabled = _non_routable_account(
-            "private-disabled@pitchai.net", auth_valid=True, enabled=False,
+            "private-disabled@pitchai.net",
+            auth_valid=True,
+            enabled=False,
         )
         invalid = _non_routable_account(
-            "private-invalid@pitchai.net", auth_valid=False, enabled=True,
+            "private-invalid@pitchai.net",
+            auth_valid=False,
+            enabled=True,
         )
         accounts.extend((disabled, invalid))
         inventory = routing_inventory()
@@ -149,9 +182,11 @@ class SchedulingCapacityV3Test(UsageTimeSeriesCase):
         )
 
         capacity = require_object(payload.get("capacity"), description="capacity")
-        check_equal(capacity.get("eligible_accounts"), 2, "eligible standard accounts")
+        check_equal(capacity.get("eligible_accounts"), 3, "eligible burnable accounts")
         check_equal(
-            capacity.get("reporting_accounts"), 2, "reporting standard accounts",
+            capacity.get("reporting_accounts"),
+            3,
+            "reporting burnable accounts",
         )
 
 
@@ -163,19 +198,27 @@ def _mixed_routing_samples() -> list[JsonObject]:
             {
                 "at": f"2026-08-28T{hour:02d}:{minute:02d}:00+00:00",
                 "accounts": {
-                    "private-one@pitchai.net": _sample_window(float(offset)),
-                    "private-two@pitchai.net": _sample_window(50.0),
-                    "private-reserve@pitchai.net": _sample_window(float(offset * 10)),
+                    "private-one@pitchai.net": _sample_window(
+                        float(offset),
+                        1_000 + offset * 100,
+                    ),
+                    "private-two@pitchai.net": _sample_window(50.0, 500),
+                    "private-reserve@pitchai.net": _sample_window(
+                        float(offset * 10),
+                        2_000 + offset * 200,
+                    ),
                 },
             },
         )
     return samples
 
 
-def _sample_window(used_percent: float) -> JsonObject:
+def _sample_window(used_percent: float, tokens_today: int) -> JsonObject:
     return {
         "five_used_percent": used_percent,
         "five_reset_at": "2026-08-28T13:00:00+00:00",
+        "token_date": "2026-08-28",
+        "tokens_today": tokens_today,
     }
 
 

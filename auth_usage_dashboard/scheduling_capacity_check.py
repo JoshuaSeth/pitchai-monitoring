@@ -7,6 +7,7 @@ import json
 import sys
 from typing import TYPE_CHECKING, cast
 
+from .scheduling_capacity_burn_window_check import validate_burn_windows
 from .timeseries_types import (
     nonnegative_integer,
     number_value,
@@ -31,7 +32,7 @@ _SOURCE_KEYS = {
     "newest_probe_at",
     "freshness_seconds",
 }
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 _PROTECTED_KEYS = {
     "account_count",
     "reporting_accounts",
@@ -39,6 +40,10 @@ _PROTECTED_KEYS = {
     "remaining_points",
     "maximum_known_points",
     "included_in_admission",
+    "routing_owner",
+    "burn_order",
+    "classification_status",
+    "unclassified_account_count",
 }
 
 
@@ -51,9 +56,14 @@ def validate_scheduling_capacity_payload(payload: JsonObject) -> None:
         description="protected last-resort capacity",
     )
     burn = require_object(payload.get("burn"), description="burn")
+    burn_windows = require_object(
+        payload.get("burn_windows"),
+        description="burn windows",
+    )
     token_burn = require_object(payload.get("token_burn"), description="token burn")
     banked_resets = require_object(
-        payload.get("banked_resets"), description="banked resets",
+        payload.get("banked_resets"),
+        description="banked resets",
     )
     methodology = require_object(payload.get("methodology"), description="methodology")
 
@@ -81,9 +91,11 @@ def validate_scheduling_capacity_payload(payload: JsonObject) -> None:
         description="timeline status",
     )
     _require(
-        condition=set(protected) == _PROTECTED_KEYS, description="protected fields",
+        condition=set(protected) == _PROTECTED_KEYS,
+        description="protected fields",
     )
     _validate_protected_capacity(protected)
+    validate_burn_windows(burn_windows)
     _require(
         condition=burn.get("confidence") in {"high", "medium", "low", "unavailable"},
         description="burn confidence",
@@ -101,11 +113,28 @@ def validate_scheduling_capacity_payload(payload: JsonObject) -> None:
         description="identity scope",
     )
     _require(
-        condition=methodology.get("routing_tier_scope") == "standard_only",
+        condition=methodology.get("routing_tier_scope") == "broker_burnable",
         description="routing-tier scope",
     )
-    reset_rows = _require_array(payload.get("automatic_resets"), description="automatic resets")
-    expiry_rows = _require_array(payload.get("expiry_buckets"), description="expiry buckets")
+    _require(
+        condition=methodology.get("protected_capacity_policy") == "broker_routes_last",
+        description="protected capacity policy",
+    )
+    _require(
+        condition=methodology.get("account_ordering_owner") == "authentication_broker",
+        description="account ordering owner",
+    )
+    _require(
+        condition=methodology.get("token_usage_role")
+        == "project_attribution_denominator",
+        description="token usage role",
+    )
+    reset_rows = _require_array(
+        payload.get("automatic_resets"), description="automatic resets",
+    )
+    expiry_rows = _require_array(
+        payload.get("expiry_buckets"), description="expiry buckets",
+    )
     for event in reset_rows:
         _require(
             condition="account_label" not in optional_object(event),
@@ -123,16 +152,32 @@ def validate_scheduling_capacity_payload(payload: JsonObject) -> None:
 
 
 def _validate_protected_capacity(protected: JsonObject) -> None:
-    """Validate the isolated last-resort capacity aggregate."""
+    """Validate the informational last-resort routing aggregate."""
     _require(
-        condition=protected.get("included_in_admission") is False,
+        condition=protected.get("included_in_admission") is True,
         description="protected admission policy",
+    )
+    _require(
+        condition=protected.get("routing_owner") == "authentication_broker",
+        description="protected routing owner",
+    )
+    _require(
+        condition=protected.get("burn_order") == "last_resort",
+        description="protected burn order",
+    )
+    _require(
+        condition=protected.get("classification_status")
+        in {"complete", "partial", "unavailable"},
+        description="protected classification status",
     )
     protected_account_count = nonnegative_integer(protected.get("account_count"))
     protected_reporting = nonnegative_integer(protected.get("reporting_accounts"))
     protected_usable = nonnegative_integer(protected.get("usable_accounts_now"))
     protected_remaining = number_value(protected.get("remaining_points"))
     protected_maximum = number_value(protected.get("maximum_known_points"))
+    unclassified_count = nonnegative_integer(
+        protected.get("unclassified_account_count"),
+    )
     _require(
         condition=(
             protected_account_count is not None
@@ -153,6 +198,10 @@ def _validate_protected_capacity(protected: JsonObject) -> None:
             or (0.0 <= protected_remaining <= protected_maximum)
         ),
         description="protected point bounds",
+    )
+    _require(
+        condition=unclassified_count is not None,
+        description="unclassified account count",
     )
 
 

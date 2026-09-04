@@ -1,5 +1,5 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Standard-tier aggregate and burn values for scheduling capacity."""
+"""Broker-burnable aggregate and burn values for scheduling capacity."""
 
 from __future__ import annotations
 
@@ -15,23 +15,23 @@ if TYPE_CHECKING:
 _WINDOW_KEYS = ("five_hour", "weekly")
 
 
-def standard_scope_values(
+def burnable_scope_values(
     dashboard_snapshot: JsonObject,
     accounts: tuple[JsonObject, ...],
     *,
     usage_samples: list[JsonObject],
 ) -> tuple[JsonObject, JsonObject, JsonObject]:
-    """Calculate standard-only summary, source freshness, and runout evidence.
+    """Calculate broker-burnable summary, freshness, and runout evidence.
 
     Returns:
         The three source projections consumed by the scheduler contract.
     """
-    summary = _standard_summary(accounts)
-    source = _standard_source(
+    summary = _burnable_summary(accounts)
+    source = _burnable_source(
         optional_object(dashboard_snapshot.get("source")),
         accounts,
     )
-    runout = _standard_runout(
+    runout = _burnable_runout(
         dashboard_snapshot,
         accounts,
         usage_samples=usage_samples,
@@ -40,7 +40,7 @@ def standard_scope_values(
     return summary, source, runout
 
 
-def _standard_summary(accounts: tuple[JsonObject, ...]) -> JsonObject:
+def _burnable_summary(accounts: tuple[JsonObject, ...]) -> JsonObject:
     raw_basis = select_capacity_basis(list(accounts))
     capacity_basis = cast("JsonObject", cast("object", raw_basis))
     eligible = tuple(account for account in accounts if _capacity_eligible(account))
@@ -87,8 +87,9 @@ def _measurement_status(reporting: int, *, eligible: int) -> str:
     return "complete" if reporting == eligible else "partial"
 
 
-def _standard_source(
-    source: JsonObject, accounts: tuple[JsonObject, ...],
+def _burnable_source(
+    source: JsonObject,
+    accounts: tuple[JsonObject, ...],
 ) -> JsonObject:
     projection = dict(source)
     projection["stale_account_count"] = sum(
@@ -109,7 +110,7 @@ def _standard_source(
     return projection
 
 
-def _standard_runout(
+def _burnable_runout(
     dashboard_snapshot: JsonObject,
     accounts: tuple[JsonObject, ...],
     *,

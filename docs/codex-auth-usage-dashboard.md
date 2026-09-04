@@ -53,6 +53,36 @@ One normalized capacity point equals one percentage point of the provider-window
 - Stale, auth-invalid, disabled, and unknown accounts do not contribute usable points.
 - The broker safety floor is honored. An account at or below `AUTH_TOKEN_SERVER_MIN_FIVE_HOUR_REMAINING_PERCENT` is shown as five-hour limited even if the provider still reports a small remainder.
 
+### Scheduling-capacity contract
+
+The PitchAI-identity-protected `/api/v1/scheduling-capacity` endpoint publishes
+schema 4 for admission and dashboard readers. Its capacity and burn math covers
+every enabled, auth-valid, fresh account the authentication broker can actually
+route, including a protected or private-relay account when the broker exposes
+it as burnable. The endpoint never decides which concrete account burns first.
+
+`protected_last_resort` is informational routing metadata. It says that the
+authentication broker owns account ordering and should route those accounts
+last; `included_in_admission=true` confirms their usable points remain in the
+aggregate. Missing, duplicate, or incomplete tier classification is reported
+through `classification_status` and `unclassified_account_count`, but cannot
+manufacture a critical-only admission threshold or remove otherwise burnable
+capacity.
+
+`burn_windows.last_hour` and `burn_windows.last_24_hours` expose reset-aware
+capacity-point deltas and, where sampled, provider-token deltas. Native windows
+exclude provider resets, counter regressions, and gaps over 20 minutes and
+report temporal coverage and confidence. With no continuous native interval,
+the payload labels a current-provider-window average estimate, claims zero
+native coverage, and leaves provider tokens unavailable. Token deltas are an
+attribution denominator for project reporting; they never replace capacity
+points as the admission unit.
+
+Deploy schema-4 readers before this producer. Keep existing schema-2 and
+schema-3 readers active through the rolling window, then deploy the schema-4
+producer, verify both burn windows and the broker-owned routing metadata, and
+only then enable policy logic that consumes the new fields.
+
 ### Luna reserve capacity
 
 The prominent Luna panel is a separate meter; it is not another rendering of
