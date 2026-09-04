@@ -91,7 +91,7 @@ def _validate_burn_window_values(
         nonnegative_integer(window.get("token_covered_accounts")),
     )
     _require(
-        condition=all(counter is not None for counter in counters),
+        condition=None not in counters,
         description=f"{name} counters",
     )
     coverage = number_value(window.get("coverage_percent"))

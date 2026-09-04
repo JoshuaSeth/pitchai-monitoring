@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import unittest
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, final
 
 from ._scheduling_capacity_test_fixtures import operator_snapshot, routing_inventory
 from ._timeseries_test_fixtures import (
     UsageTimeSeriesCase,
+    check,
     check_close,
     check_equal,
     require_array,
@@ -56,7 +58,8 @@ class SchedulingCapacityBurnWindowsTest(UsageTimeSeriesCase):
         )
         validate_scheduling_capacity_payload(payload)
 
-    def test_validator_rejects_mislabeled_burn_window_duration(self) -> None:
+    @staticmethod
+    def test_validator_rejects_mislabeled_burn_window_duration() -> None:
         """Bind each named window to its exact wall-clock duration."""
         payload = build_scheduling_capacity_snapshot(
             operator_snapshot(),
@@ -70,11 +73,21 @@ class SchedulingCapacityBurnWindowsTest(UsageTimeSeriesCase):
         last_hour = require_object(windows.get("last_hour"), description="last hour")
         last_hour["starts_at"] = last_hour["ends_at"]
 
-        with self.assertRaisesRegex(  # noqa: PT027
-            AssertionError,
-            "last_hour chronology",
-        ):
+        def validate_invalid_payload() -> None:
+            """Execute the malformed payload through the contract validator."""
             validate_scheduling_capacity_payload(payload)
+
+        validation_case = unittest.FunctionTestCase(validate_invalid_payload)
+        result = unittest.TestResult()
+        validation_case.run(result)
+
+        check_equal(result.testsRun, 1, "validation test count")
+        check_equal(len(result.errors), 0, "validation unexpected errors")
+        check_equal(len(result.failures), 1, "validation failure count")
+        check(
+            "last_hour chronology" in result.failures[0][1],
+            "validator must identify the mislabeled last-hour chronology",
+        )
 
     @staticmethod
     def test_window_skips_resets_regressions_and_long_sample_gaps() -> None:
