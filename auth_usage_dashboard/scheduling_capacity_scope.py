@@ -35,7 +35,8 @@ def scheduling_capacity_scope(
     """Build one broker-burnable scheduling scope.
 
     Account routing tiers are classified only to explain the broker's burn-last
-    contract. Missing or incomplete tier metadata never removes otherwise
+    contract. An omitted ``last_resort`` marker follows the broker's standard-
+    tier default. Incomplete or malformed inventory never removes otherwise
     valid capacity from admission math; concrete account ordering belongs to
     the authentication broker.
 
@@ -44,9 +45,7 @@ def scheduling_capacity_scope(
     """
     accounts = _account_objects(dashboard_snapshot.get("accounts"))
     protected, unclassified = (
-        _classify_embedded(accounts)
-        if raw_accounts is None
-        else _classify_inventory(accounts, raw_accounts)
+        _classify_embedded(accounts) if raw_accounts is None else _classify_inventory(accounts, raw_accounts)
     )
     summary, source, runout = burnable_scope_values(
         dashboard_snapshot,
@@ -90,7 +89,7 @@ def _classify_embedded(
         marker = account.get("last_resort")
         if marker is True:
             protected.append(account)
-        elif marker is not False:
+        elif "last_resort" in account and marker is not False:
             unclassified += 1
     return tuple(protected), unclassified
 
@@ -109,8 +108,11 @@ def _classify_inventory(
         if label in tiers:
             ambiguous.add(label)
             continue
-        marker = metadata.get("last_resort")
-        tiers[label] = marker if isinstance(marker, bool) else None
+        if "last_resort" not in metadata:
+            tiers[label] = False
+        else:
+            marker = metadata.get("last_resort")
+            tiers[label] = marker if isinstance(marker, bool) else None
     protected: list[JsonObject] = []
     unclassified = 0
     for account in accounts:
