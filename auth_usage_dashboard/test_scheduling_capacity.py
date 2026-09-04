@@ -34,9 +34,9 @@ if TYPE_CHECKING:
     from .timeseries_types import JsonObject
 
 _SOURCE_FRESHNESS_SECONDS = 30
-_FIVE_HOUR_REMAINING_POINTS = 75.5
-_BURN_POINTS_PER_HOUR = 12.5
-_WEEKLY_REMAINING_POINTS = 80.0
+_FIVE_HOUR_REMAINING_POINTS = 163.5
+_BURN_POINTS_PER_HOUR = 21.62
+_WEEKLY_REMAINING_POINTS = 170.0
 
 
 @final
@@ -55,13 +55,30 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
         burn = _nested(first, "burn")
         token_burn = _nested(first, "token_burn")
         check_equal(first, second, "deterministic projection")
-        check_equal(first.get("schema_version"), SCHEDULING_CAPACITY_SCHEMA_VERSION, "schema version")
+        check_equal(
+            first.get("schema_version"),
+            SCHEDULING_CAPACITY_SCHEMA_VERSION,
+            "schema version",
+        )
         check_equal(first.get("status"), "available", "projection status")
-        check_equal(source.get("freshness_seconds"), _SOURCE_FRESHNESS_SECONDS, "source freshness")
-        check_close(capacity.get("remaining_points"), _FIVE_HOUR_REMAINING_POINTS, "remaining points")
+        check_equal(
+            source.get("freshness_seconds"),
+            _SOURCE_FRESHNESS_SECONDS,
+            "source freshness",
+        )
+        check_close(
+            capacity.get("remaining_points"),
+            _FIVE_HOUR_REMAINING_POINTS,
+            "remaining points",
+        )
         check_equal(capacity.get("timeline_status"), "complete", "timeline status")
-        check_close(burn.get("capacity_points_per_hour"), _BURN_POINTS_PER_HOUR, "burn rate")
-        check(token_burn.get("diagnostic_only") is True, "token burn was treated as capacity")
+        check_close(
+            burn.get("capacity_points_per_hour"), _BURN_POINTS_PER_HOUR, "burn rate"
+        )
+        check(
+            token_burn.get("diagnostic_only") is True,
+            "token burn was treated as capacity",
+        )
         _check_five_hour_timeline(first)
 
         encoded = json.dumps(first)
@@ -74,24 +91,26 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
     def test_projection_fails_closed_without_measurement() -> None:
         """Withhold capacity when the selected basis is unavailable."""
         snapshot = operator_snapshot()
-        summary = _nested(snapshot, "summary")
-        summary["capacity_basis"] = {
-            "key": None,
-            "label": None,
-            "measurement_status": "unavailable",
-        }
+        for value in require_array(snapshot.get("accounts"), "accounts"):
+            account = require_object(value, description="account")
+            _nested(account, "five_hour")["reported"] = False
+            _nested(account, "weekly")["reported"] = False
 
         projection = build_scheduling_capacity_snapshot(snapshot)
         capacity = _nested(projection, "capacity")
-        check_equal(projection.get("status"), "unavailable", "missing measurement status")
-        check(capacity.get("remaining_points") is None, "missing measurement exposed points")
+        check_equal(
+            projection.get("status"), "unavailable", "missing measurement status"
+        )
+        check(
+            capacity.get("remaining_points") is None,
+            "missing measurement exposed points",
+        )
         check(capacity.get("basis_key") is None, "missing measurement exposed a basis")
 
     @staticmethod
     def test_projection_excludes_unselectable_points() -> None:
         """Exclude remaining capacity from accounts unavailable for work."""
         snapshot = operator_snapshot()
-        _nested(snapshot, "summary")["usable_now"] = 0
         accounts = require_array(snapshot.get("accounts"), "accounts")
         first_account = require_object(accounts[0], description="first account")
         first_account["selectable_now"] = False
@@ -99,36 +118,30 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
 
         projection = build_scheduling_capacity_snapshot(snapshot)
         capacity = _nested(projection, "capacity")
-        check_equal(capacity.get("usable_accounts_now"), 0, "usable accounts")
-        check_close(capacity.get("remaining_points"), 0.0, "selectable points")
+        check_equal(capacity.get("usable_accounts_now"), 1, "usable accounts")
+        check_close(capacity.get("remaining_points"), 88.0, "selectable points")
 
     @staticmethod
     def test_projection_uses_only_selected_weekly_basis() -> None:
         """Keep weekly timeline math isolated from five-hour measurements."""
         snapshot = operator_snapshot()
-        summary = _nested(snapshot, "summary")
-        summary["capacity_basis"] = {
-            "key": "weekly",
-            "label": "Weekly",
-            "reporting_accounts": 2,
-            "eligible_accounts": 2,
-            "measurement_status": "complete",
-        }
-        summary["window_aggregates"] = {
-            "weekly": {
-                "remaining_points": 150.0,
-                "maximum_known_points": 200.0,
-                "remaining_percent": 75.0,
-            },
-        }
+        for value in require_array(snapshot.get("accounts"), "accounts"):
+            account = require_object(value, description="account")
+            _nested(account, "five_hour")["reported"] = False
 
         projection = build_scheduling_capacity_snapshot(snapshot)
         capacity = _nested(projection, "capacity")
         check_equal(capacity.get("basis_key"), "weekly", "capacity basis")
-        check_close(capacity.get("remaining_points"), _WEEKLY_REMAINING_POINTS, "weekly points")
-        automatic_resets = require_array(projection.get("automatic_resets"), "automatic resets")
+        check_close(
+            capacity.get("remaining_points"), _WEEKLY_REMAINING_POINTS, "weekly points"
+        )
+        automatic_resets = require_array(
+            projection.get("automatic_resets"), "automatic resets"
+        )
         for event in automatic_resets:
-            check_equal(optional_object(event).get("kind"), "weekly_reset", "weekly reset kind")
+            check_equal(
+                optional_object(event).get("kind"), "weekly_reset", "weekly reset kind"
+            )
 
     @staticmethod
     def test_diagnostic_analytics_staleness_does_not_degrade_capacity() -> None:
@@ -139,23 +152,38 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
         source["analytics_stale_account_count"] = 1
 
         projection = build_scheduling_capacity_snapshot(snapshot)
-        check_equal(projection.get("status"), "available", "diagnostic staleness status")
-        check(_nested(projection, "source").get("stale") is False, "diagnostic staleness escaped")
+        check_equal(
+            projection.get("status"), "available", "diagnostic staleness status"
+        )
+        check(
+            _nested(projection, "source").get("stale") is False,
+            "diagnostic staleness escaped",
+        )
 
     @staticmethod
     def test_capacity_staleness_remains_fail_closed() -> None:
-        """Degrade real probe staleness, source errors, and legacy stale input."""
-        cases: tuple[tuple[str, JsonObject], ...] = (
-            ("stale account", {"stale": False, "stale_account_count": 1, "error": None}),
-            ("source error", {"stale": False, "stale_account_count": 0, "error": "probe failed"}),
-            ("legacy stale", {"stale": True, "error": None}),
+        """Degrade real account-probe staleness and source errors."""
+        stale_snapshot = operator_snapshot()
+        stale_account = require_object(
+            require_array(stale_snapshot.get("accounts"), "accounts")[0],
+            description="stale account",
         )
-        for label, source in cases:
-            snapshot = operator_snapshot()
-            snapshot["source"] = source
-            projection = build_scheduling_capacity_snapshot(snapshot)
-            check_equal(projection.get("status"), "degraded", f"{label} status")
-            check(_nested(projection, "source").get("stale") is True, f"{label} flag was lost")
+        stale_account["stale"] = True
+        stale_projection = build_scheduling_capacity_snapshot(stale_snapshot)
+        check_equal(stale_projection.get("status"), "degraded", "stale account status")
+        check(
+            _nested(stale_projection, "source").get("stale") is True,
+            "stale account flag was lost",
+        )
+
+        error_snapshot = operator_snapshot()
+        _nested(error_snapshot, "source")["error"] = "probe failed"
+        error_projection = build_scheduling_capacity_snapshot(error_snapshot)
+        check_equal(error_projection.get("status"), "degraded", "source error status")
+        check(
+            _nested(error_projection, "source").get("stale") is True,
+            "source error flag was lost",
+        )
 
     def test_endpoint_is_protected_and_identity_free(self) -> None:
         """Require PitchAI identity and return only the validated aggregate shape."""
@@ -177,14 +205,30 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
                 headers={"X-PitchAI-Email": "priority-engine@pitchai.net"},
             )
 
-            check_equal(denied.status_code, int(HTTPStatus.UNAUTHORIZED), "missing identity status")
-            check_equal(foreign.status_code, int(HTTPStatus.UNAUTHORIZED), "foreign identity status")
-            check_equal(response.status_code, int(HTTPStatus.OK), "scheduler endpoint status")
+            check_equal(
+                denied.status_code,
+                int(HTTPStatus.UNAUTHORIZED),
+                "missing identity status",
+            )
+            check_equal(
+                foreign.status_code,
+                int(HTTPStatus.UNAUTHORIZED),
+                "foreign identity status",
+            )
+            check_equal(
+                response.status_code, int(HTTPStatus.OK), "scheduler endpoint status"
+            )
             decoded = response.json()
             payload = require_object(decoded, description="scheduling response")
             validate_scheduling_capacity_payload(payload)
-            check("private-one@pitchai.net" not in response.text, "first identity escaped endpoint")
-            check("private-two@pitchai.net" not in response.text, "second identity escaped endpoint")
+            check(
+                "private-one@pitchai.net" not in response.text,
+                "first identity escaped endpoint",
+            )
+            check(
+                "private-two@pitchai.net" not in response.text,
+                "second identity escaped endpoint",
+            )
 
         check(service.started, "service did not start")
         check(service.stopped, "service did not stop")
@@ -192,7 +236,11 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
     @staticmethod
     def test_deployer_validates_with_the_candidate_python_runtime() -> None:
         """Keep host Python compatibility out of the artifact validation path."""
-        script_path = Path(__file__).resolve().parents[1] / "ops" / "deploy_codex_usage_dashboard.sh"
+        script_path = (
+            Path(__file__).resolve().parents[1]
+            / "ops"
+            / "deploy_codex_usage_dashboard.sh"
+        )
         script = script_path.read_text(encoding="utf-8")
 
         check(
@@ -228,12 +276,18 @@ def _check_five_hour_timeline(payload: JsonObject) -> None:
     check_equal(len(expiry_buckets), 1, "expiry bucket count")
     expiry = require_object(expiry_buckets[0], description="expiry bucket")
     check_equal(expiry.get("kind"), "five_hour_window", "expiry kind")
-    check_close(expiry.get("remaining_points"), _FIVE_HOUR_REMAINING_POINTS, "expiry points")
+    check_close(
+        expiry.get("remaining_points"), _FIVE_HOUR_REMAINING_POINTS, "expiry points"
+    )
 
-    automatic_resets = require_array(payload.get("automatic_resets"), "automatic resets")
+    automatic_resets = require_array(
+        payload.get("automatic_resets"), "automatic resets"
+    )
     first_reset = require_object(automatic_resets[0], description="automatic reset")
     check_equal(first_reset.get("kind"), "five_hour_reset", "reset kind")
-    check_equal(first_reset.get("restores_selectability_count"), 1, "restoring reset count")
-    check_close(first_reset.get("capacity_points"), 200.0, "reset capacity")
+    check_equal(
+        first_reset.get("restores_selectability_count"), 1, "restoring reset count"
+    )
+    check_close(first_reset.get("capacity_points"), 300.0, "reset capacity")
     for event in automatic_resets:
         check_equal(optional_object(event).get("kind"), "five_hour_reset", "reset kind")

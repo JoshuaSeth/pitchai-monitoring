@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+from .history import capacity_burn_window
 from .scheduling_capacity_scope import scheduling_capacity_scope
 from .scheduling_capacity_timeline import scheduling_capacity_timeline
+from .scheduling_capacity_timeline_values import aware_datetime
 from .scheduling_capacity_values import (
     burn_confidence,
     freshness_seconds,
@@ -24,7 +26,7 @@ if TYPE_CHECKING:
     from .scheduling_capacity_timeline import SchedulingCapacityTimeline
     from .timeseries_types import JsonObject, JsonValue
 
-SCHEDULING_CAPACITY_SCHEMA_VERSION = 3
+SCHEDULING_CAPACITY_SCHEMA_VERSION = 4
 
 
 def build_scheduling_capacity_snapshot(
@@ -49,17 +51,51 @@ def build_scheduling_capacity_snapshot(
     runout = scope.runout
     basis_key = _basis_key(summary)
     timeline = scheduling_capacity_timeline(
-        list(scope.standard_accounts),
+        list(scope.burnable_accounts),
         basis_key=basis_key,
         generated_at=generated_at,
     )
     source_projection = _source_projection(source, generated_at=generated_at)
     status, capacity = _capacity_projection(
-        summary, source_projection, timeline=timeline,
+        summary,
+        source_projection,
+        timeline=timeline,
     )
     token_summary = optional_object(
         optional_object(dashboard_snapshot.get("usage_history")).get("summary"),
     )
+    observed_at = aware_datetime(generated_at)
+    if observed_at is None:
+        message = "operator scheduling snapshot has an invalid generated timestamp"
+        raise ValueError(message)
+    burn_windows: JsonObject = {
+        "last_hour": cast(
+            "JsonObject",
+            cast(
+                "object",
+                capacity_burn_window(
+                    list(scope.burnable_accounts),
+                    samples=usage_samples or [],
+                    now=observed_at,
+                    window_hours=1,
+                    window_key=basis_key or "five_hour",
+                ),
+            ),
+        ),
+        "last_24_hours": cast(
+            "JsonObject",
+            cast(
+                "object",
+                capacity_burn_window(
+                    list(scope.burnable_accounts),
+                    samples=usage_samples or [],
+                    now=observed_at,
+                    window_hours=24,
+                    window_key=basis_key or "five_hour",
+                ),
+            ),
+        ),
+    }
 
     payload: JsonObject = {
         "schema_version": SCHEDULING_CAPACITY_SCHEMA_VERSION,
@@ -69,6 +105,7 @@ def build_scheduling_capacity_snapshot(
         "capacity": capacity,
         "protected_last_resort": scope.protected_capacity,
         "burn": _burn_projection(runout),
+        "burn_windows": burn_windows,
         "token_burn": _token_burn_projection(token_summary),
         "expiry_buckets": timeline.expiry_buckets,
         "automatic_resets": timeline.automatic_resets,
@@ -84,10 +121,11 @@ def build_scheduling_capacity_snapshot(
         "methodology": {
             "unit": "normalized reported-window capacity point",
             "identity_scope": "aggregate_only",
-            "routing_tier_scope": "standard_only",
-            "protected_capacity_policy": "excluded_from_priority_admission",
+            "routing_tier_scope": "broker_burnable",
+            "protected_capacity_policy": "broker_routes_last",
+            "account_ordering_owner": "authentication_broker",
             "banked_reset_policy": "excluded_until_explicitly_redeemed",
-            "token_usage_role": "diagnostic_only",
+            "token_usage_role": "project_attribution_denominator",
         },
     }
     return payload
@@ -212,7 +250,8 @@ def _capacity_projection(
 
 
 def _usable_remaining_percent(
-    remaining_points: float | None, maximum_points: float | None,
+    remaining_points: float | None,
+    maximum_points: float | None,
 ) -> float | None:
     if remaining_points is None or maximum_points is None or maximum_points <= 0.0:
         return None

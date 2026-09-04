@@ -196,6 +196,7 @@ def _window(remaining: float, reset_at: str, window_seconds: int) -> JsonObject:
     """Return one reported provider capacity window."""
     return {
         "reported": True,
+        "used_percent": 100.0 - remaining,
         "remaining_percent": remaining,
         "reset_at": reset_at,
         "window_seconds": window_seconds,

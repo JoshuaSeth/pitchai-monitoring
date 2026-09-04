@@ -7,7 +7,7 @@ import tempfile
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 UTC = timezone.utc
@@ -323,19 +323,176 @@ def capacity_burn_rate(
     }
 
 
-def _sample_account(account: dict[str, Any], *, at: datetime) -> dict[str, Any]:
-    five_hour = (
-        account.get("five_hour") if isinstance(account.get("five_hour"), dict) else {}
+def capacity_burn_window(
+    accounts: list[dict[str, Any]],
+    *,
+    samples: list[dict[str, Any]],
+    now: datetime,
+    window_hours: int,
+    window_key: str = "five_hour",
+) -> dict[str, Any]:
+    """Measure reset-aware capacity and provider-token burn over one window.
+
+    Native broker samples are clipped at the requested boundary. Intervals that
+    cross a provider reset, regress, or contain a sampling gap over 20 minutes
+    are excluded instead of being mistaken for burn. When no native interval
+    exists, the current provider-window average is exposed as an explicit
+    estimate and token attribution remains unavailable.
+    """
+    now = now.astimezone(UTC)
+    cutoff = now - timedelta(hours=window_hours)
+    eligible_labels = {
+        str(account.get("label"))
+        for account in accounts
+        if isinstance(account.get("label"), str)
+        and account.get("enabled") is True
+        and account.get("auth_valid") is True
+        and account.get("stale") is not True
+    }
+    ordered = sorted(
+        (sample for sample in samples if _sample_at(sample) is not None),
+        key=lambda sample: str(sample.get("at", "")),
     )
-    weekly = account.get("weekly") if isinstance(account.get("weekly"), dict) else {}
+    capacity_points = 0.0
+    provider_tokens = 0.0
+    covered_seconds = 0.0
+    covered_labels: set[str] = set()
+    token_covered_labels: set[str] = set()
+    contributing_samples: set[str] = set()
+
+    for previous, current in zip(ordered, ordered[1:]):
+        previous_at = _sample_at(previous)
+        current_at = _sample_at(current)
+        if previous_at is None or current_at is None or current_at <= previous_at:
+            continue
+        interval_seconds = (current_at - previous_at).total_seconds()
+        if interval_seconds > 20 * 60:
+            continue
+        overlap_start = max(previous_at, cutoff)
+        overlap_end = min(current_at, now)
+        overlap_seconds = (overlap_end - overlap_start).total_seconds()
+        if overlap_seconds <= 0:
+            continue
+        fraction = overlap_seconds / interval_seconds
+        previous_accounts = previous.get("accounts", {})
+        current_accounts = current.get("accounts", {})
+        if not isinstance(previous_accounts, dict) or not isinstance(
+            current_accounts, dict
+        ):
+            continue
+        capacity_interval_covered = False
+        token_interval_covered = False
+        for label in eligible_labels:
+            previous_account = previous_accounts.get(label)
+            current_account = current_accounts.get(label)
+            if not isinstance(previous_account, dict) or not isinstance(
+                current_account, dict
+            ):
+                continue
+            previous_window = _sample_window(
+                previous_account,
+                at=previous_at,
+                key=window_key,
+            )
+            current_window = _sample_window(
+                current_account,
+                at=current_at,
+                key=window_key,
+            )
+            if (
+                previous_window is not None
+                and current_window is not None
+                and previous_window["reset_at"] == current_window["reset_at"]
+            ):
+                previous_used = previous_window["used_percent"]
+                current_used = current_window["used_percent"]
+                if (
+                    previous_used is not None
+                    and current_used is not None
+                    and current_used >= previous_used
+                ):
+                    capacity_points += (current_used - previous_used) * fraction
+                    covered_labels.add(label)
+                    capacity_interval_covered = True
+            if previous_account.get("token_date") == current_account.get("token_date"):
+                previous_tokens = _integer(previous_account.get("tokens_today"))
+                current_tokens = _integer(current_account.get("tokens_today"))
+                if (
+                    previous_tokens is not None
+                    and current_tokens is not None
+                    and current_tokens >= previous_tokens
+                ):
+                    provider_tokens += (current_tokens - previous_tokens) * fraction
+                    token_covered_labels.add(label)
+                    token_interval_covered = True
+        if capacity_interval_covered:
+            covered_seconds += overlap_seconds
+        if capacity_interval_covered or token_interval_covered:
+            contributing_samples.update((isoformat(previous_at), isoformat(current_at)))
+
+    if covered_seconds > 0:
+        measured_hours = covered_seconds / 3600.0
+        rate = capacity_points / measured_hours
+        coverage = min(100.0, covered_seconds / (window_hours * 3600.0) * 100.0)
+        if coverage >= 80.0 and len(covered_labels) >= 2:
+            confidence = "high"
+        elif coverage >= 20.0 or len(covered_labels) >= 2:
+            confidence = "medium"
+        else:
+            confidence = "low"
+        source = "native_broker_samples"
+        token_value: int | None = round(provider_tokens)
+    else:
+        fallback = capacity_burn_rate(
+            accounts,
+            samples=samples,
+            now=now,
+            window_key=window_key,
+            lookback_hours=min(2, window_hours),
+        )
+        rate = float(fallback["capacity_points_per_hour"])
+        capacity_points = rate * window_hours
+        measured_hours = 0.0
+        coverage = 0.0
+        confidence = str(fallback["confidence"])
+        source = "current_window_average"
+        token_value = None
+
+    return {
+        "window_hours": window_hours,
+        "starts_at": isoformat(cutoff),
+        "ends_at": isoformat(now),
+        "capacity_points": round(max(0.0, capacity_points), 2),
+        "capacity_points_per_hour": round(max(0.0, rate), 2),
+        "source": source,
+        "confidence": confidence,
+        "sample_count": len(contributing_samples),
+        "covered_accounts": len(covered_labels),
+        "coverage_percent": round(coverage, 1),
+        "measured_hours": round(measured_hours, 3),
+        "provider_tokens": token_value,
+        "token_covered_accounts": len(token_covered_labels),
+    }
+
+
+def _sample_account(account: dict[str, Any], *, at: datetime) -> dict[str, Any]:
+    raw_five_hour = account.get("five_hour")
+    five_hour = (
+        cast("dict[str, Any]", raw_five_hour) if isinstance(raw_five_hour, dict) else {}
+    )
+    raw_weekly = account.get("weekly")
+    weekly = cast("dict[str, Any]", raw_weekly) if isinstance(raw_weekly, dict) else {}
+    raw_token_usage = account.get("token_usage")
     token_usage = (
-        account.get("token_usage")
-        if isinstance(account.get("token_usage"), dict)
+        cast("dict[str, Any]", raw_token_usage)
+        if isinstance(raw_token_usage, dict)
         else {}
     )
     token_date = at.date().isoformat()
     today_tokens = 0
-    for point in token_usage.get("daily", []):
+    raw_daily = token_usage.get("daily")
+    daily = cast("list[Any]", raw_daily) if isinstance(raw_daily, list) else []
+    for point in daily:
         if isinstance(point, dict) and point.get("date") == token_date:
             today_tokens = int(point.get("tokens") or 0)
             break
@@ -512,8 +669,9 @@ def _current_window_rates(
             or account.get("stale")
         ):
             continue
+        raw_window = account.get(window_key)
         window = (
-            account.get(window_key) if isinstance(account.get(window_key), dict) else {}
+            cast("dict[str, Any]", raw_window) if isinstance(raw_window, dict) else {}
         )
         if window.get("reported") is not True:
             continue
