@@ -31,7 +31,7 @@ class SchedulingCapacityBurnWindowsTest(UsageTimeSeriesCase):
         """Treat missing broker metadata as informational, not an admission gate."""
         inventory = routing_inventory()
         metadata = require_object(inventory[1].get("metadata"), description="metadata")
-        metadata.pop("last_resort")
+        _ = metadata.pop("last_resort")
 
         payload = build_scheduling_capacity_snapshot(
             operator_snapshot(),
@@ -64,12 +64,16 @@ class SchedulingCapacityBurnWindowsTest(UsageTimeSeriesCase):
             usage_samples=[],
         )
         windows = require_object(
-            payload.get("burn_windows"), description="burn windows"
+            payload.get("burn_windows"),
+            description="burn windows",
         )
         last_hour = require_object(windows.get("last_hour"), description="last hour")
         last_hour["starts_at"] = last_hour["ends_at"]
 
-        with self.assertRaisesRegex(AssertionError, "last_hour chronology"):
+        with self.assertRaisesRegex(  # noqa: PT027
+            AssertionError,
+            "last_hour chronology",
+        ):
             validate_scheduling_capacity_payload(payload)
 
     @staticmethod
@@ -81,7 +85,10 @@ class SchedulingCapacityBurnWindowsTest(UsageTimeSeriesCase):
         )
         samples = [
             _window_sample(
-                "2026-08-28T10:00:00Z", used=90.0, reset="11:00", tokens=100
+                "2026-08-28T10:00:00Z",
+                used=90.0,
+                reset="11:00",
+                tokens=100,
             ),
             _window_sample("2026-08-28T10:05:00Z", used=1.0, reset="12:00", tokens=200),
             _window_sample("2026-08-28T10:35:00Z", used=2.0, reset="12:00", tokens=500),
@@ -97,7 +104,9 @@ class SchedulingCapacityBurnWindowsTest(UsageTimeSeriesCase):
 
         check_close(window.get("capacity_points"), 2.0, "continuous burn points")
         check_close(
-            window.get("capacity_points_per_hour"), 24.0, "continuous burn rate"
+            window.get("capacity_points_per_hour"),
+            24.0,
+            "continuous burn rate",
         )
         check_equal(window.get("provider_tokens"), 200, "continuous provider tokens")
         check_equal(window.get("sample_count"), 4, "contributing samples")

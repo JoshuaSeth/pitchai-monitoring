@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import pairwise
+from operator import itemgetter
 from typing import TYPE_CHECKING
 
 from .history import isoformat, parse_datetime
@@ -60,7 +61,11 @@ def measure_burn_samples(
     ends_at: datetime,
     window_key: str,
 ) -> BurnWindowTotals:
-    """Measure all valid continuous intervals in the requested time range."""
+    """Measure all valid continuous intervals in the requested time range.
+
+    Returns:
+        Aggregate burn and sampling coverage for the requested range.
+    """
     totals = BurnWindowTotals()
     labels = eligible_labels(accounts)
     for previous, current in pairwise(_timed_samples(samples)):
@@ -82,7 +87,7 @@ def _timed_samples(samples: list[JsonObject]) -> list[tuple[datetime, JsonObject
         at = parse_datetime(text_value(sample.get("at")))
         if at is not None:
             timed.append((at, sample))
-    return sorted(timed, key=lambda item: item[0])
+    return sorted(timed, key=itemgetter(0))
 
 
 def _measure_interval(

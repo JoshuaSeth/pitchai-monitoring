@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from .history import isoformat, parse_datetime
 from .scheduling_capacity_burn_deltas import eligible_account
-from .scheduling_capacity_burn_samples import BurnWindowTotals, measure_burn_samples
+from .scheduling_capacity_burn_samples import measure_burn_samples
 from .scheduling_capacity_timeline_values import aware_datetime
 from .timeseries_types import (
     nonnegative_integer,
@@ -18,9 +18,14 @@ from .timeseries_types import (
 )
 
 if TYPE_CHECKING:
+    from .scheduling_capacity_burn_samples import BurnWindowTotals
     from .timeseries_types import JsonObject
 
 type BurnWindowPeriod = tuple[datetime, datetime, int]
+
+_HIGH_COVERAGE_PERCENT = 80.0
+_MEDIUM_COVERAGE_PERCENT = 20.0
+_MEDIUM_ACCOUNT_COUNT = 2
 
 
 def build_capacity_burn_windows(
@@ -30,7 +35,14 @@ def build_capacity_burn_windows(
     generated_at: str | None,
     window_key: str,
 ) -> JsonObject:
-    """Build the required one-hour and 24-hour scheduler burn windows."""
+    """Build the required one-hour and 24-hour scheduler burn windows.
+
+    Returns:
+        Aggregate burn evidence for both scheduler windows.
+
+    Raises:
+        ValueError: If the snapshot timestamp is invalid.
+    """
     observed_at = aware_datetime(generated_at)
     if observed_at is None:
         message = "operator scheduling snapshot has an invalid generated timestamp"
@@ -65,6 +77,9 @@ def capacity_burn_window(
 
     Native broker samples are clipped at the requested boundary. Intervals that
     cross a provider reset, regress, or contain a long sampling gap are excluded.
+
+    Returns:
+        Native burn evidence, or a current-window estimate when samples are absent.
     """
     ends_at = now.astimezone(UTC)
     starts_at = ends_at - timedelta(hours=window_hours)
@@ -118,7 +133,7 @@ def _estimated_payload(
     rate = sum(rates)
     details: JsonObject = {
         "source": "current_window_average",
-        "confidence": "medium" if len(rates) >= 2 else "low",
+        "confidence": "medium" if len(rates) >= _MEDIUM_ACCOUNT_COUNT else "low",
         "sample_count": 0,
         "covered_accounts": 0,
         "coverage_percent": 0.0,
@@ -154,9 +169,15 @@ def _current_window_rates(
 
 
 def _confidence(coverage: float, covered_accounts: int) -> str:
-    if coverage >= 80.0 and covered_accounts >= 2:
+    if (
+        coverage >= _HIGH_COVERAGE_PERCENT
+        and covered_accounts >= _MEDIUM_ACCOUNT_COUNT
+    ):
         return "high"
-    if coverage >= 20.0 or covered_accounts >= 2:
+    if (
+        coverage >= _MEDIUM_COVERAGE_PERCENT
+        or covered_accounts >= _MEDIUM_ACCOUNT_COUNT
+    ):
         return "medium"
     return "low"
 

@@ -84,7 +84,8 @@ class SchedulingCapacityV4Test(UsageTimeSeriesCase):
             "routing-tier scope",
         )
         windows = require_object(
-            payload.get("burn_windows"), description="burn windows"
+            payload.get("burn_windows"),
+            description="burn windows",
         )
         last_hour = require_object(windows.get("last_hour"), description="last hour")
         check_close(last_hour.get("capacity_points"), 22.0, "last-hour burn points")
@@ -134,7 +135,9 @@ class SchedulingCapacityV4Test(UsageTimeSeriesCase):
         check_close(capacity.get("remaining_points"), 163.5, "burnable points")
         check_equal(protected.get("classification_status"), "partial", "classification")
         check_equal(
-            protected.get("unclassified_account_count"), 1, "unclassified count"
+            protected.get("unclassified_account_count"),
+            1,
+            "unclassified count",
         )
         validate_scheduling_capacity_payload(payload)
 

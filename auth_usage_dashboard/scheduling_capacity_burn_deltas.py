@@ -132,7 +132,10 @@ def _sample_window(
         return None
     legacy_used = number_value(account.get("five_used_percent"))
     legacy_reset = parse_datetime(text_value(account.get("five_reset_at")))
-    if legacy_used is not None and legacy_reset is not None:
-        if legacy_reset - at > timedelta(hours=6):
-            return legacy_used, isoformat(legacy_reset)
+    if (
+        legacy_used is not None
+        and legacy_reset is not None
+        and legacy_reset - at > timedelta(hours=6)
+    ):
+        return legacy_used, isoformat(legacy_reset)
     return None

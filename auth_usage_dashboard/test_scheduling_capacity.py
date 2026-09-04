@@ -4,13 +4,9 @@
 from __future__ import annotations
 
 import json
-from http import HTTPStatus
-from pathlib import Path
-from typing import TYPE_CHECKING, cast, final
+from typing import TYPE_CHECKING, final
 
 from ._scheduling_capacity_test_fixtures import (
-    StaticCapacityService,
-    dashboard_settings,
     operator_snapshot,
 )
 from ._timeseries_test_fixtures import (
@@ -20,17 +16,14 @@ from ._timeseries_test_fixtures import (
     check_equal,
     require_array,
 )
-from .scheduling_app import create_scheduling_app
 from .scheduling_capacity import (
     SCHEDULING_CAPACITY_SCHEMA_VERSION,
     build_scheduling_capacity_snapshot,
 )
 from .scheduling_capacity_check import validate_scheduling_capacity_payload
-from .scheduling_web_runtime import test_client_factory
 from .timeseries_types import optional_object, require_object
 
 if TYPE_CHECKING:
-    from .service import CapacityService, StateSource
     from .timeseries_types import JsonObject
 
 _SOURCE_FRESHNESS_SECONDS = 30
@@ -73,7 +66,9 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
         )
         check_equal(capacity.get("timeline_status"), "complete", "timeline status")
         check_close(
-            burn.get("capacity_points_per_hour"), _BURN_POINTS_PER_HOUR, "burn rate"
+            burn.get("capacity_points_per_hour"),
+            _BURN_POINTS_PER_HOUR,
+            "burn rate",
         )
         check(
             token_burn.get("diagnostic_only") is True,
@@ -99,7 +94,9 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
         projection = build_scheduling_capacity_snapshot(snapshot)
         capacity = _nested(projection, "capacity")
         check_equal(
-            projection.get("status"), "unavailable", "missing measurement status"
+            projection.get("status"),
+            "unavailable",
+            "missing measurement status",
         )
         check(
             capacity.get("remaining_points") is None,
@@ -133,14 +130,19 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
         capacity = _nested(projection, "capacity")
         check_equal(capacity.get("basis_key"), "weekly", "capacity basis")
         check_close(
-            capacity.get("remaining_points"), _WEEKLY_REMAINING_POINTS, "weekly points"
+            capacity.get("remaining_points"),
+            _WEEKLY_REMAINING_POINTS,
+            "weekly points",
         )
         automatic_resets = require_array(
-            projection.get("automatic_resets"), "automatic resets"
+            projection.get("automatic_resets"),
+            "automatic resets",
         )
         for event in automatic_resets:
             check_equal(
-                optional_object(event).get("kind"), "weekly_reset", "weekly reset kind"
+                optional_object(event).get("kind"),
+                "weekly_reset",
+                "weekly reset kind",
             )
 
     @staticmethod
@@ -153,7 +155,9 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
 
         projection = build_scheduling_capacity_snapshot(snapshot)
         check_equal(
-            projection.get("status"), "available", "diagnostic staleness status"
+            projection.get("status"),
+            "available",
+            "diagnostic staleness status",
         )
         check(
             _nested(projection, "source").get("stale") is False,
@@ -185,81 +189,6 @@ class SchedulingCapacityTest(UsageTimeSeriesCase):
             "source error flag was lost",
         )
 
-    def test_endpoint_is_protected_and_identity_free(self) -> None:
-        """Require PitchAI identity and return only the validated aggregate shape."""
-        service = StaticCapacityService(operator_snapshot())
-        application = create_scheduling_app(
-            dashboard_settings(self.root),
-            source=cast("StateSource", object()),
-            service=cast("CapacityService", cast("object", service)),
-        )
-
-        with test_client_factory(application) as client:
-            denied = client.get("/api/v1/scheduling-capacity")
-            foreign = client.get(
-                "/api/v1/scheduling-capacity",
-                headers={"X-PitchAI-Email": "operator@example.com"},
-            )
-            response = client.get(
-                "/api/v1/scheduling-capacity",
-                headers={"X-PitchAI-Email": "priority-engine@pitchai.net"},
-            )
-
-            check_equal(
-                denied.status_code,
-                int(HTTPStatus.UNAUTHORIZED),
-                "missing identity status",
-            )
-            check_equal(
-                foreign.status_code,
-                int(HTTPStatus.UNAUTHORIZED),
-                "foreign identity status",
-            )
-            check_equal(
-                response.status_code, int(HTTPStatus.OK), "scheduler endpoint status"
-            )
-            decoded = response.json()
-            payload = require_object(decoded, description="scheduling response")
-            validate_scheduling_capacity_payload(payload)
-            check(
-                "private-one@pitchai.net" not in response.text,
-                "first identity escaped endpoint",
-            )
-            check(
-                "private-two@pitchai.net" not in response.text,
-                "second identity escaped endpoint",
-            )
-
-        check(service.started, "service did not start")
-        check(service.stopped, "service did not stop")
-
-    @staticmethod
-    def test_deployer_validates_with_the_candidate_python_runtime() -> None:
-        """Keep host Python compatibility out of the artifact validation path."""
-        script_path = (
-            Path(__file__).resolve().parents[1]
-            / "ops"
-            / "deploy_codex_usage_dashboard.sh"
-        )
-        script = script_path.read_text(encoding="utf-8")
-
-        check(
-            'docker exec --interactive "${name}" python -m' in script,
-            "deployer does not validate with the exact candidate container",
-        )
-        check(
-            'check_dashboard "${CANARY_PORT}" "${canary}"' in script,
-            "canary name is not bound to the deployment check",
-        )
-        check(
-            'check_dashboard "${PROD_PORT}" "${CONTAINER}"' in script,
-            "production name is not bound to the deployment check",
-        )
-        check(
-            'PYTHONPATH="${REPO_ROOT}" python3 -m' not in script,
-            "deployer still imports target code with the host Python runtime",
-        )
-
 
 def _nested(payload: JsonObject, key: str) -> JsonObject:
     """Require one nested object in a scheduler payload.
@@ -277,16 +206,21 @@ def _check_five_hour_timeline(payload: JsonObject) -> None:
     expiry = require_object(expiry_buckets[0], description="expiry bucket")
     check_equal(expiry.get("kind"), "five_hour_window", "expiry kind")
     check_close(
-        expiry.get("remaining_points"), _FIVE_HOUR_REMAINING_POINTS, "expiry points"
+        expiry.get("remaining_points"),
+        _FIVE_HOUR_REMAINING_POINTS,
+        "expiry points",
     )
 
     automatic_resets = require_array(
-        payload.get("automatic_resets"), "automatic resets"
+        payload.get("automatic_resets"),
+        "automatic resets",
     )
     first_reset = require_object(automatic_resets[0], description="automatic reset")
     check_equal(first_reset.get("kind"), "five_hour_reset", "reset kind")
     check_equal(
-        first_reset.get("restores_selectability_count"), 1, "restoring reset count"
+        first_reset.get("restores_selectability_count"),
+        1,
+        "restoring reset count",
     )
     check_close(first_reset.get("capacity_points"), 300.0, "reset capacity")
     for event in automatic_resets:

@@ -18,7 +18,11 @@ if TYPE_CHECKING:
 
 
 def burn_projection(runout: JsonObject) -> JsonObject:
-    """Project aggregate capacity burn without account identity."""
+    """Project aggregate capacity burn without account identity.
+
+    Returns:
+        The redacted capacity-burn projection.
+    """
     burn = optional_object(runout.get("burn_rate"))
     return {
         "capacity_points_per_hour": number_value(burn.get("capacity_points_per_hour")),
@@ -32,7 +36,11 @@ def burn_projection(runout: JsonObject) -> JsonObject:
 
 
 def token_burn_projection(token_summary: JsonObject) -> JsonObject:
-    """Project provider tokens for aggregate attribution diagnostics."""
+    """Project provider tokens for aggregate attribution diagnostics.
+
+    Returns:
+        Aggregate provider-token diagnostics.
+    """
     return {
         "trailing_two_hour_tokens": nonnegative_integer(
             token_summary.get("trailing_two_hour_tokens"),
@@ -48,7 +56,11 @@ def token_burn_projection(token_summary: JsonObject) -> JsonObject:
 
 
 def banked_reset_projection(raw_reset_bank: JsonValue) -> JsonObject:
-    """Exclude manual reset credits from automatic capacity."""
+    """Exclude manual reset credits from automatic capacity.
+
+    Returns:
+        A redacted summary that marks manual credits as non-automatic.
+    """
     reset_bank = optional_object(raw_reset_bank)
     return {
         "available_count": nonnegative_integer(reset_bank.get("total_available")),
