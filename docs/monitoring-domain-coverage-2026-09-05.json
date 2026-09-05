@@ -1,0 +1,3997 @@
+{
+  "schema_version": 1,
+  "fire_id": "reminder-central-82d97810-5218-4dc4-bd01-769611650a8d@2026-09-05T204432573496z",
+  "window": {
+    "start": "2026-08-27T20:45:20Z",
+    "end": "2026-09-05T20:45:20Z"
+  },
+  "scan": {
+    "catalog_projects": 46,
+    "pm_projects": 82,
+    "pm_updated_tasks": 203,
+    "pm_updated_projects": 29,
+    "agent_cells": 4,
+    "agent_messages": 354144,
+    "session_sources": 299,
+    "domain_candidate_messages": 4961,
+    "hostname_shaped_candidates": 445,
+    "known_file_bytes_indexed_percent": 100,
+    "code_repository_stores": 50,
+    "code_commit_occurrences": 4568,
+    "code_count_note": "Includes separate clones and duplicated histories. Counts are repository-store occurrences, not unique projects or commits.",
+    "code_paths": [
+      {
+        "path": "/code/pitchai-cli-new-monitoring",
+        "commits": 238,
+        "host_candidates": 23
+      },
+      {
+        "path": "/code/pitchai_cli_new",
+        "commits": 102,
+        "host_candidates": 23
+      },
+      {
+        "path": "/code/pitchai_infrastructure",
+        "commits": 187,
+        "host_candidates": 64
+      },
+      {
+        "path": "/code/pitchai_monitoring",
+        "commits": 62,
+        "host_candidates": 141
+      },
+      {
+        "path": "/mnt/pitchai-dev-data/worktrees/AutoPAR/autopar-devops-remove-partial-secret-log-20260710",
+        "commits": 9,
+        "host_candidates": 4
+      },
+      {
+        "path": "/mnt/pitchai-dev-data/worktrees/Orthoparse/wt-1",
+        "commits": 8,
+        "host_candidates": 1
+      },
+      {
+        "path": "/mnt/pitchai-dev-data/worktrees/dft/dft-integrated-synthesis-analysis-cta-20260603b",
+        "commits": 218,
+        "host_candidates": 32
+      },
+      {
+        "path": "/mnt/pitchai-dev-data/worktrees/pitchai-work-inbox/potaito-procedure-no-escape-work-inbox-20260905",
+        "commits": 149,
+        "host_candidates": 9
+      },
+      {
+        "path": "/mnt/pitchai-dev-data/worktrees/pitchai_net/agent-engine-marketing-website-20260904",
+        "commits": 44,
+        "host_candidates": 42
+      },
+      {
+        "path": "/mnt/pitchai-dev-data/worktrees/pitchai_sales/crm-audit-delivery-evidence-20260904",
+        "commits": 188,
+        "host_candidates": 617
+      },
+      {
+        "path": "/mnt/pitchai-dev-data/worktrees/potaito/asap-monitoring-incident-potaito",
+        "commits": 578,
+        "host_candidates": 570
+      },
+      {
+        "path": "/mnt/pitchai-dev-data/worktrees/two_factor_server/asap-monitoring-incident-two_factor_server",
+        "commits": 2,
+        "host_candidates": 0
+      },
+      {
+        "path": "/mnt/pitchai-dev-data/worktrees/voice_agent/codex-voice-agentsmd-astra-redeploy-20260905",
+        "commits": 11,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/AFASAsk-worktrees/afas-medium-thinking-monitor-repair-20260831",
+        "commits": 34,
+        "host_candidates": 11
+      },
+      {
+        "path": "/root/code/AI-Price-Crawler-worktrees/aipc-airport-collapse-refresh-state-fix-20260722",
+        "commits": 645,
+        "host_candidates": 140
+      },
+      {
+        "path": "/root/code/CISNL",
+        "commits": 6,
+        "host_candidates": 5
+      },
+      {
+        "path": "/root/code/DePlanBook-CMS",
+        "commits": 1,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/Geloofsverdediging-CMS-worktrees/apologetica-cms-hotpath-monitor",
+        "commits": 1,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/QuickChat-worktrees/python-hyperstrict-20260714-2315",
+        "commits": 51,
+        "host_candidates": 11
+      },
+      {
+        "path": "/root/code/agentcloud",
+        "commits": 6,
+        "host_candidates": 1
+      },
+      {
+        "path": "/root/code/auth-token-server-release-60840f2540b2",
+        "commits": 12,
+        "host_candidates": 1
+      },
+      {
+        "path": "/root/code/auth-token-server-worktrees/afas-single-owner-token-alias-20260721",
+        "commits": 14,
+        "host_candidates": 1
+      },
+      {
+        "path": "/root/code/codex",
+        "commits": 442,
+        "host_candidates": 16
+      },
+      {
+        "path": "/root/code/codex_app_server",
+        "commits": 442,
+        "host_candidates": 16
+      },
+      {
+        "path": "/root/code/driestar-worktrees/aigenda-business-rules-codex-demo-20260824",
+        "commits": 9,
+        "host_candidates": 5
+      },
+      {
+        "path": "/root/code/pitchai-cli-new-worktrees/python-hyperstrict-suppression-repair-20260803",
+        "commits": 97,
+        "host_candidates": 23
+      },
+      {
+        "path": "/root/code/pitchai-codex-home-skills-worktrees/aipc-self-blocking-prevention-20260903",
+        "commits": 7,
+        "host_candidates": 2
+      },
+      {
+        "path": "/root/code/pitchai-infrastructure-sso-migration",
+        "commits": 195,
+        "host_candidates": 67
+      },
+      {
+        "path": "/root/code/pitchai-infrastructure-worktrees/afasask-main-deploy-runner-access-20260831",
+        "commits": 8,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/pitchai-monitoring-entra-sso-migration",
+        "commits": 112,
+        "host_candidates": 143
+      },
+      {
+        "path": "/root/code/pitchai-monitoring-release-19b2676",
+        "commits": 120,
+        "host_candidates": 143
+      },
+      {
+        "path": "/root/code/pitchai-monitoring-release-27288c46de20",
+        "commits": 112,
+        "host_candidates": 143
+      },
+      {
+        "path": "/root/code/pitchai-onboarding-course-worktrees/benchmark-capstone-20260805",
+        "commits": 14,
+        "host_candidates": 6
+      },
+      {
+        "path": "/root/code/pitchai-privacy-gateway-worktrees/openai-edge-streaming-20260827",
+        "commits": 5,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/pitchai-suggestions-backend-worktrees/pitchai-internal-tools-dashboard-builder",
+        "commits": 5,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/pitchai-suggestions-entra-sso-migration",
+        "commits": 5,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/pitchai-whatsapp-bridge-worktrees/event-bus-ingestion-20260728",
+        "commits": 2,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/pitchai-wiki-kb-entra-sso-migration",
+        "commits": 5,
+        "host_candidates": 1
+      },
+      {
+        "path": "/root/code/pitchai-wiki-kb-worktrees/aipc-self-blocking-prevention-20260903",
+        "commits": 5,
+        "host_candidates": 1
+      },
+      {
+        "path": "/root/code/pitchai-wiki-kb-worktrees/private-relay-routing-preference",
+        "commits": 5,
+        "host_candidates": 1
+      },
+      {
+        "path": "/root/code/pitchai_admin-worktrees/apologetica-react-full-rebuild-staging",
+        "commits": 42,
+        "host_candidates": 217
+      },
+      {
+        "path": "/root/code/pitchai_code_analytics-worktrees/pitchai-code-analytics-all-github-projects-audit-20260728",
+        "commits": 3,
+        "host_candidates": 1
+      },
+      {
+        "path": "/root/code/pitchai_infrastructure-worktrees/agent-outcome-token-cost-estimator-20260822",
+        "commits": 214,
+        "host_candidates": 69
+      },
+      {
+        "path": "/root/code/pitchai_infrastructure-worktrees/python-hyperstrict-suppression-repair-20260802-refresh",
+        "commits": 101,
+        "host_candidates": 84
+      },
+      {
+        "path": "/root/code/pitchai_server_fleet",
+        "commits": 8,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/pitchai_symphony",
+        "commits": 2,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/voice-agent-dev",
+        "commits": 11,
+        "host_candidates": 0
+      },
+      {
+        "path": "/root/code/voice-agent-worktrees/legacy-voice-fire-quick-chat-recovery-20260828.preserved-20260828T114327.496855842Z",
+        "commits": 6,
+        "host_candidates": 0
+      }
+    ],
+    "additional_code_paths": [
+      {
+        "path": "/code/DFT_marketing",
+        "commits": 8
+      },
+      {
+        "path": "/code/afasask",
+        "commits": 17
+      }
+    ],
+    "runtime_sources": [
+      "pitchai-main Nginx",
+      "pitchai-dev-main Nginx",
+      "pitchai-file-storage Nginx",
+      "Jeff Caddy"
+    ],
+    "namecheap": {
+      "snapshot": "20260904T185322Z-302f43e28082-c7660794",
+      "captured_at": "2026-09-04T18:53:22Z",
+      "records": 76,
+      "web_address_records": 72,
+      "records_fingerprint": "302f43e28082edce5fc04a3056f42f02eebfe19abe7c103f670fb64fe78765a8",
+      "unclassified_web_names": []
+    }
+  },
+  "changes": {
+    "critical_added": [
+      "agents.pitchai.net",
+      "crm.pitchai.net",
+      "nl241-satellite-data-portal.demos.pitchai.net",
+      "rijkscatering.demos.pitchai.net"
+    ],
+    "dashboard_only_added": [
+      "apol.135-181-182-48.sslip.io",
+      "route-anchor.135-181-182-48.sslip.io"
+    ],
+    "excluded_added": [
+      "overhaul.37.27.67.52.nip.io"
+    ],
+    "dns_mutations": 0
+  },
+  "candidate_dispositions": [
+    {
+      "host": "2fa-server.37.27.67.52.nip.io",
+      "mentions": 2,
+      "last": "2026-09-05T10:51:32.565Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "2ffi.quora.com",
+      "mentions": 2,
+      "last": "2026-08-30T02:53:10.368Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "2fui-avatars.com",
+      "mentions": 1,
+      "last": "2026-08-30T16:47:12.846Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "2fwww.tenderned.nl",
+      "mentions": 2,
+      "last": "2026-08-31T10:47:50.988Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "aardappelhandel.nl",
+      "mentions": 1,
+      "last": "2026-08-28T02:03:57.622Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "aardappelpreis.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:58.030Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "aardappelprijs.nl",
+      "mentions": 72,
+      "last": "2026-09-04T10:55:35.325Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "aardappelprojs.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.664Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "aardappelwereld.nl",
+      "mentions": 1,
+      "last": "2026-08-30T18:00:28.651Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "accounts.google.com",
+      "mentions": 3,
+      "last": "2026-09-04T00:18:35.035Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "admin.microsoft.com",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:54.506Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "adoppelpreis.nl",
+      "mentions": 5,
+      "last": "2026-09-02T20:52:39.508Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "afasask.gzb.nl",
+      "mentions": 91,
+      "last": "2026-09-05T04:36:40.866Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "afasask.pitchai.net",
+      "mentions": 19,
+      "last": "2026-09-05T04:36:40.866Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "agent-engine.pitchai.net",
+      "mentions": 1,
+      "last": "2026-09-04T12:53:29.271Z",
+      "disposition": "ignore",
+      "reason": "Unselected launch name. agents.pitchai.net is the live canonical hostname; DNS lookup returns no address."
+    },
+    {
+      "host": "agentcloud.pitchai.net",
+      "mentions": 3,
+      "last": "2026-08-28T23:02:24.876Z",
+      "disposition": "dashboard-only",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "agentengine.pitchai.net",
+      "mentions": 2,
+      "last": "2026-09-04T12:53:29.271Z",
+      "disposition": "ignore",
+      "reason": "Unselected launch name. agents.pitchai.net is the live canonical hostname; DNS lookup returns no address."
+    },
+    {
+      "host": "agents.pitchai.net",
+      "mentions": 30,
+      "last": "2026-09-05T17:19:48.478Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "agentskills.io",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.026Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "agf.nl",
+      "mentions": 3,
+      "last": "2026-08-29T13:45:41.852Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "ai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.121Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "aigenda-monitor.pitchai.net",
+      "mentions": 5,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "aigenda-rules.135-181-182-48.sslip.io",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "excluded",
+      "reason": "Duplicate direct-IP route for the canonical aigenda-rules.demos.pitchai.net service"
+    },
+    {
+      "host": "aigenda-rules.demos.pitchai.net",
+      "mentions": 6,
+      "last": "2026-09-05T19:30:10.638Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "aigenda.37.27.67.52.nip.io",
+      "mentions": 33,
+      "last": "2026-08-28T07:01:54.491Z",
+      "disposition": "excluded",
+      "reason": "Legacy direct-IP alias has no matching TLS identity; monitor canonical aigenda.pitchai.net"
+    },
+    {
+      "host": "aigenda.pitchai.net",
+      "mentions": 5,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "aipc.skybuyfly.com",
+      "mentions": 11,
+      "last": "2026-08-30T23:21:25.697Z",
+      "disposition": "excluded",
+      "reason": "Legacy AIPC endpoint has no certificate-covered public contract; monitor skybuyfly.pitchai.net"
+    },
+    {
+      "host": "akkerbouwprijs.nl",
+      "mentions": 1,
+      "last": "2026-08-27T21:18:56.349Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "anw.ivdnt.org",
+      "mentions": 1,
+      "last": "2026-08-28T10:50:49.498Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "anwb.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.601Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "api.github.com",
+      "mentions": 6,
+      "last": "2026-08-28T09:40:37.984Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "api.openai.com",
+      "mentions": 1,
+      "last": "2026-09-01T10:09:23.009Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "api.skybuyfly.com",
+      "mentions": 1,
+      "last": "2026-09-02T11:24:42.655Z",
+      "disposition": "excluded",
+      "reason": "Legacy API hostname has a mismatched hosting certificate; the current client uses the monitored stable PitchAI endpoint"
+    },
+    {
+      "host": "api.telegram.org",
+      "mentions": 18,
+      "last": "2026-09-01T03:00:10.928Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "apidocs.webshare.io",
+      "mentions": 1,
+      "last": "2026-09-02T13:40:48.036Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "apologetica-wagtail-staging.pitchai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.165Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "app-api.zonneplan.nl",
+      "mentions": 1,
+      "last": "2026-08-28T19:10:22.709Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "app-staging-no-spend.doorstroomtoets.nl",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:56.564Z",
+      "disposition": "excluded",
+      "reason": "Explicitly confirmed not owned or operated by PitchAI/DFT"
+    },
+    {
+      "host": "app.doorstroomtoets.nl",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:56.564Z",
+      "disposition": "excluded",
+      "reason": "Explicitly confirmed not owned or operated by PitchAI/DFT"
+    },
+    {
+      "host": "apple.com",
+      "mentions": 1,
+      "last": "2026-09-05T08:37:11.518Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "appstoreconnect.apple.com",
+      "mentions": 3,
+      "last": "2026-09-05T07:53:52.907Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "ardoppelprice.nl",
+      "mentions": 5,
+      "last": "2026-09-02T20:52:39.508Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "artificialintelligence.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.759Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "arxiv.org",
+      "mentions": 1,
+      "last": "2026-09-03T16:41:09.782Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "asia-airports.com",
+      "mentions": 2,
+      "last": "2026-08-29T23:06:20.239Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "ask.gzb.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.213Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "asp.net",
+      "mentions": 1,
+      "last": "2026-08-29T07:36:44.004Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "assemblyai.com",
+      "mentions": 3,
+      "last": "2026-08-28T11:00:04.784Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "assets.pitchai.net",
+      "mentions": 10,
+      "last": "2026-09-04T12:59:12.052Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "auth.openai.com",
+      "mentions": 5,
+      "last": "2026-09-05T06:03:02.200Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "auth.pitchai.net",
+      "mentions": 3,
+      "last": "2026-09-02T22:20:32.951Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "autodiscover.outlook.com",
+      "mentions": 1,
+      "last": "2026-08-27T21:18:56.349Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "autopar-staging-web.37.27.67.52.nip.io",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "autopar.pitchai.net",
+      "mentions": 33,
+      "last": "2026-09-05T04:36:40.866Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "autopart.bitchai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.869Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "autoriteitpersoonsgegevens.nl",
+      "mentions": 1,
+      "last": "2026-09-05T09:29:22.559Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "avatars.discourse-cdn.com",
+      "mentions": 1,
+      "last": "2026-08-31T07:52:11.769Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "aviv.app",
+      "mentions": 1,
+      "last": "2026-09-02T20:56:48.081Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "barcelona.shopdutyfree.com",
+      "mentions": 1,
+      "last": "2026-09-02T08:00:19.971Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "be-mobile.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.124Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "bhy.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.363Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "bitgai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.286Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "blog.openvino.ai",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:51.291Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "booking.com",
+      "mentions": 9,
+      "last": "2026-08-29T22:25:15.182Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "boost.ai",
+      "mentions": 3,
+      "last": "2026-09-02T16:03:39.929Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "breakglass.bitchai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.471Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "breakglass.pitchai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.471Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "cdn.jsdelivr.net",
+      "mentions": 1,
+      "last": "2026-09-02T19:53:31.569Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "cdn.mcauto-images-production.sendgrid.net",
+      "mentions": 7,
+      "last": "2026-09-05T14:39:07.850Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "cdn.openai.com",
+      "mentions": 1,
+      "last": "2026-09-05T14:40:00.605Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "chat.pitchai.net",
+      "mentions": 7,
+      "last": "2026-09-04T20:06:59.339Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "chatgpt.com",
+      "mentions": 13,
+      "last": "2026-09-04T10:45:45.590Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "check.ai",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.355Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "check.io",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.355Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "chi.net",
+      "mentions": 17,
+      "last": "2026-09-04T09:59:48.147Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "cm.com",
+      "mentions": 5,
+      "last": "2026-09-02T16:03:39.929Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "cms.deplanbook.com",
+      "mentions": 51,
+      "last": "2026-09-05T04:42:05.193Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "cms.hetcis.nl",
+      "mentions": 1,
+      "last": "2026-08-27T21:18:56.349Z",
+      "disposition": "excluded",
+      "reason": "Inactive DNS residue; current HetCIS CMS is embedded at /dashboard on the main site"
+    },
+    {
+      "host": "coaching.onboarding.bgi.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.286Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "code.claude.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.989Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "codex-voice.pitchai.net",
+      "mentions": 12,
+      "last": "2026-08-28T07:01:56.756Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "codexusage.pci.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.695Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "codexusage.pitchai.net",
+      "mentions": 9,
+      "last": "2026-09-02T18:59:44.276Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "com.pitchai.skybuyfly.app",
+      "mentions": 16,
+      "last": "2026-09-04T05:46:41.738Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "comms.assemblyai.com",
+      "mentions": 4,
+      "last": "2026-09-05T19:37:34.535Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "communication.microsoft.com",
+      "mentions": 1,
+      "last": "2026-09-02T07:38:02.842Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "community.openai.com",
+      "mentions": 5,
+      "last": "2026-08-31T07:52:11.769Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "core.telegram.org",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.285Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "course.onboarding.bitchai.net",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:56.205Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "crm.pitchai.net",
+      "mentions": 14,
+      "last": "2026-09-02T22:53:35.393Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "cs.ai",
+      "mentions": 28,
+      "last": "2026-09-05T16:00:05.106Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "ctrk.klclick3.com",
+      "mentions": 2,
+      "last": "2026-09-02T04:03:43.170Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "cursussen.pitchai.net",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "dashboard-only",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "d3k81ch9hvuctc.cloudfront.net",
+      "mentions": 2,
+      "last": "2026-09-02T04:03:43.170Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "dashboard.webshare.io",
+      "mentions": 2,
+      "last": "2026-09-02T13:40:48.036Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "dashboards.pitchai.net",
+      "mentions": 24,
+      "last": "2026-09-05T04:36:40.866Z",
+      "disposition": "dashboard-only",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "dashcamtalk.com",
+      "mentions": 1,
+      "last": "2026-08-28T14:14:58.037Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "datasets.cbs.nl",
+      "mentions": 1,
+      "last": "2026-08-29T23:16:14.706Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "db8p191mb0997.eurp191.prod.outlook.com",
+      "mentions": 1,
+      "last": "2026-09-04T13:50:11.793Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "deb.debian.org",
+      "mentions": 4,
+      "last": "2026-09-01T17:28:58.221Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "degroeneagri.nl",
+      "mentions": 1,
+      "last": "2026-08-29T19:33:32.964Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "demo.afasask.pitchai.net",
+      "mentions": 17,
+      "last": "2026-09-02T13:41:56.399Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "demos.pitchai.net",
+      "mentions": 13,
+      "last": "2026-09-04T15:07:17.753Z",
+      "disposition": "excluded",
+      "reason": "Namespace parent with no wildcard or standalone service contract"
+    },
+    {
+      "host": "deplanbook.com",
+      "mentions": 50,
+      "last": "2026-09-05T04:36:40.866Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "deplanbook.pitchai.net",
+      "mentions": 1,
+      "last": "2026-08-27T21:18:56.349Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "developer.android.com",
+      "mentions": 1,
+      "last": "2026-08-31T21:41:17.021Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "developer.mozilla.org",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:51.291Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "developers.google.com",
+      "mentions": 5,
+      "last": "2026-09-05T13:57:59.154Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "developers.openai.com",
+      "mentions": 9,
+      "last": "2026-09-01T19:12:43.333Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "dft-marketing-staging.pitchai.net",
+      "mentions": 16,
+      "last": "2026-08-28T07:01:56.337Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "digibead.demos.pitchai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.363Z",
+      "disposition": "excluded",
+      "reason": "Misspelled historical demo hostname; NXDOMAIN"
+    },
+    {
+      "host": "digibeat.demos.pitchai.net",
+      "mentions": 12,
+      "last": "2026-08-28T07:01:55.365Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "dispatch.apigee.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.410Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "dispatch.pitchai.net",
+      "mentions": 354,
+      "last": "2026-09-05T18:32:14.177Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "dispatch.pitchy.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.410Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "dns1.registrar-servers.com",
+      "mentions": 3,
+      "last": "2026-08-28T23:16:47.008Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "dns2.registrar-servers.com",
+      "mentions": 4,
+      "last": "2026-08-28T23:16:47.008Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.anthropic.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.989Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.github.com",
+      "mentions": 7,
+      "last": "2026-09-02T03:36:22.939Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.here.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.124Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.hetzner.com",
+      "mentions": 6,
+      "last": "2026-08-28T09:40:38.025Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.npmjs.com",
+      "mentions": 1,
+      "last": "2026-08-29T21:52:53.989Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.openvino.ai",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:51.291Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.stripe.com",
+      "mentions": 2,
+      "last": "2026-09-05T11:44:25.141Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.tomtom.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.124Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.unrealspeech.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:51.701Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "docs.v8.unrealspeech.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:51.701Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "documents.pitchi.net",
+      "mentions": 2,
+      "last": "2026-09-02T12:26:11.047Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "doorstroomtoets.nl",
+      "mentions": 1,
+      "last": "2026-08-27T21:18:56.349Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "dora.dev",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.668Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "dpb.pitchai.net",
+      "mentions": 33,
+      "last": "2026-09-05T04:36:40.866Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "driestar-aigenda.demos.pitchai.net",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "excluded",
+      "reason": "Fallback recommendation was never provisioned; the live AIGENDA calendar uses its canonical hosts"
+    },
+    {
+      "host": "driestarwartburg.nl",
+      "mentions": 16,
+      "last": "2026-08-28T07:01:54.075Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "either.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.355Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "em.telnyx.com",
+      "mentions": 1,
+      "last": "2026-09-01T17:09:23.907Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "email.comms.assemblyai.com",
+      "mentions": 4,
+      "last": "2026-09-05T19:37:34.535Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "en.wikipedia.org",
+      "mentions": 2,
+      "last": "2026-08-30T02:53:10.368Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "eur-lex.europa.eu",
+      "mentions": 1,
+      "last": "2026-09-05T09:29:22.559Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "events.pitchai.net",
+      "mentions": 9,
+      "last": "2026-08-30T23:21:25.697Z",
+      "disposition": "excluded",
+      "reason": "Unprovisioned candidate; the live events bus contract is the monitored pitchai.net/events-bus route"
+    },
+    {
+      "host": "example.com",
+      "mentions": 9,
+      "last": "2026-08-30T15:52:12.556Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "fastapi.tiangolo.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:51.291Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "fi.quora.com",
+      "mentions": 2,
+      "last": "2026-08-30T02:53:10.368Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "filedrop.pitchai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.713Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "fireflies.ai",
+      "mentions": 11,
+      "last": "2026-09-05T15:17:15.279Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "fiwap.be",
+      "mentions": 1,
+      "last": "2026-08-30T18:00:28.651Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formatief-inzicht.nl",
+      "mentions": 1,
+      "last": "2026-08-28T10:34:30.283Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formatief-leren.nl",
+      "mentions": 9,
+      "last": "2026-09-02T20:50:49.623Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formatief-toetsen.nl",
+      "mentions": 1,
+      "last": "2026-08-28T10:34:30.283Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formatief-toetsen.pitchai.net",
+      "mentions": 54,
+      "last": "2026-08-30T11:36:12.180Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "formatiefinzicht.nl",
+      "mentions": 2,
+      "last": "2026-08-28T10:50:49.498Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formatiefleren.nl",
+      "mentions": 41,
+      "last": "2026-09-02T20:55:13.194Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "formatieftoetsen.nl",
+      "mentions": 1,
+      "last": "2026-08-28T10:37:07.913Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formatieveanalyse.nl",
+      "mentions": 4,
+      "last": "2026-08-28T11:09:52.308Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formatievetoetsing.nl",
+      "mentions": 1,
+      "last": "2026-08-28T10:37:07.913Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formative-analysis.nl",
+      "mentions": 7,
+      "last": "2026-08-28T10:31:53.891Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formative-tuts.nl",
+      "mentions": 6,
+      "last": "2026-08-28T10:29:38.166Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "formative.tuts.pitcheye.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.551Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "frzpr08mb11927.eurprd08.prod.outlook.com",
+      "mentions": 1,
+      "last": "2026-09-04T13:50:11.793Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "fsx.gzb.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.183Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "geloofsverdediging.nl",
+      "mentions": 8,
+      "last": "2026-09-04T15:55:39.497Z",
+      "disposition": "ignore",
+      "reason": "Client's existing externally hosted WordPress site (141.138.168.109), not a PitchAI deployment. Geloofsverdediging-CMS README explicitly limits this lane to apologetica-wagtail-staging.pitchai.net and says the existing WordPress deployment is not modified by its staging workflow. The Wagtail staging target is already monitored."
+    },
+    {
+      "host": "geran.nl",
+      "mentions": 2,
+      "last": "2026-09-04T13:50:11.793Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "getdx.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.668Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "ghcr.io",
+      "mentions": 6,
+      "last": "2026-09-04T12:20:42.816Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "git.kernel.org",
+      "mentions": 1,
+      "last": "2026-08-31T11:56:00.501Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "github.com",
+      "mentions": 1573,
+      "last": "2026-09-05T20:43:06.963Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "github.githubassets.com",
+      "mentions": 3,
+      "last": "2026-09-02T05:20:56.319Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "gmail.com",
+      "mentions": 37,
+      "last": "2026-09-05T02:30:10.814Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "go.microsoft.com",
+      "mentions": 1,
+      "last": "2026-09-02T07:38:02.842Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "go.telnyx.com",
+      "mentions": 1,
+      "last": "2026-09-01T17:09:23.907Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "google.com",
+      "mentions": 7,
+      "last": "2026-08-31T21:31:28.152Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "gridci.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.724Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "group.com",
+      "mentions": 1,
+      "last": "2026-09-04T20:43:31.726Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "gzb.nl",
+      "mentions": 1,
+      "last": "2026-08-28T08:44:01.649Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "h10032.www1.hp.com",
+      "mentions": 3,
+      "last": "2026-09-01T13:44:42.351Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "headsys.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.128Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "help.openai.com",
+      "mentions": 1,
+      "last": "2026-09-01T08:55:10.986Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "help.webshare.io",
+      "mentions": 1,
+      "last": "2026-09-02T13:40:48.036Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "hetcis.nl",
+      "mentions": 51,
+      "last": "2026-09-05T04:42:05.193Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "hetcis.pitchai.net",
+      "mentions": 1,
+      "last": "2026-08-27T21:18:56.349Z",
+      "disposition": "excluded",
+      "reason": "Unprovisioned historical candidate with no DNS, ingress or deployment"
+    },
+    {
+      "host": "hetzner.com",
+      "mentions": 1,
+      "last": "2026-08-29T05:42:57.774Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "hofbalkbrug.nl",
+      "mentions": 1,
+      "last": "2026-08-29T18:38:18.355Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "husite.nl",
+      "mentions": 1,
+      "last": "2026-08-28T10:50:49.498Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "icloud.com",
+      "mentions": 10,
+      "last": "2026-08-31T08:23:53.408Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "idmsa.apple.com",
+      "mentions": 5,
+      "last": "2026-09-02T17:54:48.274Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "infopitchai.onmicrosoft.com",
+      "mentions": 16,
+      "last": "2026-08-28T07:01:54.506Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "internet.nl",
+      "mentions": 3,
+      "last": "2026-09-04T17:53:51.463Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "iriscmsproddatastorage.azureedge.net",
+      "mentions": 1,
+      "last": "2026-09-02T07:38:02.842Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "jantuinstrabv.nl",
+      "mentions": 1,
+      "last": "2026-08-28T05:50:47.633Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "jeff-codex-voice.94.130.17.246.nip.io",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.793Z",
+      "disposition": "dashboard-only",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "jeff-codex-voice.pitchai.net",
+      "mentions": 5,
+      "last": "2026-09-02T20:58:42.052Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "jeff.dispatch.patch.ai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.250Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "jeugdtandarts.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.760Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "kernel.org",
+      "mentions": 9,
+      "last": "2026-08-31T12:50:34.279Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "klaviyomail.com",
+      "mentions": 2,
+      "last": "2026-09-02T04:03:43.170Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "knaek.be",
+      "mentions": 1,
+      "last": "2026-08-28T07:37:48.566Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "learn.chatgpt.com",
+      "mentions": 13,
+      "last": "2026-09-05T08:57:29.134Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "learn.microsoft.com",
+      "mentions": 13,
+      "last": "2026-09-04T22:12:10.157Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "leerdoelinzicht.nl",
+      "mentions": 2,
+      "last": "2026-08-28T10:50:49.498Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "lfs.pitchai.net",
+      "mentions": 27,
+      "last": "2026-09-02T15:03:36.697Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "library.iterable.com",
+      "mentions": 4,
+      "last": "2026-09-05T19:37:34.535Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "links.iterable.com",
+      "mentions": 4,
+      "last": "2026-09-05T19:37:34.535Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "livedocuments.bgi.net",
+      "mentions": 2,
+      "last": "2026-08-28T12:11:42.067Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "livedocuments.openai.net",
+      "mentions": 4,
+      "last": "2026-09-02T12:21:54.007Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "livedocuments.pci.net",
+      "mentions": 4,
+      "last": "2026-09-02T16:08:17.412Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "livedocuments.pitchai.net",
+      "mentions": 71,
+      "last": "2026-09-04T14:49:23.249Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "livedocuments.pitcher.ai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:58.144Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "livedocuments.pitchi.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:58.240Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "make.com",
+      "mentions": 14,
+      "last": "2026-09-05T15:17:15.279Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "me.com",
+      "mentions": 1,
+      "last": "2026-08-29T09:40:01.964Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "microsoft.com",
+      "mentions": 1,
+      "last": "2026-09-02T07:38:02.842Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "mijn.simyo.nl",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:53.931Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "mlsend.com",
+      "mentions": 1,
+      "last": "2026-08-30T07:08:49.712Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "mockopenai.pitchai.net",
+      "mentions": 21,
+      "last": "2026-08-30T23:21:25.697Z",
+      "disposition": "excluded",
+      "reason": "DFT staging uses an in-process mock route and container; this public hostname is NXDOMAIN"
+    },
+    {
+      "host": "monday.com",
+      "mentions": 8,
+      "last": "2026-09-05T15:17:15.279Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "monitoring.pitchai.net",
+      "mentions": 136,
+      "last": "2026-09-05T19:54:35.535Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "mountainpitch.ai",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.051Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "mountainpitchartificialintelligence.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.759Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "mtasv.net",
+      "mentions": 3,
+      "last": "2026-08-30T16:47:12.846Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "n8n.pitchai.net",
+      "mentions": 16,
+      "last": "2026-09-05T04:36:40.866Z",
+      "disposition": "excluded",
+      "reason": "Decommissioned automation route; no live service contract"
+    },
+    {
+      "host": "newsletter.theaieducator.io",
+      "mentions": 1,
+      "last": "2026-08-30T07:08:49.712Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "nieuweoogst.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:53.950Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "nip.io",
+      "mentions": 14,
+      "last": "2026-09-05T04:48:10.205Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "nl.linkedin.com",
+      "mentions": 1,
+      "last": "2026-09-02T08:37:12.965Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "nl241-satellite-data-portal.demos.pitchai.net",
+      "mentions": 4,
+      "last": "2026-09-04T21:35:17.253Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "nos.nl",
+      "mentions": 10,
+      "last": "2026-09-03T16:06:38.181Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "npmjs.com",
+      "mentions": 1,
+      "last": "2026-08-29T21:52:53.989Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "onboarding-course.pitchai.net",
+      "mentions": 31,
+      "last": "2026-09-04T12:27:51.581Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "onboarding.bigi.net",
+      "mentions": 52,
+      "last": "2026-08-28T07:01:55.476Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "onderwijsarena.nl",
+      "mentions": 1,
+      "last": "2026-08-28T11:09:52.308Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "one.com",
+      "mentions": 9,
+      "last": "2026-09-04T19:38:27.988Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "openai1.discoursemail.com",
+      "mentions": 1,
+      "last": "2026-08-31T07:52:11.769Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "opendata.cbs.nl",
+      "mentions": 1,
+      "last": "2026-08-29T23:16:14.706Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "openrouter.ai",
+      "mentions": 1,
+      "last": "2026-09-02T10:01:53.083Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "or.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.355Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "orthoparse.pitchai.net",
+      "mentions": 6,
+      "last": "2026-09-02T03:09:30.034Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "outlook.cloud",
+      "mentions": 13,
+      "last": "2026-08-31T22:38:51.181Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "outlook.office365.com",
+      "mentions": 27,
+      "last": "2026-09-04T17:13:02.318Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "ov-chipkaart.nl",
+      "mentions": 5,
+      "last": "2026-08-28T16:16:28.984Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pa1pr08mb11238.eurprd08.prod.outlook.com",
+      "mentions": 1,
+      "last": "2026-09-04T13:50:11.793Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pageeye.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.061Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pageye.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.363Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "parsbv.nl",
+      "mentions": 1,
+      "last": "2026-08-29T16:23:34.639Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "patch.ai",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.250Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pay.doccle.be",
+      "mentions": 1,
+      "last": "2026-09-04T00:14:04.420Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pchi.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.830Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pchii.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.057Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pci.net",
+      "mentions": 25,
+      "last": "2026-09-04T14:49:23.249Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pgi.net",
+      "mentions": 28,
+      "last": "2026-08-28T07:01:56.837Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pgii.net",
+      "mentions": 2,
+      "last": "2026-09-05T12:08:11.216Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "phi.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.771Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pit.ai.net",
+      "mentions": 16,
+      "last": "2026-08-28T07:01:55.121Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pitch.ai",
+      "mentions": 120,
+      "last": "2026-09-05T10:08:41.856Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pitch.ai.net",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:57.858Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pitchai-net.mail.protection.outlook.com",
+      "mentions": 1,
+      "last": "2026-08-27T21:18:56.349Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pitchai.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.054Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pitchai.fibery.io",
+      "mentions": 2,
+      "last": "2026-09-04T15:25:00.712Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pitchai.net",
+      "mentions": 750,
+      "last": "2026-09-05T20:34:35.853Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "pitchai1.sharepoint.com",
+      "mentions": 16,
+      "last": "2026-09-04T20:10:57.936Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pitcheye.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.965Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pitchhi.net",
+      "mentions": 8,
+      "last": "2026-09-05T14:06:53.487Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "pitchline.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.717Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "piti.dev",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:52.759Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "planbook.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:58.042Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "platform.openai.com",
+      "mentions": 1,
+      "last": "2026-08-28T07:13:30.292Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "play.google.com",
+      "mentions": 3,
+      "last": "2026-09-02T10:59:59.175Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "potaito.pitchai.net",
+      "mentions": 14,
+      "last": "2026-09-02T05:38:59.142Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "potato-price.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.638Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "potato-pruis.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.478Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "potatoprice.nl",
+      "mentions": 13,
+      "last": "2026-09-02T20:52:39.508Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "privacy-gateway.pitchai.net",
+      "mentions": 12,
+      "last": "2026-09-04T19:52:57.257Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "privaterelay.appleid.com",
+      "mentions": 21,
+      "last": "2026-09-05T02:33:03.175Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "proxyway.com",
+      "mentions": 1,
+      "last": "2026-09-02T12:45:23.434Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "publications.jrc.ec.europa.eu",
+      "mentions": 2,
+      "last": "2026-09-05T09:40:58.237Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "qemu.readthedocs.io",
+      "mentions": 6,
+      "last": "2026-08-28T09:40:37.852Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "qph.fs.quoracdn.net",
+      "mentions": 1,
+      "last": "2026-08-28T03:05:13.068Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "qsf.fs.quoracdn.net",
+      "mentions": 2,
+      "last": "2026-08-30T02:53:10.368Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "quora.com",
+      "mentions": 2,
+      "last": "2026-08-30T02:53:10.368Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "r.doppelpreis.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.478Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "raw.githubusercontent.com",
+      "mentions": 5,
+      "last": "2026-09-05T11:58:24.682Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "react.staging.pitcheye.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.136Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "redis.io",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:52.417Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "registry.pitchai.net",
+      "mentions": 30,
+      "last": "2026-09-05T18:14:33.901Z",
+      "disposition": "dashboard-only",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "rijkscatering.demos.pitchai.net",
+      "mentions": 7,
+      "last": "2026-09-04T20:10:57.936Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "route-anchor.pitchai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.177Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "rush-univ-salt-llc.trycloudflare.com",
+      "mentions": 1,
+      "last": "2026-08-29T21:25:01.650Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "s1.designmodo.com",
+      "mentions": 3,
+      "last": "2026-08-28T11:00:04.784Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "s2c.mercell.com",
+      "mentions": 1,
+      "last": "2026-08-31T17:28:31.619Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "sales.pitchai.net",
+      "mentions": 1,
+      "last": "2026-09-02T20:45:43.053Z",
+      "disposition": "ignore",
+      "reason": "Unselected CRM name; DNS lookup returns no address."
+    },
+    {
+      "host": "sap.io",
+      "mentions": 14,
+      "last": "2026-08-28T10:29:38.165Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "sapihq.com",
+      "mentions": 7,
+      "last": "2026-08-28T10:31:53.891Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "sapiwise.com",
+      "mentions": 7,
+      "last": "2026-08-28T10:31:53.891Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "sapiworks.com",
+      "mentions": 7,
+      "last": "2026-08-28T10:31:53.891Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "sdworx.com",
+      "mentions": 13,
+      "last": "2026-08-28T09:52:34.161Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "sea2.discourse-cdn.com",
+      "mentions": 1,
+      "last": "2026-08-31T07:52:11.769Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "servers.pitchai.net",
+      "mentions": 21,
+      "last": "2026-08-31T18:54:48.049Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "shopdutyfree.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.777Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "simyo.nl",
+      "mentions": 16,
+      "last": "2026-08-28T07:01:54.004Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "skybuyfly.com",
+      "mentions": 1,
+      "last": "2026-09-02T21:15:02.375Z",
+      "disposition": "excluded",
+      "reason": "Legacy product apex serves a registrar parking page; monitor the canonical PitchAI production hosts"
+    },
+    {
+      "host": "skybuyfly.pitchai.net",
+      "mentions": 92,
+      "last": "2026-09-05T19:54:35.535Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "skybyfly.pchi.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.171Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "sslip.io",
+      "mentions": 1,
+      "last": "2026-08-27T21:18:56.349Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "stable.skybuyfly.pitchai.net",
+      "mentions": 43,
+      "last": "2026-09-04T12:08:34.627Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "staging.afasask.gzb.nl",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "excluded",
+      "reason": "Historical client-zone staging name is NXDOMAIN; monitor staging.afasask.pitchai.net"
+    },
+    {
+      "host": "staging.afasask.pitchai.net",
+      "mentions": 15,
+      "last": "2026-09-02T13:41:56.399Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "staging.autopar.pitchai.net",
+      "mentions": 8,
+      "last": "2026-09-05T20:19:50.389Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "staging.dispatch.pitchai.net",
+      "mentions": 4,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "excluded",
+      "reason": "Referenced by the staging service lane but not provisioned in authoritative DNS"
+    },
+    {
+      "host": "staging.formatief-toetsen.pitchai.net",
+      "mentions": 217,
+      "last": "2026-09-05T04:36:40.866Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "staging.hetcis.nl",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "excluded",
+      "reason": "Historical self-signed client-zone host; monitor staging.hetcis.pitchai.net"
+    },
+    {
+      "host": "staging.hetcis.pitchai.net",
+      "mentions": 37,
+      "last": "2026-09-01T12:38:44.860Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "staging.potai.pitchai.net",
+      "mentions": 25,
+      "last": "2026-08-28T07:01:53.846Z",
+      "disposition": "excluded",
+      "reason": "Historical typo is NXDOMAIN; monitor staging.potaito.pitchai.net"
+    },
+    {
+      "host": "staging.potaito.pitchai.net",
+      "mentions": 73,
+      "last": "2026-09-05T10:02:23.004Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "staging.potato.bitchi.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:53.771Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "staging.potato.pgi.net",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:58.075Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "staging.potato.pitchai.net",
+      "mentions": 5,
+      "last": "2026-08-28T07:01:54.781Z",
+      "disposition": "excluded",
+      "reason": "Historical product-name alias is NXDOMAIN; monitor staging.potaito.pitchai.net"
+    },
+    {
+      "host": "staging.subdomain.pitchai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.966Z",
+      "disposition": "ignore",
+      "reason": "Placeholder in imported voice history, absent from authoritative DNS and ingress."
+    },
+    {
+      "host": "static-assets.plain.com",
+      "mentions": 1,
+      "last": "2026-08-30T16:47:12.846Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "static-production.npmjs.com",
+      "mentions": 1,
+      "last": "2026-08-29T21:52:53.989Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "static.whatsapp.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:53.694Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "status.one.com",
+      "mentions": 2,
+      "last": "2026-09-04T14:27:37.961Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "storage.mlcdn.com",
+      "mentions": 1,
+      "last": "2026-08-30T07:08:49.712Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "storage.pitchai.net",
+      "mentions": 18,
+      "last": "2026-09-04T10:50:30.870Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "streaming.assemblyai.com",
+      "mentions": 1,
+      "last": "2026-09-02T07:21:49.071Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "stripe.com",
+      "mentions": 4,
+      "last": "2026-09-05T11:45:56.288Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "student-arise-product.demos.pji.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.275Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "studentenreisproduct.demos.pitchai.net",
+      "mentions": 29,
+      "last": "2026-09-02T03:52:28.097Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "studentenreisproduct.nl",
+      "mentions": 30,
+      "last": "2026-08-29T11:15:37.439Z",
+      "disposition": "excluded",
+      "reason": "External source website, not a PitchAI-operated deployment target"
+    },
+    {
+      "host": "stytch.com",
+      "mentions": 3,
+      "last": "2026-08-28T11:00:04.784Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "suggestions.demos.pitchai.net",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "excluded",
+      "reason": "Historical demo reference is NXDOMAIN and has no current ingress contract"
+    },
+    {
+      "host": "suggestions.pitchai.net",
+      "mentions": 17,
+      "last": "2026-08-28T07:01:55.688Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "suggestions.pitcherai.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.670Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "support.google.com",
+      "mentions": 1,
+      "last": "2026-08-31T21:41:17.021Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "support.hp.com",
+      "mentions": 2,
+      "last": "2026-09-01T11:52:43.185Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "support.microsoft.com",
+      "mentions": 1,
+      "last": "2026-09-01T17:34:50.023Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "support.ourpact.com",
+      "mentions": 1,
+      "last": "2026-08-27T21:25:02.398Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "support.pitchai.net",
+      "mentions": 25,
+      "last": "2026-09-05T04:36:40.866Z",
+      "disposition": "dashboard-only",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "surveys.plain.com",
+      "mentions": 1,
+      "last": "2026-08-30T16:47:12.846Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "t2.msgid.quoramail.com",
+      "mentions": 2,
+      "last": "2026-08-30T02:53:10.368Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "telegram.org",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.285Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "telnyx.com",
+      "mentions": 1,
+      "last": "2026-09-01T17:09:23.907Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "tenderned.nl",
+      "mentions": 9,
+      "last": "2026-09-04T16:08:10.378Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "theaieducator.io",
+      "mentions": 1,
+      "last": "2026-08-30T07:08:49.712Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "theplanbook.com",
+      "mentions": 16,
+      "last": "2026-08-28T07:01:58.042Z",
+      "disposition": "excluded",
+      "reason": "Unrelated external spelling variant with no PitchAI DNS or deployment contract"
+    },
+    {
+      "host": "theplanbook.pitchai.net",
+      "mentions": 19,
+      "last": "2026-08-28T07:01:58.042Z",
+      "disposition": "dashboard-only",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "tm.openai.com",
+      "mentions": 6,
+      "last": "2026-09-05T14:40:00.605Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "tm1.openai.com",
+      "mentions": 1,
+      "last": "2026-09-01T08:55:10.986Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "toetsanalyse.nl",
+      "mentions": 1,
+      "last": "2026-08-28T10:37:07.913Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "toetsinzicht.nl",
+      "mentions": 2,
+      "last": "2026-08-28T10:37:07.913Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "tools.bgi.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.085Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "tools.kitchi.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.850Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "tools.pidgin.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.970Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "tools.pigi.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.912Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "tools.pitchai.net",
+      "mentions": 68,
+      "last": "2026-08-28T07:01:58.029Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "tools.pitcheye.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.693Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "tools.pitchshiny.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.850Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "tools.py.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.854Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "transportdata.be",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.124Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "treaties.un.org",
+      "mentions": 1,
+      "last": "2026-08-30T06:12:18.072Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "trip.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.644Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "trysapi.com",
+      "mentions": 7,
+      "last": "2026-08-28T10:31:53.891Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "twitter.com",
+      "mentions": 3,
+      "last": "2026-08-28T11:00:04.784Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "u17391058.ct.sendgrid.net",
+      "mentions": 1,
+      "last": "2026-08-28T10:56:25.559Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "unimix.com.br",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:58.182Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "unimixbr.netlify.app",
+      "mentions": 1,
+      "last": "2026-08-30T23:21:25.697Z",
+      "disposition": "excluded",
+      "reason": "Historical Netlify origin; monitor the canonical Unimix production apex and www hosts"
+    },
+    {
+      "host": "unimixbrasil.com.br",
+      "mentions": 6,
+      "last": "2026-08-28T07:01:58.206Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "unpkg.com",
+      "mentions": 1,
+      "last": "2026-09-02T19:53:31.569Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "url3243.email.openai.com",
+      "mentions": 6,
+      "last": "2026-09-05T14:40:00.605Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "us-west-2.amazonses.com",
+      "mentions": 1,
+      "last": "2026-08-29T21:52:53.989Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "us1.discourse-cdn.com",
+      "mentions": 1,
+      "last": "2026-08-31T07:52:11.769Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "vanstaverenbegrafenisverzorging.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.376Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "vapi.ai",
+      "mentions": 1,
+      "last": "2026-08-30T16:47:12.846Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "vast.ai",
+      "mentions": 27,
+      "last": "2026-09-05T15:17:15.279Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "vavi.nl",
+      "mentions": 3,
+      "last": "2026-09-05T04:49:43.511Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "venturebeat.com",
+      "mentions": 3,
+      "last": "2026-09-03T16:06:38.181Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "verkeerscentrum.be",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:57.124Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "vlaanderen.be",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.683Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "waarstaatjegemeente.nl",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:56.164Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "wagtail.staging.apologetica.pitcheye.net",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.136Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "web.app",
+      "mentions": 1,
+      "last": "2026-08-30T21:18:36.733Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "weblog.hetcis.nl",
+      "mentions": 1,
+      "last": "2026-08-27T21:18:56.349Z",
+      "disposition": "excluded",
+      "reason": "Archived WordPress deployment was removed; current response is a Hostnet parking page"
+    },
+    {
+      "host": "webshare.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:56.689Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "webshare.io",
+      "mentions": 28,
+      "last": "2026-09-04T02:08:51.232Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "whatsapp.pitchai.net",
+      "mentions": 11,
+      "last": "2026-09-02T17:25:47.643Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "wiki.pitchai.net",
+      "mentions": 17,
+      "last": "2026-09-02T11:06:03.975Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "wkggroep.be",
+      "mentions": 4,
+      "last": "2026-08-31T13:51:32.197Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "ws.app",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:51.291Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.afas.nl",
+      "mentions": 1,
+      "last": "2026-09-04T15:54:49.007Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.agrimatie.nl",
+      "mentions": 1,
+      "last": "2026-08-29T07:34:21.180Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.anthropic.com",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:57.989Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.anwb.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.601Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.assemblyai.com",
+      "mentions": 4,
+      "last": "2026-08-28T11:17:26.665Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.autocontrole.be",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.689Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.boerderij.nl",
+      "mentions": 1,
+      "last": "2026-09-04T15:29:55.688Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.businessbrewery.be",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.362Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.cbs.nl",
+      "mentions": 2,
+      "last": "2026-09-04T15:54:49.007Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.centrumvoorisraelstudies.nl",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "excluded",
+      "reason": "Legacy Solcon hostname has an invalid TLS contract; monitor www.hetcis.nl"
+    },
+    {
+      "host": "www.clmbs.nl",
+      "mentions": 1,
+      "last": "2026-09-02T08:37:12.965Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.driestarwartburg.nl",
+      "mentions": 1,
+      "last": "2026-08-28T07:13:30.292Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.ejustice.just.fgov.be",
+      "mentions": 1,
+      "last": "2026-09-01T13:21:00.960Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.emerce.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.041Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.exact.com",
+      "mentions": 1,
+      "last": "2026-09-04T15:54:49.007Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.flitsmeister.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.124Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.formatiefleren.nl",
+      "mentions": 7,
+      "last": "2026-08-31T07:46:40.918Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "www.gocavlaanderen.be",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:54.689Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.gravatar.com",
+      "mentions": 1,
+      "last": "2026-08-30T16:47:12.846Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.heinemann-shop.com",
+      "mentions": 2,
+      "last": "2026-09-01T19:24:36.700Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.hetcis.nl",
+      "mentions": 11,
+      "last": "2026-09-01T11:40:37.640Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "www.intern.centrumvoorisraelstudies.nl",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "excluded",
+      "reason": "Legacy Solcon internal hostname has an invalid TLS contract; monitor current HetCIS routes"
+    },
+    {
+      "host": "www.landbouwbeurs.com",
+      "mentions": 5,
+      "last": "2026-09-05T10:02:23.004Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.linkedin.com",
+      "mentions": 3,
+      "last": "2026-08-28T11:00:04.784Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.metafooronderwijs.nl",
+      "mentions": 1,
+      "last": "2026-08-28T11:09:52.308Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.microsoft.com",
+      "mentions": 1,
+      "last": "2026-09-04T15:54:49.007Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.nieuweoogst.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.810Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.npmjs.com",
+      "mentions": 1,
+      "last": "2026-08-29T21:52:53.989Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.nsinternational.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.008Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.pcworld.com",
+      "mentions": 1,
+      "last": "2026-08-28T14:14:58.037Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.pianoo.nl",
+      "mentions": 1,
+      "last": "2026-08-31T11:47:47.893Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.pitchai.net",
+      "mentions": 7,
+      "last": "2026-09-04T20:02:12.266Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "www.plain.com",
+      "mentions": 1,
+      "last": "2026-08-30T16:47:12.846Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.plantum.nl",
+      "mentions": 1,
+      "last": "2026-08-29T04:41:26.563Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.postgresql.org",
+      "mentions": 2,
+      "last": "2026-09-05T05:13:52.084Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.potatonl.com",
+      "mentions": 1,
+      "last": "2026-08-30T18:00:28.651Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.psycopg.org",
+      "mentions": 5,
+      "last": "2026-09-05T12:12:48.825Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.quora.com",
+      "mentions": 2,
+      "last": "2026-08-30T02:53:10.368Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.rechtbanken-tribunaux.be",
+      "mentions": 1,
+      "last": "2026-09-01T13:21:00.960Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.reddit.com",
+      "mentions": 8,
+      "last": "2026-08-28T07:01:57.991Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.rwsverkeersinfo.nl",
+      "mentions": 2,
+      "last": "2026-08-30T13:40:02.148Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.slo.nl",
+      "mentions": 1,
+      "last": "2026-08-28T10:50:49.498Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.teamleader.eu",
+      "mentions": 1,
+      "last": "2026-09-04T15:54:49.007Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.tender.app",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.673Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.tenderned.nl",
+      "mentions": 18,
+      "last": "2026-09-05T07:04:24.070Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.theplanbook.com",
+      "mentions": 1,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "excluded",
+      "reason": "Unrelated external spelling variant with no PitchAI DNS or deployment contract"
+    },
+    {
+      "host": "www.unimixbrasil.com.br",
+      "mentions": 2,
+      "last": "2026-08-27T23:19:43.967Z",
+      "disposition": "critical",
+      "reason": "Included in reviewed monitoring config"
+    },
+    {
+      "host": "www.verkeerplaza.nl",
+      "mentions": 2,
+      "last": "2026-08-30T13:40:02.148Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.viaverda.be",
+      "mentions": 2,
+      "last": "2026-09-05T18:24:45.857Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.viofo.com",
+      "mentions": 2,
+      "last": "2026-09-02T11:21:09.845Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.vlaanderen.be",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:54.683Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.vtanederland.nl",
+      "mentions": 1,
+      "last": "2026-09-05T18:42:22.215Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.waze.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.124Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.webshare.io",
+      "mentions": 1,
+      "last": "2026-09-02T12:45:23.434Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.workboard.com",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:57.668Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.youtube.com",
+      "mentions": 7,
+      "last": "2026-08-28T11:00:04.784Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "www.zonneplan.nl",
+      "mentions": 1,
+      "last": "2026-08-28T19:10:22.709Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "x.com",
+      "mentions": 5,
+      "last": "2026-08-31T07:52:11.769Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "z.ai",
+      "mentions": 3,
+      "last": "2026-09-02T09:19:10.059Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    },
+    {
+      "host": "zaaksysteem.nl",
+      "mentions": 4,
+      "last": "2026-08-28T07:01:55.198Z",
+      "disposition": "ignore",
+      "reason": "External research/vendor/contact reference, undeployed name, spelling artifact or non-host token. No owned runtime contract in DNS or ingress."
+    }
+  ],
+  "code_only_owned_non_targets": {
+    "app.pitchai.net": "Events-bus test fixture",
+    "autopar.demos.pitchai.net": "Events-bus test fixture",
+    "platform.pitchai.net": "CLI platform-cell configuration test fixture",
+    "course.pitchai.net": "Monitoring test fixture",
+    "customer.pitchai.net": "Monitoring test fixture",
+    "other.pitchai.net": "Monitoring test fixture",
+    "proof.pitchai.net": "Monitoring test fixture",
+    "target.pitchai.net": "Monitoring test fixture",
+    "orthopars.pitchai.net": "Spelling artifact",
+    "nginx-breakglass.pitchai.net": "Certificate configuration filename, not a server_name"
+  },
+  "reviewed_inventory": {
+    "active": 79,
+    "critical": 69,
+    "dashboard_only": 10,
+    "excluded": 41,
+    "groups": 16
+  },
+  "release": {
+    "status": "deployed-and-live-verified",
+    "staging": {
+      "pr": 115,
+      "url": "https://github.com/JoshuaSeth/pitchai-monitoring/pull/115",
+      "head": "30bf56be87a92ccecac262d75f569a3cf71f8aee",
+      "merge_sha": "d68c78911c380b35c653cee5bf9923d5397b773f"
+    },
+    "main": {
+      "pr": 116,
+      "url": "https://github.com/JoshuaSeth/pitchai-monitoring/pull/116",
+      "head": "a1047e441daa4b7cd840b9a82f08a4a254764962",
+      "merge_sha": "c8ed155994a14194afcf54d806be77a54fa58684"
+    },
+    "deployment": {
+      "run_id": 33992658560,
+      "url": "https://github.com/JoshuaSeth/pitchai-monitoring/actions/runs/33992658560",
+      "status": "success",
+      "sha": "e1f3c7e37a9e2fe7263eba9168e17eceef7fa55e",
+      "production_image": "service-monitoring:e1f3c7e37a9e2fe7263eba9168e17eceef7fa55e",
+      "tests_passed": 248,
+      "tests_skipped": 4,
+      "tests_failed": 0,
+      "test_seconds": 45.37,
+      "containers_running": 6,
+      "container_restarts": 0,
+      "nginx_config_test": "passed; existing duplicate-server-name/protocol-option warnings remain"
+    },
+    "required_checks": [
+      "Enforcement integrity",
+      "Quality ratchet"
+    ],
+    "required_checks_passed": true,
+    "optional_gate": "Full zero-debt gate failed existing repository debt; required ratchet passed all four changed Python files. No gates were bypassed or weakened.",
+    "local_tests": {
+      "staging": 76,
+      "main": 119
+    },
+    "main_ratchet_report_sha256": "6a304827659052c9a051102f3a582d37fd105ce479459449f05f0382426ba9ee",
+    "config_sha256": "f083884a106eff79a423446f85bdb96a9080c7e6102708443de0f382cd2a38d2",
+    "promotion_scope": "Inventory change only; unrelated staging dashboard changes were not promoted. Main-only deployment/count assertions and proxy host map retained.",
+    "first_deployment_attempt": {
+      "run_id": 33992310836,
+      "status": "failed-before-production",
+      "tests_passed": 247,
+      "tests_failed": 1,
+      "tests_skipped": 4,
+      "failure": "Managed Nginx map omitted the two new demo environments and included a retired name outside the active scope contract.",
+      "resolution": "Main-only map correction restores exact equality with all 45 canonical active-host exclusions; no assertions or policies weakened."
+    },
+    "proxy_scope": {
+      "excluded_active_hosts": 45,
+      "quiet_additions_excluded": true,
+      "new_demo_environments_excluded": true,
+      "critical_per_domain_checks_enabled": true,
+      "retired_hosts_note": "Retired names are not scheduled health targets; the proxy scope contract covers active inventory hosts."
+    },
+    "proxy_correction": {
+      "pr": 117,
+      "url": "https://github.com/JoshuaSeth/pitchai-monitoring/pull/117",
+      "head": "8636af40af40e92f9a122929eaac71c232320f6b",
+      "merge_sha": "e1f3c7e37a9e2fe7263eba9168e17eceef7fa55e",
+      "required_checks_passed": true,
+      "nginx_map_sha256": "209c696793c5dd912657983fb75e111522e5638319c3395eff8aa622346668de"
+    },
+    "local_full_suite": {
+      "passed": 247,
+      "failed": 1,
+      "skipped": 4,
+      "failure": "Local Puppeteer JavaScript package absent; failed runner artifact assertion. Production-image CI provides the installed Puppeteer environment and must pass the same full suite.",
+      "proxy_regressions": 5,
+      "proxy_regressions_passed": true
+    },
+    "browser_proof": {
+      "observed_at": "2026-09-05T21:21:38.971Z",
+      "status": 200,
+      "domains": 79,
+      "groups": 16,
+      "database_dependencies": 45,
+      "database_collector": "healthy",
+      "tabs": [
+        "domains",
+        "databases",
+        "infrastructure",
+        "reliability",
+        "journeys",
+        "hotpaths"
+      ],
+      "mobile_width": 390,
+      "document_width": 390,
+      "console_errors": 0,
+      "page_errors": 0,
+      "failed_requests": 0,
+      "http_errors": 0,
+      "screenshot_sha256": "95dd40c2e8cc8aa56909bca482b58330aff27d9a19ca131e7797fe8428173edf"
+    },
+    "new_domain_browser_proof": {
+      "observed_at": "2026-09-05T21:23:34.861Z",
+      "status": 200,
+      "title": "Monitoring",
+      "inventory_text": "79 monitored domains · 16 groups · 41 classified exclusions · reviewed 2026-09-05",
+      "healthy_rendered_rows": [
+        "agents.pitchai.net",
+        "crm.pitchai.net",
+        "nl241-satellite-data-portal.demos.pitchai.net",
+        "rijkscatering.demos.pitchai.net",
+        "apol.135-181-182-48.sslip.io",
+        "route-anchor.135-181-182-48.sslip.io"
+      ],
+      "dashboard_only_labels": [
+        "apol.135-181-182-48.sslip.io",
+        "route-anchor.135-181-182-48.sslip.io"
+      ],
+      "page_errors": 0
+    }
+  },
+  "communication": {
+    "external_messages_sent": 0,
+    "telegram_sent": false,
+    "reason": "Outer reminder prohibits all outgoing messages, including Telegram. This supersedes the embedded private Telegram report instruction. Evidence is delivered in the task thread and repository only."
+  },
+  "live_verification": {
+    "observed_at": "2026-09-05T21:22:48.334192+00:00",
+    "inventory": {
+      "version": 1,
+      "reviewed_at": "2026-09-05",
+      "active_domains": 79,
+      "groups": 16,
+      "retired_domains": 41,
+      "orphaned_state_domains": 0
+    },
+    "service_health": {
+      "enabled": 79,
+      "healthy": 73,
+      "down": 6,
+      "alertable_down": 1,
+      "expected_down": 5,
+      "unknown": 0,
+      "disabled": 0
+    },
+    "new_domains": [
+      {
+        "domain": "apol.135-181-182-48.sslip.io",
+        "group": "learning-demos",
+        "environment": "staging",
+        "alert_policy": {
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "reason": "Isolated historical preview without a current production handoff; retain visibility without paging"
+        },
+        "last": {
+          "ts": 1788643254.858913,
+          "primary_ts": 1788643254.858913,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 265.386,
+          "browser_ms": 638.437,
+          "status_code": 200,
+          "primary_status_code": 200
+        }
+      },
+      {
+        "domain": "route-anchor.135-181-182-48.sslip.io",
+        "group": "infrastructure",
+        "environment": "production",
+        "alert_policy": {
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "reason": "Bootstrap alias shares the critical route-anchor.pitchai.net upstream and locations; avoid duplicate incidents"
+        },
+        "last": {
+          "ts": 1788643254.858913,
+          "primary_ts": 1788643254.858913,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 309.731,
+          "browser_ms": 612.931,
+          "status_code": 200,
+          "primary_status_code": 200
+        }
+      },
+      {
+        "domain": "agents.pitchai.net",
+        "group": "corporate",
+        "environment": "production",
+        "alert_policy": {
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "reason": null
+        },
+        "last": {
+          "ts": 1788643254.858913,
+          "primary_ts": 1788643254.858913,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 207.782,
+          "browser_ms": 737.721,
+          "status_code": 200,
+          "primary_status_code": 200
+        }
+      },
+      {
+        "domain": "crm.pitchai.net",
+        "group": "operations",
+        "environment": "production",
+        "alert_policy": {
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "reason": null
+        },
+        "last": {
+          "ts": 1788643254.858913,
+          "primary_ts": 1788643254.858913,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 576.284,
+          "browser_ms": 954.029,
+          "status_code": 200,
+          "primary_status_code": 200
+        }
+      },
+      {
+        "domain": "nl241-satellite-data-portal.demos.pitchai.net",
+        "group": "learning-demos",
+        "environment": "demo",
+        "alert_policy": {
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "reason": null
+        },
+        "last": {
+          "ts": 1788643254.858913,
+          "primary_ts": 1788643254.858913,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 228.454,
+          "browser_ms": 887.247,
+          "status_code": 200,
+          "primary_status_code": 200
+        }
+      },
+      {
+        "domain": "rijkscatering.demos.pitchai.net",
+        "group": "learning-demos",
+        "environment": "demo",
+        "alert_policy": {
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "reason": null
+        },
+        "last": {
+          "ts": 1788643254.858913,
+          "primary_ts": 1788643254.858913,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 229.829,
+          "browser_ms": 703.255,
+          "status_code": 200,
+          "primary_status_code": 200
+        }
+      }
+    ],
+    "latest_samples": {
+      "agents.pitchai.net": [
+        {
+          "ts": 1788643254.858913,
+          "ok": true,
+          "http_ms": 207.782,
+          "browser_ms": 737.721,
+          "status_code": 200
+        }
+      ],
+      "crm.pitchai.net": [
+        {
+          "ts": 1788643254.858913,
+          "ok": true,
+          "http_ms": 576.284,
+          "browser_ms": 954.029,
+          "status_code": 200
+        }
+      ],
+      "nl241-satellite-data-portal.demos.pitchai.net": [
+        {
+          "ts": 1788643254.858913,
+          "ok": true,
+          "http_ms": 228.454,
+          "browser_ms": 887.247,
+          "status_code": 200
+        }
+      ],
+      "rijkscatering.demos.pitchai.net": [
+        {
+          "ts": 1788643254.858913,
+          "ok": true,
+          "http_ms": 229.829,
+          "browser_ms": 703.255,
+          "status_code": 200
+        }
+      ],
+      "apol.135-181-182-48.sslip.io": [
+        {
+          "ts": 1788643254.858913,
+          "ok": true,
+          "http_ms": 265.386,
+          "browser_ms": 638.437,
+          "status_code": 200
+        }
+      ],
+      "route-anchor.135-181-182-48.sslip.io": [
+        {
+          "ts": 1788643254.858913,
+          "ok": true,
+          "http_ms": 309.731,
+          "browser_ms": 612.931,
+          "status_code": 200
+        }
+      ]
+    },
+    "policy": {
+      "unique_active": 79,
+      "retired_without_scheduled_policy": 41,
+      "quiet_domains": [
+        {
+          "domain": "apol.135-181-182-48.sslip.io",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "route-anchor.135-181-182-48.sslip.io",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "registry.pitchai.net",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "agentcloud.pitchai.net",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "dashboards.pitchai.net",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "support.pitchai.net",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "theplanbook.pitchai.net",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "cursussen.pitchai.net",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "jeff-codex-voice.94.130.17.246.nip.io",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "jeff-work-inbox.94.130.17.246.nip.io",
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        }
+      ],
+      "new_critical": [
+        {
+          "domain": "agents.pitchai.net",
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "sidecar_production_repair": true,
+          "excluded_from_global_proxy": false
+        },
+        {
+          "domain": "crm.pitchai.net",
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "sidecar_production_repair": true,
+          "excluded_from_global_proxy": false
+        },
+        {
+          "domain": "nl241-satellite-data-portal.demos.pitchai.net",
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        },
+        {
+          "domain": "rijkscatering.demos.pitchai.net",
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "sidecar_production_repair": false,
+          "excluded_from_global_proxy": true
+        }
+      ]
+    },
+    "quiet_domain_incidents": [
+      {
+        "incident_id": "domain_down:registry.pitchai.net",
+        "kind": "domain_down",
+        "severity": "expected",
+        "domain": "registry.pitchai.net",
+        "title": "registry.pitchai.net is down — expected / dashboard only",
+        "alert_policy": {
+          "channel": "Telegram",
+          "enabled": false,
+          "mode": "dashboard-only",
+          "reason": "Internal registry status is retained for visibility but is not operationally alertable right now."
+        },
+        "expected": true
+      },
+      {
+        "incident_id": "domain_down:agentcloud.pitchai.net",
+        "kind": "domain_down",
+        "severity": "expected",
+        "domain": "agentcloud.pitchai.net",
+        "title": "agentcloud.pitchai.net is down — expected / dashboard only",
+        "alert_policy": {
+          "channel": "Telegram",
+          "enabled": false,
+          "mode": "dashboard-only",
+          "reason": "AgentCloud is not actively used right now; downtime remains dashboard-visible."
+        },
+        "expected": true
+      },
+      {
+        "incident_id": "domain_down:dashboards.pitchai.net",
+        "kind": "domain_down",
+        "severity": "expected",
+        "domain": "dashboards.pitchai.net",
+        "title": "dashboards.pitchai.net is down — expected / dashboard only",
+        "alert_policy": {
+          "channel": "Telegram",
+          "enabled": false,
+          "mode": "dashboard-only",
+          "reason": "The dashboards surface is not operationally important right now; downtime remains dashboard-visible."
+        },
+        "expected": true
+      },
+      {
+        "incident_id": "domain_down:support.pitchai.net",
+        "kind": "domain_down",
+        "severity": "expected",
+        "domain": "support.pitchai.net",
+        "title": "support.pitchai.net is down — expected / dashboard only",
+        "alert_policy": {
+          "channel": "Telegram",
+          "enabled": false,
+          "mode": "dashboard-only",
+          "reason": "The support surface is not operationally important right now; downtime remains dashboard-visible."
+        },
+        "expected": true
+      },
+      {
+        "incident_id": "domain_down:cursussen.pitchai.net",
+        "kind": "domain_down",
+        "severity": "expected",
+        "domain": "cursussen.pitchai.net",
+        "title": "cursussen.pitchai.net is down — expected / dashboard only",
+        "alert_policy": {
+          "channel": "Telegram",
+          "enabled": false,
+          "mode": "dashboard-only",
+          "reason": "The courses page is not actively operated right now; downtime remains dashboard-visible."
+        },
+        "expected": true
+      }
+    ],
+    "domain_event_producer": {
+      "status": "healthy",
+      "bootstrapped": true,
+      "last_error": null,
+      "pending_count": 0,
+      "open_incident_count": 0,
+      "outbox_count": 0
+    },
+    "quiet_signal_evidence": "Runtime logs retain expected SLO/RED/performance history but explicitly exclude quiet targets from Telegram routing. All ten quiet hosts are excluded from the global proxy map. Expected-down rows have severity expected and alerts disabled, not actionable warnings.",
+    "alertable_down": [
+      "dispatch.pitchai.net"
+    ]
+  },
+  "remaining_risks": [
+    "dispatch.pitchai.net was alertably down before and after this inventory deployment; its existing critical policy is preserved.",
+    "Unrelated retained host, performance, RED, container, monitor-integrity and database warnings remain outside this coverage sweep.",
+    "CRM proof covers its unauthenticated SSO entry/redirect contract, not authenticated CRM CRUD.",
+    "Repository-wide optional zero-debt gate still reports existing debt. Required checks and the complete production deployment test suite passed.",
+    "Nginx config validates but reports existing duplicate server-name/protocol-option warnings unrelated to the new map."
+  ],
+  "completion_audit": [
+    {
+      "requirement": "Fresh nine-day discovery",
+      "evidence": "scan and candidate_dispositions: 354144 messages, 299 session sources, 46 catalog projects, PM changes across 29 projects, 50 code stores, ingress on four hosts and latest DNS snapshot."
+    },
+    {
+      "requirement": "Classify every missing name",
+      "evidence": "445 unique candidate dispositions plus ingress-only discoveries; six active additions and one explicit historical exclusion."
+    },
+    {
+      "requirement": "Visible and correctly alerting",
+      "evidence": "Live API inventory, persisted HTTP/browser samples, six rendered healthy rows, four critical policies and two explicit dashboard-only labels."
+    },
+    {
+      "requirement": "No duplicate/noisy targets",
+      "evidence": "79 unique active names; ten quiet policies excluded from routing and proxy scope; canonical Route Anchor remains critical; 41 retired names have no scheduled incident policy."
+    },
+    {
+      "requirement": "No critical live domain missing",
+      "evidence": "All 72 web-address names in the DNS snapshot classified; recent agent/code/PM/DNS launches and current ingress reconciled with deployed inventory."
+    },
+    {
+      "requirement": "Normal integration and production path",
+      "evidence": "Staging PR 115, main PR 116 and main-only proxy correction PR 117 merged with required checks; production deployment 33992658560 passed 248 tests and live browser gate."
+    },
+    {
+      "requirement": "DNS unchanged",
+      "evidence": "No DNS mutations were made."
+    },
+    {
+      "requirement": "Report and outgoing boundary",
+      "evidence": "This evidence artifact and task-thread report replace the embedded Telegram request because the outer reminder explicitly prohibits all outgoing messages."
+    }
+  ]
+}
