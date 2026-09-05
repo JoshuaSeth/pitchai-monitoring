@@ -22,6 +22,9 @@ def _words(value: str) -> frozenset[str]:
 
 EXPECTED_ACTIVE_DOMAINS = _words(
     """
+    agents.pitchai.net crm.pitchai.net nl241-satellite-data-portal.demos.pitchai.net
+    rijkscatering.demos.pitchai.net
+    apol.135-181-182-48.sslip.io route-anchor.135-181-182-48.sslip.io
     pitchai.net www.pitchai.net assets.pitchai.net auth.pitchai.net 2fa-server.37.27.67.52.nip.io
     breakglass.pitchai.net chat.pitchai.net codex-cowork.pitchai.net codex-voice.pitchai.net
     codexusage.pitchai.net cursussen.pitchai.net dispatch.pitchai.net filedrop.pitchai.net monitoring.pitchai.net
@@ -46,6 +49,8 @@ EXPECTED_ACTIVE_DOMAINS = _words(
 )
 
 EXPECTED_DASHBOARD_ONLY_DOMAINS = frozenset({
+    "apol.135-181-182-48.sslip.io",
+    "route-anchor.135-181-182-48.sslip.io",
     "registry.pitchai.net",
     "agentcloud.pitchai.net",
     "dashboards.pitchai.net",
@@ -58,6 +63,7 @@ EXPECTED_DASHBOARD_ONLY_DOMAINS = frozenset({
 
 EXPECTED_RETIRED_DOMAINS = _words(
     """
+    overhaul.37.27.67.52.nip.io
     n8n.pitchai.net quickchat.pitchai.net digibead.demos.pitchai.net
     apologetica-react-staging.pitchai.net chat-staging.pitchai.net cowork.pitchai.net
     www.afasask.pitchai.net www.demo.afasask.pitchai.net jeff.codex-voice.pitchai.net
