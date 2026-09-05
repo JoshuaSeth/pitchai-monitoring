@@ -825,7 +825,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-09-02"
+  reviewed_at: "2026-09-05"
   authoritative_sources:
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
@@ -842,6 +842,10 @@ inventory:
     - "last-nine-day live-agent, PM DB, repository and deployment evidence sweep (2026-09-02)"
     - "Jeff Caddy/runtime inventory and live public DNS, TLS and HTTP contract probes (2026-09-02)"
     - "SkyBuyFly legacy-domain parking and certificate audit (2026-09-02)"
+    - "Four-cell live-agent, PM DB and repository history sweep (2026-09-05)"
+    - "Namecheap snapshot 20260904T185322Z-302f43e28082-c7660794: 76 records, fingerprint 302f43e28082edce5fc04a3056f42f02eebfe19abe7c103f670fb64fe78765a8"
+    - "CRM, Agent Engine, NL241 and Rijkscatering activation receipts and live public contracts (2026-09-05)"
+    - "Current main/dev Nginx cross-check: Apologetica preview, Route Anchor bootstrap alias and obsolete overhaul preview (2026-09-05)"
 
 domain_groups:
   corporate:
@@ -939,6 +943,87 @@ check_profiles:
         state: attached
 
 domains:
+  - domain: apol.135-181-182-48.sslip.io
+    label: "Apologetica isolated React preview"
+    group: learning-demos
+    environment: staging
+    kind: application
+    sources: [pitchai-dev-nginx-preview, preview-certificate-renewal-timer, live-probe-2026-09-05]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Isolated historical preview without a current production handoff; retain visibility without paging"
+    check:
+      <<: *html_200
+      url: https://apol.135-181-182-48.sslip.io/
+      expected_final_host_suffix: apol.135-181-182-48.sslip.io
+      expected_title_contains: "Geloofsverdediging.nl"
+  - domain: route-anchor.135-181-182-48.sslip.io
+    label: "Route Anchor bootstrap alias"
+    group: infrastructure
+    environment: production
+    kind: alias
+    sources: [pitchai-dev-nginx-route-anchor, live-probe-2026-09-05]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Bootstrap alias shares the critical route-anchor.pitchai.net upstream and locations; avoid duplicate incidents"
+    check:
+      <<: *json_200
+      url: https://route-anchor.135-181-182-48.sslip.io/healthz
+      expected_final_host_suffix: route-anchor.135-181-182-48.sslip.io
+      required_text_all: [status, ok, seth-security-evidence]
+  - domain: agents.pitchai.net
+    label: "PitchAI Agent Engine website"
+    group: corporate
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-09-04, agent-engine-production-activation, live-probe-2026-09-05]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://agents.pitchai.net/
+      expected_final_host_suffix: agents.pitchai.net
+      expected_title_contains: "PitchAI Agent Engine"
+  - domain: crm.pitchai.net
+    label: "PitchAI CRM"
+    group: operations
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-09-02, crm-production-activation, live-probe-2026-09-05]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *sso_edge
+      url: https://crm.pitchai.net/crm
+  - domain: nl241-satellite-data-portal.demos.pitchai.net
+    label: "NL241 satellite data portal demo"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-09-04, nl241-production-activation, live-probe-2026-09-05]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://nl241-satellite-data-portal.demos.pitchai.net/
+      expected_final_host_suffix: nl241-satellite-data-portal.demos.pitchai.net
+      expected_title_contains: "Satellietdataportaal"
+      required_selectors_all:
+        - selector: "#search-title"
+          state: visible
+  - domain: rijkscatering.demos.pitchai.net
+    label: "Rijkscatering sustainability monitor demo"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-09-04, nl151-production-activation, live-probe-2026-09-05]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://rijkscatering.demos.pitchai.net/
+      expected_final_host_suffix: rijkscatering.demos.pitchai.net
+      expected_title_contains: "Rijkscatering Monitor"
   - domain: pitchai.net
     label: "PitchAI website"
     group: corporate
@@ -1707,6 +1792,10 @@ domains:
       required_text_all: ["Since 2003", "Unimix"]
 
 retired_domains:
+  - domain: overhaul.37.27.67.52.nip.io
+    classification: historical
+    reason: "Historical HTTP-only corporate preview with no certificate-covered HTTPS service contract"
+    sources: [pitchai-main-nginx-preview-overhaul, live-tls-probe-2026-09-05]
   - domain: n8n.pitchai.net
     classification: retired
     reason: "Decommissioned automation route; no live service contract"
