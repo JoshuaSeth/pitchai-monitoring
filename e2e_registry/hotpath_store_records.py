@@ -149,10 +149,13 @@ def insert_event_intent(
     """Persist the typed event intent in the report transaction.
 
     Raises:
-        HotpathStateError: If the incident decision omits its event kind.
+        HotpathStateError: If the incident decision omits its event kind or fingerprint.
     """
     if decision.event_kind is None:
         error = "event intent requires an event kind"
+        raise HotpathStateError(error)
+    if not decision.event_fingerprint:
+        error = "event intent requires an incident fingerprint"
         raise HotpathStateError(error)
     details = _event_details(report, lane, persistence, decision)
     intent_id = event_intent_id(persistence.report_id, decision.event_kind)
@@ -206,7 +209,7 @@ def _event_details(
         "failure_reason": report.failure_reason,
         "hotpath_id": report.lane_id,
         "hotpath_name": report.name,
-        "incident_fingerprint": decision.fingerprint,
+        "incident_fingerprint": decision.event_fingerprint,
         "incident_key": f"hotpath:{report.lane_id}",
         "lane_id": report.lane_id,
         "monitoring_report_id": persistence.report_id,

@@ -64,7 +64,7 @@ def operator_snapshot() -> JsonObject:
     """Return operator telemetry containing identities that must be removed.
 
     Returns:
-        Complete dashboard data for two measured accounts.
+        Complete dashboard data for two standard accounts and one protected account.
     """
     return {
         "generated_at": "2026-08-28T12:00:00Z",
@@ -127,8 +127,21 @@ def operator_snapshot() -> JsonObject:
             ],
         },
         "reset_bank": {"total_available": 3, "details": ["must not escape"]},
-        "accounts": [_account_one(), _account_two()],
+        "accounts": [_account_one(), _account_two(), _protected_account()],
     }
+
+
+def routing_inventory() -> list[JsonObject]:
+    """Return raw metadata used to verify the account routing-tier join.
+
+    Returns:
+        Inventory rows for every account in :func:`operator_snapshot`.
+    """
+    return [
+        {"metadata": {"label": "private-one@pitchai.net", "last_resort": False}},
+        {"metadata": {"label": "private-two@pitchai.net", "last_resort": False}},
+        {"metadata": {"label": "private-reserve@pitchai.net", "last_resort": True}},
+    ]
 
 
 def _account_one() -> JsonObject:
@@ -137,6 +150,7 @@ def _account_one() -> JsonObject:
         "label": "private-one@pitchai.net",
         "email": "private-one@pitchai.net",
         "enabled": True,
+        "last_resort": False,
         "auth_valid": True,
         "stale": False,
         "selectable_now": True,
@@ -152,6 +166,7 @@ def _account_two() -> JsonObject:
         "label": "private-two@pitchai.net",
         "email": "private-two@pitchai.net",
         "enabled": True,
+        "last_resort": False,
         "auth_valid": True,
         "stale": False,
         "selectable_now": False,
@@ -161,10 +176,27 @@ def _account_two() -> JsonObject:
     }
 
 
+def _protected_account() -> JsonObject:
+    """Return one currently selectable protected account."""
+    return {
+        "label": "private-reserve@pitchai.net",
+        "email": "private-reserve@pitchai.net",
+        "enabled": True,
+        "last_resort": True,
+        "auth_valid": True,
+        "stale": False,
+        "selectable_now": True,
+        "status": "available",
+        "five_hour": _window(88.0, "2026-08-28T13:00:00Z", 18_000),
+        "weekly": _window(90.0, "2026-09-03T13:00:00Z", 604_800),
+    }
+
+
 def _window(remaining: float, reset_at: str, window_seconds: int) -> JsonObject:
     """Return one reported provider capacity window."""
     return {
         "reported": True,
+        "used_percent": 100.0 - remaining,
         "remaining_percent": remaining,
         "reset_at": reset_at,
         "window_seconds": window_seconds,

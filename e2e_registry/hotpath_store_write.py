@@ -102,53 +102,89 @@ def _decide(
             action=action,
             event_kind=event_kind,
             fingerprint=fingerprint,
+            event_fingerprint=fingerprint if event_kind else None,
             update_state=False,
             next_state=StateUpdate(0, 0, None, None),
         )
-    if (
-        previous is not None
-        and report.occurred_at.timestamp() <= previous.latest_occurred_at_ts
-    ):
+    if previous is not None and report.occurred_at.timestamp() <= previous.latest_occurred_at_ts:
         return IncidentDecision(
             action="out_of_order",
             event_kind=None,
             fingerprint=fingerprint,
+            event_fingerprint=None,
             update_state=False,
             next_state=_unchanged_state(previous),
         )
     fail_streak = 0 if report.success else (previous.fail_streak + 1 if previous else 1)
     success_streak = (previous.success_streak + 1 if previous else 1) if report.success else 0
-    event_kind: str | None = None
-    action = "none"
-    if report.success and previous is not None and not previous.current_success:
-        event_kind, action = "hotpath_recovered", "queued_recovery"
-        fingerprint = previous.last_event_fingerprint
-    elif not report.success and report.severity == "critical":
-        changed = (
-            previous is None
-            or previous.current_success
-            or previous.last_event_fingerprint != fingerprint
-        )
-        cooldown_elapsed = previous is None or previous.last_event_at_ts is None
-        if previous is not None and previous.last_event_at_ts is not None:
-            cooldown_elapsed = received_at_ts - previous.last_event_at_ts >= cooldown_seconds
-        if changed or cooldown_elapsed:
-            event_kind, action = "hotpath_red", "queued_failure"
-        else:
-            action = "suppressed_cooldown"
-    elif not report.success:
-        action = "warning_only"
-    previous_fingerprint = previous.last_event_fingerprint if previous else None
-    previous_event_at = previous.last_event_at_ts if previous else None
-    last_fingerprint = fingerprint if event_kind is not None else previous_fingerprint
-    last_event_at = received_at_ts if event_kind is not None else previous_event_at
+    event_kind, action, event_fingerprint = _incident_transition(
+        report,
+        previous,
+        fingerprint,
+        cooldown_seconds,
+        received_at_ts,
+    )
+    last_fingerprint, last_event_at = _next_incident_state(
+        previous,
+        event_kind,
+        event_fingerprint,
+        received_at_ts,
+    )
     return IncidentDecision(
         action=action,
         event_kind=event_kind,
         fingerprint=fingerprint,
+        event_fingerprint=event_fingerprint,
         update_state=True,
         next_state=StateUpdate(fail_streak, success_streak, last_fingerprint, last_event_at),
     )
+
+
+def _incident_transition(
+    report: HotpathReportRequest,
+    previous: LaneState | None,
+    fingerprint: str | None,
+    cooldown_seconds: int,
+    received_at_ts: float,
+) -> tuple[str | None, str, str | None]:
+    if report.success:
+        if previous is None or previous.current_success:
+            return None, "none", None
+        if previous.last_event_fingerprint:
+            return "hotpath_recovered", "queued_recovery", previous.last_event_fingerprint
+        return None, "recovered_without_incident", None
+    if report.severity != "critical":
+        if previous is not None and previous.last_event_fingerprint:
+            return (
+                "hotpath_recovered",
+                "queued_recovery_to_warning",
+                previous.last_event_fingerprint,
+            )
+        return None, "warning_only", None
+    changed = previous is None or previous.current_success or previous.last_event_fingerprint != fingerprint
+    cooldown_elapsed = previous is None or previous.last_event_at_ts is None
+    if previous is not None and previous.last_event_at_ts is not None:
+        cooldown_elapsed = received_at_ts - previous.last_event_at_ts >= cooldown_seconds
+    if changed or cooldown_elapsed:
+        transition = ("hotpath_red", "queued_failure", fingerprint)
+    else:
+        transition = (None, "suppressed_cooldown", None)
+    return transition
+
+
+def _next_incident_state(
+    previous: LaneState | None,
+    event_kind: str | None,
+    event_fingerprint: str | None,
+    received_at_ts: float,
+) -> tuple[str | None, float | None]:
+    if event_kind == "hotpath_red":
+        return event_fingerprint, received_at_ts
+    if event_kind == "hotpath_recovered":
+        return None, None
+    if previous is None:
+        return None, None
+    return previous.last_event_fingerprint, previous.last_event_at_ts
 
 
 def _unchanged_state(previous: LaneState) -> StateUpdate:

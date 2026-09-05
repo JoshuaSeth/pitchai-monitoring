@@ -63,6 +63,18 @@ class _StoreSchemaModule(Protocol):
         """Read one required string field from a database row."""
         raise NotImplementedError
 
+    def row_optional_string(self, row: sqlite3.Row, key: str) -> str | None:
+        """Read one nullable string field from a database row."""
+        raise NotImplementedError
+
+    def row_integer(self, row: sqlite3.Row, key: str) -> int:
+        """Read one required integer field from a database row."""
+        raise NotImplementedError
+
+    def row_value(self, row: sqlite3.Row, key: str) -> str | int | float | bytes | None:
+        """Read one narrowed SQLite scalar from a database row."""
+        raise NotImplementedError
+
 
 class _StoreWriteModule(Protocol):
     @staticmethod

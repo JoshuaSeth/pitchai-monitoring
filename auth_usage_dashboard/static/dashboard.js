@@ -3,6 +3,7 @@
 
   const state = {
     snapshot: null,
+    lunaReserveSnapshot: null,
     zone: "utc",
     historySeries: "combined",
     bankExpanded: false,
@@ -28,6 +29,14 @@
     medium: "Medium risk",
     high: "High risk",
     unknown: "Unavailable",
+  };
+
+  const lunaHealthLabels = {
+    active_routable: "Routable",
+    available_but_stranded: "Stranded",
+    protected_only: "Protected",
+    exhausted_or_unhealthy: "Unavailable",
+    unavailable: "Not reported",
   };
 
   function byId(id) {
@@ -337,6 +346,61 @@
       cells.push(cell);
     }
     setChildren(byId("forecast-grid"), cells);
+  }
+
+  function renderLunaReserve(reserve) {
+    const payload = reserve || {};
+    const observed = Number(payload.observed_accounts || 0);
+    const total = finiteNumber(payload.maximum_known_points);
+    const remaining = finiteNumber(payload.remaining_points);
+    const active = finiteNumber(payload.active_routable_points);
+    const stranded = finiteNumber(payload.stranded_safe_drain_points);
+    const protectedPoints = finiteNumber(payload.protected_last_resort_points);
+    const floor = finiteNumber(payload.safety_floor_percent);
+    const health = payload.health || "unavailable";
+
+    byId("luna-total").textContent = total === null || !observed ? "-" : `${number(total, 0)} pts`;
+    byId("luna-total-detail").textContent = `${observed} entitled account${observed === 1 ? "" : "s"}`;
+    byId("luna-remaining").textContent = remaining === null || !observed ? "-" : `${number(remaining, 0)} pts`;
+    byId("luna-remaining-detail").textContent = finiteNumber(payload.remaining_percent_average) === null
+      ? "No exact provider reading"
+      : `${number(payload.remaining_percent_average, 1)}% average headroom`;
+    byId("luna-routable").textContent = active === null || !observed ? "-" : `${number(active, 0)} pts`;
+    byId("luna-routable-detail").textContent = `${number(payload.active_routable_account_equivalents || 0, 2)} account-equivalents · capacity points, not a task count`;
+    byId("luna-guarded").textContent = !observed ? "-" : `${number((stranded || 0) + (protectedPoints || 0), 0)} pts`;
+    byId("luna-guarded-detail").textContent = `${number(stranded || 0, 0)} stranded · ${number(protectedPoints || 0, 0)} last-resort protected`;
+    const resetDate = parseDate(payload.next_reset_at);
+    byId("luna-reset").textContent = resetDate
+      ? `Next reserve reset: ${formatTime(payload.next_reset_at, false)} · ${formatDuration((resetDate.getTime() - Date.now()) / 1000)}`
+      : "No reserve reset reported";
+
+    const healthNode = byId("luna-health");
+    healthNode.className = `luna-health health-${health}`;
+    healthNode.textContent = lunaHealthLabels[health] || health;
+    if (active > 0) {
+      byId("luna-policy-title").textContent = `${number(active, 0)} reserve points are safely routable now`;
+      byId("luna-policy-detail").textContent = "Reviewed background and normal Luna profiles may use gpt-reserve only while main capacity is constrained. High-reasoning, critical, direct-send, and last-resort work remain forbidden.";
+    } else if (health === "available_but_stranded") {
+      byId("luna-policy-title").textContent = "Reserve exists, but no safe shared route is active";
+      byId("luna-policy-detail").textContent = "Capacity on an account without the active healthy shared lease is shown as stranded and is not advertised as runnable work.";
+    } else if (health === "protected_only") {
+      byId("luna-policy-title").textContent = "Only emergency-tier reserve is visible";
+      byId("luna-policy-detail").textContent = "Last-resort accounts are protected from low-priority Luna routing, even when their separate reserve meter has headroom.";
+    } else {
+      byId("luna-policy-title").textContent = "No Luna reserve route is currently safe";
+      byId("luna-policy-detail").textContent = "The scheduler fails closed when entitlement, freshness, lease health, or safety-floor evidence is missing.";
+    }
+    const reliability = payload.reliability_status === "provider_meter_observed"
+      ? "Provider meter observed; generation canary pending"
+      : "Reliability unverified";
+    const facts = [
+      `Model ${payload.model || "gpt-reserve"} · Luna-equivalent`,
+      `Meter ${payload.metered_feature || "base_model_inference"} · reserve-only`,
+      `Safety floor ${floor === null ? "unknown" : `${number(floor, 0)}% per account`}`,
+      `${reliability} · exact currency price not exposed`,
+      "Reasoning low / medium / max; no ultra",
+    ].map((value) => element("span", "", value));
+    setChildren(byId("luna-facts"), facts);
   }
 
   function renderRunout(forecast) {
@@ -708,10 +772,12 @@
       : "Usage probe pending";
   }
 
-  function render(snapshot) {
+  function render(snapshot, lunaReserveSnapshot) {
     state.snapshot = snapshot;
+    if (lunaReserveSnapshot !== undefined) state.lunaReserveSnapshot = lunaReserveSnapshot;
     renderLiveState(snapshot);
     renderDecision(snapshot);
+    renderLunaReserve((state.lunaReserveSnapshot || {}).luna_reserve || {});
     renderRunout(snapshot.runout_forecast || {});
     renderForecasts(snapshot.forecasts || []);
     renderHistory(snapshot.usage_history || {});
@@ -728,11 +794,29 @@
 
   async function loadSnapshot(options) {
     const opts = options || {};
-    const response = await fetch("/api/v1/capacity", { credentials: "same-origin", cache: "no-store" });
+    const [response, lunaReserveSnapshot] = await Promise.all([
+      fetch("/api/v1/capacity", { credentials: "same-origin", cache: "no-store" }),
+      loadLunaReserve(),
+    ]);
     if (!response.ok) throw new Error(`capacity_http_${response.status}`);
     const snapshot = await response.json();
-    render(snapshot);
+    render(snapshot, lunaReserveSnapshot);
     if (opts.toast) showToast("Broker snapshot updated");
+  }
+
+  async function loadLunaReserve() {
+    try {
+      const response = await fetch("/api/v1/luna-reserve", { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error(`luna_reserve_http_${response.status}`);
+      return await response.json();
+    } catch (error) {
+      return {
+        luna_reserve: {
+          health: "unavailable",
+          reliability_status: "unverified",
+        },
+      };
+    }
   }
 
   async function requestRefresh() {
@@ -748,7 +832,8 @@
       });
       if (!response.ok) throw new Error(`refresh_http_${response.status}`);
       const payload = await response.json();
-      render(payload.snapshot);
+      const lunaReserveSnapshot = await loadLunaReserve();
+      render(payload.snapshot, lunaReserveSnapshot);
       if (payload.probe_started) showToast("Safe usage probe completed");
       else if (payload.reason === "probe_throttled") showToast(`Probe is fresh; retry in ${payload.retry_after_seconds}s`);
       else showToast("Snapshot refreshed without probing");

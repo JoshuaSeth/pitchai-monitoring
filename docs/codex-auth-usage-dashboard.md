@@ -53,6 +53,98 @@ One normalized capacity point equals one percentage point of the provider-window
 - Stale, auth-invalid, disabled, and unknown accounts do not contribute usable points.
 - The broker safety floor is honored. An account at or below `AUTH_TOKEN_SERVER_MIN_FIVE_HOUR_REMAINING_PERCENT` is shown as five-hour limited even if the provider still reports a small remainder.
 
+### Scheduling-capacity contract
+
+The PitchAI-identity-protected `/api/v1/scheduling-capacity` endpoint publishes
+schema 4 for admission and dashboard readers. Its capacity and burn math covers
+every enabled, auth-valid, fresh account the authentication broker can actually
+route, including a protected or private-relay account when the broker exposes
+it as burnable. The endpoint never decides which concrete account burns first.
+
+`protected_last_resort` is informational routing metadata. It says that the
+authentication broker owns account ordering and should route those accounts
+last; `included_in_admission=true` confirms their usable points remain in the
+aggregate. An omitted `last_resort` marker follows the broker's `false`
+(standard-tier) default. Unmatched identities, duplicate labels, and malformed
+explicit markers are reported through `classification_status` and
+`unclassified_account_count`, but cannot manufacture a critical-only admission
+threshold or remove otherwise burnable capacity.
+
+`burn_windows.last_hour` and `burn_windows.last_24_hours` expose reset-aware
+capacity-point deltas and, where sampled, provider-token deltas. Native windows
+exclude provider resets, counter regressions, and gaps over 20 minutes and
+report temporal coverage and confidence. With no continuous native interval,
+the payload labels a current-provider-window average estimate, claims zero
+native coverage, and leaves provider tokens unavailable. Token deltas are an
+attribution denominator for project reporting; they never replace capacity
+points as the admission unit.
+
+Deploy schema-4 readers before this producer. Keep existing schema-2 and
+schema-3 readers active through the rolling window, then deploy the schema-4
+producer, verify both burn windows and the broker-owned routing metadata, and
+only then enable policy logic that consumes the new fields.
+
+### Luna reserve capacity
+
+The prominent Luna panel is a separate meter; it is not another rendering of
+the main five-hour or weekly capacity pool. The browser reads a dedicated,
+PitchAI-identity-protected `/api/v1/luna-reserve` endpoint. Server-side, that
+endpoint relays and validates the broker's identity-free
+`/v1/admin/capacity` aggregate with the existing admin credential; neither the
+credential nor account identity enters the browser response. The broker counts
+only a provider additional limit whose outer record has
+`limit_name=gpt-reserve` and `metered_feature=base_model_inference`, with
+availability and windows read from that record's nested `rate_limit` object.
+Public `gpt-5.6-luna`, Spark, generic quota windows, and unrecognized additional
+limits are excluded.
+
+The provider model catalog currently exposes public `gpt-5.6-luna` and hides
+`gpt-reserve`, while reporting matching context, input, tool, output, and
+reasoning-level capabilities for both. The dashboard therefore labels the
+separate meter **Luna-equivalent reserve**. The catalog calls Luna fast and
+affordable, but exposes no auditable currency price; the UI does not invent a
+dollar saving. The UI distinguishes observed provider-meter reliability from
+the still-pending controlled generation canary.
+
+The entitlement is volatile. Four accounts exposed 400 unused reserve points
+at 16:19-16:22 UTC on 2 September 2026, but a no-generation refresh at
+18:11-18:23 UTC removed the exact reserve meter from every auth-valid account.
+Those accounts instead exposed only `GPT-5.3-Codex-Spark` /
+`codex_bengalfox`. Read-only model-catalog calls still returned both Luna
+labels, so catalog presence is not capacity evidence. OpenAI documents
+[Codex-Spark](https://learn.chatgpt.com/docs/agent-configuration/speed.md) as a
+separate, less-capable research-preview model with its own usage limit, and
+[public Luna](https://learn.chatgpt.com/docs/models.md) as the economical choice
+for clear, repeatable work. Neither is silently counted as hidden reserve.
+Consequently the current panel correctly shows no measured or routable reserve,
+and the scheduler rollout remains disabled until the exact meter reappears.
+
+The panel shows aggregate measured remainder, provider reset, health, and
+policy-safe drain after preserving the broker's
+`AUTH_TOKEN_SERVER_MIN_LUNA_RESERVE_REMAINING_PERCENT` floor (default 20%). It
+separates:
+
+- total and remaining measured reserve points;
+- all policy-safe points after the per-account floor;
+- policy-safe points on the active standard app-server lease, which are the
+  only points the current shared scheduler can drain without changing accounts;
+- safe points stranded on a main-exhausted or otherwise unusable shared account;
+- safe points held on the protected last-resort account, which low-priority
+  reserve routing must never use.
+
+An active session alone does not make reserve routable. The same account must
+remain enabled, auth-valid, fresh, explicitly reserve-allowed, below neither
+provider nor broker floors, generic-main eligible, and standard tier. The
+dashboard intentionally omits the account behind each aggregate. This protects
+Sol/Terra continuity: the shared app server is never moved onto a main-exhausted
+account merely to harvest its reserve meter. The panel is read-only and does
+not submit a model request, acquire a lease, switch an account, or enable
+scheduler routing.
+
+The Luna endpoint has its own schema version. The existing
+`/api/v1/capacity` operator contract remains schema 4, so reserve visibility is
+additive for dashboard clients and does not relabel the main-capacity payload.
+
 Provider window names are not stable identifiers. The dashboard classifies reported windows by duration: four to six hours is the five-hour window, and six days or longer is the weekly window. A missing five-hour window remains `null` in the API and is labeled **Provider does not expose 5h** in that specific table cell; it is never interpreted as 0% remaining or as a full five-hour window. Weekly columns, aggregate forecasts, runout estimates, and reset arrivals continue to use authoritative weekly data when available. Aggregate percentages include explicit reporting and unknown-account counts.
 
 OpenAI currently appears to have temporarily removed or disabled the five-hour

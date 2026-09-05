@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .domain_runtime import AlertPolicy, DomainCheckSpec
     from .json_types import JsonInput
 
-_EXPECTED_ACTIVE_DOMAIN_COUNT = 71
+_EXPECTED_ACTIVE_DOMAIN_COUNT = 73
 _EXPECTED_DATABASE_RULE_COUNT = 27
 _EXPECTED_DOMAIN_GROUP_COUNT = 16
 _EXPECTED_ROUTING_POLICY_COUNT = 3

@@ -4,7 +4,9 @@ Client hotpaths are visible, value-bearing product journeys. They are deliberate
 
 ## Canonical inventory and timing
 
-`e2e_registry/hotpath_inventory.json` is the checked-in runtime inventory. Version 1 contains the complete 13-lane estate: DFT, AutoPAR, AIPC/SkyBuyFly, potAIto, AFASAsk/GZB, Orthoparse, QuickChat RSR, DePlanBook Play, CISNL, AIGENDA Rules, DePlanBook CMS, Apologetica CMS, and AIGENDA Calendar. OrthoShare is not admitted because it has no deployed product surface.
+`e2e_registry/hotpath_inventory.json` is the checked-in runtime inventory. Version 1 contains the complete 14-lane estate: DFT, AutoPAR, two intentional AIPC/SkyBuyFly lanes, potAIto, AFASAsk/GZB, Orthoparse, QuickChat RSR, DePlanBook Play, CISNL, AIGENDA Rules, DePlanBook CMS, Apologetica CMS, and AIGENDA Calendar. OrthoShare is not admitted because it has no deployed product surface.
+
+The AIPC duplication is deliberate. `aipc-pedantic-e2e-ui-qa-v2` preserves the older deep UI QA lane, reminder, retained results, and incident history. `aipc-hotpath-monitor` is the explicit current UI/API/browser owner across the primary and stable SkyBuyFly HEL1 ingress boundaries. The two lanes have separate agent and reminder identities and report independent state; neither may submit under the other's lane ID.
 
 Every row binds lane ID, project, display name, target surface, primary domain, PitchAI live-agent global ID, exact reminder ID, and the expected visible behavior. Callers cannot rename those values. The canonical PitchAI engine tag is `hot-path-testing`; normal cadence is 172,800 seconds, stale threshold is 259,200 seconds, and incident cooldown is exactly 1,800 seconds.
 
@@ -24,7 +26,7 @@ The registry SQLite database owns three additive structures: immutable reports, 
 
 Current state advances only for a newer real occurrence. Out-of-order values remain immutable history and return `out_of_order`, but cannot replace the lane projection. Synthetic protocol proof is retained independently and never mutates a real lane.
 
-For critical real failures, the material incident fingerprint binds lane ID, severity, target surface, normalized failure reason, failure class, failure phase, source SHA, and deployed SHA. It intentionally excludes run IDs, timestamps, evidence keys, and receipt hashes. A `hotpath_red` intent is created on the first critical failure, an immediate material fingerprint change, or unchanged persistence after 1,800 seconds. Identical material failures inside that cooldown are `suppressed_cooldown`. Warning failures are `warning_only`. The first later real PASS emits `hotpath_recovered` with the prior incident fingerprint.
+For critical real failures, the material incident fingerprint binds lane ID, severity, target surface, normalized failure reason, failure class, failure phase, source SHA, and deployed SHA. It intentionally excludes run IDs, timestamps, evidence keys, and receipt hashes. A `hotpath_red` intent is created on the first critical failure, an immediate material fingerprint change, or unchanged persistence after 1,800 seconds. Identical material failures inside that cooldown are `suppressed_cooldown`. A warning with no open critical incident is `warning_only`. A newer warning after an open critical emits one `hotpath_recovered` against the exact critical fingerprint, clears that open incident identity, and retains the current warning projection as `queued_recovery_to_warning`. A later PASS recovers only an incident fingerprint that is still open; otherwise it is `recovered_without_incident` and emits no event.
 
 ## Events Inbox delivery
 
