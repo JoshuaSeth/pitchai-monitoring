@@ -1,0 +1,64 @@
+{
+  "status": "in_progress",
+  "started_at": "2026-09-06T20:00:10Z",
+  "lane": "codex-subscription-capacity-forensics-20260906",
+  "pm_task_id": "677d9b15-6d44-489c-9aed-6f7d905c9f82",
+  "integration_target": "origin/staging",
+  "initial_commit": "d68c78911c380b35c653cee5bf9923d5397b773f",
+  "compute": {
+    "model": "gpt-6-astra",
+    "requested_reasoning_effort": "xhigh",
+    "priority": 100,
+    "priority_default_verified": true,
+    "live_thread_settings_verified": true,
+    "live_thread_reasoning_effort": "xhigh",
+    "service_tier": "default",
+    "initial_turn_reasoning_effort": "max",
+    "first_xhigh_continuation_verified": false,
+    "note": "Supported CLI normal steer and thread/settings/update accepted. Supported managed thread/resume readback returns Astra xhigh for the same active thread. Native SQLite still describes the initial max turn; verify the next natural goal continuation before declaring durable execution verified. No new goal was created."
+  },
+  "requirements": [
+    "Inventory every accessible relevant dataset and its date coverage across accounts, cells, development servers, prior research, PM evidence, broker samples, bank/reset inventories and events, plan changes, rollout telemetry, and price history.",
+    "Deduplicate cumulative counters, cloned and replayed rollouts, and duplicate retry records; retain genuine repeated model requests as consumption when telemetry proves them.",
+    "Separate uncached input, cached input, output, and reasoning telemetry without adding reasoning twice.",
+    "Join accounts and actual reset epochs to workloads using timestamped evidence; preserve ambiguous and missing joins.",
+    "Account for concurrency, absent samples, rounded percentages, five-hour and weekly windows, resets, model changes, and fast or priority service tiers.",
+    "Compute dated actual-model API equivalents and per-account/per-period EUR200 subscription multiples with explicit currency, tax, exposure, and invoice assumptions.",
+    "Compare effective capacity across subscriptions and time, including banked versus ordinary resets, using like-for-like cohorts and identifiable bounds.",
+    "Estimate quota consumption by token component, workload, model, and reasoning effort with sample counts and uncertainty.",
+    "Test the cited Reddit allegations without assuming misconduct; preserve negative findings and distinguish facts, estimates, and hypotheses.",
+    "Deliver at least ten substantive evidence-backed findings with confidence, a complete reproducible Markdown dossier, concise executive report, graphs, tables, and PDF.",
+    "Document measurement gaps and the exact observations needed to distinguish competing explanations.",
+    "Maintain PM evidence, commit regularly, push, create a PR explicitly based on staging, satisfy actual required gates, and merge scoped research to staging.",
+    "Send meaningful progress and the final readable report with Markdown and PDF attachments only to Seth through the verified private Telegram route.",
+    "Audit every objective requirement against current authoritative evidence before completing the existing goal."
+  ],
+  "boundaries": [
+    "Existing workload history is the experiment; no synthetic token burning or artificial load.",
+    "No banking, reset redemption, purchases, plan changes, or broker routing changes.",
+    "No credentials, raw account identifiers, private account details, or client content in retained reports.",
+    "A rounded percentage is not an absolute hidden-credit meter; API equivalent is not a subscription invoice; correlation does not prove provider policy.",
+    "No outgoing communications except authorized private Telegram to Seth.",
+    "No production deployment is requested."
+  ],
+  "claims_to_test": [
+    {
+      "source": "https://www.reddit.com/r/codex/comments/1w951h1/when_tibo/",
+      "retrieved_date": "2026-09-06",
+      "claim": "Astra consumes approximately 4.75 times Sol subscription quota despite a 2.5 times API price comparison.",
+      "status": "untested"
+    },
+    {
+      "source": "https://www.reddit.com/r/codex/comments/1w951h1/when_tibo/",
+      "retrieved_date": "2026-09-06",
+      "claim": "A banked reset provides approximately half the ordinary Pro 20x weekly API-equivalent allowance.",
+      "status": "untested"
+    },
+    {
+      "source": "https://www.reddit.com/r/codex/comments/1w951h1/when_tibo/",
+      "retrieved_date": "2026-09-06",
+      "claim": "The two effects combine to reduce roughly USD2500 of ordinary weekly value to approximately USD650.",
+      "status": "untested"
+    }
+  ]
+}

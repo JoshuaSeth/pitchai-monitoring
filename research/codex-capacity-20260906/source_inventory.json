@@ -1,0 +1,66 @@
+{
+  "status": "discovery_in_progress",
+  "observation_date": "2026-09-06",
+  "counts_are_initial_discovery_observations_not_final_extraction_totals": true,
+  "sources": [
+    {
+      "key": "august_forensics",
+      "location": "/code/pitchai_monitoring-worktrees/auth-usage-history-forensics-20260827/docs/evidence/auth-usage-history-forensics-20260827",
+      "read": ["README.md", "extraction-notes.md"],
+      "pending": ["proof-observations.csv", "original recovery logs", "historical PM observations", "historical private-report numeric extraction"],
+      "prior_claims_to_recheck": {"unique_recovery_observations": 7045, "accounts": 8, "coverage_start": "2026-07-05", "coverage_end": "2026-08-16", "five_hour_observations": 104}
+    },
+    {
+      "key": "durable_history_implementation",
+      "location": "docs/codex-auth-usage-dashboard.md",
+      "read": true,
+      "evidence": "Five-minute append-only SQLite sampler; last-known values and legacy imports explicitly marked; bank expiry is not an automatic reset; provider token analytics are separate from raw rollout tokens."
+    },
+    {
+      "key": "historical_cost_ledger",
+      "location": "/code/pitchai-cli-new/runs/historical-rollout-cost-ledger/2026-09-04",
+      "read": ["methodology.md", "coverage_and_totals.json", "run_ledger.sh", "report opening and model tables", "turn/source CSV headers"],
+      "pending": ["remaining report sections", "extractor and merge semantics", "independent ledger reconciliation", "post-cutoff telemetry", "additional unindexed roots and servers"],
+      "snapshot_cutoff": "2026-09-04T12:03:50Z",
+      "prior_inventory": {"cells": 3, "indexed_source_records": 26120, "scanned_bytes": 111660484559, "logical_turns": 244113, "turns_with_token_telemetry": 121354, "integrity_flagged_turns": 737},
+      "limitation": "Prior costs reprice workload shape at comparison-model snapshot prices; they are not dated actual-model subscription value. Prior all-time counters must not be used without clone, replay, counter-integrity, and account-join review."
+    },
+    {
+      "key": "broker_host_quota_history",
+      "ssh_route": "pitchai-dev-main",
+      "location": "/srv/codex-usage-dashboard/usage-history.sqlite3",
+      "read_only_schema_verified": true,
+      "initial_counts": {"collection_batches": 5115, "account_usage_samples": 40920},
+      "pending": ["privacy-safe full extraction", "date coverage", "backups", "freshness/rounding/reset analysis"]
+    },
+    {
+      "key": "broker_host_guardian",
+      "ssh_route": "pitchai-dev-main",
+      "location": "/var/lib/pitchai-auth-reset-guardian/audit.sqlite3",
+      "read_only_schema_verified": true,
+      "initial_counts": {"runs": 2656, "snapshots": 15627, "events": 19926, "redemption_attempts": 6, "notifications": 138, "warning_marks": 46},
+      "pending": ["privacy-safe full extraction", "grant/expiry/redemption classification", "manual redemptions outside guardian", "plan evidence"]
+    },
+    {
+      "key": "provider_documentation",
+      "manual_cache": "/private/tmp/openai-docs-cache/codex-manual.md",
+      "manual_outline": "/private/tmp/openai-docs-cache/codex-manual.outline.md",
+      "fetched_date": "2026-09-06",
+      "read": ["Pricing section"],
+      "pending": ["dated API rates by observed model", "historical pricing and promotions", "speed tiers", "historical plan evidence", "EUR/USD conversion evidence"]
+    },
+    {
+      "key": "pm_history",
+      "schemas": ["public", "pitchai_dispatch"],
+      "connection_and_task_schema_verified": true,
+      "pending": ["scoped narrative extraction", "plan changes", "reset events", "quota audits"]
+    },
+    {
+      "key": "telegram_delivery",
+      "requester": "Seth",
+      "policy_read_from": "pitchai-dev-main:/root/code/pitchai-agent-kb/wiki/policies/current/2026-07-16-telegram-personal-update-routing.md",
+      "private_only": true,
+      "pending": ["resolve typed approved helper", "verify requester-private route", "meaningful progress", "final Markdown/PDF delivery"]
+    }
+  ]
+}
