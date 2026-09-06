@@ -1,0 +1,112 @@
+{
+  "cutoff": "2026-09-06T20:20:00Z",
+  "inputs": [
+    {
+      "file": "evidence/broker-20260906.jsonl.gz",
+      "sha256": "e9eb29d4436107a53d86c2b5210238c54db02e2f87375b4c5fb98fa7e4b5ad52",
+      "bytes": 1508625,
+      "counts": {
+        "manifest": 1,
+        "quota_sample": 40936,
+        "guardian_snapshot": 15635,
+        "redemption": 6,
+        "guardian_event_summary": 10,
+        "current_plan_observation": 8
+      },
+      "first_reported_timestamp": "2026-08-10T19:27:13.731304+00:00",
+      "last_reported_timestamp": "2026-09-06T20:19:09.033549+00:00",
+      "manifest": {
+        "accounts": 8,
+        "cutoff": "2026-09-06T20:20:00Z",
+        "cutoff_rule": "row capture time strictly before cutoff",
+        "extracted_at": "2026-09-06T20:19:18.278369+00:00",
+        "identity_rule": "durable reference order; exact guardian-label join",
+        "kind": "manifest",
+        "schema": 1
+      },
+      "completion": null
+    },
+    {
+      "file": "evidence/recovery-20260906.jsonl.gz",
+      "sha256": "dfa25a58a93ee8c06cb452b227c772bc8025b341ac677697980e243c9bc0483d",
+      "bytes": 542542,
+      "counts": {
+        "recovery_manifest": 1,
+        "recovery_source": 2444,
+        "recovery_quota": 7509,
+        "lease_observation": 3258,
+        "recovery_complete": 1
+      },
+      "first_reported_timestamp": "2026-07-05T17:28:35.181819+00:00",
+      "last_reported_timestamp": "2026-09-06T14:47:20.741142+00:00",
+      "manifest": {
+        "cell": "dev-main-and-monitoring",
+        "cutoff": "2026-09-06T20:20:00Z",
+        "discovered_paths": 2444,
+        "kind": "recovery_manifest",
+        "schema": 1
+      },
+      "completion": {
+        "candidate_lines": 943,
+        "discovered_paths": 2444,
+        "invalid_json": 4,
+        "kind": "recovery_complete",
+        "quota_rows": 7509,
+        "renamed_label_resolved_by_stable_id": 206
+      }
+    },
+    {
+      "file": "evidence/recovery-jeff-20260906.jsonl.gz",
+      "sha256": "50e4268903d1e64f8970b1b8030faf4dc051ae3c6f16200d1833fb2359d3859c",
+      "bytes": 247563,
+      "counts": {
+        "recovery_manifest": 1,
+        "recovery_source": 911,
+        "recovery_quota": 3504,
+        "lease_observation": 1305,
+        "recovery_complete": 1
+      },
+      "first_reported_timestamp": "2026-07-21T02:16:29.837547+00:00",
+      "last_reported_timestamp": "2026-09-06T14:47:20.741142+00:00",
+      "manifest": {
+        "cell": "dev-jeff",
+        "cutoff": "2026-09-06T20:20:00Z",
+        "discovered_paths": 911,
+        "kind": "recovery_manifest",
+        "schema": 1
+      },
+      "completion": {
+        "candidate_lines": 439,
+        "discovered_paths": 911,
+        "invalid_json": 1,
+        "kind": "recovery_complete",
+        "quota_rows": 3504,
+        "renamed_label_resolved_by_stable_id": 156
+      }
+    }
+  ],
+  "recovery_union_unique_account_probe_quota_rows": 7246,
+  "recovery_union_five_hour_rows": 104,
+  "identity_note": "Historical renamed labels are joined through exact stable broker account IDs; original identities remain outside repository.",
+  "broker_backup_audit": {
+    "backups_compared": 9,
+    "fields": [
+      "sampled_at",
+      "account_ref",
+      "weekly_used_percent",
+      "weekly_reset_at",
+      "five_used_percent",
+      "five_reset_at",
+      "redeemable_count"
+    ],
+    "quota_tuples_absent_from_live": 0
+  },
+  "telegram_progress": {
+    "status": "sent_and_receipt_verified",
+    "requester": "Seth",
+    "route_kind": "private",
+    "matching_rows": 1,
+    "same_private_destination": true,
+    "broad_copy": false
+  }
+}

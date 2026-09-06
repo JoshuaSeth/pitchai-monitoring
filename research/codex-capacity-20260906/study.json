@@ -14,8 +14,9 @@
     "live_thread_reasoning_effort": "xhigh",
     "service_tier": "default",
     "initial_turn_reasoning_effort": "max",
-    "first_xhigh_continuation_verified": false,
-    "note": "Supported CLI normal steer and thread/settings/update accepted. Supported managed thread/resume readback returns Astra xhigh for the same active thread. Native SQLite still describes the initial max turn; verify the next natural goal continuation before declaring durable execution verified. No new goal was created."
+    "first_xhigh_continuation_verified": true,
+    "verified_continuation_at": "2026-09-06T20:11:59.111Z",
+    "note": "The first natural goal continuation records gpt-6-astra/xhigh in turn_context. Native SQLite independently records gpt-6-astra/xhigh, and the supported CLI priority readback remains 100. The initial turn began at max; the entire original goal continues on the same thread."
   },
   "requirements": [
     "Inventory every accessible relevant dataset and its date coverage across accounts, cells, development servers, prior research, PM evidence, broker samples, bank/reset inventories and events, plan changes, rollout telemetry, and price history.",
