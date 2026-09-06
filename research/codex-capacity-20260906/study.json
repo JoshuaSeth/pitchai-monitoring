@@ -16,6 +16,10 @@
     "initial_turn_reasoning_effort": "max",
     "first_xhigh_continuation_verified": true,
     "verified_continuation_at": "2026-09-06T20:11:59.111Z",
+    "latest_continuation_verified_at": "2026-09-06T20:53:56.208Z",
+    "latest_native_database_model": "gpt-6-astra",
+    "latest_native_database_effort": "xhigh",
+    "latest_supported_cli_priority_readback": 100,
     "note": "The first natural goal continuation records gpt-6-astra/xhigh in turn_context. Native SQLite independently records gpt-6-astra/xhigh, and the supported CLI priority readback remains 100. The initial turn began at max; the entire original goal continues on the same thread."
   },
   "requirements": [
