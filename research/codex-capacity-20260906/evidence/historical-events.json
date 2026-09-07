@@ -4,6 +4,28 @@
   "identity_method": "Exact broker identity mapping; historical narrative aliases additionally checked against matching credit expiry timestamps. Raw identities are excluded.",
   "observations": [
     {
+      "kind": "routing_weight_change",
+      "day": "2026-07-18",
+      "account": "A06",
+      "new_weight": 10,
+      "other_account_weights": 1,
+      "existing_sticky_and_active_leases_preserved": true,
+      "source_pm_task": "cc79125f-c758-49c0-9115-3463c51de23d",
+      "reported_merge": "auth-token-server PR 8, acc2cfd",
+      "confidence": "timestamped operational workpad; account throughput is affected by deliberate selection weighting"
+    },
+    {
+      "kind": "idle_zero_deadline_investigation",
+      "day": "2026-07-21",
+      "normal_minimal_calls": 7,
+      "read_only_rounds": 30,
+      "last_round_at": "2026-07-21T21:59:54Z",
+      "bank_inventory_unchanged": true,
+      "inventory_digest": "54caa1e29ff6e935ce0c6997a1331b617e6ef9892607517cfbdddaf21bb086cb",
+      "source_pm_task": "da05e15e-43a2-4528-9297-b3e75fe9f5c8",
+      "confidence": "prior operational evidence corroborates floating idle-zero deadlines; no actions repeated by this study"
+    },
+    {
       "kind": "manual_redemption",
       "account": "A05",
       "time_window_start": "2026-07-12T00:00:00Z",

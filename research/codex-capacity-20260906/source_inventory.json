@@ -10,8 +10,10 @@
       "cells": ["dev-main-and-monitoring", "dev-jeff", "historical-main", "dev-fsn1"],
       "artifacts": ["evidence/rollout-import-audit.json", "replay_audit.py", "evidence/replay-method-validation.json"],
       "candidate_records": 6066658,
-      "later_cross_source_replays": 2213862,
-      "pending": ["source-origin and surviving replay ambiguity review", "account/period and controlled cohort analysis", "independent reconciliation with the prior cost ledger"]
+      "later_cross_source_replays": 2249296,
+      "replay_revision": "evidence/replay-cost-impact-v2.json; global turn identity also catches replaced session IDs",
+      "cohort_artifacts": ["tables/manifest.json", "evidence/cohort-comparisons.json"],
+      "pending": ["surviving replay ambiguity and lease corroboration", "final interpretation of controlled comparisons", "independent reconciliation with the prior cost ledger"]
     },
     {
       "key": "august_forensics",
@@ -56,7 +58,8 @@
       "extracted_counts": {"snapshots": 15635, "redemptions": 6, "credit_refs": 27},
       "extracted_coverage": ["2026-08-10T19:27:32.471788Z", "2026-09-06T20:15:41.122621Z"],
       "timing_correction": "Guardian usage_state comes from a direct provider read after the broker analytics probe. Normalize it at snapshot captured_at; the exported provider_observed_at is the earlier broker probe clock and must not date guardian usage.",
-      "pending": ["complete grant/expiry/redemption classification", "four narrative manual redemptions require raw corroboration", "plan history beyond current overwritten state"]
+      "credit_loss_classification": {"direct_guardian_redemptions": 6, "additional_pre_expiry_disappearances_with_new_window": 17, "inferred_events_are_not_direct_redemption_responses": true},
+      "pending": ["four narrative manual redemptions require raw corroboration", "unexplained early window replacements", "plan history beyond current overwritten state"]
     },
     {
       "key": "provider_documentation",
@@ -72,7 +75,7 @@
       "key": "pm_history",
       "schemas": ["public", "pitchai_dispatch"],
       "connection_and_task_schema_verified": true,
-      "read": ["nine selected historical task descriptions", "August 16 cancelled-seat classification", "August 16 shared-lease correction"],
+      "read": ["nine initial and twelve additional related historical task descriptions", "August 16 cancelled-seat classification", "August 16 shared-lease correction", "July 18 weighted routing change", "July 21 idle-zero deadline investigation", "September 4–7 reset follow-ups"],
       "artifact": "evidence/historical-events.json",
       "pending": ["manual-reset raw corroboration", "remaining dated plan and quota narrative extraction", "earlier billing evidence if accessible"]
     },
@@ -83,7 +86,8 @@
       "private_only": true,
       "progress_receipt": "one requester-private progress delivery accepted and independently read back; no broad copy",
       "historical_candidate_reports": {"count": 219, "first": "2026-06-10T04:21:00.470108Z", "last": "2026-09-05T23:31:29.207384Z", "qualification": "Private outbound receipts containing a window-related term and a percentage; these are candidates, not yet validated quota observations."},
-      "pending": ["privacy-safe numeric history extraction", "resolve approved attachment capability", "final Markdown/PDF delivery"]
+      "attachment_capability": "Existing requester-private send-document helper verified in telegram_agent_server private-document-delivery worktree; prior September 6 Markdown/PDF delivery read back. This study has not made its final delivery.",
+      "pending": ["privacy-safe numeric history extraction", "final Markdown/PDF delivery"]
     }
   ]
 }

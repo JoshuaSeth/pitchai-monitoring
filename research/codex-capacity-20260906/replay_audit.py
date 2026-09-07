@@ -1,10 +1,12 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Find retimestamped copies using session, turn and complete token counters.
+"""Find retimestamped copies using a turn ID and complete token counters.
 
 This creates a sidecar without changing the original candidate ledger. Matching
 token counts alone never identify a replay. Missing session, turn or cumulative
 counters leave a record unique. Same-source repetitions remain ambiguous; the
 primary keep decision only collapses identities seen in different source files.
+Forks can replace session IDs while retaining turn IDs and all eight counters.
+The session is therefore required to be present but is not part of the identity.
 Earliest time is a candidate original timestamp, not proof of live execution.
 """
 
@@ -59,14 +61,14 @@ def identities(connection: sqlite3.Connection) -> Iterator[Identity]:
     for key, timestamp, model, effort, data in rows:
         event = cast("Event", json.loads(data))
         total = event["total"]
-        mode = "session_turn_full_counters"
+        mode = "global_turn_full_counters"
         if event["session"] is None or event["turn"] is None or total is None:
             semantic_key = key
             mode = "insufficient_identity_preserved"
         else:
             counters = [total[field] for field in _TOKEN_FIELDS]
             recent = [event["last"][field] for field in _TOKEN_FIELDS]
-            identity = [event["session"], event["turn"], counters, recent]
+            identity = [event["turn"], counters, recent]
             semantic_key = hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
         yield key, semantic_key, timestamp, event["source"], model, effort, mode
 
