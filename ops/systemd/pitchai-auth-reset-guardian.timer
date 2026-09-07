@@ -1,5 +1,5 @@
 [Unit]
-Description=Check Codex reset credits every 15 minutes
+Description=Evaluate organization Codex capacity and reset credits every 15 minutes
 
 [Timer]
 OnCalendar=*-*-* *:00/15:00 UTC
