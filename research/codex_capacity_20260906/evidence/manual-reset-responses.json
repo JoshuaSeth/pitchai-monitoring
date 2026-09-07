@@ -1,0 +1,282 @@
+{
+  "schema": 1,
+  "qualification": "Selected original tool outputs only; immediate responses may be stale. No historical action repeated. Unknown fields or strings omitted.",
+  "records": [
+    {
+      "source_sha256": "c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79",
+      "line": 323,
+      "invoked_at": "2026-08-10T17:13:48.598Z",
+      "returned_at": "2026-08-10T17:13:52.240Z",
+      "arguments_sha256": "b58f017212bc8e584230e05572aa1d13f2431500a93fa298a237b01902e5f746",
+      "record_sha256": "76d1a6d3262055c9441e30f36537b4da3b4bc32e2be1f0546c283d0c7e365acc",
+      "objects": [
+        {
+          "account": "A08",
+          "after": {
+            "allowed": false,
+            "availableCredits": 1,
+            "resetsAt": 1786825958,
+            "usedPercent": 100
+          },
+          "before": {
+            "allowed": false,
+            "availableCredits": 2,
+            "resetsAt": 1786825958,
+            "usedPercent": 100
+          },
+          "consumedExpiry": 1786482566,
+          "outcome": "reset"
+        }
+      ]
+    },
+    {
+      "source_sha256": "c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79",
+      "line": 341,
+      "invoked_at": "2026-08-10T17:14:20.480Z",
+      "returned_at": "2026-08-10T17:14:21.164Z",
+      "arguments_sha256": "8d4da85a89541b1fc669c67340a2e103511fcd3a549f2e79f72ed22307562bb6",
+      "record_sha256": "2051d71754409b54089fa87eed9e971e90dbcd306426a476133cac35dfbb1317",
+      "objects": [
+        {
+          "availability": "available",
+          "last_probe_at": "2026-08-10T17:14:21.042246+00:00",
+          "last_error": null,
+          "rate_limit": {
+            "allowed": true,
+            "limit_reached": false,
+            "primary_window": {
+              "limit_window_seconds": 604800,
+              "reset_after_seconds": 604800,
+              "reset_at": 1786986861,
+              "used_percent": 0
+            },
+            "secondary_window": null
+          },
+          "reset_credits": {
+            "available_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "source_sha256": "c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79",
+      "line": 345,
+      "invoked_at": "2026-08-10T17:14:45.402Z",
+      "returned_at": "2026-08-10T17:14:49.431Z",
+      "arguments_sha256": "ebd012ddb5c95de0ebe9564b6355adc345fef52184688d6db3e5c92524efe44f",
+      "record_sha256": "3eadd14ae194999acbf9f6a1bc6a017a6e3dd68d25fc99a1f57eb55f87aa461b",
+      "objects": [
+        {
+          "account": "A07",
+          "before": {
+            "availableCredits": 1,
+            "rateLimitReachedType": "[omitted]",
+            "resetsAt": 1786838702,
+            "usedPercent": 100
+          },
+          "consumedExpiry": 1786558128,
+          "immediateAfter": {
+            "availableCredits": 0,
+            "rateLimitReachedType": "[omitted]",
+            "resetsAt": 1786838702,
+            "usedPercent": 100
+          },
+          "outcome": "reset"
+        }
+      ]
+    },
+    {
+      "source_sha256": "c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79",
+      "line": 349,
+      "invoked_at": "2026-08-10T17:14:56.309Z",
+      "returned_at": "2026-08-10T17:14:56.983Z",
+      "arguments_sha256": "d91c231879a2c55c538a432727ee0061958ee3bd9b8ff01f7a591c267e5ae624",
+      "record_sha256": "2ed82dcf050048f9203b1d7487dc66080229fc45704f4b45a3e342b774e183da",
+      "objects": [
+        {
+          "label": "A07",
+          "availability": "available",
+          "last_probe_at": "2026-08-10T17:14:56.940746+00:00",
+          "last_error": null,
+          "rate_limit": {
+            "allowed": true,
+            "limit_reached": false,
+            "primary_window": {
+              "limit_window_seconds": 604800,
+              "reset_after_seconds": 604800,
+              "reset_at": 1786986896,
+              "used_percent": 0
+            },
+            "secondary_window": null
+          },
+          "reset_credits": {
+            "available_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "source_sha256": "c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79",
+      "line": 429,
+      "invoked_at": "2026-08-10T17:18:15.429Z",
+      "returned_at": "2026-08-10T17:18:16.267Z",
+      "arguments_sha256": "483e530f167670579ae12c96a2ce186977ecd17af9db1ac8516ef78f5087bce7",
+      "record_sha256": "b25712499fa9224af3a90576d9e0cb120fc1c34a5d3ddad46698c1cd3ea2d33d",
+      "objects": [
+        {
+          "label": "A02",
+          "availability": "available",
+          "used_percent": 97,
+          "reset_at": 1786825788,
+          "reset_credits": {
+            "available_count": 2
+          }
+        },
+        {
+          "label": "A08",
+          "availability": "available",
+          "used_percent": 0,
+          "reset_at": 1786986960,
+          "reset_credits": {
+            "available_count": 1
+          }
+        },
+        {
+          "label": "A07",
+          "availability": "available",
+          "used_percent": 0,
+          "reset_at": 1786987096,
+          "reset_credits": {
+            "available_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "source_sha256": "c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79",
+      "line": 814,
+      "invoked_at": "2026-08-10T17:37:12.762Z",
+      "returned_at": "2026-08-10T17:37:13.573Z",
+      "arguments_sha256": "a1b4fe857b1b03d70f9a31d9c26fad74a256a0276fed61615e1ac6021da41698",
+      "record_sha256": "3d148c4504bde6e521dfd7e2e6df78c279f63b2c4fe284484dfc7b5296068ccf",
+      "objects": [
+        {
+          "observed_used_percent": 100,
+          "reached_type": null,
+          "available_reset_credits": 2,
+          "observed_at": "2026-08-10T17:37:08Z"
+        },
+        {
+          "consume_outcome": "reset",
+          "consumed_credit_expires_at": 1786482566
+        },
+        {
+          "broker_availability": "available",
+          "broker_weekly": {
+            "limit_window_seconds": 604800,
+            "reset_after_seconds": 442392,
+            "reset_at": 1786825788,
+            "used_percent": 99
+          },
+          "remaining_reset_credits": 2,
+          "auth_changed_during_consume": false,
+          "completed_at": "2026-08-10T17:37:13Z"
+        }
+      ]
+    },
+    {
+      "source_sha256": "c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79",
+      "line": 820,
+      "invoked_at": "2026-08-10T17:37:30.019Z",
+      "returned_at": "2026-08-10T17:37:37.081Z",
+      "arguments_sha256": "3daf80fd57e51f276cdbd60a465176f908a77125ee941a217bd9fb86c2f84a9e",
+      "record_sha256": "5c36dc95298db8837a5eecca537914e49fdf50b91c651d66cb21696631613081",
+      "objects": [
+        {
+          "available_reset_credits": 1,
+          "credit_expiries": [
+            1786557595
+          ],
+          "primary": {
+            "resetsAt": 1786988233,
+            "usedPercent": 0,
+            "windowDurationMins": 10080
+          },
+          "reached_type": null
+        }
+      ]
+    },
+    {
+      "source_sha256": "c7802f79880a999fa610295c402f38fbd588b180f473499ae78266b8fc1038da",
+      "line": 8104,
+      "invoked_at": "2026-07-12T17:45:40.523Z",
+      "returned_at": "2026-07-12T17:45:43.142Z",
+      "arguments_sha256": "7c072b4aad4791aa55f2e6bd4e47d326264fb33b3a0ce486cf3c45be11f6b04e",
+      "record_sha256": "65a3e2e25c496268b965604fe0634167db74f7873029c8b175b7e2699261ab13",
+      "objects": [
+        {
+          "status": 200,
+          "allowed": false,
+          "limit_reached": true,
+          "five_hour_used_percent": 0,
+          "weekly_used_percent": 100,
+          "weekly_reset_at_epoch_present": true
+        }
+      ]
+    },
+    {
+      "source_sha256": "c7802f79880a999fa610295c402f38fbd588b180f473499ae78266b8fc1038da",
+      "line": 8115,
+      "invoked_at": "2026-07-12T17:46:30.451Z",
+      "returned_at": "2026-07-12T17:46:35.546Z",
+      "arguments_sha256": "db73e8e6aaa3a1dcc4be7bafe54d0b9af61d7dba53d373e4442be84500f385e7",
+      "record_sha256": "b21a0c27fa996329f8807566664e27540a019224cb4b0b20f1fd785c27522f42",
+      "objects": [
+        {
+          "target_identity": true,
+          "precondition_weekly_used_percent": 100,
+          "before_available_reset_count": 3,
+          "consume_request_count": 1,
+          "consume_status": 200,
+          "after_inventory_status": 200,
+          "after_available_reset_count": 2,
+          "july18_target_present_after": false,
+          "after_usage_status": 200,
+          "after_allowed": true,
+          "after_limit_reached": false,
+          "after_five_hour_used_percent": 0,
+          "after_weekly_used_percent": 0
+        }
+      ]
+    },
+    {
+      "source_sha256": "c7802f79880a999fa610295c402f38fbd588b180f473499ae78266b8fc1038da",
+      "line": 8119,
+      "invoked_at": "2026-07-12T17:46:43.274Z",
+      "returned_at": "2026-07-12T17:46:48.358Z",
+      "arguments_sha256": "c0e76d9025d27383e48d424abf0ecf99bf9cd187339ac409ca248a50ba3d5aec",
+      "record_sha256": "86101d196fdc1d0f0f935804692f13a2541c4f8b6a266411739b95fe9f0de526",
+      "objects": [
+        {
+          "label": "A05",
+          "enabled": true,
+          "availability": "available",
+          "rate_limit_allowed": true,
+          "rate_limit_reached": false,
+          "five_hour": {
+            "reset_after_seconds": 18000,
+            "reset_at": "2026-07-12T22:46:47+00:00",
+            "used_percent": 0
+          },
+          "weekly_usage": {
+            "reset_after_seconds": 604800,
+            "reset_at": "2026-07-19T17:46:47+00:00",
+            "used_percent": 0
+          },
+          "last_probe_at": "2026-07-12T17:46:47.911315+00:00",
+          "last_error": null
+        }
+      ]
+    }
+  ]
+}

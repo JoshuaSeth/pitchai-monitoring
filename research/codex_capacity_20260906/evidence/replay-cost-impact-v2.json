@@ -1,0 +1,64 @@
+{
+  "schema": 2,
+  "status": "global_turn_full_counter_replay_filter_complete",
+  "supersedes": "replay-cost-impact.json",
+  "candidate_calls": 6066658,
+  "semantic_groups": 3817349,
+  "maximum_members": 60,
+  "model_conflict_groups": 0,
+  "effort_conflict_groups": 0,
+  "groups": [
+    {
+      "decision": "earliest_cross_source_copy",
+      "calls": 240715,
+      "uncached": 1038707521,
+      "cached": 34057144796,
+      "output": 88209585,
+      "reasoning": 26200192,
+      "standard_usd": 23901.08817627,
+      "account_joined": 56806
+    },
+    {
+      "decision": "later_cross_source_replay",
+      "calls": 2249296,
+      "uncached": 12565620829,
+      "cached": 328931461212,
+      "output": 690075713,
+      "reasoning": 154509494,
+      "standard_usd": 241419.8262003,
+      "account_joined": 212619
+    },
+    {
+      "decision": "same_source_repetition_preserved",
+      "calls": 26,
+      "uncached": 46228,
+      "cached": 4173824,
+      "output": 4732,
+      "reasoning": 472,
+      "standard_usd": 2.460012,
+      "account_joined": 0
+    },
+    {
+      "decision": "unique_identity",
+      "calls": 3576621,
+      "uncached": 13903996621,
+      "cached": 458015988315,
+      "output": 1499483250,
+      "reasoning": 505722316,
+      "standard_usd": 316327.28169123,
+      "account_joined": 1728625
+    }
+  ],
+  "additional_exclusions_vs_v1": 35434,
+  "remaining_account_joined_calls": 1785431,
+  "strict_account_joined_calls": 1693319,
+  "strict_standard_usd": 151117.9444665,
+  "interpretation": "Amounts are standard API token-reference values over surviving historical telemetry, not subscription bills. This is a deduplication result, not yet a certified live-consumption total or hidden-capacity estimate.",
+  "remaining_limits": [
+    "Unrecovered original records can leave imported history undetected.",
+    "Epoch attribution is independent of lease corroboration.",
+    "No historical service-tier field was captured."
+  ],
+  "removed_candidate_call_fraction": 0.37076360658537205,
+  "removed_standard_reference_value_fraction": 0.41505983647885414
+}

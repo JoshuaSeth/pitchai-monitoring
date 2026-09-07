@@ -1,0 +1,31 @@
+{
+  "baseline_commit": "47d8dde3656704848e475b3e5b5bda5bceb48f07",
+  "refactored_helper_sha256": "5ad269247bb82595ce3306426e93d5eb290f85c9bb7d1eec35be769d09594d72",
+  "candidate_comparison": {
+    "method": "Stream each frozen export in its original order, reset the per-session cumulative state when the source changes, and compare the entire candidate(event, previous) return tuple between the baseline and refactored helper for every token event.",
+    "files": {
+      "rollouts-fsn1.jsonl.gz": 6,
+      "rollouts-historical-main.jsonl.gz": 334493,
+      "rollouts-jeff.jsonl.gz": 384761,
+      "rollouts-main.jsonl.gz": 6600106
+    },
+    "total_token_events": 7319366,
+    "mismatches": 0,
+    "statuses": {
+      "counter_reset_or_rollback": 4647,
+      "first_observation_with_prior_cumulative_usage": 22,
+      "last_call_does_not_reconcile": 3449,
+      "last_call_reconciles": 6141532,
+      "missing_or_invalid_last_call": 82856,
+      "unchanged_cumulative": 1086860
+    }
+  },
+  "ingestion_comparison": {
+    "method": "Ingest the complete frozen FSN1 and Jeff exports with both helpers into separate temporary SQLite databases. Compare every column of all four tables using EXCEPT in both directions. Remove both temporary databases after successful comparison.",
+    "inputs": {"rows": 2, "missing_or_changed": 0, "additional_or_changed": 0},
+    "sources": {"rows": 1136, "missing_or_changed": 0, "additional_or_changed": 0},
+    "calls": {"rows": 330407, "missing_or_changed": 0, "additional_or_changed": 0},
+    "quotas": {"rows": 384597, "missing_or_changed": 0, "additional_or_changed": 0},
+    "scope": "Full ingestion equivalence is verified for these two exports; counter-decision equivalence above covers all four. The full 19 GB frozen ledger was not regenerated."
+  }
+}

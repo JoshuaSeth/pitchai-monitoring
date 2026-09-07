@@ -1,0 +1,8 @@
+check_name,failures
+decreasing_positive_epoch_steps,0
+duplicate_account_calls,0
+duplicate_epochs,0
+duplicate_hour_mapping,0
+inventory_count_mismatch,0
+missing_account_calls,0
+missing_guardian_inventory,0

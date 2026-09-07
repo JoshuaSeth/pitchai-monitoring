@@ -1,0 +1,3 @@
+# Methods section plan
+
+Purpose: explain what the numerator and reported quota movement mean. Cover cumulative differences, last-call reconciliation, exact copies and semantic replays, genuine retries, strict source conditions, account reset fingerprints, lease outer bounds, all concurrent work, fixed-hour selection and epoch reconstruction. Sources: analysis SQL, extractors, replay audits, lease-corroboration.json and account-window-audit.json. Component: usage-history forensics evidence classes and cross-source proof. Use sequential mechanics and two equations. Implicit message: conclusions depend on explicit assumptions. Exclude internal goal history. Open doubts: no request execution attestation or hidden-credit meter exists in the export.

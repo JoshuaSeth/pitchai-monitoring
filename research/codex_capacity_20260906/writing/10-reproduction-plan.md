@@ -1,0 +1,3 @@
+# Reproduction section plan
+
+Purpose: let another authorized researcher regenerate the published tables and review raw-source derivation. Cover Python version, inputs, immutable hashes, commands, cutoff, output protections, annotated summary generation and private raw-source limits. Sources: actual command parsers, manifests and current frozen database filenames. Component: historical cost ledger reproducibility section. Use executable commands and a short artifact map. Implicit message: a small published table is only as strong as its documented derivation. Exclude credentials, raw account maps and false claims that Git contains the complete 134GB corpus. Open doubts: later raw-file rotation can prevent a byte-identical fresh extraction.

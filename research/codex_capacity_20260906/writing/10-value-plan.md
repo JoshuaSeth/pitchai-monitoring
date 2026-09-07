@@ -1,0 +1,3 @@
+# Pricing and value section plan
+
+Purpose: quantify account-period benchmark multiples without implying actual billed ROI. Cover dated model prices, cache/output subsets, long context, daily ECB conversion, tax, unknown tiers, cache-write sensitivity, calendar-period and exposure qualifications. Sources: pricing.json, price_calls.py, eur-usd-daily.csv, account_months.csv and billing review. Component: historical cost ledger period totals and price scenarios. Use one account matrix and a precise formula. Implicit message: numerator definition and observed days matter more than a large headline multiple. Exclude unsupported paid seat-month extrapolation and annualization. Open doubts: invoice prices and current-plan history.

@@ -1,0 +1,3 @@
+# Sources section plan
+
+Purpose: establish which population each claim covers. Cover four extraction cells, dates, readable/missing paths, quota sources, historical research, billing, PM narratives and Telegram clock ambiguity. Sources: source_inventory.json, extraction-manifest.json, rollout-import-audit.json, prior-ledger-review.md and historical-corroboration.json. Component: usage-history forensics source table. Use a compact coverage table followed by specific gaps. Implicit message: large volume does not erase missing provenance. Exclude private paths from the reader's evidence map when hashes suffice. Open doubt: 108 previously reported recovery observations remain unrecovered.

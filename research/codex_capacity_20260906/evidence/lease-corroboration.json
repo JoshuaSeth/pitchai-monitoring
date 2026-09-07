@@ -1,0 +1,3921 @@
+{
+  "schema": 1,
+  "source_lease_observations": 4563,
+  "distinct_issuances": 133,
+  "distinct_renewal_states": 2947,
+  "account_calls_checked": 1785431,
+  "inputs": {
+    "recovery-20260906.jsonl.gz": "dfa25a58a93ee8c06cb452b227c772bc8025b341ac677697980e243c9bc0483d",
+    "recovery-historical-main-20260906.jsonl.gz": "11b5bab70301705c951bdb4afb9d54c3e46e45645f36cf8c1711b2773deaa37b",
+    "recovery-jeff-20260906.jsonl.gz": "50e4268903d1e64f8970b1b8030faf4dc051ae3c6f16200d1833fb2359d3859c",
+    "source-affinities-jeff.jsonl.gz": "f1b7b0afa0489645356fe9af11a43ae7fbe6a0e50261553889d798af9bd3a38c",
+    "source-affinities-main.jsonl.gz": "a0818e1dcad83e1f2a543eb9965a995d89640a62d91b61a7945674611e477fd8"
+  },
+  "summary": [
+    {
+      "account": "A01",
+      "day": "2026-07-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 212,
+      "standard_usd": 23.722159
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 85,
+      "standard_usd": 8.519278
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 530,
+      "standard_usd": 62.855017
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 89,
+      "standard_usd": 12.02756
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-06",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 194,
+      "standard_usd": 18.360602
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2084,
+      "standard_usd": 213.662195
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 144,
+      "standard_usd": 18.064935000000002
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-07",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 43,
+      "standard_usd": 4.259257
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-07",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5396,
+      "standard_usd": 501.383765
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-07",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 300,
+      "standard_usd": 37.176858
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-09",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 57,
+      "standard_usd": 4.29766
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-09",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 211,
+      "standard_usd": 21.00384
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "multiple_compatible_recorded_accounts",
+      "calls": 67,
+      "standard_usd": 7.348091
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 47,
+      "standard_usd": 5.514029
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 67,
+      "standard_usd": 4.054508
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "multiple_compatible_recorded_accounts",
+      "calls": 1057,
+      "standard_usd": 85.936496
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 3669,
+      "standard_usd": 335.236894
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 37,
+      "standard_usd": 5.749231
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 1461,
+      "standard_usd": 119.563762
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 41,
+      "standard_usd": 3.779441
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 20,
+      "standard_usd": 2.7595169999999998
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4309,
+      "standard_usd": 370.700146
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 111,
+      "standard_usd": 14.522954
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 2079,
+      "standard_usd": 182.116375
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-18",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 142,
+      "standard_usd": 14.782234
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-18",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 13400,
+      "standard_usd": 1221.91633
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-18",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 261,
+      "standard_usd": 29.964955
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-29",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 24,
+      "standard_usd": 3.1721429999999997
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 26271,
+      "standard_usd": 2599.482126
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 54,
+      "standard_usd": 7.184646
+    },
+    {
+      "account": "A01",
+      "day": "2026-07-31",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1,
+      "standard_usd": 0.114659
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4779,
+      "standard_usd": 513.648592
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 46,
+      "standard_usd": 6.831408
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 102,
+      "standard_usd": 10.067163
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-03",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 567,
+      "standard_usd": 50.596282
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-03",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1020,
+      "standard_usd": 92.146928
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 596,
+      "standard_usd": 50.464302
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 549,
+      "standard_usd": 44.504955
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 279,
+      "standard_usd": 50.966373
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 247,
+      "standard_usd": 58.913277
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 272,
+      "standard_usd": 53.631192
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-07",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 259,
+      "standard_usd": 64.811214
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-08",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 116,
+      "standard_usd": 22.00103
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-09",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1199,
+      "standard_usd": 123.01663
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 242,
+      "standard_usd": 63.327781
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 243,
+      "standard_usd": 64.08345
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 166,
+      "standard_usd": 36.894577
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-13",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 139,
+      "standard_usd": 34.432285
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-15",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 15105,
+      "standard_usd": 1605.116202
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-15",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 119,
+      "standard_usd": 13.518693
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-16",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 216,
+      "standard_usd": 21.148194
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-16",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 8427,
+      "standard_usd": 908.739349
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-16",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 206,
+      "standard_usd": 21.378667
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-23",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 72,
+      "standard_usd": 5.3717984
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-23",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 28433,
+      "standard_usd": 2060.7920776
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-26",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2715,
+      "standard_usd": 218.2849904
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-26",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 22879,
+      "standard_usd": 1652.0049682000001
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-26",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 409,
+      "standard_usd": 48.30027
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-28",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 678,
+      "standard_usd": 63.703281600000004
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-28",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 24707,
+      "standard_usd": 1762.7885588000001
+    },
+    {
+      "account": "A01",
+      "day": "2026-08-28",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 119,
+      "standard_usd": 10.3021768
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 9207,
+      "standard_usd": 662.4561628
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 399,
+      "standard_usd": 47.785577
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-02",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2091,
+      "standard_usd": 144.967412
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-02",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 3,
+      "standard_usd": 0.8549509999999999
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 38344,
+      "standard_usd": 2682.0150972
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 545,
+      "standard_usd": 57.731957
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-04",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 497,
+      "standard_usd": 37.9850792
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 27222,
+      "standard_usd": 1951.74608508
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 63,
+      "standard_usd": 0.33221932
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-06",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 12,
+      "standard_usd": 2.791896
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 6875,
+      "standard_usd": 1273.45977452
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 66,
+      "standard_usd": 21.300834
+    },
+    {
+      "account": "A01",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1,
+      "standard_usd": 0.306636
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1151,
+      "standard_usd": 101.641171
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 852,
+      "standard_usd": 57.587403
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 738,
+      "standard_usd": 71.597994
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 108,
+      "standard_usd": 17.355265
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "multiple_compatible_recorded_accounts",
+      "calls": 129,
+      "standard_usd": 10.945168
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "multiple_compatible_recorded_accounts",
+      "calls": 888,
+      "standard_usd": 72.052579
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 704,
+      "standard_usd": 73.90665
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 394,
+      "standard_usd": 67.080308
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 2452,
+      "standard_usd": 232.620133
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-20",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 273,
+      "standard_usd": 25.048412
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1276,
+      "standard_usd": 100.007813
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-21",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 66,
+      "standard_usd": 6.751533
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2994,
+      "standard_usd": 279.18739
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 907,
+      "standard_usd": 84.854859
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 272,
+      "standard_usd": 23.083199
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-30",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 113,
+      "standard_usd": 9.782478
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 209,
+      "standard_usd": 25.087444
+    },
+    {
+      "account": "A02",
+      "day": "2026-07-30",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 20926,
+      "standard_usd": 2236.939971
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-01",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5862,
+      "standard_usd": 545.733772
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-01",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 897,
+      "standard_usd": 84.863396
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 15598,
+      "standard_usd": 1627.717153
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 98,
+      "standard_usd": 12.654634
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-01",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 2368,
+      "standard_usd": 247.669784
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 10659,
+      "standard_usd": 1137.76492
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-11",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 425,
+      "standard_usd": 36.585163
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 26321,
+      "standard_usd": 2688.893452
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 190,
+      "standard_usd": 19.709374
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 7055,
+      "standard_usd": 792.322011
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-13",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 187,
+      "standard_usd": 17.912952
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-13",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 27587,
+      "standard_usd": 3054.271985
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-13",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 276,
+      "standard_usd": 29.987824
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-20",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 225,
+      "standard_usd": 19.937836
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5031,
+      "standard_usd": 478.375984
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 166,
+      "standard_usd": 16.620414
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-21",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5588,
+      "standard_usd": 432.188008
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-21",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 215,
+      "standard_usd": 17.1214632
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-22",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 570,
+      "standard_usd": 41.1583808
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-22",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 14436,
+      "standard_usd": 1106.1600568000001
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-22",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 269,
+      "standard_usd": 28.9232086
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-24",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 3570,
+      "standard_usd": 268.3217232
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-24",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 7700,
+      "standard_usd": 539.3648856
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-25",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 8803,
+      "standard_usd": 663.8379592
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-25",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 30432,
+      "standard_usd": 2112.6554512000002
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-25",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 154,
+      "standard_usd": 13.2341528
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-26",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1807,
+      "standard_usd": 133.395544
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-26",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 3928,
+      "standard_usd": 252.1657624
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-29",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 161,
+      "standard_usd": 12.0360624
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 24119,
+      "standard_usd": 1773.0025272
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 218,
+      "standard_usd": 22.7980534
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-30",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 168,
+      "standard_usd": 11.539864
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 16390,
+      "standard_usd": 1228.9452184
+    },
+    {
+      "account": "A02",
+      "day": "2026-08-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 192,
+      "standard_usd": 19.7998138
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 7375,
+      "standard_usd": 523.694624
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-03",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 201,
+      "standard_usd": 13.2952856
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 14226,
+      "standard_usd": 989.9654208000001
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 83,
+      "standard_usd": 7.1669096
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-05",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 204,
+      "standard_usd": 40.412512
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-05",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 6,
+      "standard_usd": 1.134084
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 8866,
+      "standard_usd": 1558.17018044
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 118,
+      "standard_usd": 28.500478
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-06",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 103,
+      "standard_usd": 18.829556
+    },
+    {
+      "account": "A02",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1815,
+      "standard_usd": 331.06445288
+    },
+    {
+      "account": "A03",
+      "day": "2026-06-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2156,
+      "standard_usd": 200.97213
+    },
+    {
+      "account": "A03",
+      "day": "2026-06-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 84,
+      "standard_usd": 11.015986
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 701,
+      "standard_usd": 77.446104
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 399,
+      "standard_usd": 44.896909
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 425,
+      "standard_usd": 52.469741
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-03",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 32,
+      "standard_usd": 3.5269239999999997
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2560,
+      "standard_usd": 242.340549
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 337,
+      "standard_usd": 39.125796
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 669,
+      "standard_usd": 61.375208
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5870,
+      "standard_usd": 512.338897
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 137,
+      "standard_usd": 16.6234695
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 197,
+      "standard_usd": 15.070104
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 31,
+      "standard_usd": 2.843198
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 6083,
+      "standard_usd": 536.452987
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 243,
+      "standard_usd": 26.741115
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1321,
+      "standard_usd": 116.174574
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-12",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 144,
+      "standard_usd": 12.175429
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 6431,
+      "standard_usd": 568.922472
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-20",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2506,
+      "standard_usd": 231.038512
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-20",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 2,
+      "standard_usd": 0.689921
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 13736,
+      "standard_usd": 1199.105137
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 425,
+      "standard_usd": 49.500916
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 918,
+      "standard_usd": 76.877669
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 120,
+      "standard_usd": 15.95425
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 65,
+      "standard_usd": 8.318154999999999
+    },
+    {
+      "account": "A03",
+      "day": "2026-07-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 21,
+      "standard_usd": 2.883019
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 13,
+      "standard_usd": 1.7975139999999998
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 76,
+      "standard_usd": 10.346216
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1324,
+      "standard_usd": 137.568561
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-04",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 225,
+      "standard_usd": 23.058276
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 165,
+      "standard_usd": 22.392485999999998
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-04",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1355,
+      "standard_usd": 144.488834
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-05",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 180,
+      "standard_usd": 16.370061
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 219,
+      "standard_usd": 23.993666
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-05",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 20910,
+      "standard_usd": 2082.066927
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-08",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 247,
+      "standard_usd": 29.513195
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-09",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 89,
+      "standard_usd": 11.346397
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 179,
+      "standard_usd": 20.13377
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 52,
+      "standard_usd": 5.970553
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 51,
+      "standard_usd": 7.138149
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-13",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 24,
+      "standard_usd": 3.666985
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-15",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 131,
+      "standard_usd": 15.419605
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-16",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1989,
+      "standard_usd": 204.404892
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-16",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 182,
+      "standard_usd": 22.502667
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-17",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 84,
+      "standard_usd": 10.4441
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-18",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 41,
+      "standard_usd": 4.500797
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-19",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 5,
+      "standard_usd": 1.198785
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 81,
+      "standard_usd": 7.802152
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-21",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 3,
+      "standard_usd": 1.037711
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-22",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 6,
+      "standard_usd": 1.511964
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-22",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 71,
+      "standard_usd": 7.356389
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-23",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 70,
+      "standard_usd": 8.754946
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-24",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 851,
+      "standard_usd": 102.645536
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-25",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4875,
+      "standard_usd": 391.7451752
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-25",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 26103,
+      "standard_usd": 1883.4155082
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-25",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 849,
+      "standard_usd": 87.03694772
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-26",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2723,
+      "standard_usd": 204.4341456
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-26",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 24279,
+      "standard_usd": 1730.8575864
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-26",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 372,
+      "standard_usd": 33.877034
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-27",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 81,
+      "standard_usd": 11.691201
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-28",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 66,
+      "standard_usd": 5.5775456000000005
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-28",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 2,
+      "standard_usd": 0.9799009999999999
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-28",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 24688,
+      "standard_usd": 1771.4764536
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-28",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 362,
+      "standard_usd": 45.289896
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 40,
+      "standard_usd": 6.066169
+    },
+    {
+      "account": "A03",
+      "day": "2026-08-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 599,
+      "standard_usd": 68.695952
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-01",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 8,
+      "standard_usd": 0.47826
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-01",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 5,
+      "standard_usd": 1.495145
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 7769,
+      "standard_usd": 592.6462296
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 181,
+      "standard_usd": 21.507553
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-02",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 529,
+      "standard_usd": 38.879387200000004
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 13524,
+      "standard_usd": 955.0416176
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 264,
+      "standard_usd": 29.502647
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-06",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2,
+      "standard_usd": null
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2,
+      "standard_usd": null
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1465,
+      "standard_usd": 125.647998
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 164,
+      "standard_usd": 20.190311
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-07",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 19,
+      "standard_usd": 7.044094
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-07",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1714,
+      "standard_usd": 148.355794
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-07",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 87,
+      "standard_usd": 10.776605
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-09",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 444,
+      "standard_usd": 40.070686
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-09",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 983,
+      "standard_usd": 93.074121
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-09",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 37,
+      "standard_usd": 9.213315
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 66,
+      "standard_usd": 5.432318
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4870,
+      "standard_usd": 424.548692
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 37,
+      "standard_usd": 5.923398
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 48,
+      "standard_usd": 4.753334
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 55,
+      "standard_usd": 4.896699
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4223,
+      "standard_usd": 370.003624
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 101,
+      "standard_usd": 11.99542
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 4224,
+      "standard_usd": 370.56158800000003
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5204,
+      "standard_usd": 456.318618
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-18",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 60,
+      "standard_usd": 5.20444
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-19",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5414,
+      "standard_usd": 512.816778
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-20",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2,
+      "standard_usd": 0.090919
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4719,
+      "standard_usd": 453.212434
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 17,
+      "standard_usd": 2.491982
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5,
+      "standard_usd": 0.309421
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 5,
+      "standard_usd": 0.331366
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-30",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 6921,
+      "standard_usd": 716.504758
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-31",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 211,
+      "standard_usd": 20.54229
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 121,
+      "standard_usd": 15.859689
+    },
+    {
+      "account": "A04",
+      "day": "2026-07-31",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 16774,
+      "standard_usd": 1755.193929
+    },
+    {
+      "account": "A04",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "multiple_compatible_recorded_accounts",
+      "calls": 2678,
+      "standard_usd": 272.217301
+    },
+    {
+      "account": "A04",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5943,
+      "standard_usd": 594.242349
+    },
+    {
+      "account": "A04",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 105,
+      "standard_usd": 12.576228
+    },
+    {
+      "account": "A04",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 2414,
+      "standard_usd": 250.551111
+    },
+    {
+      "account": "A04",
+      "day": "2026-08-04",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 160,
+      "standard_usd": 14.285101000000001
+    },
+    {
+      "account": "A04",
+      "day": "2026-08-04",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 195,
+      "standard_usd": 15.433465
+    },
+    {
+      "account": "A04",
+      "day": "2026-08-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4180,
+      "standard_usd": 428.765758
+    },
+    {
+      "account": "A04",
+      "day": "2026-08-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 134,
+      "standard_usd": 15.817884
+    },
+    {
+      "account": "A04",
+      "day": "2026-08-04",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 9113,
+      "standard_usd": 914.198648
+    },
+    {
+      "account": "A04",
+      "day": "2026-09-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 281,
+      "standard_usd": 35.251917
+    },
+    {
+      "account": "A04",
+      "day": "2026-09-05",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 638,
+      "standard_usd": 67.9187484
+    },
+    {
+      "account": "A04",
+      "day": "2026-09-05",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 19,
+      "standard_usd": 1.083006
+    },
+    {
+      "account": "A04",
+      "day": "2026-09-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 22338,
+      "standard_usd": 2493.94079804
+    },
+    {
+      "account": "A04",
+      "day": "2026-09-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 236,
+      "standard_usd": 30.5367684
+    },
+    {
+      "account": "A05",
+      "day": "2026-06-30",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 5,
+      "standard_usd": 0.618372
+    },
+    {
+      "account": "A05",
+      "day": "2026-06-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 541,
+      "standard_usd": 59.656451
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-01",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 29,
+      "standard_usd": 2.608408
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1060,
+      "standard_usd": 95.744663
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 53,
+      "standard_usd": 6.865742
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1988,
+      "standard_usd": 172.555674
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-09",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 86,
+      "standard_usd": 8.274251
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 14,
+      "standard_usd": 1.328725
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2570,
+      "standard_usd": 223.180688
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 37,
+      "standard_usd": 3.531211
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1049,
+      "standard_usd": 91.570205
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 69,
+      "standard_usd": 6.590873
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 33,
+      "standard_usd": 3.690181
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5909,
+      "standard_usd": 510.493562
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 67,
+      "standard_usd": 9.05759
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1986,
+      "standard_usd": 189.473012
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 5567,
+      "standard_usd": 514.614856
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 430,
+      "standard_usd": 51.445836
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-18",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 8,
+      "standard_usd": 0.597158
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-18",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 12580,
+      "standard_usd": 1146.954751
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-18",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 201,
+      "standard_usd": 24.763209
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-21",
+      "strict_eligible": 0,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 1609,
+      "standard_usd": 151.92376
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 115,
+      "standard_usd": 11.391394
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 214,
+      "standard_usd": 25.61571
+    },
+    {
+      "account": "A05",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 17857,
+      "standard_usd": 1727.416922
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-01",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1258,
+      "standard_usd": 127.128949
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 207,
+      "standard_usd": 24.91484
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-01",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 4861,
+      "standard_usd": 533.575519
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-04",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 34,
+      "standard_usd": 2.527108
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 119,
+      "standard_usd": 14.328593
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-04",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 23754,
+      "standard_usd": 2400.924883
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-05",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 287,
+      "standard_usd": 26.833543
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 119,
+      "standard_usd": 14.630528
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-05",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 20616,
+      "standard_usd": 2254.332999
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-06",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1195,
+      "standard_usd": 121.155647
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 12913,
+      "standard_usd": 1429.162757
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 87,
+      "standard_usd": 10.633144
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-12",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 270,
+      "standard_usd": 22.681374
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 9004,
+      "standard_usd": 1037.436293
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 128,
+      "standard_usd": 15.747458
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-16",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 709,
+      "standard_usd": 60.483537
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-17",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 226,
+      "standard_usd": 20.435842
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-17",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 13791,
+      "standard_usd": 1352.357687
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-17",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 321,
+      "standard_usd": 35.923403
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-18",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 300,
+      "standard_usd": 25.625907
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-18",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 13307,
+      "standard_usd": 1227.931506
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-18",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 161,
+      "standard_usd": 18.064844
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-19",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 3892,
+      "standard_usd": 326.67739
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-23",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 13070,
+      "standard_usd": 1035.5158016
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-23",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 104,
+      "standard_usd": 10.838988
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-24",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1192,
+      "standard_usd": 88.6078904
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-24",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 25808,
+      "standard_usd": 2026.2567903200002
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-24",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 146,
+      "standard_usd": 13.7621456
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-26",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2189,
+      "standard_usd": 171.7502976
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-26",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 9758,
+      "standard_usd": 723.3238200000001
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-27",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1931,
+      "standard_usd": 152.2049184
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-27",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 9904,
+      "standard_usd": 738.8842228
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-27",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 528,
+      "standard_usd": 56.2820918
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-28",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 25155,
+      "standard_usd": 1885.6252144
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 3880,
+      "standard_usd": 265.836602
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-31",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 510,
+      "standard_usd": 38.8043768
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 29118,
+      "standard_usd": 2199.3136222000003
+    },
+    {
+      "account": "A05",
+      "day": "2026-08-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 210,
+      "standard_usd": 20.0747712
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-03",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 226,
+      "standard_usd": 16.4905024
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-03",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 5,
+      "standard_usd": 1.804775
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 17961,
+      "standard_usd": 1270.7938088
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 367,
+      "standard_usd": 43.358454
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-04",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1590,
+      "standard_usd": 103.863924
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 10014,
+      "standard_usd": 694.1460896
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-05",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 396,
+      "standard_usd": 30.0963192
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 11132,
+      "standard_usd": 999.9169712
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 3795,
+      "standard_usd": 643.81162272
+    },
+    {
+      "account": "A05",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 75,
+      "standard_usd": 18.204566
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 6,
+      "standard_usd": 0.50998
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1766,
+      "standard_usd": 142.980559
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 37,
+      "standard_usd": 5.111027
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1210,
+      "standard_usd": 103.361325
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 151,
+      "standard_usd": 13.493405
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2889,
+      "standard_usd": 265.378722
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 23,
+      "standard_usd": 2.250026
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 1912,
+      "standard_usd": 168.902515
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-12",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 467,
+      "standard_usd": 40.721974
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 3620,
+      "standard_usd": 335.331142
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 56,
+      "standard_usd": 7.590481
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-19",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2277,
+      "standard_usd": 196.788977
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-19",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 11498,
+      "standard_usd": 1094.29836
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-19",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 193,
+      "standard_usd": 23.132836
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-29",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 146,
+      "standard_usd": 11.681852
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-29",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 226,
+      "standard_usd": 19.317021
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 9046,
+      "standard_usd": 877.268092
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 59,
+      "standard_usd": 7.979312
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-29",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 13884,
+      "standard_usd": 1351.218601
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-30",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 70,
+      "standard_usd": 6.753341
+    },
+    {
+      "account": "A06",
+      "day": "2026-07-30",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 2563,
+      "standard_usd": 249.199961
+    },
+    {
+      "account": "A06",
+      "day": "2026-08-01",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1628,
+      "standard_usd": 157.13337
+    },
+    {
+      "account": "A06",
+      "day": "2026-08-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 6257,
+      "standard_usd": 667.915882
+    },
+    {
+      "account": "A06",
+      "day": "2026-08-02",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 575,
+      "standard_usd": 56.299651
+    },
+    {
+      "account": "A06",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 15295,
+      "standard_usd": 1634.435617
+    },
+    {
+      "account": "A06",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 205,
+      "standard_usd": 22.192155
+    },
+    {
+      "account": "A06",
+      "day": "2026-09-04",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1280,
+      "standard_usd": 90.5259544
+    },
+    {
+      "account": "A06",
+      "day": "2026-09-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 32886,
+      "standard_usd": 2361.33116792
+    },
+    {
+      "account": "A06",
+      "day": "2026-09-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 473,
+      "standard_usd": 47.3111606
+    },
+    {
+      "account": "A06",
+      "day": "2026-09-05",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1790,
+      "standard_usd": 165.836784
+    },
+    {
+      "account": "A06",
+      "day": "2026-09-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 19393,
+      "standard_usd": 1920.58829824
+    },
+    {
+      "account": "A06",
+      "day": "2026-09-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 161,
+      "standard_usd": 17.8417324
+    },
+    {
+      "account": "A06",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 6,
+      "standard_usd": 4.2032099999999994
+    },
+    {
+      "account": "A06",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 34,
+      "standard_usd": 10.29008
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1912,
+      "standard_usd": 174.048217
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2390,
+      "standard_usd": 214.026631
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-04",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 92,
+      "standard_usd": 10.62368
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-05",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 25,
+      "standard_usd": 3.488187
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1764,
+      "standard_usd": 171.720829
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 43,
+      "standard_usd": 6.099788
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-06",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 49,
+      "standard_usd": 3.668155
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1587,
+      "standard_usd": 151.011718
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 521,
+      "standard_usd": 52.434933
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-07",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 24,
+      "standard_usd": 1.591948
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-07",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 326,
+      "standard_usd": 28.025578
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-08",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4728,
+      "standard_usd": 404.142407
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-08",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 25,
+      "standard_usd": 1.935717
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 43,
+      "standard_usd": 4.14584
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 6455,
+      "standard_usd": 553.552541
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 87,
+      "standard_usd": 11.510166
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 37,
+      "standard_usd": 3.690473
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 25,
+      "standard_usd": 2.683748
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1532,
+      "standard_usd": 134.961583
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 5,
+      "standard_usd": 0.983561
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 2491,
+      "standard_usd": 213.506738
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-12",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 1,
+      "standard_usd": 1.006706
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4091,
+      "standard_usd": 366.179796
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 90,
+      "standard_usd": 11.959313
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-20",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 3012,
+      "standard_usd": 279.894699
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 11395,
+      "standard_usd": 1071.841304
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-20",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 155,
+      "standard_usd": 18.979047
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1728,
+      "standard_usd": 153.493696
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 2173,
+      "standard_usd": 194.865196
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-21",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 225,
+      "standard_usd": 19.361394
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-29",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 18,
+      "standard_usd": 1.211191
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 13003,
+      "standard_usd": 1123.450232
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-30",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 300,
+      "standard_usd": 23.635782
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 8010,
+      "standard_usd": 688.878778
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1565,
+      "standard_usd": 152.782848
+    },
+    {
+      "account": "A07",
+      "day": "2026-07-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 40,
+      "standard_usd": 6.298858
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1872,
+      "standard_usd": 164.305366
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 101,
+      "standard_usd": 13.378182
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 77,
+      "standard_usd": 19.999727
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 11,
+      "standard_usd": 3.6437359999999996
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 4,
+      "standard_usd": 0.825459
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-05",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 52,
+      "standard_usd": 6.576538
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 5,
+      "standard_usd": 0.776439
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-07",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 21,
+      "standard_usd": 3.706224
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 24929,
+      "standard_usd": 2578.141611
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 105,
+      "standard_usd": 12.32461
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-14",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 8549,
+      "standard_usd": 905.851759
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-14",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 63,
+      "standard_usd": 7.943095
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-15",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 145,
+      "standard_usd": 13.176178
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-15",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 13515,
+      "standard_usd": 1503.590518
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-15",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 215,
+      "standard_usd": 20.675083
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-16",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 562,
+      "standard_usd": 57.220512
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-26",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 48,
+      "standard_usd": 3.2487384
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-26",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 432,
+      "standard_usd": 33.8343496
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-27",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 3073,
+      "standard_usd": 238.8122992
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-27",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 21862,
+      "standard_usd": 1586.1204112
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-27",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 50,
+      "standard_usd": 6.144701
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-28",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 688,
+      "standard_usd": 58.9318376
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-28",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 129,
+      "standard_usd": 14.44482
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-29",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 377,
+      "standard_usd": 26.7685016
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 20335,
+      "standard_usd": 1484.360504
+    },
+    {
+      "account": "A07",
+      "day": "2026-08-29",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 194,
+      "standard_usd": 17.585653
+    },
+    {
+      "account": "A07",
+      "day": "2026-09-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 24958,
+      "standard_usd": 1818.3602892000001
+    },
+    {
+      "account": "A07",
+      "day": "2026-09-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 41,
+      "standard_usd": 2.1953620000000003
+    },
+    {
+      "account": "A07",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2454,
+      "standard_usd": 468.196446
+    },
+    {
+      "account": "A07",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 202,
+      "standard_usd": 42.523214
+    },
+    {
+      "account": "A07",
+      "day": "2026-09-06",
+      "strict_eligible": 1,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 9081,
+      "standard_usd": 1522.35826
+    },
+    {
+      "account": "A08",
+      "day": "2026-06-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 345,
+      "standard_usd": 28.075809
+    },
+    {
+      "account": "A08",
+      "day": "2026-06-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 18,
+      "standard_usd": 2.658052
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1325,
+      "standard_usd": 123.942372
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 200,
+      "standard_usd": 19.168263
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-02",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 14,
+      "standard_usd": 1.606087
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 136,
+      "standard_usd": 13.901417
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-10",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 9,
+      "standard_usd": 0.8231729999999999
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4511,
+      "standard_usd": 405.632034
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 435,
+      "standard_usd": 55.075979
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-10",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 2565,
+      "standard_usd": 223.270454
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 68,
+      "standard_usd": 5.538678
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-11",
+      "strict_eligible": 0,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 121,
+      "standard_usd": 13.137635
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 2214,
+      "standard_usd": 183.782656
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 581,
+      "standard_usd": 98.25866
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-11",
+      "strict_eligible": 1,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 7340,
+      "standard_usd": 663.713603
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-12",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 112,
+      "standard_usd": 10.820444
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-12",
+      "strict_eligible": 0,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 16,
+      "standard_usd": 0.437907
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 10962,
+      "standard_usd": 977.246217
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 49,
+      "standard_usd": 5.626448
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-18",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1,
+      "standard_usd": 0.227365
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-18",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 4264,
+      "standard_usd": 382.585465
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-19",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 6771,
+      "standard_usd": 649.416933
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-31",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 5601,
+      "standard_usd": 545.695373
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 72,
+      "standard_usd": 8.987765
+    },
+    {
+      "account": "A08",
+      "day": "2026-07-31",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 20236,
+      "standard_usd": 2087.630705
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-01",
+      "strict_eligible": 0,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 508,
+      "standard_usd": 49.364596
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-01",
+      "strict_eligible": 1,
+      "lease_grade": "only_other_accounts_in_recorded_ranges",
+      "calls": 993,
+      "standard_usd": 92.080778
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-02",
+      "strict_eligible": 0,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 865,
+      "standard_usd": 83.645434
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-02",
+      "strict_eligible": 1,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 4960,
+      "standard_usd": 535.681499
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-03",
+      "strict_eligible": 0,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 721,
+      "standard_usd": 71.167899
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 141,
+      "standard_usd": 17.346112
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-03",
+      "strict_eligible": 1,
+      "lease_grade": "one_compatible_recorded_account",
+      "calls": 17376,
+      "standard_usd": 1835.909807
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-12",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 129,
+      "standard_usd": 17.324255
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-13",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1764,
+      "standard_usd": 189.02799
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-14",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 215,
+      "standard_usd": 17.387976000000002
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-14",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 21061,
+      "standard_usd": 2310.026179
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-14",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 280,
+      "standard_usd": 24.669359
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-22",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 142,
+      "standard_usd": 10.6080936
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-22",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 14911,
+      "standard_usd": 1150.5853312
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-22",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 138,
+      "standard_usd": 11.4411184
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-23",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 199,
+      "standard_usd": 13.4353768
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-23",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 10592,
+      "standard_usd": 836.8747832
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-23",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 126,
+      "standard_usd": 10.3972816
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-24",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1003,
+      "standard_usd": 67.3816304
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-24",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 26901,
+      "standard_usd": 1896.2325952
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-24",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 159,
+      "standard_usd": 13.8550216
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-26",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 7474,
+      "standard_usd": 563.1127808
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-26",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 17131,
+      "standard_usd": 1229.1190576000001
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-26",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 411,
+      "standard_usd": 45.3050336
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-27",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 744,
+      "standard_usd": 56.929829600000005
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-27",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 28536,
+      "standard_usd": 2060.4357116
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-27",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 273,
+      "standard_usd": 25.4966902
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-28",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 46,
+      "standard_usd": 4.0156
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-28",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 1070,
+      "standard_usd": 78.6434208
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 26020,
+      "standard_usd": 1957.4788624
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-30",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 94,
+      "standard_usd": 8.688628
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 14908,
+      "standard_usd": 1128.1152648
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-31",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 110,
+      "standard_usd": 10.8283696
+    },
+    {
+      "account": "A08",
+      "day": "2026-09-01",
+      "strict_eligible": 0,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 424,
+      "standard_usd": 30.53534
+    },
+    {
+      "account": "A08",
+      "day": "2026-09-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_recorded_lease_range_at_call_time",
+      "calls": 10183,
+      "standard_usd": 769.9507836
+    },
+    {
+      "account": "A08",
+      "day": "2026-09-01",
+      "strict_eligible": 1,
+      "lease_grade": "no_source_affinity_link",
+      "calls": 167,
+      "standard_usd": 15.8713256
+    }
+  ],
+  "qualification": "Recorded issue-to-latest-expiry ranges are compatible evidence only. Renewals overlap, early release is possible, and log timestamps are absent. Neither missing nor conflicting ranges independently overturn an epoch attribution."
+}
