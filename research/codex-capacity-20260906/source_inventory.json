@@ -13,13 +13,15 @@
       "later_cross_source_replays": 2249296,
       "replay_revision": "evidence/replay-cost-impact-v2.json; global turn identity also catches replaced session IDs",
       "cohort_artifacts": ["tables/manifest.json", "evidence/cohort-comparisons.json"],
-      "pending": ["surviving replay ambiguity and lease corroboration", "final interpretation of controlled comparisons", "independent reconciliation with the prior cost ledger"]
+      "residual_counter_audit": "All 1,693,319 strict survivors audited: no full-counter coincidences with changed nonmissing turns; 62 missing-turn groups contain 163 calls, including 101 later unpriced copies. No priced-dollar deduction follows. See evidence/residual-counter-audit.json.",
+      "pending": ["historical lease conflict interpretation", "final interpretation of controlled comparisons", "independent reconciliation with the prior cost ledger"]
     },
     {
       "key": "august_forensics",
       "location": "/code/pitchai_monitoring-worktrees/auth-usage-history-forensics-20260827/docs/evidence/auth-usage-history-forensics-20260827",
       "read": ["README.md", "extraction-notes.md", "complete proof-observations.csv", "original surviving recovery logs on dev-main, monitoring, Jeff and historical main"],
       "pending": ["resolve 108-observation difference from the prior reported pre-August-17 recovery union", "historical private-report numeric extraction"],
+      "prior_definition_recheck": "Recreated the prior account/probe/window/percentage/reset tuple definition from all retained recovery inputs; 6,937 distinct pre-August-17 tuples remain. A different deduplication key does not explain the reported 7,045 count. The prior directory retains proof excerpts, not the complete union.",
       "prior_claims_to_recheck": {"unique_recovery_observations": 7045, "accounts": 8, "coverage_start": "2026-07-05", "coverage_end": "2026-08-16", "five_hour_observations": 104}
     },
     {
@@ -66,7 +68,7 @@
       "extracted_coverage": ["2026-08-10T19:27:32.471788Z", "2026-09-06T20:15:41.122621Z"],
       "timing_correction": "Guardian usage_state comes from a direct provider read after the broker analytics probe. Normalize it at snapshot captured_at; the exported provider_observed_at is the earlier broker probe clock and must not date guardian usage.",
       "credit_loss_classification": {"direct_guardian_redemptions": 6, "additional_pre_expiry_disappearances_with_new_window": 17, "inferred_events_are_not_direct_redemption_responses": true},
-      "pending": ["four narrative manual redemptions require raw corroboration", "unexplained early window replacements", "plan history beyond current overwritten state"]
+      "pending": ["four narrative manual redemptions require raw corroboration", "unexplained early window replacements", "complete paid exposure beyond recovered provider notices"]
     },
     {
       "key": "provider_documentation",
@@ -84,7 +86,21 @@
       "connection_and_task_schema_verified": true,
       "read": ["nine initial and twelve additional related historical task descriptions", "August 16 cancelled-seat classification", "August 16 shared-lease correction", "July 18 weighted routing change", "July 21 idle-zero deadline investigation", "September 4–7 reset follow-ups"],
       "artifact": "evidence/historical-events.json",
-      "pending": ["manual-reset raw corroboration", "remaining dated plan and quota narrative extraction", "earlier billing evidence if accessible"]
+      "pending": ["manual-reset raw corroboration", "remaining dated quota narrative extraction"]
+    },
+    {
+      "key": "provider_billing_mail",
+      "read_only": true,
+      "identity": "Exact in-memory match between stored subscription identity email claims and six M365 mailboxes; no addresses or credential claims retained.",
+      "coverage": ["2025-11-01T00:00:00Z", "2026-09-06T20:20:00Z"],
+      "complete_searches": 24,
+      "unique_messages_in_date_range": 616,
+      "provider_notices_reviewed": 7,
+      "invoice_receipt_amounts_found": 0,
+      "artifacts": ["extract_billing_notices.py", "evidence/billing-notices.json", "evidence/billing-notice-review.json"],
+      "findings": "Dated scheduled nonrenewal notices, account restoration and complimentary-month offer; separate API balance and survey incentive excluded from subscription cost. Unsent draft identified by a targeted metadata read and excluded.",
+      "pending": ["accessible non-M365 billing evidence for A02 and A07", "paid invoices and resubscription dates if recoverable"],
+      "qualification": "No matched invoice amount establishes the denominator. A planned nonrenewal does not prove actual access ended. Search results do not certify complete billing history."
     },
     {
       "key": "telegram_delivery",

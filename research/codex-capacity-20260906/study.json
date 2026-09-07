@@ -25,7 +25,7 @@
     "initial_turn_reasoning_effort": "max",
     "first_xhigh_continuation_verified": true,
     "verified_continuation_at": "2026-09-06T20:11:59.111Z",
-    "latest_continuation_verified_at": "2026-09-07T10:10:10.801Z",
+    "latest_continuation_verified_at": "2026-09-07T10:44:51.768Z",
     "latest_native_database_model": "gpt-6-astra",
     "latest_native_database_effort": "xhigh",
     "latest_supported_cli_priority_readback": 100,
@@ -60,19 +60,19 @@
       "source": "https://www.reddit.com/r/codex/comments/1w951h1/when_tibo/",
       "retrieved_date": "2026-09-06",
       "claim": "Astra consumes approximately 4.75 times Sol subscription quota despite a 2.5 times API price comparison.",
-      "status": "untested"
+      "status": "controlled association measured; available Astra high versus Sol max cohorts cannot identify a causal model or reasoning effect"
     },
     {
       "source": "https://www.reddit.com/r/codex/comments/1w951h1/when_tibo/",
       "retrieved_date": "2026-09-06",
       "claim": "A banked reset provides approximately half the ordinary Pro 20x weekly API-equivalent allowance.",
-      "status": "untested"
+      "status": "universal claim contradicted by three directly recorded early banked windows and nearby ordinary windows at common prices; later cohorts remain confounded"
     },
     {
       "source": "https://www.reddit.com/r/codex/comments/1w951h1/when_tibo/",
       "retrieved_date": "2026-09-06",
       "claim": "The two effects combine to reduce roughly USD2500 of ordinary weekly value to approximately USD650.",
-      "status": "untested"
+      "status": "not established; neither component supports a universal combined allowance factor"
     }
   ]
 }
