@@ -42,7 +42,7 @@ def export(connection: sqlite3.Connection, table: str, output: Path) -> dict[str
     path = output / (table + ".csv")
     rows = 0
     with path.open("x", encoding="utf-8", newline="") as stream:
-        writer = csv.writer(stream)
+        writer = csv.writer(stream, lineterminator="\n")
         writer.writerow(fields)
         for row in cast("list[tuple[object, ...]]", cursor.fetchall()):
             writer.writerow(row)

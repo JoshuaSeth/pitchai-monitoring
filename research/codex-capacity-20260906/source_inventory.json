@@ -47,7 +47,14 @@
       "extracted_coverage": ["2026-08-19T20:40:12.969723Z", "2026-09-06T20:15:33.226154Z"],
       "backups_compared": 9,
       "quota_tuples_absent_from_live_backups": 0,
-      "pending": ["freshness/rounding/reset analysis", "historical lease and affinity corroboration"]
+      "lease_corroboration": {
+        "source_observations": 4563,
+        "distinct_renewal_states": 2947,
+        "distinct_issuances": 133,
+        "artifact": "evidence/lease-corroboration.json",
+        "limitation": "Exact source affinities were recovered, but issue-to-latest-expiry intervals do not prove continuous occupancy. Renewal states are not separate leases. Missing capture timestamps and early release can leave overlapping or apparently contradictory ranges."
+      },
+      "pending": ["interpretation of conflicting historical lease ranges", "final freshness/rounding/reset synthesis"]
     },
     {
       "key": "broker_host_guardian",

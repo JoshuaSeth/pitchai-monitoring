@@ -5,6 +5,15 @@
   "pm_task_id": "677d9b15-6d44-489c-9aed-6f7d905c9f82",
   "integration_target": "origin/staging",
   "initial_commit": "d68c78911c380b35c653cee5bf9923d5397b773f",
+  "latest_private_progress": {
+    "topic": "early banked-reset and fixed-price comparisons",
+    "requester": "Seth",
+    "matching_rows": 1,
+    "same_resolved_destination": true,
+    "private_only": true,
+    "accepted": true,
+    "broad_copies": 0
+  },
   "compute": {
     "model": "gpt-6-astra",
     "requested_reasoning_effort": "xhigh",
