@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "corroboration_in_progress",
+  "status": "corroborated_with_explicit_gaps",
   "identity_method": "Exact broker identity mapping; historical narrative aliases additionally checked against matching credit expiry timestamps. Raw identities are excluded.",
   "observations": [
     {
@@ -28,9 +28,9 @@
     {
       "kind": "manual_redemption",
       "account": "A05",
-      "time_window_start": "2026-07-12T00:00:00Z",
-      "time_window_end": "2026-07-12T18:29:38Z",
-      "time_precision": "task date and timestamped completion changelog; exact redemption instant not yet recovered",
+      "time_window_start": "2026-07-12T17:45:43.142Z",
+      "time_window_end": "2026-07-12T17:46:35.546Z",
+      "time_precision": "Last recovered 100-percent precheck to the first successful consume-and-postcheck result; exact HTTP request instant not retained in this projection.",
       "pre_weekly_used": 100,
       "post_weekly_used": 0,
       "pre_five_hour_used": 0,
@@ -38,7 +38,10 @@
       "credits_consumed": 1,
       "credit_expiry_day": "2026-07-18",
       "source_pm_task": "a3075bf5-4507-4fc6-956d-723e83f0bdc1",
-      "confidence": "narrative; raw-event corroboration pending"
+      "confidence": "Original recorded tool response confirms one successful request, exact target predicate, credit 3-to-2, target expiry disappearance and both windows at zero.",
+      "credits_before": 3,
+      "credits_after": 2,
+      "response_source": "manual-reset-responses.json: source c7802f79880a999fa610295c402f38fbd588b180f473499ae78266b8fc1038da records 8104, 8115 and 8119"
     },
     {
       "kind": "manual_redemption",
@@ -49,7 +52,19 @@
       "credits_after": 1,
       "provider_outcome": "reset",
       "source_pm_task": "f78ec60e-9373-4691-9c25-f873041bff04",
-      "confidence": "narrative; exact action time not established by reset deadline"
+      "confidence": "Original account-labelled consume response and later quota probes. Recorded execution call brackets the action; immediate state still showed 100 percent.",
+      "time_window_start": "2026-08-10T17:13:48.598Z",
+      "time_window_end": "2026-08-10T17:13:52.240Z",
+      "first_recovered_zero_probe_at": "2026-08-10T17:14:21.042246Z",
+      "immediate_response_weekly_used": 100,
+      "response_source": "manual-reset-responses.json: source c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79 records 323, 341, 429",
+      "epoch_annotation": {
+        "account": "A08",
+        "segment": 8,
+        "existing_transition_grade": "ordinary_expiry_compatible",
+        "interpretation": "post_manual_reset_origin_ambiguous",
+        "reason": "After the confirmed manual redemption, usage stays zero while the deadline moves near the August 11 replacement wave. No credit-count drop identifies another bank action. The carried capacity source is unresolved."
+      }
     },
     {
       "kind": "manual_redemption",
@@ -60,7 +75,19 @@
       "credits_after": 0,
       "provider_outcome": "reset",
       "source_pm_task": "f78ec60e-9373-4691-9c25-f873041bff04",
-      "confidence": "narrative; exact action time not established by reset deadline"
+      "confidence": "Original account-labelled consume response and later quota probes. Recorded execution call brackets the action; immediate state still showed 100 percent.",
+      "time_window_start": "2026-08-10T17:14:45.402Z",
+      "time_window_end": "2026-08-10T17:14:49.431Z",
+      "first_recovered_zero_probe_at": "2026-08-10T17:14:56.940746Z",
+      "immediate_response_weekly_used": 100,
+      "response_source": "manual-reset-responses.json: source c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79 records 345, 349, 429",
+      "epoch_annotation": {
+        "account": "A07",
+        "segment": 8,
+        "existing_transition_grade": "ordinary_expiry_compatible",
+        "interpretation": "post_manual_reset_origin_ambiguous",
+        "reason": "After the confirmed manual redemption, usage stays zero while the deadline moves near the August 11 replacement wave. No credit-count drop identifies another bank action. The carried capacity source is unresolved."
+      }
     },
     {
       "kind": "manual_redemption",
@@ -71,7 +98,19 @@
       "credits_after": 1,
       "provider_outcome": "reset",
       "source_pm_task": "f78ec60e-9373-4691-9c25-f873041bff04",
-      "confidence": "narrative; raw-event corroboration pending"
+      "confidence": "Consume response recovered. Account is corroborated by prior task identity and the matching unique weekly deadline in account history; the two compact response objects omit an account label.",
+      "time_window_start": "2026-08-10T17:37:08Z",
+      "time_window_end": "2026-08-10T17:37:13Z",
+      "time_precision": "Reported fresh precondition and completed_at in the original helper response. The containing tool invocation was a poll and is not an action-start timestamp.",
+      "response_source": "manual-reset-responses.json: source c34d9a455c0df62a2a238fafffc6bfeabf7bed950092793ac695b49f9b1f8e79 records 814, 820",
+      "epoch_annotation": {
+        "account": "A02",
+        "segment": 8,
+        "existing_transition_grade": "ordinary_expiry_compatible",
+        "interpretation": "manual_redemption_corroborated_by_response_and_deadline",
+        "delta_pp": 29,
+        "nearly_complete_cohort_eligible": false
+      }
     },
     {
       "kind": "cancelled_seat_classification",
@@ -85,7 +124,11 @@
       "source_pm_task": "fe4bd179-6150-415f-88ee-f5df87c412c2",
       "confirmed_through": "2026-08-23T08:22:00Z",
       "confirmation_pm_task": "33b01148-d02c-4a3b-83f6-9cb97545a594",
-      "confidence": "explicit operational classification; no billing invoice or effective cancellation date"
+      "confidence": "Operational classification plus recovered provider nonrenewal notices. Scheduled end dates do not prove actual access ended; later Pro usage is observed from September 4.",
+      "scheduled_nonrenewal_end_dates": {
+        "A04": "2026-08-04",
+        "A06": "2026-08-06"
+      }
     },
     {
       "kind": "lease_policy_change",
@@ -111,13 +154,17 @@
         "2026-08-01T03:40:00Z"
       ],
       "source_pm_task": "364608b3-6331-4bf6-873e-12f5367cc942",
-      "confidence": "prior audit narrative; synchronized raw window changes require independent reconstruction"
+      "confidence": "Positive workload deadlines corroborate July 29 and early-August replacement clusters; no normalized quota observations survive July 27-30. A reset deadline minus seven days does not establish the action time or bank cause.",
+      "corroboration": "historical-corroboration.json"
     }
   ],
   "scope_notes": [
-    "Guardian audit has six additional directly recorded redemptions on August 11–12.",
+    "Guardian audit has six additional directly recorded redemptions on August 11\u201312.",
     "Bank reset event evidence does not by itself identify absolute replenished capacity.",
     "Current Pro plan_type on September 6 cannot establish continuous paid service for previously cancelled seats.",
-    "No historical operational action has been repeated by this research."
+    "No historical operational action has been repeated by this research.",
+    "Four historical manual events have original response corroboration in addition to the six guardian-recorded redemptions. These are separate evidence populations.",
+    "A02 segment 8 needs the historical manual-reset annotation; its original quota-only label remains visible for reproducibility. The other three manual responses have no exact-deadline positive epoch match. A07/A08 later reanchor while idle and require an ambiguous-origin annotation, not ordinary controls.",
+    "Historical July 26 Telegram candidate explicitly says no reset was redeemed; it must not create an additional event."
   ]
 }

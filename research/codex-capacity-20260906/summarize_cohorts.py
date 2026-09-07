@@ -14,11 +14,44 @@ import csv
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import cast
+from typing import TypedDict, cast
 
 type Row = dict[str, str]
+type Json = bool | int | float | str | list[Json] | dict[str, Json] | None
 _MINIMUM_STRICT_SHARE = .95
 _MAXIMUM_EPOCH_GAP_SECONDS = 1830
+
+
+class Annotation(TypedDict):
+    """Reviewed historical correction to a quota-only transition classification."""
+
+    account: str
+    segment: str
+    previous_grade: str
+    revised_grade: str
+
+
+def annotate(rows: list[Row], annotations: list[Annotation]) -> int:
+    """Apply historical labels in memory while keeping the source tables immutable.
+
+    Returns:
+        Number of rows whose classification was annotated.
+
+    Raises:
+        ValueError: If an annotation disagrees with its expected source classification.
+    """
+    changes = {(item["account"], item["segment"]): item for item in annotations}
+    changed = 0
+    for row in rows:
+        change = changes.get((row["account"], row["segment"]))
+        if change is None:
+            continue
+        if row["transition_grade"] != change["previous_grade"]:
+            message = "Historical annotation no longer matches its source classification"
+            raise ValueError(message)
+        row["transition_grade"] = change["revised_grade"]
+        changed += 1
+    return changed
 
 
 def number(row: Row, key: str) -> float:
@@ -58,7 +91,7 @@ def eligible(row: Row, dominance: float, points: float) -> bool:
             )))
 
 
-def aggregate(rows: list[Row]) -> dict[str, object]:
+def aggregate(rows: list[Row]) -> dict[str, Json]:
     """Count pool quota once and sum disjoint token components.
 
     Returns:
@@ -68,11 +101,12 @@ def aggregate(rows: list[Row]) -> dict[str, object]:
             "reasoning", "long_context_calls", "interior_usd", "enclosing_usd")
     sums = {key: sum(number(row, key) for row in rows) for key in keys}
     points, count = sums["delta_pp"], len(rows)
-    result: dict[str, object] = {
-        "intervals": count, "accounts": sorted({row["account"] for row in rows}),
+    accounts = {row["account"] for row in rows}
+    result: dict[str, Json] = {
+        "intervals": count, "accounts": cast("list[Json]", sorted(accounts)),
         "account_epochs": len({(row["account"], row["segment"]) for row in rows}),
         "first_day": min(row["start_utc"][:10] for row in rows),
-        "last_start_day": max(row["start_utc"][:10] for row in rows), "sums": sums,
+        "last_start_day": max(row["start_utc"][:10] for row in rows), "sums": cast("dict[str, Json]", sums),
         "dated_usd_per_pp": sums["strict_usd"] / points,
         "fixed_usd_per_pp": sums["fixed_usd"] / points,
         "quota_pp_per_million_total_tokens": points * 1e6 / (sums["uncached"] + sums["cached"] + sums["output"]),
@@ -89,7 +123,19 @@ def aggregate(rows: list[Row]) -> dict[str, object]:
     return result
 
 
-def grouped(rows: list[Row], dimensions: tuple[str, ...]) -> list[dict[str, object]]:
+def epoch_eligible(row: Row) -> bool:
+    """Require substantial consumption, known dominance and continuous sampling.
+
+    Returns:
+        Whether an epoch satisfies the declared descriptive comparison controls.
+    """
+    if not row["dominant_value_share"]:
+        return False
+    return (eligible(row, .95, 80)
+            and number(row, "consumption_max_gap_seconds") <= _MAXIMUM_EPOCH_GAP_SECONDS)
+
+
+def grouped(rows: list[Row], dimensions: tuple[str, ...]) -> list[dict[str, Json]]:
     """Summarize a partition without duplicating an interval within that partition.
 
     Returns:
@@ -114,19 +160,32 @@ def read_table(path: Path) -> list[Row]:
 
 
 def main() -> None:
-    """Write descriptive comparisons; uncertainty does not imply causal proof."""
+    """Write descriptive comparisons; uncertainty does not imply causal proof.
+
+    Raises:
+        ValueError: If historical annotations do not each match one exported epoch.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tables", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--annotations", type=Path, help="Reviewed historical epoch transition corrections")
     args = parser.parse_args()
     tables, output = cast("Path", args.tables), cast("Path", args.output)
     hours = read_table(tables / "hourly_analysis.csv")
+    all_epochs = read_table(tables / "epoch_analysis.csv")
+    annotations: list[Annotation] = []
+    annotation_path = cast("Path | None", args.annotations)
+    if annotation_path is not None:
+        annotations = cast("list[Annotation]", json.loads(annotation_path.read_text(encoding="utf-8")))
+        if annotate(all_epochs, annotations) != len(annotations):
+            message = "Every historical annotation must match exactly one exported epoch"
+            raise ValueError(message)
+        _ = annotate(hours, annotations)
     primary = [row for row in hours if eligible(row, .95, 5)]
-    epochs = [row for row in read_table(tables / "epoch_analysis.csv")
-              if row["dominant_value_share"] and eligible(row, .95, 80)
-              and number(row, "consumption_max_gap_seconds") <= _MAXIMUM_EPOCH_GAP_SECONDS]
+    epochs = [row for row in all_epochs if epoch_eligible(row)]
     result = {
         "schema": 1, "scope": "descriptive_recovered_workload_comparisons",
+        "historical_transition_annotations": annotations,
         "primary_control": "95% dominant value; 95% strict value; >=5pp; dated price and matching reset",
         "epoch_control": "same controls; >=80pp; maximum consumption observation gap <=1830 seconds",
         "epoch_gap_tolerance": "30 minutes plus 30 seconds for observed provider-probe jitter",

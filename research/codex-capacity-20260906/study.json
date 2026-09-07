@@ -26,7 +26,7 @@
     "initial_turn_reasoning_effort": "max",
     "first_xhigh_continuation_verified": true,
     "verified_continuation_at": "2026-09-06T20:11:59.111Z",
-    "latest_continuation_verified_at": "2026-09-07T11:23:02.882Z",
+    "latest_continuation_verified_at": "2026-09-07T12:12:19.719Z",
     "latest_native_database_model": "gpt-6-astra",
     "latest_native_database_effort": "xhigh",
     "latest_supported_cli_priority_readback": 100,
@@ -67,7 +67,7 @@
       "source": "https://www.reddit.com/r/codex/comments/1w951h1/when_tibo/",
       "retrieved_date": "2026-09-06",
       "claim": "A banked reset provides approximately half the ordinary Pro 20x weekly API-equivalent allowance.",
-      "status": "universal claim contradicted by three directly recorded early banked windows and nearby ordinary windows at common prices; later cohorts remain confounded"
+      "status": "three directly recorded August banked windows show similar common-price value to ordinary-compatible controls; these historical comparisons do not identify or disprove a September-specific reduction"
     },
     {
       "source": "https://www.reddit.com/r/codex/comments/1w951h1/when_tibo/",

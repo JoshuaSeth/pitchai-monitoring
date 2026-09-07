@@ -1,6 +1,26 @@
 {
   "schema": 1,
   "scope": "descriptive_recovered_workload_comparisons",
+  "historical_transition_annotations": [
+    {
+      "account": "A02",
+      "segment": "8",
+      "previous_grade": "ordinary_expiry_compatible",
+      "revised_grade": "manual_response_and_deadline_corroborated"
+    },
+    {
+      "account": "A07",
+      "segment": "8",
+      "previous_grade": "ordinary_expiry_compatible",
+      "revised_grade": "post_manual_reset_origin_ambiguous"
+    },
+    {
+      "account": "A08",
+      "segment": "8",
+      "previous_grade": "ordinary_expiry_compatible",
+      "revised_grade": "post_manual_reset_origin_ambiguous"
+    }
+  ],
   "primary_control": "95% dominant value; 95% strict value; >=5pp; dated price and matching reset",
   "epoch_control": "same controls; >=80pp; maximum consumption observation gap <=1830 seconds",
   "epoch_gap_tolerance": "30 minutes plus 30 seconds for observed provider-probe jitter",
@@ -1204,7 +1224,7 @@
         "model": "gpt-5.5",
         "effort": "medium",
         "period": "before_aug21",
-        "transition_grade": "ordinary_expiry_compatible"
+        "transition_grade": "post_manual_reset_origin_ambiguous"
       },
       "intervals": 2,
       "accounts": [
@@ -1382,42 +1402,83 @@
         "model": "gpt-5.6-sol",
         "effort": "max",
         "period": "before_aug21",
-        "transition_grade": "ordinary_expiry_compatible"
+        "transition_grade": "manual_response_and_deadline_corroborated"
       },
-      "intervals": 7,
+      "intervals": 2,
       "accounts": [
-        "A02",
-        "A07"
+        "A02"
       ],
-      "account_epochs": 2,
+      "account_epochs": 1,
       "first_day": "2026-08-10",
-      "last_start_day": "2026-08-12",
+      "last_start_day": "2026-08-10",
       "sums": {
-        "delta_pp": 42.0,
-        "strict_calls": 10382.0,
-        "strict_usd": 1103.195347,
-        "fixed_usd": 861.5023736,
-        "uncached": 48629887.0,
-        "cached": 1404283264.0,
-        "output": 5263476.0,
-        "reasoning": 1753765.0,
+        "delta_pp": 11.0,
+        "strict_calls": 2884.0,
+        "strict_usd": 297.514955,
+        "fixed_usd": 232.160652,
+        "uncached": 13616903.0,
+        "cached": 371091200.0,
+        "output": 1462828.0,
+        "reasoning": 520082.0,
         "long_context_calls": 0.0,
-        "interior_usd": 1018.403877,
-        "enclosing_usd": 1176.58525
+        "interior_usd": 275.225764,
+        "enclosing_usd": 313.916541
       },
-      "dated_usd_per_pp": 26.26655588095238,
-      "fixed_usd_per_pp": 20.511961276190476,
-      "quota_pp_per_million_total_tokens": 0.028803095058799074,
-      "cache_hit_fraction": 0.9665293916800675,
-      "reasoning_fraction_of_output": 0.333195211681406,
+      "dated_usd_per_pp": 27.04681409090909,
+      "fixed_usd_per_pp": 21.10551381818182,
+      "quota_pp_per_million_total_tokens": 0.028484795506267663,
+      "cache_hit_fraction": 0.9646045848948495,
+      "reasoning_fraction_of_output": 0.35553188754932225,
       "long_context_call_fraction": 0.0,
       "timing_and_1pp_endpoint_sensitivity": {
-        "usd_per_pp_low": 20.783752591836734,
-        "usd_per_pp_high": 33.61672142857143
+        "usd_per_pp_low": 21.17121261538462,
+        "usd_per_pp_high": 34.879615666666666
       },
       "timing_and_2pp_endpoint_sensitivity": {
-        "usd_per_pp_low": 18.185783517857143,
-        "usd_per_pp_high": 42.02090178571429
+        "usd_per_pp_low": 18.348384266666667,
+        "usd_per_pp_high": 44.845220142857144
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "post_manual_reset_origin_ambiguous"
+      },
+      "intervals": 5,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-12",
+      "sums": {
+        "delta_pp": 31.0,
+        "strict_calls": 7498.0,
+        "strict_usd": 805.680392,
+        "fixed_usd": 629.3417216,
+        "uncached": 35012984.0,
+        "cached": 1033192064.0,
+        "output": 3800648.0,
+        "reasoning": 1233683.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 743.1781129999999,
+        "enclosing_usd": 862.668709
+      },
+      "dated_usd_per_pp": 25.98969006451613,
+      "fixed_usd_per_pp": 20.30134585806452,
+      "quota_pp_per_million_total_tokens": 0.0289177567952027,
+      "cache_hit_fraction": 0.9672226001313561,
+      "reasoning_fraction_of_output": 0.3245980685398911,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 20.64383647222222,
+        "usd_per_pp_high": 33.179565730769234
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.12629543902439,
+        "usd_per_pp_high": 41.07946233333333
       }
     },
     {
@@ -1785,40 +1846,81 @@
         "period": "before_aug21",
         "transition_grade": "ordinary_expiry_compatible"
       },
-      "intervals": 2,
+      "intervals": 1,
       "accounts": [
-        "A02",
-        "A07"
+        "A02"
       ],
-      "account_epochs": 2,
-      "first_day": "2026-08-12",
+      "account_epochs": 1,
+      "first_day": "2026-08-20",
       "last_start_day": "2026-08-20",
       "sums": {
-        "delta_pp": 193.0,
-        "strict_calls": 48186.0,
-        "strict_usd": 4414.7330018,
-        "fixed_usd": 3793.1777446000006,
-        "uncached": 194909658.0,
-        "cached": 6456704512.0,
-        "output": 21376904.0,
-        "reasoning": 6566937.0,
+        "delta_pp": 94.0,
+        "strict_calls": 24036.0,
+        "strict_usd": 1917.2071788,
+        "fixed_usd": 1841.2553142000002,
+        "uncached": 85493301.0,
+        "cached": 3247289856.0,
+        "output": 9852347.0,
+        "reasoning": 2989792.0,
         "long_context_calls": 0.0,
-        "interior_usd": 4386.1325734,
-        "enclosing_usd": 4439.064795
+        "interior_usd": 1902.5221194,
+        "enclosing_usd": 1933.162394
       },
-      "dated_usd_per_pp": 22.87426425803109,
-      "fixed_usd_per_pp": 19.65377069740933,
-      "quota_pp_per_million_total_tokens": 0.02892256229024292,
-      "cache_hit_fraction": 0.9706973896833827,
-      "reasoning_fraction_of_output": 0.3071977588522641,
+      "dated_usd_per_pp": 20.39582105106383,
+      "fixed_usd_per_pp": 19.587822491489362,
+      "quota_pp_per_million_total_tokens": 0.028121522639101365,
+      "cache_hit_fraction": 0.9743477757259921,
+      "reasoning_fraction_of_output": 0.3034598761087079,
       "long_context_call_fraction": 0.0,
       "timing_and_1pp_endpoint_sensitivity": {
-        "usd_per_pp_low": 22.492987555897436,
-        "usd_per_pp_high": 23.241176937172774
+        "usd_per_pp_low": 20.026548625263157,
+        "usd_per_pp_high": 20.78669240860215
       },
       "timing_and_2pp_endpoint_sensitivity": {
-        "usd_per_pp_low": 22.264632352284266,
-        "usd_per_pp_high": 23.48711531746032
+        "usd_per_pp_low": 19.817938743750002,
+        "usd_per_pp_high": 21.012634717391304
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "post_manual_reset_origin_ambiguous"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-12",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 24150.0,
+        "strict_usd": 2497.525823,
+        "fixed_usd": 1951.9224304000002,
+        "uncached": 109416357.0,
+        "cached": 3209414656.0,
+        "output": 11524557.0,
+        "reasoning": 3577145.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2483.610454,
+        "enclosing_usd": 2505.902401
+      },
+      "dated_usd_per_pp": 25.227533565656564,
+      "fixed_usd_per_pp": 19.716388185858587,
+      "quota_pp_per_million_total_tokens": 0.029726555594182396,
+      "cache_hit_fraction": 0.9670316576615647,
+      "reasoning_fraction_of_output": 0.31039327585433435,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.83610454,
+        "usd_per_pp_high": 25.570432663265304
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.590202514851487,
+        "usd_per_pp_high": 25.834045371134017
       }
     },
     {
@@ -2516,7 +2618,7 @@
         "model": "gpt-5.6-sol",
         "effort": "max",
         "period": "before_aug21",
-        "transition_grade": "ordinary_expiry_compatible",
+        "transition_grade": "post_manual_reset_origin_ambiguous",
         "account": "A07"
       },
       "intervals": 1,
