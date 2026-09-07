@@ -61,15 +61,17 @@ class OrganizationGuardian(Guardian):
                 redemption_suppressed=redemption_suppressed,
             )
         self._finish_summary(summary)
-        if self.notifier is not None and alerts:
+        if alerts and self.notifier is not None:
             self._send_alerts(run_id=run_id, summary=summary, alerts=alerts)
             if summary.error_count and summary.status == "ok":
                 summary.status = "degraded"
+        completed_at = self.clock()
+        serialized_summary = summary.serialized()
         self.audit.finish_run(
-            run_id=run_id,
-            now=self.clock(),
+            summary=serialized_summary,
             status=summary.status,
-            summary=summary.serialized(),
+            now=completed_at,
+            run_id=run_id,
         )
         return summary
 
@@ -134,30 +136,31 @@ class OrganizationGuardian(Guardian):
     ) -> None:
         descriptor = observation.descriptor
         context.audit.record_event(
-            run_id=context.run_id,
-            now=context.clock(),
             event_type="credit_observed",
             account_ref=descriptor.account_ref,
             account_label=descriptor.label,
             credit_ref=credit.credit_ref,
             expires_at=credit.expires_at,
+            run_id=context.run_id,
+            now=context.clock(),
             details=credit.sanitized(),
         )
         if not credit.is_redeemable:
+            ineligible_details = {
+                "status": credit.status,
+                "reset_type": credit.reset_type,
+                "supported_by_plan": credit.supported_by_plan,
+            }
             context.audit.record_event(
-                run_id=context.run_id,
-                now=context.clock(),
                 event_type="credit_not_redeemable",
                 severity="warning",
                 account_ref=descriptor.account_ref,
                 account_label=descriptor.label,
                 credit_ref=credit.credit_ref,
                 expires_at=credit.expires_at,
-                details={
-                    "status": credit.status,
-                    "reset_type": credit.reset_type,
-                    "supported_by_plan": credit.supported_by_plan,
-                },
+                run_id=context.run_id,
+                now=context.clock(),
+                details=ineligible_details,
             )
             return
         context.summary.redeemable_credit_count += 1

@@ -128,11 +128,12 @@ class OrganizationRedemption:
         )
         observation = selection.observation
         credit = selection.credit
+        context.summary.error_count += 1
         context.audit.record_event(
-            run_id=context.run_id,
-            now=context.clock(),
             event_type="redemption_attempt_failed",
             severity="error",
+            run_id=context.run_id,
+            now=context.clock(),
             account_ref=observation.descriptor.account_ref,
             account_label=observation.descriptor.label,
             credit_ref=credit.credit_ref,
@@ -140,7 +141,6 @@ class OrganizationRedemption:
             attempt_id=attempt.attempt_id,
             details={"error_code": error_code, "transport_ambiguous": ambiguous},
         )
-        context.summary.error_count += 1
         line = (
             f"ERROR {html.escape(observation.descriptor.label)} redemption attempt "
             f"failed ({error_code}); "
@@ -176,11 +176,12 @@ class OrganizationRedemption:
         )
         observation = selection.observation
         credit = selection.credit
+        context.summary.error_count += 1
         context.audit.record_event(
-            run_id=context.run_id,
-            now=context.clock(),
             event_type="redemption_verification_failed",
             severity="error",
+            run_id=context.run_id,
+            now=context.clock(),
             account_ref=observation.descriptor.account_ref,
             account_label=observation.descriptor.label,
             credit_ref=credit.credit_ref,
@@ -188,7 +189,6 @@ class OrganizationRedemption:
             attempt_id=attempt.attempt_id,
             details={"outcome": result.code, "error_code": error_code},
         )
-        context.summary.error_count += 1
         line = (
             f"ERROR {html.escape(observation.descriptor.label)} returned {result.code}, "
             "but the post-state check failed; "

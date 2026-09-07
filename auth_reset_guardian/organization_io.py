@@ -97,12 +97,15 @@ class SingleAttemptBrokerProviderSource(BrokerProviderSource):
             "redeem_request_id": idempotency_key,
             "credit_id": credit.provider_id,
         }
+        endpoint = "provider_consume_reset_credit"
+        consume_url = f"{self.provider_base_url}/wham/rate-limit-reset-credits/consume"
+        provider_headers = self._provider_headers(observation.credentials)
         response = self.http.request(
             method="POST",
-            url=f"{self.provider_base_url}/wham/rate-limit-reset-credits/consume",
-            endpoint="provider_consume_reset_credit",
-            headers=self._provider_headers(observation.credentials),
+            url=consume_url,
+            endpoint=endpoint,
             payload=payload,
+            headers=provider_headers,
             ambiguous_on_failure=True,
         )
         raw_code = cast("object", response.get("code"))
