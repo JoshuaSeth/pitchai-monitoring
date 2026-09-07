@@ -1,6 +1,6 @@
 # Verification check
 
-Current report checkpoint: V4 Markdown assembled, PDFs rendered. Full-goal completion remains unproved until scoped code gates, integration, remaining source checks and private delivery finish.
+Current report checkpoint: V4 Markdown assembled. PDFs require regeneration after the package-path correction and scheduling-source audit. Full-goal completion remains unproved until scoped code gates, integration, remaining source checks and private delivery finish.
 
 | Claim family or artifact | Authoritative check | Current result |
 | --- | --- | --- |
@@ -17,7 +17,7 @@ Current report checkpoint: V4 Markdown assembled, PDFs rendered. Full-goal compl
 | Report assembly | Compared both complete Markdown files with ordered V4 clean sections | Exact match. Internal markers and traceability absent. Relative report links resolve. |
 | PDF rendering | Pinned Markdown 3.9 / WeasyPrint 66.0 CLI, explicit UTF-8, DejaVu fonts, separate landscape figure pages | Executive 2 pages, dossier 17. Initial encoding defect corrected. Final PDFs have no detected mojibake. Executive, source table, Reddit/findings table and all figure pages inspected. |
 | New plotting helper | Ruff, strict BasedPyright, Pylint and five architecture checkers | Clean, Pylint 10.00/10. |
-| Research script repairs | Ruff, strict BasedPyright, five architecture checks and combined Pylint | Earlier script violations repaired. Combined Pylint is 10.00/10. Modules with relative imports now live in the conventionally named analysis package; the complete repository ratchet remains pending. |
+| Research script repairs | Ruff, strict BasedPyright, five architecture checks and combined Pylint | Earlier script violations repaired. Combined Pylint is 10.00/10. The complete study now lives in the valid Python package research.codex_capacity_20260906; the complete repository ratchet remains pending. |
 | Counter and account-join preservation | Old/new implementations on frozen telemetry | All 7,319,366 token-event classifications and 6,066,658 joined rows match. A separate complete FSN1/Jeff ingestion comparison matches all four database tables. |
 | Original extractor behavior | Old/new implementations against existing broker, recovery and rollout sources | 56,596 broker records, 5,722 recovery records and 16,009 records from 22 stable original rollout files match. The rollout check is bounded to 155,592,993 source bytes. |
 | Table exporter and package commands | Full new table export and plotting export from the new package path | All retained table files and all three chart CSVs reproduce byte-for-byte. The extractor module help command succeeds under Python 3.12. |
@@ -26,3 +26,5 @@ Current report checkpoint: V4 Markdown assembled, PDFs rendered. Full-goal compl
 The scientific qualifications survived both language passes and V4. Current prices are supported by the retained official sources and dated changes, with retrospective continuity, intraday cutover, tier and cache-write limitations stated beside the estimates. Original response hashes and historical annotations remain the basis of the reset-origin conclusions.
 
 Further verification must recheck original source commands after code repairs, actual required repository gates, final artifact hashes and private Telegram receipts. This file records completed evidence checks without claiming those remaining actions succeeded.
+
+The full ratchet at 50adb4e found implicit namespace and input-exception boundary violations. The repaired package passes focused Ruff, BasedPyright and Pylint (10.00/10); Semgrep found zero research violations. Expected file, decode and external-request failures now pass through an explicit input outcome boundary. Fourteen malformed/missing/failed input cases preserve the earlier outputs and unexpected exceptions still propagate. Original-source extraction rechecked 56,596 broker records, 5,722 recovery records and 16,009 rollout records without differences; see evidence/input-boundary-validation.json. The full ratchet must be rerun on the next committed checkpoint.

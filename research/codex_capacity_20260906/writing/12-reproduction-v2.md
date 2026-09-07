@@ -49,7 +49,7 @@ The current frozen stages are `usage-ledger.sqlite3`, `account-quota-v2.sqlite3`
 `chart_data.py` exports plotting CSVs from the retained tables and annotated comparison summary. `charts.gnuplot` renders the account, hourly and epoch comparisons with gnuplot 6.0. From the repository root, a fresh plotting export can be compared with the retained CSVs:
 
 ```bash
-python3.12 -m research.codex-capacity-20260906.chart_data \
+python3.12 -m research.codex_capacity_20260906.chart_data \
   --output /tmp/codex-capacity-figure-data
 ```
 

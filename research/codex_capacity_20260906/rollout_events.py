@@ -11,6 +11,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
+from .input_boundary import InputFailure
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
@@ -79,9 +81,10 @@ def decode(line: bytes, cutoff: datetime.datetime, stats: Counter[str]) -> tuple
     if not any(marker in line for marker in MARKERS):
         return None
     stats["candidate_lines"] += 1
-    try:
+    event: Json = None
+    with InputFailure(ValueError) as failure:
         event = cast("Json", json.loads(line))
-    except ValueError:
+    if failure.error is not None:
         stats["candidate_json_errors"] += 1
         return None
     if not isinstance(event, dict):
@@ -101,9 +104,10 @@ def event_time(event: Record, cutoff: datetime.datetime, stats: Counter[str]) ->
     if not isinstance(when, str):
         stats["missing_timestamp"] += 1
         return None
-    try:
+    observed = None
+    with InputFailure(ValueError) as failure:
         observed = datetime.datetime.fromisoformat(when)
-    except ValueError:
+    if failure.error is not None or observed is None:
         stats["invalid_timestamp"] += 1
         return None
     if observed.tzinfo is None:

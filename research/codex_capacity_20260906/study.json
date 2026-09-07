@@ -6,14 +6,14 @@
   "integration_target": "origin/staging",
   "initial_commit": "d68c78911c380b35c653cee5bf9923d5397b773f",
   "latest_private_progress": {
-    "topic": "manual-reset reconciliation and revised ordinary controls, checkpoint ff3d185",
+    "topic": "report assembly, preserved telemetry calculations, quality repairs and scheduling-outcome audit, checkpoint 50adb4e",
     "requester": "Seth",
     "matching_rows": 1,
     "same_resolved_destination": true,
     "private_only": true,
     "accepted": true,
     "broad_copies": 0,
-    "helper_receipt_sha256": "e53c6601dc7649b3f765805bce90e758bf6bfdd4d0f4373986b852aef37e1081"
+    "helper_receipt_sha256": "70133de1ac43db8564d1321855b69dbd6478bbe4f32365fd32e1ad4b907626bd"
   },
   "compute": {
     "model": "gpt-6-astra",
@@ -26,7 +26,7 @@
     "initial_turn_reasoning_effort": "max",
     "first_xhigh_continuation_verified": true,
     "verified_continuation_at": "2026-09-06T20:11:59.111Z",
-    "latest_continuation_verified_at": "2026-09-07T13:42:29.439Z",
+    "latest_continuation_verified_at": "2026-09-07T14:15:17.458Z",
     "latest_native_database_model": "gpt-6-astra",
     "latest_native_database_effort": "xhigh",
     "latest_supported_cli_priority_readback": 100,

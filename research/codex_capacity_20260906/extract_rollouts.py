@@ -2,7 +2,7 @@
 """Stream allowlisted token and rate-limit observations from existing rollouts.
 
 Run with Python 3.12 from the repository root using
-``-m research.codex-capacity-20260906.analysis.extract_rollouts``. Inputs are existing
+``-m research.codex_capacity_20260906.extract_rollouts``. Inputs are existing
 search indexes and explicitly named session roots. File size is frozen before
 each read; event timestamps additionally obey a UTC cutoff. No prompts, answers,
 tool payloads, instructions, account IDs or paths are emitted. Repeated events
@@ -23,6 +23,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from .input_boundary import InputFailure
 from .rollout_events import Context, digest, emit
 
 if TYPE_CHECKING:
@@ -66,10 +67,11 @@ def read_prefix(path: Path, cell: str, cutoff: datetime.datetime, stats: Counter
 def scan(path: Path, cell: str, cutoff: datetime.datetime) -> None:
     """Export one source and retain read failures as explicit missingness."""
     stats: Counter[str] = Counter()
-    try:
+    source_fields: Record = {}
+    with InputFailure((OSError, ValueError)) as failure:
         source_fields = read_prefix(path, cell, cutoff, stats)
-    except (OSError, ValueError) as error:
-        source_fields = {"status": type(error).__name__}
+    if failure.error is not None:
+        source_fields = {"status": type(failure.error).__name__}
     emit("rollout_source", cell=cell, source=digest(str(path)), **source_fields, **stats)
 
 
@@ -101,9 +103,10 @@ def scan_paths(paths: set[Path], cell: str, cutoff: datetime.datetime) -> None:
     """Read each inode once, retaining path aliases and unreadable sources."""
     inodes: dict[tuple[int, int], str] = {}
     for number, path in enumerate(sorted(paths), start=1):
-        try:
+        stat = None
+        with InputFailure(OSError) as failure:
             stat = path.stat()
-        except OSError:
+        if failure.error is not None or stat is None:
             scan(path, cell, cutoff)
             continue
         identity = (stat.st_dev, stat.st_ino)

@@ -19,6 +19,8 @@ from contextlib import closing
 from pathlib import Path
 from typing import cast
 
+from .input_boundary import InputFailure
+
 type Json = bool | int | float | str | list[Json] | dict[str, Json] | None
 
 _FIELDS = frozenset({
@@ -84,18 +86,20 @@ def response_objects(output: Json) -> list[Json]:
         if not isinstance(block, dict) or not isinstance(block.get("text"), str):
             continue
         text = cast("str", block["text"])
-        try:
+        complete: Json = None
+        with InputFailure(ValueError) as failure:
             complete = cast("Json", json.loads(text))
-        except ValueError:
+        if failure.error is not None:
             complete = None
         if isinstance(complete, (list, dict)):
             objects.append(complete)
             continue
         for line in text.splitlines():
             for match in re.finditer(r"[{[]", line):
-                try:
+                value: Json = None
+                with InputFailure(ValueError) as failure:
                     value, _ = cast("tuple[Json, int]", json.JSONDecoder().raw_decode(line[match.start():]))
-                except ValueError:
+                if failure.error is not None:
                     continue
                 objects.append(value)
                 break

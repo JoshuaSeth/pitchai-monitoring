@@ -41,7 +41,7 @@
   "helper_sha256": {
     "extract_broker.py": "3359f796adc6ab051dc5feb9b5b5df5bf925b8d98a744abc8cc626725e01ab54",
     "extract_recovery.py": "58701229e97007076f2f07898b63db2761d4c41717892fc38dea0f6b20033b6f",
-    "analysis/extract_rollouts.py": "46d4a5b51be58c3ab64b3866b60db5da355310414c280e435bf4ad2e35d1bf33",
-    "analysis/rollout_events.py": "3847fd5e3c397a0aa35edfc80ab712619030d1b173a882f4eb4b8f9c1b7c8ffd"
+    "extract_rollouts.py": "46d4a5b51be58c3ab64b3866b60db5da355310414c280e435bf4ad2e35d1bf33",
+    "rollout_events.py": "3847fd5e3c397a0aa35edfc80ab712619030d1b173a882f4eb4b8f9c1b7c8ffd"
   }
 }

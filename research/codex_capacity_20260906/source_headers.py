@@ -18,6 +18,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from .input_boundary import InputFailure
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
@@ -73,10 +75,11 @@ def read_headers(path: Path) -> tuple[list[dict[str, str | None]], str]:
         Parsed headers and an explicit read status.
     """
     headers: list[dict[str, str | None]] = []
-    try:
+    status = "not_read"
+    with InputFailure((OSError, ValueError)) as failure:
         status = read_prefix(path, headers)
-    except (OSError, ValueError) as error:
-        return headers, type(error).__name__
+    if failure.error is not None:
+        return headers, type(failure.error).__name__
     return headers, status
 
 

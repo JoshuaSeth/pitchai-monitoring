@@ -18,6 +18,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from .input_boundary import InputFailure
+
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
 
@@ -76,11 +78,12 @@ def leases(path: Path, counts: Counter[str]) -> Iterator[dict[str, Json]]:
             if "HTTP 409:" not in line:
                 continue
             counts["candidate_lines"] += 1
-            try:
+            value: Json = None
+            with InputFailure(ValueError) as failure:
                 value, _ = cast("tuple[Json, int]", json.JSONDecoder().raw_decode(
                     line.split("HTTP 409:", 1)[1].lstrip(),
                 ))
-            except ValueError:
+            if failure.error is not None:
                 counts["invalid_json"] += 1
                 continue
             if not isinstance(value, dict):

@@ -49,7 +49,7 @@ The current frozen stages are `usage-ledger.sqlite3`, `account-quota-v2.sqlite3`
 `chart_data.py` exports plotting CSVs from the retained tables and annotated comparison summary. `charts.gnuplot` renders the account, hourly and epoch comparisons with gnuplot 6.0. From the repository root, a fresh plotting export can be compared with the retained CSVs:
 
 ```bash
-python3.12 -m research.codex-capacity-20260906.chart_data \
+python3.12 -m research.codex_capacity_20260906.chart_data \
   --output /tmp/codex-capacity-figure-data
 ```
 
@@ -126,7 +126,7 @@ Input: [V2](12-reproduction-v2.md). Sentence and table review below is independe
 | 56 | `chart_data.py` exports plotting CSVs from the retained tables and annotated comparis… | Retain this sentence after checking for weak verbs, vague nouns, repeated caveats and task narration. Its factual content or necessary limit serves the reader. |
 | 57 | `charts.gnuplot` renders the account, hourly and epoch comparisons with gnuplot 6.0. | Retain this sentence after checking for weak verbs, vague nouns, repeated caveats and task narration. Its factual content or necessary limit serves the reader. |
 | 58 | From the repository root, a fresh plotting export can be compared with the retained C… | Retain this sentence after checking for weak verbs, vague nouns, repeated caveats and task narration. Its factual content or necessary limit serves the reader. |
-| 59 | ```bash python3.12 -m research.codex-capacity-20260906.chart_data \   --output /tmp/c… | Retain code syntax and versioned paths. |
+| 59 | ```bash python3.12 -m research.codex_capacity_20260906.chart_data \   --output /tmp/c… | Retain code syntax and versioned paths. |
 | 60 | From the research directory, `gnuplot charts.gnuplot` regenerates SVG and PNG figures… | Retain this sentence after checking for weak verbs, vague nouns, repeated caveats and task narration. Its factual content or necessary limit serves the reader. |
 | 61 | The Markdown reports embed the SVG versions. | Retain this sentence after checking for weak verbs, vague nouns, repeated caveats and task narration. Its factual content or necessary limit serves the reader. |
 | 62 | PDF conversion uses Python-Markdown 3.9 and WeasyPrint 66.0 in isolated `uvx` environ… | Retain this sentence after checking for weak verbs, vague nouns, repeated caveats and task narration. Its factual content or necessary limit serves the reader. |

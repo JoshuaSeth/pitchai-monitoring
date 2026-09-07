@@ -23,6 +23,8 @@ from contextlib import closing
 from pathlib import Path
 from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 
+from .input_boundary import InputFailure
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -197,10 +199,11 @@ def inspect_account(alias: str, mailbox: str, token: str, since: str, cutoff: st
     messages: dict[str, Message] = {}
     counts: dict[str, int] = {}
     for term in _SEARCHES:
-        try:
+        matches: list[Message] = []
+        with InputFailure(ConnectionError) as failure:
             matches = search(mailbox, term, token)
-        except ConnectionError as error:
-            return {**result, "status": "search_failed", "query": term, "error": str(error)}
+        if failure.error is not None:
+            return {**result, "status": "search_failed", "query": term, "error": str(failure.error)}
         counts[term] = len(matches)
         messages.update((item["id"], item) for item in matches)
     all_messages = messages.values()

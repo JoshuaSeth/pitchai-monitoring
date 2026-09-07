@@ -221,7 +221,7 @@ def main() -> None:
     library = cast("MailTools", cast("object", importlib.import_module("icloud_mail")))
     settings = library.load_env_file(Path("/root/.config/pitchai/icloud_mail.env"))
     identities = cast("Callable[[Path, Path, str], list[tuple[str, str]]]",
-                      importlib.import_module("extract_billing_notices").identities)
+                      importlib.import_module(".extract_billing_notices", __package__).identities)
     account_emails = identities(Path("/srv/codex-usage-dashboard/usage-history.sqlite3"),
                                Path("/srv/auth-token-server/data/accounts"), _CUTOFF.isoformat())
     with imaplib.IMAP4_SSL("imap.mail.me.com", 993, ssl_context=ssl.create_default_context(), timeout=30) as client:

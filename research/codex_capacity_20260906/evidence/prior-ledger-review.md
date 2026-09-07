@@ -21,7 +21,7 @@ The source-loss check takes the set of distinct current `calls.turn` values befo
 Reproduce the main comparison with Python 3.12 or newer:
 
 ```bash
-python3 research/codex-capacity-20260906/reconcile_prior_ledger.py \
+python3 research/codex_capacity_20260906/reconcile_prior_ledger.py \
   --prior /code/pitchai-cli-new/runs/historical-rollout-cost-ledger/2026-09-04/turn_ledger.csv.gz \
   --joined /mnt/pitchai-dev-data/codex-capacity-20260906/joined-calls.sqlite3 \
   --replay /mnt/pitchai-dev-data/codex-capacity-20260906/replay-audit-v2.sqlite3 \

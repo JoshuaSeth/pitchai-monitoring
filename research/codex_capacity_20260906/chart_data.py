@@ -91,7 +91,7 @@ def epoch_values(root: Path, output: Path) -> None:
 def main() -> None:
     """Create plotting tables in a new directory."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path(__file__).parent.parent)
+    parser.add_argument("--root", type=Path, default=Path(__file__).parent)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     root, output = cast("Path", args.root), cast("Path", args.output)

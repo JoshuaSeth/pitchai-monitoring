@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from .input_boundary import InputFailure
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
@@ -115,9 +117,10 @@ def response_accounts(line: str, counts: collections.Counter[str]) -> list[Recor
     if "HTTP 409:" not in line:
         return None
     counts["candidate_lines"] += 1
-    try:
+    decoded: tuple[Json, int] = (None, 0)
+    with InputFailure(ValueError) as failure:
         decoded = cast("tuple[Json, int]", json.JSONDecoder().raw_decode(line.split("HTTP 409:", 1)[1].lstrip()))
-    except ValueError:
+    if failure.error is not None:
         counts["invalid_json"] += 1
         return None
     response = decoded[0]

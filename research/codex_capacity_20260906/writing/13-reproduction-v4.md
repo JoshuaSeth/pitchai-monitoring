@@ -8,7 +8,7 @@ The repository contains anonymous quota exports, sidecar evidence, nine analysis
 Use Python 3.12. From the research directory, choose a new output path:
 
 ```bash
-python3.12 analysis/summarize_cohorts.py \
+python3.12 summarize_cohorts.py \
   --tables tables \
   --annotations evidence/epoch-transition-annotations.json \
   --output /tmp/codex-capacity-comparisons-reproduced.json
@@ -22,11 +22,11 @@ The annotations are essential. The original epoch CSV retains its quota-only tra
 
 The frozen workspace is `/mnt/pitchai-dev-data/codex-capacity-20260906`. `rollouts-main.jsonl.gz`, `rollouts-jeff.jsonl.gz`, `rollouts-historical-main.jsonl.gz` and `rollouts-fsn1.jsonl.gz` are the four candidate inputs. Their hashes and completed extraction counts are in `evidence/rollout-import-audit.json`. The extractor supports explicit source indexes/roots, cell name and cutoff. The exports contain telemetry fields and source hashes. Resolving the hashes back to original files requires the restricted source map.
 
-Run rollout extraction from the repository root with `python3.12 -m research.codex-capacity-20260906.analysis.extract_rollouts`, followed by its input and cutoff arguments. Keep the `analysis` package together. The broker and recovery extractors also require Python 3.12; a host's default `python3` may be older.
+Run each Python helper from the repository root with `python3.12 -m research.codex_capacity_20260906.HELPER`, replacing `HELPER` with its filename without `.py`, followed by its input and cutoff arguments. Keep the complete research package together on source hosts. All helpers require Python 3.12; a host's default `python3` may be older.
 
 The derivation order is:
 
-1. `analysis/extract_rollouts.py` reads the selected cell indexes and roots. `build_ledger.py --database NEW_DB --input EXPORT` imports each completed export once and constructs candidate calls without summing cumulative counters.
+1. `extract_rollouts.py` reads the selected cell indexes and roots. `build_ledger.py --database NEW_DB --input EXPORT` imports each completed export once and constructs candidate calls without summing cumulative counters.
 2. `normalize_quota.py --input EXPORT --output NEW_DB` accepts repeated inputs for the broker and three recovery exports. It retains freshness, observation-time and source-kind distinctions.
 3. `join_calls.py --ledger LEDGER --quota QUOTA --expected-inputs 4 --output NEW_DB` adds exact/tolerance reset-fingerprint account joins.
 4. `replay_audit.py --ledger LEDGER --output NEW_DB` produces the current semantic replay decisions. The v2 audit uses global turn identity.
@@ -48,10 +48,10 @@ The current frozen stages are `usage-ledger.sqlite3`, `account-quota-v2.sqlite3`
 
 ### Figures and PDF
 
-`analysis/chart_data.py` exports plotting CSVs from the retained tables and annotated comparison summary. `charts.gnuplot` renders the account, hourly and epoch comparisons with gnuplot 6.0. From the repository root, a fresh plotting export can be compared with the retained CSVs:
+`chart_data.py` exports plotting CSVs from the retained tables and annotated comparison summary. `charts.gnuplot` renders the account, hourly and epoch comparisons with gnuplot 6.0. From the repository root, a fresh plotting export can be compared with the retained CSVs:
 
 ```bash
-python3.12 -m research.codex-capacity-20260906.analysis.chart_data \
+python3.12 -m research.codex_capacity_20260906.chart_data \
   --output /tmp/codex-capacity-figure-data
 ```
 
@@ -62,6 +62,7 @@ bash render_reports.sh /tmp/codex-capacity-pdfs
 ```
 
 The output directory must be new, and `uv` must be available. The renderer applies `report.css` to `dossier.md` and `executive-report.md`. Its two PDF files contain the report text and figures. Reproduction establishes the calculation on retained evidence. Missing requests, invoices and hidden credit weights remain outside that evidence.
+
 <!-- END CLEAN TEXT -->
 
 ## Internal V4 provenance
