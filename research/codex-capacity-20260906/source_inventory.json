@@ -14,7 +14,8 @@
       "replay_revision": "evidence/replay-cost-impact-v2.json; global turn identity also catches replaced session IDs",
       "cohort_artifacts": ["tables/manifest.json", "evidence/cohort-comparisons.json"],
       "residual_counter_audit": "All 1,693,319 strict survivors audited: no full-counter coincidences with changed nonmissing turns; 62 missing-turn groups contain 163 calls, including 101 later unpriced copies. No priced-dollar deduction follows. See evidence/residual-counter-audit.json.",
-      "pending": ["historical lease conflict interpretation", "final interpretation of controlled comparisons", "independent reconciliation with the prior cost ledger"]
+      "prior_ledger_reconciliation": "119,835 modern numeric turns compared; 104,505 exact four-counter matches after replay correction. 15,072 prior zero-token turns have no current calls. All 99 nonzero missing turns map to 23 source files recorded FileNotFoundError. See evidence/prior-ledger-reconciliation.json and evidence/prior-ledger-review.md.",
+      "pending": ["historical lease conflict interpretation", "final interpretation of controlled comparisons"]
     },
     {
       "key": "august_forensics",
@@ -22,6 +23,7 @@
       "read": ["README.md", "extraction-notes.md", "complete proof-observations.csv", "original surviving recovery logs on dev-main, monitoring, Jeff and historical main"],
       "pending": ["resolve 108-observation difference from the prior reported pre-August-17 recovery union", "historical private-report numeric extraction"],
       "prior_definition_recheck": "Recreated the prior account/probe/window/percentage/reset tuple definition from all retained recovery inputs; 6,937 distinct pre-August-17 tuples remain. A different deduplication key does not explain the reported 7,045 count. The prior directory retains proof excerpts, not the complete union.",
+      "additional_export_search": "Searched local and main temporary/artifact roots and the surviving prior evidence directory. No complete earlier recovery union was located. This is a retained coverage discrepancy, not evidence of a quota change.",
       "prior_claims_to_recheck": {"unique_recovery_observations": 7045, "accounts": 8, "coverage_start": "2026-07-05", "coverage_end": "2026-08-16", "five_hour_observations": 104}
     },
     {
@@ -34,7 +36,8 @@
       "key": "historical_cost_ledger",
       "location": "/code/pitchai-cli-new/runs/historical-rollout-cost-ledger/2026-09-04",
       "read": ["methodology.md", "coverage_and_totals.json", "run_ledger.sh", "complete report", "turn/source CSV headers", "extractor counter parsing and turn boundaries", "global candidate selection, price and integrity logic", "verifier token reconciliation checks"],
-      "pending": ["independent ledger reconciliation", "current control-plane usage gaps and service-tier corroboration", "source classification and replay sensitivity"],
+      "independent_reconciliation": "evidence/prior-ledger-reconciliation.json; three separate source/counting scopes, prior integrity flags and discrepancy provenance retained. Exact matches are counter corroboration, not certified live consumption.",
+      "pending": ["current control-plane usage gaps and service-tier corroboration", "final source classification and replay interpretation"],
       "snapshot_cutoff": "2026-09-04T12:03:50Z",
       "prior_inventory": {"cells": 3, "indexed_source_records": 26120, "scanned_bytes": 111660484559, "logical_turns": 244113, "turns_with_token_telemetry": 121354, "integrity_flagged_turns": 737},
       "limitation": "Prior costs reprice workload shape at comparison-model snapshot prices; they are not dated actual-model subscription value. Prior all-time counters must not be used without clone, replay, counter-integrity, and account-join review."
@@ -99,7 +102,9 @@
       "invoice_receipt_amounts_found": 0,
       "artifacts": ["extract_billing_notices.py", "evidence/billing-notices.json", "evidence/billing-notice-review.json"],
       "findings": "Dated scheduled nonrenewal notices, account restoration and complimentary-month offer; separate API balance and survey incentive excluded from subscription cost. Unsent draft identified by a targeted metadata read and excluded.",
-      "pending": ["accessible non-M365 billing evidence for A02 and A07", "paid invoices and resubscription dates if recoverable"],
+      "additional_mail_source": "The configured iCloud mailbox was searched read-only across 14 folders using 28 complete provider searches. Ten matching messages retained unchanged flags. One amount-mention candidate had no exact subscription identity match and does not establish a paid invoice. See evidence/icloud-billing-notices.json.",
+      "access_limits": "The iCloud mailbox-to-A02 relationship is unproved. No Gmail reader is exposed in the current tools, and no Gmail-named credential file was found in the configured PitchAI credential directory on main; A07 mailbox access is not established.",
+      "pending": ["paid invoices and resubscription dates remain unverified; a subscription-linked receipt is required"],
       "qualification": "No matched invoice amount establishes the denominator. A planned nonrenewal does not prove actual access ended. Search results do not certify complete billing history."
     },
     {
