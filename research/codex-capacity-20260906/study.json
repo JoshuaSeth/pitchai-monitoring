@@ -6,7 +6,7 @@
   "integration_target": "origin/staging",
   "initial_commit": "d68c78911c380b35c653cee5bf9923d5397b773f",
   "latest_private_progress": {
-    "topic": "billing-notice and residual-counter evidence, checkpoint a47440e",
+    "topic": "manual-reset reconciliation and revised ordinary controls, checkpoint ff3d185",
     "requester": "Seth",
     "matching_rows": 1,
     "same_resolved_destination": true,
@@ -26,7 +26,7 @@
     "initial_turn_reasoning_effort": "max",
     "first_xhigh_continuation_verified": true,
     "verified_continuation_at": "2026-09-06T20:11:59.111Z",
-    "latest_continuation_verified_at": "2026-09-07T12:12:19.719Z",
+    "latest_continuation_verified_at": "2026-09-07T13:11:29.807Z",
     "latest_native_database_model": "gpt-6-astra",
     "latest_native_database_effort": "xhigh",
     "latest_supported_cli_priority_readback": 100,

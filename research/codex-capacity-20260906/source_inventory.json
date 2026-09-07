@@ -1,5 +1,5 @@
 {
-  "status": "discovery_in_progress",
+  "status": "research_synthesis_and_reports_prepared_final_verification_pending",
   "observation_date": "2026-09-06",
   "counts_are_initial_discovery_observations_not_final_extraction_totals": true,
   "sources": [
@@ -28,8 +28,7 @@
       "residual_counter_audit": "All 1,693,319 strict survivors audited: no full-counter coincidences with changed nonmissing turns; 62 missing-turn groups contain 163 calls, including 101 later unpriced copies. No priced-dollar deduction follows. See evidence/residual-counter-audit.json.",
       "prior_ledger_reconciliation": "119,835 modern numeric turns compared; 104,505 exact four-counter matches after replay correction. 15,072 prior zero-token turns have no current calls. All 99 nonzero missing turns map to 23 source files recorded FileNotFoundError. See evidence/prior-ledger-reconciliation.json and evidence/prior-ledger-review.md.",
       "pending": [
-        "historical lease conflict interpretation",
-        "final interpretation of controlled comparisons"
+        "final objective and source audit before delivery"
       ]
     },
     {
@@ -42,7 +41,7 @@
         "original surviving recovery logs on dev-main, monitoring, Jeff and historical main"
       ],
       "pending": [
-        "final interpretation of the unrecovered 108-observation difference"
+        "The 108-observation gap remains unrecovered in accessible retained sources; its coverage limitation is reported in the dossier."
       ],
       "prior_definition_recheck": "Recreated the prior account/probe/window/percentage/reset tuple definition from all retained recovery inputs; 6,937 distinct pre-August-17 tuples remain. A different deduplication key does not explain the reported 7,045 count. The prior directory retains proof excerpts, not the complete union.",
       "additional_export_search": "Searched local and main temporary/artifact roots and the surviving prior evidence directory. No complete earlier recovery union was located. This is a retained coverage discrepancy, not evidence of a quota change.",
@@ -76,8 +75,7 @@
       ],
       "independent_reconciliation": "evidence/prior-ledger-reconciliation.json; three separate source/counting scopes, prior integrity flags and discrepancy provenance retained. Exact matches are counter corroboration, not certified live consumption.",
       "pending": [
-        "current control-plane usage gaps and service-tier corroboration",
-        "final source classification and replay interpretation"
+        "No extracted candidate has a service-tier field; policy code lacks complete historical deployment/override proof. The dossier retains this evidence limit."
       ],
       "snapshot_cutoff": "2026-09-04T12:03:50Z",
       "prior_inventory": {
@@ -114,8 +112,7 @@
         "limitation": "Exact source affinities were recovered, but issue-to-latest-expiry intervals do not prove continuous occupancy. Renewal states are not separate leases. Missing capture timestamps and early release can leave overlapping or apparently contradictory ranges."
       },
       "pending": [
-        "interpretation of conflicting historical lease ranges",
-        "final freshness/rounding/reset synthesis"
+        "Missing capture and release times prevent resolving historical lease occupancy. The dossier preserves the conflicting range grades."
       ]
     },
     {
@@ -147,7 +144,7 @@
         "inferred_events_are_not_direct_redemption_responses": true
       },
       "pending": [
-        "final synthesis of unexplained replacements and paid exposure gaps"
+        "Unexplained replacements and paid exposure remain qualified observations in the final report, without an inferred action or invoice."
       ],
       "manual_reset_corroboration": "Four original historical responses recovered; account-labelled for A05/A07/A08 and response-plus-deadline corroboration for A02. See evidence/manual-reset-responses.json and historical-events.json."
     },
@@ -170,9 +167,9 @@
         "evidence/eur-usd-daily.csv"
       ],
       "pending": [
-        "historical service-tier and plan evidence",
-        "intraday price-change sensitivity"
+        "Historical service tier and paid-plan amounts remain unverified."
       ],
+      "intraday_price_sensitivity": "evidence/price-boundary-sensitivity.json: 5,803 strict Sol calls on August 21, all within A02 segment 12, with USD123.9775028 maximum old-rate increment. No primary hourly or fixed-price comparison changes.",
       "final_observed_model_set": "All named models have an explicit dated-price disposition; Spark and missing-model records remain unpriced rather than receiving an invented alias."
     },
     {
