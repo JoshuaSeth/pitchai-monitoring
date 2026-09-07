@@ -41,13 +41,13 @@ Each cell shows the benchmark multiple and, in parentheses, the number of distin
 | A07 | 25.98× (14) | 36.68× (13) | 16.60× (2) |
 | A08 | 25.70× (8) | 66.64× (14) | 3.39× (1) |
 
-![Recovered account values relative to EUR200 across July, August and partial September.](figures/account-value.svg)
-
 The corresponding recovered EUR totals across these account labels are EUR34,763.93 in July, EUR72,524.71 in August and EUR23,226.44 in partial September. A fleet return on paid spend requires verified seat-month invoice amounts. June 30 also has partial values for A03, A05 and A08 in the complete account-month CSV. Rows with unpriced calls retain their unpriced counts, including 251 strict A01 calls in September and 99 strict A08 calls in August. Their value remains unknown.
 
 Account differences reflect usage, routing, idle periods, recovery coverage, reset frequency and workload. A06 received a documented routing-weight increase on 18 July. A04 and A06 have provider notices scheduling nonrenewal for 4 and 6 August and little later August workload. Surviving Pro calls resume from 4 September. Those notices do not establish exact paid exposure or resubscription dates. A complimentary-month offer is not evidence of redemption, and API balance notices are excluded from subscription costs.
 
 The available invoice and attribution evidence leaves the actual paid-subscription multiple unidentifiable. The table supplies a conditional benchmark. Unknown missing use and unresolved identity prevent a finite correction based on these data.
+
+![Recovered account values relative to EUR200 across July, August and partial September.](figures/account-value.svg)
 <!-- END CLEAN TEXT -->
 
 ## Internal V4 provenance

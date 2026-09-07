@@ -1,5 +1,5 @@
 {
-  "status": "research_synthesis_and_reports_prepared_final_verification_pending",
+  "status": "research_and_source_audit_complete_integration_and_delivery_pending",
   "observation_date": "2026-09-06",
   "counts_are_initial_discovery_observations_not_final_extraction_totals": true,
   "sources": [
@@ -56,7 +56,7 @@
     },
     {
       "key": "durable_history_implementation",
-      "location": "docs/codex-auth-usage-dashboard.md",
+      "location": "/code/pitchai_monitoring-worktrees/auth-broker-usage-limit-timeseries-20260827/docs/codex-auth-usage-dashboard.md",
       "read": true,
       "evidence": "Five-minute append-only SQLite sampler; last-known values and legacy imports explicitly marked; bank expiry is not an automatic reset; provider token analytics are separate from raw rollout tokens."
     },
@@ -87,6 +87,24 @@
         "integrity_flagged_turns": 737
       },
       "limitation": "Prior costs reprice workload shape at comparison-model snapshot prices; they are not dated actual-model subscription value. Prior all-time counters must not be used without clone, replay, counter-integrity, and account-join review."
+    },
+    {
+      "key": "named_reminder_cost_research",
+      "lane": "reminder-cost-token-research-20260901-cli",
+      "location": "dev-main:/code/pitchai_cli_new-worktrees/reminder-cost-token-research-20260901-cli",
+      "read": [
+        "Complete 1 September report through supported CLI get",
+        "Original 1 September reminder SQL and its source response",
+        "Complete 2 September comparison, fact sheet, background research, calculator and completion audit",
+        "4 September historical ledger and source datasets, independently reconciled above"
+      ],
+      "original_numeric_outcomes": 342,
+      "reproduced_distinct_turns": 342,
+      "exact_matches_in_frozen_scheduling_export": 342,
+      "additional_usage_added": 0,
+      "artifact": "evidence/prior-reminder-audit.json",
+      "limitation": "The earlier model-price substitution is not a separate request ledger or provider invoice. Its source counters have the scheduling projection limitations audited in this study.",
+      "pending": []
     },
     {
       "key": "broker_host_quota_history",
@@ -246,6 +264,27 @@
           "evidence/historical-corroboration.json"
         ]
       }
+    },
+    {
+      "key": "scheduling_outcome_history",
+      "status": "reconciled",
+      "sources": [
+        "dev-main",
+        "dev-jeff",
+        "dev-monitoring"
+      ],
+      "coverage": [
+        "2026-08-29T05:19:51.718455Z",
+        "2026-09-06T20:19:58.946959Z"
+      ],
+      "rows": 3605367,
+      "numeric_rows": 14365,
+      "distinct_turns": 622,
+      "capacity_point_rows": 0,
+      "service_tier_key_rows": 0,
+      "artifact": "evidence/scheduling-outcome-audit.json",
+      "limitation": "Derived from the same rollouts; repeated decisions and partial turn contexts do not establish additional request consumption. Four overlapping later-turn projections and three cumulative counter gaps remain outside additive accounting.",
+      "pending": []
     }
   ]
 }

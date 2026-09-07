@@ -19,6 +19,7 @@ The account-month benchmark ranges from 15.0–26.0× EUR200 in July to 10.1–8
 | Normalized quota union | 52,551 observations: 15,635 guardian, 17,701 current, 5,625 recovery, 597 last-known and 12,993 legacy/stale. | Explicit separation of fresh and historical/cached values. Counts differ from raw exports because duplicate provider observations collapse. |
 | Manual reset responses | Ten original response records corroborate four actions on 12 July and 10 August. | Action results and delayed fresh quota state, with account/deadline attribution grades. |
 | Lease history | 4,563 observations, 2,947 renewal states, 133 issuances. | Partial corroboration of account ownership. Renewal is not a new lease. |
+| Scheduling outcomes | 3,605,367 retained rows, 29 August–6 September. Their 14,365 numeric observations collapse to 622 turns. | A partial projection of the same rollout counters. No capacity-point value or explicit service-tier field survives. |
 | Historical reports | Related PM workpads, the August usage-history investigation, durable time-series implementation and September historical cost ledger. Telegram search screened 219 receipts and yielded 103 candidate lines. | Corroboration and source discovery. Narrative percentages remain outside the primary quota ledger. |
 | Billing evidence | Twenty-four complete provider searches across six matched M365 mailboxes, 616 messages in range, seven provider notices. Fourteen iCloud folders and 28 searches yielded ten matches. | Scheduled nonrenewal dates and offers, but no matched paid subscription invoice amount. |
 | Public sources | Official model/pricing pages, dated release changes, ECB daily exchange rates, original Reddit claim and linked author's table. | Reference prices and claims to test. |
@@ -30,6 +31,14 @@ The [source inventory](source_inventory.json) and extraction manifests record lo
 The August investigation reported 7,045 unique pre-17-August recovery observations. The surviving inputs reproduce **6,937** under its original account/probe/window/percentage/reset key. The 108-observation difference remains unrecovered after checking the surviving report, logs and artifact roots. The missing observations limit coverage and provide no evidence of a quota-policy change.
 
 The September cost ledger contains 244,113 logical turns. Its 119,835 modern numeric turns permit a direct counter comparison. After replay correction, 104,505 match all four counters exactly, 108 have higher current totals, 51 have lower current totals, 15,072 prior zero-token turns have no current calls, and 99 nonzero prior turns are absent. All 99 map to 23 files recorded as unavailable. Exact matches include 689 turns flagged by the prior study, so agreement alone does not certify consumption. The earlier report repriced historical workload at comparison-model rates. Account values here use dated rates for the recorded model.
+
+The named `reminder-cost-token-research-20260901-cli` lane also reported 342 completed reminder outcomes on 1 September. Its original query and source response reproduce exactly: 980,702,621 input tokens, including 958,765,184 cached, and 3,327,738 output tokens, including 1,009,582 reasoning. All 342 distinct turns and their token tuples are already present in the scheduling export below. The earlier $537.81 estimate repriced that workload as short-context Sol; its later alternative-provider comparison reused the same aggregate. Neither amount is additional subscription consumption. The [prior reminder audit](evidence/prior-reminder-audit.json) records this source trace.
+
+### Scheduling outcomes reconciled
+
+The scheduling history repeats a turn's observed usage across multiple decisions. Summing its 14,365 numeric rows would count only 622 turns repeatedly. Whole-turn counters agree exactly for 339 turns; 280 have higher ledger totals, and three have no calls and zero recorded usage. The CLI's reverse reader treats a repeated `turn_context` as a new start, so it often measures only the last segment of a longer turn.
+
+Restricting the comparison to each recorded start/end interval produces 615 exact four-counter matches, including the three zero-usage cases. Original source reads explain all seven remaining differences: four projections include later-turn requests already present elsewhere in the ledger, and three include cumulative increments larger than the recorded last-response counters. Those three discrepancies total 324,036 input tokens, including 320,256 cached, plus 969 output tokens; 578 reasoning tokens are part of output. They remain counter gaps, not reconstructed requests. No scheduling value is added to the account totals. The [outcome audit](evidence/scheduling-outcome-audit.json) retains the queries, source evidence and qualifications.
 
 ### Narrative timestamps
 
@@ -117,13 +126,13 @@ Each cell shows the benchmark multiple and, in parentheses, the number of distin
 | A07 | 25.98× (14) | 36.68× (13) | 16.60× (2) |
 | A08 | 25.70× (8) | 66.64× (14) | 3.39× (1) |
 
-![Recovered account values relative to EUR200 across July, August and partial September.](figures/account-value.svg)
-
 The corresponding recovered EUR totals across these account labels are EUR34,763.93 in July, EUR72,524.71 in August and EUR23,226.44 in partial September. A fleet return on paid spend requires verified seat-month invoice amounts. June 30 also has partial values for A03, A05 and A08 in the complete account-month CSV. Rows with unpriced calls retain their unpriced counts, including 251 strict A01 calls in September and 99 strict A08 calls in August. Their value remains unknown.
 
 Account differences reflect usage, routing, idle periods, recovery coverage, reset frequency and workload. A06 received a documented routing-weight increase on 18 July. A04 and A06 have provider notices scheduling nonrenewal for 4 and 6 August and little later August workload. Surviving Pro calls resume from 4 September. Those notices do not establish exact paid exposure or resubscription dates. A complimentary-month offer is not evidence of redemption, and API balance notices are excluded from subscription costs.
 
 The available invoice and attribution evidence leaves the actual paid-subscription multiple unidentifiable. The table supplies a conditional benchmark. Unknown missing use and unresolved identity prevent a finite correction based on these data.
+
+![Recovered account values relative to EUR200 across July, August and partial September.](figures/account-value.svg)
 
 ## Capacity over time, models and reasoning
 
@@ -149,13 +158,13 @@ Astra/high yields 52.9% of September Sol/max's API-equivalent dollars per report
 | Sol/max, 1–6 September | 0.02988 | 35.66% | 14.60–21.54 |
 | Astra/high, 5–6 September | 0.13640 | 19.91% | 8.34–10.48 |
 
-![Dated and fixed-price USD per reported weekly point, with conditional endpoint sensitivities for the four main cohorts.](figures/hourly-value.svg)
-
 The sensitivity values use dated prices. Cached input dominates the token totals, and each cohort's cache share differs. A million total tokens therefore does not represent a common uncached or output workload. Reasoning is included in output and is priced once within that total. Independent per-component hidden quota weights cannot be estimated uniquely when the components move together and the hidden denominator is unknown. The [comparison summary](evidence/cohort-comparisons.json) contains separate component sums and two-point endpoint sensitivities.
 
 Two GPT-5.5/medium hours also pass the declared numerical controls but contain only 51 recovered calls while the account moves 24 points. Their $0.271 per point is sensitive to missing workload and provides weak evidence about model efficiency. A high dominant-model share can still occur when other workload is missing. No pure xhigh cohort passes the primary controls, so this dataset cannot rank xhigh against max.
 
 [Threshold sensitivity tables](evidence/cohort-comparisons.json) report different dominance and point thresholds. Similar results across thresholds support the observed pattern. They still share the limits from unknown tiers, correlated workload and missing calls.
+
+![Dated and fixed-price USD per reported weekly point, with conditional endpoint sensitivities for the four main cohorts.](figures/hourly-value.svg)
 
 ## Banked resets and the reported reduction
 
@@ -285,6 +294,8 @@ The current frozen stages are `usage-ledger.sqlite3`, `account-quota-v2.sqlite3`
 - `lease-corroboration.json`, `account-window-audit.json` and `residual-counter-audit.json` provide separate identity and counter checks.
 - `historical-corroboration.json` retains SQL and results for reset waves, the manual-to-positive bridge, narrative clocks and revised epoch counts. `manual-reset-responses.json` binds ten selected responses to source-path, invocation and record hashes.
 - `prior-ledger-reconciliation.json` and its review distinguish prior/current counter disagreement from unavailable sources. Billing reviews preserve the invoice and access gaps without account identities.
+- `scheduling-outcome-audit.json` and the three compressed scheduling exports reconcile repeated decision observations and partial turn boundaries without adding their counters to usage.
+- `prior-reminder-audit.json` reproduces the named earlier reminder cohort and verifies that all 342 outcomes already appear in those scheduling exports.
 - `cohort-comparisons.json` contains model/effort, account, reset-origin and threshold partitions, component sums and conditional endpoint sensitivities.
 
 ### Figures and PDF

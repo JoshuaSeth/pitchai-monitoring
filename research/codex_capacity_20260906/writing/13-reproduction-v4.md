@@ -44,6 +44,8 @@ The current frozen stages are `usage-ledger.sqlite3`, `account-quota-v2.sqlite3`
 - `lease-corroboration.json`, `account-window-audit.json` and `residual-counter-audit.json` provide separate identity and counter checks.
 - `historical-corroboration.json` retains SQL and results for reset waves, the manual-to-positive bridge, narrative clocks and revised epoch counts. `manual-reset-responses.json` binds ten selected responses to source-path, invocation and record hashes.
 - `prior-ledger-reconciliation.json` and its review distinguish prior/current counter disagreement from unavailable sources. Billing reviews preserve the invoice and access gaps without account identities.
+- `scheduling-outcome-audit.json` and the three compressed scheduling exports reconcile repeated decision observations and partial turn boundaries without adding their counters to usage.
+- `prior-reminder-audit.json` reproduces the named earlier reminder cohort and verifies that all 342 outcomes already appear in those scheduling exports.
 - `cohort-comparisons.json` contains model/effort, account, reset-origin and threshold partitions, component sums and conditional endpoint sensitivities.
 
 ### Figures and PDF
@@ -62,7 +64,6 @@ bash render_reports.sh /tmp/codex-capacity-pdfs
 ```
 
 The output directory must be new, and `uv` must be available. The renderer applies `report.css` to `dossier.md` and `executive-report.md`. Its two PDF files contain the report text and figures. Reproduction establishes the calculation on retained evidence. Missing requests, invoices and hidden credit weights remain outside that evidence.
-
 <!-- END CLEAN TEXT -->
 
 ## Internal V4 provenance

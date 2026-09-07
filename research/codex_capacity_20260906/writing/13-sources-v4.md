@@ -1,10 +1,4 @@
 <!-- BEGIN CLEAN TEXT -->
-# Codex subscription capacity dossier
-
-Evidence cutoff: **6 September 2026 at 20:20 UTC, exclusive**. Accounts use stable anonymous labels A01–A08. Raw workload dates span 5 November 2025–6 September 2026, while useful account quota history is concentrated in July–September 2026.
-
-The account-month benchmark ranges from 15.0–26.0× EUR200 in July to 10.1–85.6× in August. Comparable hourly data links later Astra/high usage to lower API-equivalent value per reported quota point. August banked windows show similar constant-price value to ordinary-compatible windows, while a September-specific bank penalty remains unresolved.
-
 ## Sources and coverage
 
 | Evidence family | Retained coverage and volume | What it establishes |
@@ -20,6 +14,7 @@ The account-month benchmark ranges from 15.0–26.0× EUR200 in July to 10.1–8
 | Normalized quota union | 52,551 observations: 15,635 guardian, 17,701 current, 5,625 recovery, 597 last-known and 12,993 legacy/stale. | Explicit separation of fresh and historical/cached values. Counts differ from raw exports because duplicate provider observations collapse. |
 | Manual reset responses | Ten original response records corroborate four actions on 12 July and 10 August. | Action results and delayed fresh quota state, with account/deadline attribution grades. |
 | Lease history | 4,563 observations, 2,947 renewal states, 133 issuances. | Partial corroboration of account ownership. Renewal is not a new lease. |
+| Scheduling outcomes | 3,605,367 retained rows, 29 August–6 September. Their 14,365 numeric observations collapse to 622 turns. | A partial projection of the same rollout counters. No capacity-point value or explicit service-tier field survives. |
 | Historical reports | Related PM workpads, the August usage-history investigation, durable time-series implementation and September historical cost ledger. Telegram search screened 219 receipts and yielded 103 candidate lines. | Corroboration and source discovery. Narrative percentages remain outside the primary quota ledger. |
 | Billing evidence | Twenty-four complete provider searches across six matched M365 mailboxes, 616 messages in range, seven provider notices. Fourteen iCloud folders and 28 searches yielded ten matches. | Scheduled nonrenewal dates and offers, but no matched paid subscription invoice amount. |
 | Public sources | Official model/pricing pages, dated release changes, ECB daily exchange rates, original Reddit claim and linked author's table. | Reference prices and claims to test. |
@@ -31,6 +26,14 @@ The [source inventory](source_inventory.json) and extraction manifests record lo
 The August investigation reported 7,045 unique pre-17-August recovery observations. The surviving inputs reproduce **6,937** under its original account/probe/window/percentage/reset key. The 108-observation difference remains unrecovered after checking the surviving report, logs and artifact roots. The missing observations limit coverage and provide no evidence of a quota-policy change.
 
 The September cost ledger contains 244,113 logical turns. Its 119,835 modern numeric turns permit a direct counter comparison. After replay correction, 104,505 match all four counters exactly, 108 have higher current totals, 51 have lower current totals, 15,072 prior zero-token turns have no current calls, and 99 nonzero prior turns are absent. All 99 map to 23 files recorded as unavailable. Exact matches include 689 turns flagged by the prior study, so agreement alone does not certify consumption. The earlier report repriced historical workload at comparison-model rates. Account values here use dated rates for the recorded model.
+
+The named `reminder-cost-token-research-20260901-cli` lane also reported 342 completed reminder outcomes on 1 September. Its original query and source response reproduce exactly: 980,702,621 input tokens, including 958,765,184 cached, and 3,327,738 output tokens, including 1,009,582 reasoning. All 342 distinct turns and their token tuples are already present in the scheduling export below. The earlier $537.81 estimate repriced that workload as short-context Sol; its later alternative-provider comparison reused the same aggregate. Neither amount is additional subscription consumption. The [prior reminder audit](evidence/prior-reminder-audit.json) records this source trace.
+
+### Scheduling outcomes reconciled
+
+The scheduling history repeats a turn's observed usage across multiple decisions. Summing its 14,365 numeric rows would count only 622 turns repeatedly. Whole-turn counters agree exactly for 339 turns; 280 have higher ledger totals, and three have no calls and zero recorded usage. The CLI's reverse reader treats a repeated `turn_context` as a new start, so it often measures only the last segment of a longer turn.
+
+Restricting the comparison to each recorded start/end interval produces 615 exact four-counter matches, including the three zero-usage cases. Original source reads explain all seven remaining differences: four projections include later-turn requests already present elsewhere in the ledger, and three include cumulative increments larger than the recorded last-response counters. Those three discrepancies total 324,036 input tokens, including 320,256 cached, plus 969 output tokens; 578 reasoning tokens are part of output. They remain counter gaps, not reconstructed requests. No scheduling value is added to the account totals. The [outcome audit](evidence/scheduling-outcome-audit.json) retains the queries, source evidence and qualifications.
 
 ### Narrative timestamps
 

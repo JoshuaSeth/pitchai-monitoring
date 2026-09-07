@@ -23,13 +23,13 @@ Astra/high yields 52.9% of September Sol/max's API-equivalent dollars per report
 | Sol/max, 1–6 September | 0.02988 | 35.66% | 14.60–21.54 |
 | Astra/high, 5–6 September | 0.13640 | 19.91% | 8.34–10.48 |
 
-![Dated and fixed-price USD per reported weekly point, with conditional endpoint sensitivities for the four main cohorts.](figures/hourly-value.svg)
-
 The sensitivity values use dated prices. Cached input dominates the token totals, and each cohort's cache share differs. A million total tokens therefore does not represent a common uncached or output workload. Reasoning is included in output and is priced once within that total. Independent per-component hidden quota weights cannot be estimated uniquely when the components move together and the hidden denominator is unknown. The [comparison summary](evidence/cohort-comparisons.json) contains separate component sums and two-point endpoint sensitivities.
 
 Two GPT-5.5/medium hours also pass the declared numerical controls but contain only 51 recovered calls while the account moves 24 points. Their $0.271 per point is sensitive to missing workload and provides weak evidence about model efficiency. A high dominant-model share can still occur when other workload is missing. No pure xhigh cohort passes the primary controls, so this dataset cannot rank xhigh against max.
 
 [Threshold sensitivity tables](evidence/cohort-comparisons.json) report different dominance and point thresholds. Similar results across thresholds support the observed pattern. They still share the limits from unknown tiers, correlated workload and missing calls.
+
+![Dated and fixed-price USD per reported weekly point, with conditional endpoint sensitivities for the four main cohorts.](figures/hourly-value.svg)
 <!-- END CLEAN TEXT -->
 
 ## Internal V4 provenance
