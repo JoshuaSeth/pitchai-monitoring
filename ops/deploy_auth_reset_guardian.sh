@@ -93,7 +93,11 @@ if [[ ! -d "${release_dir}" ]]; then
   }
   trap cleanup_staging EXIT
   install -d -m 755 "${staging_dir}/auth_reset_guardian" "${staging_dir}/fixtures" "${staging_dir}/docs"
-  install -m 644 "${REPO_ROOT}"/auth_reset_guardian/*.py "${staging_dir}/auth_reset_guardian/"
+  mapfile -d '' -t package_files < <(
+    find "${REPO_ROOT}/auth_reset_guardian" -maxdepth 1 -type f -name '*.py' ! -name 'test_*.py' -print0 \
+      | LC_ALL=C sort -z
+  )
+  install -m 644 "${package_files[@]}" "${staging_dir}/auth_reset_guardian/"
   install -m 644 "${REPO_ROOT}/fixtures/auth-reset-guardian-expiring.json" "${staging_dir}/fixtures/"
   install -m 644 "${REPO_ROOT}/docs/auth-reset-guardian.md" "${staging_dir}/docs/"
   printf '{"git_sha":"%s","source_sha256":"%s"}\n' "${git_sha}" "${source_hash}" >"${staging_dir}/release.json"
