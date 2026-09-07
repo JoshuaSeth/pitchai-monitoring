@@ -1,0 +1,47 @@
+{
+  "baseline_commit": "47d8dde3656704848e475b3e5b5bda5bceb48f07",
+  "broker": {
+    "python": "3.12.12",
+    "records": 56596,
+    "counts": {
+      "manifest": 1,
+      "quota_sample": 40936,
+      "guardian_snapshot": 15635,
+      "redemption": 6,
+      "guardian_event_summary": 10,
+      "current_plan_observation": 8
+    },
+    "mismatches": 0,
+    "method": "Compare complete broker output at the original cutoff; exclude only the manifest extraction timestamp. Cache current plan files once for both runs."
+  },
+  "recovery": {
+    "records": 5722,
+    "counts": {
+      "recovery_manifest": 1,
+      "recovery_source": 911,
+      "recovery_quota": 3504,
+      "lease_observation": 1305,
+      "recovery_complete": 1
+    },
+    "mismatches": 0,
+    "source_size_changes": 0,
+    "method": "Complete parsed-record comparison over all existing local Jeff recovery sources at the original cutoff, including completion counts. Current source size is compared separately because live logs can grow after the research cutoff."
+  },
+  "rollouts": {
+    "sources": 22,
+    "bytes_checked": 155592993,
+    "records": 16009,
+    "counts": {
+      "rollout_source": 22,
+      "token_event": 15987
+    },
+    "mismatches": 0,
+    "method": "Byte-for-byte scan output comparison for the smallest 8 stable files below 1MB, 8 at 1-10MB, 4 at 10-50MB and 2 above 50MB in the frozen Jeff source map; mtime at least one hour old. This bounded original-file comparison does not claim a full re-extraction of 134 GB."
+  },
+  "helper_sha256": {
+    "extract_broker.py": "3359f796adc6ab051dc5feb9b5b5df5bf925b8d98a744abc8cc626725e01ab54",
+    "extract_recovery.py": "58701229e97007076f2f07898b63db2761d4c41717892fc38dea0f6b20033b6f",
+    "analysis/extract_rollouts.py": "46d4a5b51be58c3ab64b3866b60db5da355310414c280e435bf4ad2e35d1bf33",
+    "analysis/rollout_events.py": "3847fd5e3c397a0aa35edfc80ab712619030d1b173a882f4eb4b8f9c1b7c8ffd"
+  }
+}

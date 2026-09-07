@@ -16,18 +16,23 @@ import sys
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
+type Json = str | int | float | bool | Sequence[Json] | Mapping[str, Json] | None
 
 _LINE_LIMIT = 262_144
 _LINES = 2
 
 
-def emit(kind: str, **fields: object) -> None:
+def emit(kind: str, **fields: Json) -> None:
     """Emit one allowlisted JSON object."""
     sys.stdout.write(json.dumps({"kind": kind, **fields}, separators=(",", ":")) + "\n")
 
 
-def optional_string(value: object) -> str | None:
+def optional_string(value: Json) -> str | None:
     """Keep strings and explicit missingness without coercing unexpected data.
 
     Returns:
@@ -42,16 +47,16 @@ def parse_header(line: bytes) -> dict[str, str | None] | None:
     Returns:
         A hashed session ID and header timestamps/version, or None.
     """
-    parsed = cast("object", json.loads(line))
+    parsed = cast("Json", json.loads(line))
     if not isinstance(parsed, dict):
         return None
-    event = cast("dict[str, object]", parsed)
+    event = parsed
     if event.get("type") != "session_meta":
         return None
     payload = event.get("payload")
     if not isinstance(payload, dict):
         return None
-    metadata = cast("dict[str, object]", payload)
+    metadata = payload
     session = optional_string(metadata.get("id"))
     return {
         "event_at": optional_string(event.get("timestamp")),

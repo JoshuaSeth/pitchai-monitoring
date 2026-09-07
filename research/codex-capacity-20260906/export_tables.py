@@ -16,7 +16,7 @@ import sqlite3
 import sys
 from contextlib import closing
 from pathlib import Path
-from typing import cast
+from typing import TypedDict, cast
 
 _TABLES = {
     "account_months": "SELECT * FROM account_months ORDER BY account,month,strict_eligible",
@@ -31,7 +31,16 @@ _TABLES = {
 }
 
 
-def export(connection: sqlite3.Connection, table: str, output: Path) -> dict[str, object]:
+class TableFile(TypedDict):
+    """Exact metadata retained for each exported CSV."""
+
+    file: str
+    rows: int
+    sha256: str
+    columns: list[str]
+
+
+def export(connection: sqlite3.Connection, table: str, output: Path) -> TableFile:
     """Export one named analysis table with deterministic ordering.
 
     Returns:
@@ -74,7 +83,7 @@ def main() -> None:
         if failed:
             message = "Cohort integrity failure: " + json.dumps(failed)
             raise ValueError(message)
-        files: list[dict[str, object]] = []
+        files: list[TableFile] = []
         for table in _TABLES:
             metadata = export(connection, table, output)
             files.append(metadata)

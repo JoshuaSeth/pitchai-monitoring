@@ -19,15 +19,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping, Sequence
 
 
-def emit(kind: str, **fields: object) -> None:
+type Json = str | int | float | bool | Sequence[Json] | Mapping[str, Json] | None
+
+
+def emit(kind: str, **fields: Json) -> None:
     """Write a compact allowlisted result; no raw log object is emitted."""
     sys.stdout.write(json.dumps({"kind": kind, **fields}, sort_keys=True) + "\n")
 
 
-def optional_string(value: object) -> str | None:
+def optional_string(value: Json) -> str | None:
     """Keep strings without coercing unexpected identity fields.
 
     Returns:
@@ -61,7 +64,7 @@ def recovery_paths(runtime_root: Path) -> list[Path]:
     return sorted(paths)
 
 
-def leases(path: Path, counts: Counter[str]) -> Iterator[dict[str, object]]:
+def leases(path: Path, counts: Counter[str]) -> Iterator[dict[str, Json]]:
     """Yield structured lease fields without retaining or logging raw text.
 
     Yields:
@@ -74,7 +77,7 @@ def leases(path: Path, counts: Counter[str]) -> Iterator[dict[str, object]]:
                 continue
             counts["candidate_lines"] += 1
             try:
-                value, _ = cast("tuple[object, int]", json.JSONDecoder().raw_decode(
+                value, _ = cast("tuple[Json, int]", json.JSONDecoder().raw_decode(
                     line.split("HTTP 409:", 1)[1].lstrip(),
                 ))
             except ValueError:
@@ -82,13 +85,13 @@ def leases(path: Path, counts: Counter[str]) -> Iterator[dict[str, object]]:
                 continue
             if not isinstance(value, dict):
                 continue
-            response = cast("dict[str, object]", value)
-            accounts = cast("list[dict[str, object]]", response.get("accounts", []))
+            response = value
+            accounts = cast("list[dict[str, Json]]", response.get("accounts", []))
             for account in accounts:
-                yield from cast("list[dict[str, object]]", account.get("active_sessions", []))
+                yield from cast("list[dict[str, Json]]", account.get("active_sessions", []))
 
 
-def matching_links(lease: dict[str, object], states: dict[str, set[str]], cutoff: str,
+def matching_links(lease: dict[str, Json], states: dict[str, set[str]], cutoff: str,
                    counts: Counter[str]) -> set[tuple[str, str, str]]:
     """Require the exact recorded client/state convention before joining a source.
 

@@ -25,7 +25,7 @@
         "tables/manifest.json",
         "evidence/cohort-comparisons.json"
       ],
-      "residual_counter_audit": "All 1,693,319 strict survivors audited: no full-counter coincidences with changed nonmissing turns; 62 missing-turn groups contain 163 calls, including 101 later unpriced copies. No priced-dollar deduction follows. See evidence/residual-counter-audit.json.",
+      "residual_counter_audit": "All 1,693,319 strict survivors audited: no full-counter coincidences with changed nonmissing turns; 62 missing-turn groups contain 163 calls, including 101 later unpriced records. Coincidence without a turn does not prove replay. No priced-dollar deduction follows. See evidence/residual-counter-audit.json.",
       "prior_ledger_reconciliation": "119,835 modern numeric turns compared; 104,505 exact four-counter matches after replay correction. 15,072 prior zero-token turns have no current calls. All 99 nonzero missing turns map to 23 source files recorded FileNotFoundError. See evidence/prior-ledger-reconciliation.json and evidence/prior-ledger-review.md.",
       "pending": [
         "final objective and source audit before delivery"
