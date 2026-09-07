@@ -6,13 +6,14 @@
   "integration_target": "origin/staging",
   "initial_commit": "d68c78911c380b35c653cee5bf9923d5397b773f",
   "latest_private_progress": {
-    "topic": "early banked-reset and fixed-price comparisons",
+    "topic": "billing-notice and residual-counter evidence, checkpoint a47440e",
     "requester": "Seth",
     "matching_rows": 1,
     "same_resolved_destination": true,
     "private_only": true,
     "accepted": true,
-    "broad_copies": 0
+    "broad_copies": 0,
+    "helper_receipt_sha256": "e53c6601dc7649b3f765805bce90e758bf6bfdd4d0f4373986b852aef37e1081"
   },
   "compute": {
     "model": "gpt-6-astra",
