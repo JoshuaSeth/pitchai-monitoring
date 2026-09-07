@@ -4,6 +4,16 @@
   "counts_are_initial_discovery_observations_not_final_extraction_totals": true,
   "sources": [
     {
+      "key": "global_rollout_union",
+      "status": "candidate_ingestion_join_and_dated_pricing_complete; semantic replay correction applied separately",
+      "cutoff": "2026-09-06T20:20:00Z",
+      "cells": ["dev-main-and-monitoring", "dev-jeff", "historical-main", "dev-fsn1"],
+      "artifacts": ["evidence/rollout-import-audit.json", "replay_audit.py", "evidence/replay-method-validation.json"],
+      "candidate_records": 6066658,
+      "later_cross_source_replays": 2213862,
+      "pending": ["source-origin and surviving replay ambiguity review", "account/period and controlled cohort analysis", "independent reconciliation with the prior cost ledger"]
+    },
+    {
       "key": "august_forensics",
       "location": "/code/pitchai_monitoring-worktrees/auth-usage-history-forensics-20260827/docs/evidence/auth-usage-history-forensics-20260827",
       "read": ["README.md", "extraction-notes.md", "complete proof-observations.csv", "original surviving recovery logs on dev-main, monitoring, Jeff and historical main"],
@@ -55,7 +65,8 @@
       "fetched_date": "2026-09-06",
       "read": ["Pricing section", "official API pricing and model pages", "API release and pricing changelog", "June 26 GPT-5.6 preview pricing", "July 30 and August 21 pricing changes", "GPT-5 through GPT-5.5 launch pricing", "ECB daily EUR/USD series"],
       "artifacts": ["pricing.json", "evidence/eur-usd-daily.csv"],
-      "pending": ["match the final observed model set", "historical service-tier and plan evidence", "intraday price-change sensitivity"]
+      "pending": ["historical service-tier and plan evidence", "intraday price-change sensitivity"],
+      "final_observed_model_set": "All named models have an explicit dated-price disposition; Spark and missing-model records remain unpriced rather than receiving an invented alias."
     },
     {
       "key": "pm_history",

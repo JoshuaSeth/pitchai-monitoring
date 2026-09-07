@@ -16,7 +16,7 @@
     "initial_turn_reasoning_effort": "max",
     "first_xhigh_continuation_verified": true,
     "verified_continuation_at": "2026-09-06T20:11:59.111Z",
-    "latest_continuation_verified_at": "2026-09-06T20:53:56.208Z",
+    "latest_continuation_verified_at": "2026-09-07T09:01:29.672Z",
     "latest_native_database_model": "gpt-6-astra",
     "latest_native_database_effort": "xhigh",
     "latest_supported_cli_priority_readback": 100,

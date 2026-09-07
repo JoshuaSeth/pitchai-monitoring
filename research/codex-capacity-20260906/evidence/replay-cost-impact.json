@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "status": "replay_sidecar_complete_source_origin_review_pending",
+  "candidate_calls": 6066658,
+  "semantic_groups": 3852782,
+  "maximum_cross_source_copies": 58,
+  "same_source_ambiguous_groups": 14,
+  "semantic_model_conflict_groups": 0,
+  "semantic_effort_conflict_groups": 0,
+  "groups": [
+    {
+      "decision": "earliest_cross_source_copy",
+      "calls": 240359,
+      "uncached": 1037364282,
+      "cached": 34014809692,
+      "output": 87993239,
+      "standard_usd": 23872.38889867,
+      "account_joined": 56450
+    },
+    {
+      "decision": "later_cross_source_replay",
+      "calls": 2213862,
+      "uncached": 12423725084,
+      "cached": 324229234780,
+      "output": 676484662,
+      "standard_usd": 240653.6270273,
+      "account_joined": 192898
+    },
+    {
+      "decision": "same_source_repetition_preserved",
+      "calls": 28,
+      "uncached": 65028,
+      "cached": 4531968,
+      "output": 5798,
+      "standard_usd": 2.765064,
+      "account_joined": 0
+    },
+    {
+      "decision": "unique_identity",
+      "calls": 3612409,
+      "uncached": 14047216805,
+      "cached": 462760191707,
+      "output": 1513289581,
+      "standard_usd": 317121.87508983,
+      "account_joined": 1748702
+    }
+  ],
+  "removed_candidate_call_fraction": 0.36492282901063483,
+  "removed_standard_reference_value_fraction": 0.4137425523582378,
+  "candidate_standard_usd_before_replay_filter": 581650.6560798,
+  "candidate_standard_usd_after_replay_filter": 340997.0290525,
+  "remaining_account_joined_calls": 1805152,
+  "interpretation": "Amounts are standard API token-reference values over surviving historical telemetry, not subscription bills. This is a deduplication result, not yet a certified live-consumption total or hidden-capacity estimate.",
+  "pending": [
+    "Imported history with no surviving original counterpart",
+    "Source and lease corroboration",
+    "Controlled reset/account/model/reasoning comparisons"
+  ],
+  "private_progress_receipt": {
+    "requester": "Seth",
+    "matching_rows": 1,
+    "same_resolved_destination": true,
+    "private_only": true,
+    "accepted": true,
+    "broad_copies": 0
+  }
+}
