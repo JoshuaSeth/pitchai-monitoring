@@ -25,4 +25,4 @@ unset \
   AUTH_TOKEN_SERVER_CLIENT_TOKEN_ALIASES \
   AUTH_TOKEN_SERVER_DATA_DIR
 
-exec /usr/bin/python3 -m auth_reset_guardian "$@"
+exec /usr/bin/python3 -m auth_reset_guardian.organization_cli "$@"
