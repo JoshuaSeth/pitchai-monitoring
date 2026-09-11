@@ -989,6 +989,7 @@ domains:
     check:
       <<: *json_200
       url: https://route-anchor.135-181-182-48.sslip.io/healthz
+      browser_enabled: false
       expected_final_host_suffix: route-anchor.135-181-182-48.sslip.io
       required_text_all: [status, ok, seth-security-evidence]
   - domain: agents.pitchai.net
@@ -1285,6 +1286,7 @@ domains:
     check:
       <<: *json_200
       url: https://route-anchor.pitchai.net/healthz
+      browser_enabled: false
       required_text_all: [status, ok]
   - domain: privacy-gateway.pitchai.net
     label: "Privacy Gateway"
