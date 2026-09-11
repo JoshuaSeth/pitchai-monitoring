@@ -946,6 +946,10 @@ check_profiles:
     required_selectors_all:
       - selector: body
         state: attached
+    # The owned contract ends at a successful redirect to Microsoft. Rendering the
+    # third-party login shell adds load and has no bearing on the protected app.
+    browser_enabled: false
+    http_timeout_seconds: 30
   protected_401: &protected_401
     allowed_status_codes: [401]
     browser_enabled: false

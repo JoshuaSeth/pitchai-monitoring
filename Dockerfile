@@ -36,5 +36,19 @@ COPY e2e_runner ./e2e_runner
 COPY e2e_sandbox ./e2e_sandbox
 COPY monitoring_v2 ./monitoring_v2
 COPY specs ./specs
+COPY ops/run-service-monitoring.sh /usr/local/bin/run-service-monitoring
+RUN set -eu; \
+  chmod 0755 /usr/local/bin/run-service-monitoring; \
+  /bin/sh -n /usr/local/bin/run-service-monitoring; \
+  watchdog_status=0; \
+  MONITOR_WATCHDOG_STATE_PATH=/tmp/service-monitoring-watchdog-build-state \
+  MONITOR_STALE_AFTER_SECONDS=1 \
+  MONITOR_WATCHDOG_POLL_SECONDS=1 \
+  MONITOR_STOP_GRACE_SECONDS=1 \
+  /usr/local/bin/run-service-monitoring sleep 30 >/tmp/service-monitoring-watchdog-build.log 2>&1 \
+    || watchdog_status=$?; \
+  test "$watchdog_status" -eq 75; \
+  grep -Fq "completed-cycle state is stale" /tmp/service-monitoring-watchdog-build.log; \
+  rm -f /tmp/service-monitoring-watchdog-build.log
 
-CMD ["python", "-m", "domain_checks.main"]
+CMD ["/usr/local/bin/run-service-monitoring"]
