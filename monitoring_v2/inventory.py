@@ -22,6 +22,7 @@ def _words(value: str) -> frozenset[str]:
 
 EXPECTED_ACTIVE_DOMAINS = _words(
     """
+    host-mcp.135-181-182-48.sslip.io webcodex.135-181-182-48.sslip.io
     agents.pitchai.net crm.pitchai.net nl241-satellite-data-portal.demos.pitchai.net
     rijkscatering.demos.pitchai.net
     apol.135-181-182-48.sslip.io route-anchor.135-181-182-48.sslip.io
@@ -49,6 +50,7 @@ EXPECTED_ACTIVE_DOMAINS = _words(
 )
 
 EXPECTED_DASHBOARD_ONLY_DOMAINS = frozenset({
+    "webcodex.135-181-182-48.sslip.io",
     "apol.135-181-182-48.sslip.io",
     "route-anchor.135-181-182-48.sslip.io",
     "registry.pitchai.net",
