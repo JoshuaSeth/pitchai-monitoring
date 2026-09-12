@@ -825,7 +825,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-09-05"
+  reviewed_at: "2026-09-12"
   authoritative_sources:
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
@@ -846,6 +846,8 @@ inventory:
     - "Namecheap snapshot 20260904T185322Z-302f43e28082-c7660794: 76 records, fingerprint 302f43e28082edce5fc04a3056f42f02eebfe19abe7c103f670fb64fe78765a8"
     - "CRM, Agent Engine, NL241 and Rijkscatering activation receipts and live public contracts (2026-09-05)"
     - "Current main/dev Nginx cross-check: Apologetica preview, Route Anchor bootstrap alias and obsolete overhaul preview (2026-09-05)"
+    - "Four-cell nine-day agent, PM, repository, DNS and live ingress coverage sweep (2026-09-12)"
+    - "PitchAI Host MCP production and isolated WebCodex comparison runtime contracts (2026-09-12)"
 
 domain_groups:
   corporate:
@@ -947,6 +949,49 @@ check_profiles:
         state: attached
 
 domains:
+  - domain: host-mcp.135-181-182-48.sslip.io
+    label: "PitchAI Host MCP"
+    group: infrastructure
+    environment: production
+    kind: infrastructure
+    sources: [pitchai-dev-nginx-host-mcp, host-mcp-production-handoff, live-probe-2026-09-12]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *json_200
+      url: https://host-mcp.135-181-182-48.sslip.io/healthz
+      browser_enabled: false
+      expected_final_host_suffix: host-mcp.135-181-182-48.sslip.io
+      required_text_all: ['"ok":true', '"service":"pitchai-host-mcp"']
+      api_contract_checks:
+        - name: production_health
+          path: /healthz
+          expected_status_codes: [200]
+          json_paths_equal:
+            ok: true
+            service: pitchai-host-mcp
+  - domain: webcodex.135-181-182-48.sslip.io
+    label: "WebCodex isolated comparison"
+    group: infrastructure
+    environment: staging
+    kind: infrastructure
+    sources: [pitchai-dev-nginx-webcodex, webcodex-controlled-installation-2026-09-09, live-probe-2026-09-12]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Isolated comparison environment, not a production dependency; retain visibility without incident or Telegram noise."
+    check:
+      <<: *json_200
+      url: https://webcodex.135-181-182-48.sslip.io/.well-known/oauth-authorization-server
+      browser_enabled: false
+      expected_final_host_suffix: webcodex.135-181-182-48.sslip.io
+      required_text_all: [issuer, authorization_endpoint, webcodex.135-181-182-48.sslip.io]
+      api_contract_checks:
+        - name: comparison_metadata
+          path: /.well-known/oauth-authorization-server
+          expected_status_codes: [200]
+          json_paths_equal:
+            issuer: https://webcodex.135-181-182-48.sslip.io
+            authorization_endpoint: https://webcodex.135-181-182-48.sslip.io/oauth/authorize
   - domain: apol.135-181-182-48.sslip.io
     label: "Apologetica isolated React preview"
     group: learning-demos
