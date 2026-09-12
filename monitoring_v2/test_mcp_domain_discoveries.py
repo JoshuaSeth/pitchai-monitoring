@@ -28,13 +28,14 @@ def test_mcp_surfaces_have_bounded_http_contracts_and_distinct_policies() -> Non
         entry = entry_by_domain(domain)
         spec = load_domain_spec(entry)
         policy = inventory_runtime.parse_domain_alert_policy(entry)
+        check = optional_object(entry.get("check"))
         if text_value(entry.get("group")) != "infrastructure":
             pytest.fail(f"MCP ownership group drifted: {domain}")
         if text_value(entry.get("environment")) != environment:
             pytest.fail(f"MCP environment drifted: {domain}")
         if spec.browser_enabled or spec.url != f"https://{domain}{path}":
             pytest.fail(f"MCP read-only HTTP route drifted: {domain}")
-        if spec.allowed_status_codes != [200] or spec.expected_final_host_suffix != domain:
+        if spec.allowed_status_codes != [200] or check.get("expected_final_host_suffix") != domain:
             pytest.fail(f"MCP HTTP response contract drifted: {domain}")
         if len(spec.api_contract_checks) != 1:
             pytest.fail(f"MCP JSON contract disappeared: {domain}")
