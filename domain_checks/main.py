@@ -28,6 +28,7 @@ from domain_checks.common_check import (
 )
 from domain_checks.history import append_sample, coerce_history, prune_history
 from domain_checks.inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
+from domain_checks.result_logging import domain_result_log_level
 from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
 from domain_checks.metrics_container_health import ContainerHealthIssue, check_container_health
 from domain_checks.metrics_dns import DnsCheckResult, check_dns
@@ -3759,8 +3760,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         else:
                             if recovered:
                                 _append_event("domain_up", ts=float(cycle_started), domain=domain)
+                            level = domain_result_log_level(ok=bool(result.ok), alertable=entries_by_domain[domain].routes_telegram)
                             if result.ok is False and prev_effective is True and next_effective is True:
-                                LOGGER.warning(
+                                LOGGER.log(
+                                    level,
                                     "Domain failing (alert suppressed) domain=%s fail_streak=%s/%s reason=%s details=%s",
                                     domain,
                                     next_fail,
@@ -3769,7 +3772,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     result.details,
                                 )
                             else:
-                                level = logging.INFO if result.ok else logging.WARNING
                                 LOGGER.log(
                                     level,
                                     "Domain result domain=%s ok=%s reason=%s details=%s",
