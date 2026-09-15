@@ -20,4 +20,6 @@ def test_all_inventory_results_respect_alert_policy_severity() -> None:
         failed = domain_result_log_level(ok=False, alertable=policy.telegram_enabled)
         expected_failure = logging.WARNING if policy.telegram_enabled else logging.INFO
         if healthy != logging.INFO or failed != expected_failure:
-            pytest.fail(f"result log severity disagrees with inventory: {entry['domain']}")
+            pytest.fail(
+                f"result log severity disagrees with inventory: {entry['domain']}"
+            )
