@@ -825,7 +825,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-09-12"
+  reviewed_at: "2026-09-15"
   authoritative_sources:
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
@@ -848,6 +848,8 @@ inventory:
     - "Current main/dev Nginx cross-check: Apologetica preview, Route Anchor bootstrap alias and obsolete overhaul preview (2026-09-05)"
     - "Four-cell nine-day agent, PM, repository, DNS and live ingress coverage sweep (2026-09-12)"
     - "PitchAI Host MCP production and isolated WebCodex comparison runtime contracts (2026-09-12)"
+    - "Four-cell nine-day agent, PM, repository and live ingress sweep (2026-09-15); Namecheap snapshot 20260915T080544Z-9cef22fb92d1-44ba53aa: 77 records"
+    - "Montrachet dedicated client demo: valid HTTPS and Microsoft SSO edge; authenticated voice behavior is outside this availability check (2026-09-15)"
 
 domain_groups:
   corporate:
@@ -949,6 +951,17 @@ check_profiles:
         state: attached
 
 domains:
+  - domain: montrachet-demo.pitchai.net
+    label: "Montrachet client demo"
+    group: learning-demos
+    environment: production
+    kind: application
+    sources: [namecheap-zone-2026-09-15, pitchai-dev-montrachet-ingress, montrachet-project-handoff-2026-09-14, live-probe-2026-09-15]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *sso_edge
+      url: https://montrachet-demo.pitchai.net/
   - domain: host-mcp.135-181-182-48.sslip.io
     label: "PitchAI Host MCP"
     group: infrastructure
