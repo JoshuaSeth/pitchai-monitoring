@@ -24,7 +24,7 @@ require_positive_integer "$poll_seconds" MONITOR_WATCHDOG_POLL_SECONDS
 require_positive_integer "$stop_grace" MONITOR_STOP_GRACE_SECONDS
 
 if [ "$#" -eq 0 ]; then
-  set -- python -m domain_checks.main
+  set -- python -m monitoring_v2.monitor_launcher
 fi
 
 child_pid=
