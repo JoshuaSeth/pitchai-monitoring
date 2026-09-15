@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import argparse
 import runpy
+from dataclasses import dataclass
 from pathlib import Path
 
 from .result_logging import install_result_log_policy
 
 
+@dataclass
 class LauncherArguments(argparse.Namespace):
     """Typed configuration argument shared with the monitor's existing CLI."""
 

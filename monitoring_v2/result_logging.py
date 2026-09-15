@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .json_types import json_object, object_list, optional_object
@@ -16,15 +17,13 @@ if TYPE_CHECKING:
 _RESULT_DOMAIN = re.compile(r"^Domain (?:result|failing \(alert suppressed\)) domain=([a-z0-9.-]+)(?: |$)")
 
 
-class DomainResultLogFilter(logging.Filter):
+@dataclass(frozen=True)
+class DomainResultLogFilter:
     """Keep quiet result records at INFO while preserving every other warning."""
 
-    def __init__(self, quiet_domains: frozenset[str]) -> None:
-        """Bind one immutable inventory snapshot to this process's logger."""
-        super().__init__()
-        self.quiet_domains: frozenset[str] = quiet_domains
+    quiet_domains: frozenset[str]
 
-    def filter(self, record: logging.LogRecord) -> bool:
+    def __call__(self, record: logging.LogRecord) -> bool:
         """Adjust only known result warnings and retain every log record.
 
         Returns:
