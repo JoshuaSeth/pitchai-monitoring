@@ -39,6 +39,7 @@ _REQUIRED_NAMES = {
     "DePlanBook CMS",
     "DePlanBook Play",
     "Orthoparse",
+    "PitchAI public website",
     "QuickChat RSR",
     "potAIto / Aardappelprijs",
 }
@@ -71,7 +72,7 @@ def _report_payload(*, success: bool = True) -> JsonObject:
     return json_object(raw)
 
 
-def test_inventory_is_the_exact_reviewed_fourteen_lane_set() -> None:
+def test_inventory_is_the_exact_reviewed_lane_set() -> None:
     """Keep every discovered lane, tag, reminder, and timing policy canonical."""
     inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
     names = {lane.name for lane in inventory.lanes}

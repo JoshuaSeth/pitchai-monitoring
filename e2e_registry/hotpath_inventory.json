@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-09-01",
+ "reviewed_at": "2026-09-18",
   "canonical_tag": "hot-path-testing",
   "expected_interval_seconds": 172800,
   "stale_after_seconds": 259200,
@@ -136,15 +136,25 @@
       "reminder_id": "reminder-central-6f42854d-f73d-487f-afd1-023d42e0cb65",
       "expected_behavior": "A public reader searches or filters the library, opens a pinned article, and verifies heading, body, table of contents, context, copy-link, and responsive navigation."
     },
-    {
-      "lane_id": "aigenda-calendar-hotpath-monitor",
-      "agent_global_id": "0716e5fe-ba80-5d6a-8d3d-8ba91cb3490f",
-      "project": "driestar",
-      "name": "AIGENDA calendar",
-      "target_surface": "aigenda.pitchai.net and isolated aigenda-monitor.pitchai.net",
-      "primary_domain": "aigenda.pitchai.net",
-      "reminder_id": "reminder-central-43f01740-aac9-41ff-97d2-952162657608",
-      "expected_behavior": "A synthetic planner creates and edits an event, finds it in Jaarkaart and Kalender, verifies matching ICS export, and cleans up the isolated fixture."
-    }
-  ]
+  {
+   "lane_id": "aigenda-calendar-hotpath-monitor",
+   "agent_global_id": "0716e5fe-ba80-5d6a-8d3d-8ba91cb3490f",
+   "project": "driestar",
+   "name": "AIGENDA calendar",
+   "target_surface": "aigenda.pitchai.net and isolated aigenda-monitor.pitchai.net",
+   "primary_domain": "aigenda.pitchai.net",
+   "reminder_id": "reminder-central-43f01740-aac9-41ff-97d2-952162657608",
+   "expected_behavior": "A synthetic planner creates and edits an event, finds it in Jaarkaart and Kalender, verifies matching ICS export, and cleans up the isolated fixture."
+  },
+  {
+   "lane_id": "pitchai-net-hotpath-monitor",
+   "agent_global_id": "05631af8-3fb1-5f01-a94a-b734829b8364",
+   "project": "pitchai_net",
+   "name": "PitchAI public website",
+   "target_surface": "pitchai.net with www alias",
+   "primary_domain": "pitchai.net",
+   "reminder_id": "reminder-central-fe745924-7e23-47cc-843f-406f3df7188c",
+   "expected_behavior": "An anonymous visitor walks the public site through visible navigation: homepage, Services and one service page, Case studies and one case study, Field notes, the legal footer links, and the well-formed contact path, with coherent per-page content and zero unexpected console or request errors."
+  }
+ ]
 }
