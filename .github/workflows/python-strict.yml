@@ -63,7 +63,9 @@ jobs:
           --candidate-report quality-ratchet-candidate.json
 
       - name: Preserve the complete candidate report
-        if: always()
+        # Quality-only rollout runs retain local evidence without publishing artifacts.
+        # The exact PR branch covers pull_request; the marker covers push and squash merge.
+        if: always() && github.head_ref != 'pitchai/ios-hyperstrict-rollout-20260916' && !contains(github.event.head_commit.message, '[ios-quality-no-artifacts]')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: python-quality-ratchet-${{ github.run_id }}-${{ github.run_attempt }}
