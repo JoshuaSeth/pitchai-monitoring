@@ -1,0 +1,36 @@
+{
+  "validated_on": "2026-09-07",
+  "script": "replay_audit.py",
+  "real_retimed_pair": {
+    "original_call_key": "ed5da213a1e08608d93519d875d5f3318759caeb0feba5263838f9e49c1b0b19",
+    "copy_call_key": "5670005dba7329367fead71a37f1007e8da0db471bc922fb744361e38d2c7c67",
+    "original_timestamp": "2026-07-11T12:21:20.228000+00:00",
+    "copy_timestamp": "2026-07-28T17:23:18.859000+00:00",
+    "same_hashed_session": true,
+    "same_hashed_turn": true,
+    "same_model_and_effort": true,
+    "same_complete_cumulative_and_last_token_counters": true,
+    "same_original_weekly_deadline_epoch": 1784370968,
+    "original_path_category": "cli_home",
+    "copy_outer_cli_version": "0.0.0",
+    "copy_has_second_session_meta_with_original_creation_time": true,
+    "canonical_original_kept": true,
+    "later_copy_excluded": true
+  },
+  "in_memory_controls": {
+    "same_last_tokens_with_increasing_cumulative_counter_preserved": true,
+    "same_source_repetition_left_ambiguous_and_preserved": true,
+    "missing_turn_identity_preserved": true,
+    "model_requests_made": 0
+  },
+  "script_checks": {
+    "ruff": "passed with repository configuration",
+    "basedpyright": "0 errors, 0 warnings",
+    "pylint": "10.00/10"
+  },
+  "limits": [
+    "These checks validate the replay sidecar, not all research scripts or the full repository gate.",
+    "An earliest surviving copy is not automatically proof of the original execution time.",
+    "Retimestamped imported history without an original counterpart requires additional source-origin analysis."
+  ]
+}

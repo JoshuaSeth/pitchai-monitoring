@@ -1,0 +1,492 @@
+from __future__ import annotations
+
+import asyncio
+import base64
+import contextlib
+import importlib
+import io
+import json
+import os
+import re
+import sqlite3
+import sys
+import time
+from urllib.parse import quote, unquote, urlsplit
+
+
+MAX_CREDENTIAL_BYTES = 16_384
+
+
+class ProbeFailure(RuntimeError):
+    def __init__(self, kind: str, message: str, *, phase: str | None = None) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.phase = phase
+
+
+def sanitize(value: object, secrets: list[str]) -> str:
+    text = str(value or "")
+    for secret in sorted(secrets, key=len, reverse=True):
+        if secret:
+            text = text.replace(secret, "<redacted>")
+    text = re.sub(r"(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+(?::[^\s/@]*)?@", r"\1<redacted>@", text)
+    text = re.sub(r"(?i)\b(password|passwd|pwd|token|secret|api[_-]?key)\s*[=:]\s*[^\s,;]+", r"\1=<redacted>", text)
+    text = re.sub(r"(?i)\b(user|role|database)\s+[\"']?[^\s\"']+[\"']?", r"\1 <redacted>", text)
+    text = re.sub(r"(?<![\d.])(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}(?![\d.])", "<redacted-ip>", text)
+    text = re.sub(r"(?i)(?:/[A-Za-z0-9_.-]+){2,}", "<redacted-path>", text)
+    return " ".join(text.split())[:320]
+
+
+def sqlstate_for(error: Exception) -> str | None:
+    candidates = [error, getattr(error, "orig", None), getattr(error, "__cause__", None)]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        for attribute in ("sqlstate", "pgcode"):
+            value = getattr(candidate, attribute, None)
+            if isinstance(value, str) and value:
+                return value
+    return None
+
+
+def text_list(spec: dict[str, object], key: str) -> list[str]:
+    raw = spec.get(key)
+    if not isinstance(raw, list) or not all(isinstance(item, str) and item for item in raw):
+        if raw in (None, []):
+            return []
+        raise ProbeFailure("probe_configuration_invalid", f"{key} must be a text array")
+    return list(raw)
+
+
+def quoted_identifier(value: str) -> str:
+    parts = value.split(".")
+    valid = len(parts) in (1, 2) and all(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", part) for part in parts)
+    if not valid:
+        raise ProbeFailure("probe_configuration_invalid", "configured relation identifier is invalid")
+    return ".".join('"' + part.replace('"', '""') + '"' for part in parts)
+
+
+def direct_environment_value(spec: dict[str, object]) -> tuple[str, str] | None:
+    for key in text_list(spec, "environment_keys"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value, key
+    return None
+
+
+def bounded_credential_file(path: str, secrets: list[str]) -> str:
+    secrets.append(path)
+    try:
+        with open(path, "rb") as stream:
+            payload = stream.read(MAX_CREDENTIAL_BYTES + 1)
+    except OSError as error:
+        raise ProbeFailure("credential_unreadable", "runtime credential file is unreadable") from error
+    if len(payload) > MAX_CREDENTIAL_BYTES:
+        raise ProbeFailure("credential_unreadable", "runtime credential file exceeds the safe boundary")
+    try:
+        value = payload.decode("utf-8").strip()
+    except UnicodeDecodeError as error:
+        raise ProbeFailure("credential_unreadable", "runtime credential file is not UTF-8") from error
+    if not value:
+        raise ProbeFailure("credential_missing", "runtime credential file is empty")
+    return value
+
+
+def credential_value(spec: dict[str, object], secrets: list[str]) -> str:
+    direct = direct_environment_value(spec)
+    if direct is not None:
+        value, _key = direct
+        secrets.append(value)
+        return value
+    credential_path = None
+    for key in text_list(spec, "file_environment_keys"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            credential_path = value
+            break
+    if credential_path is None:
+        raw_default = spec.get("default_credential_path")
+        if isinstance(raw_default, str) and raw_default:
+            credential_path = raw_default
+    if credential_path is None:
+        raise ProbeFailure("credential_missing", "no configured runtime database credential is available")
+    value = bounded_credential_file(credential_path, secrets)
+    secrets.append(value)
+    return value
+
+
+def sqlite_path(spec: dict[str, object], secrets: list[str]) -> str:
+    direct = direct_environment_value(spec)
+    raw = direct[0] if direct is not None else spec.get("default_sqlite_path")
+    if not isinstance(raw, str) or not raw.strip():
+        raise ProbeFailure("credential_missing", "no configured runtime SQLite path is available")
+    value = raw.strip()
+    if value.startswith("sqlite:///"):
+        path = unquote(urlsplit(value).path)
+    else:
+        path = value
+    secrets.extend((value, path))
+    if not path.startswith("/"):
+        raise ProbeFailure("probe_configuration_invalid", "runtime SQLite path must be absolute")
+    return path
+
+
+def run_sqlite(spec: dict[str, object], secrets: list[str], timeout: int) -> None:
+    path = sqlite_path(spec, secrets)
+    uri_path = quote(path, safe="/")
+    try:
+        connection = sqlite3.connect(f"file:{uri_path}?mode=ro", uri=True, timeout=float(timeout))
+    except sqlite3.Error as error:
+        raise ProbeFailure("database_file_unreachable", "runtime SQLite database is unreachable") from error
+    try:
+        try:
+            connection.execute("PRAGMA query_only = ON")
+            connection.execute("SELECT 1").fetchone()
+            for relation in text_list(spec, "relation_checks"):
+                try:
+                    connection.execute(f"SELECT 1 FROM {quoted_identifier(relation)} LIMIT 0")
+                except sqlite3.OperationalError as error:
+                    if "no such table" in str(error).lower():
+                        raise ProbeFailure(
+                            "missing_table_or_materialized_view",
+                            "configured SQLite relation is missing",
+                            phase="query",
+                        ) from error
+                    raise ProbeFailure(
+                        "query_permission_failure",
+                        "configured SQLite relation is not readable",
+                        phase="query",
+                    ) from error
+        except ProbeFailure:
+            raise
+        except sqlite3.Error as error:
+            raise ProbeFailure("database_query_error", str(error), phase="query") from error
+    finally:
+        connection.close()
+
+
+def normalized_postgres_url(value: str) -> str:
+    for driver_prefix in (
+        "postgresql+asyncpg://",
+        "postgresql+psycopg://",
+        "postgresql+psycopg2://",
+    ):
+        if value.startswith(driver_prefix):
+            return value.replace(driver_prefix, "postgresql://", 1)
+    if value.startswith("postgres://"):
+        return value.replace("postgres://", "postgresql://", 1)
+    return value
+
+
+def sqlalchemy_url(value: str, sync_driver: object) -> str:
+    if value.startswith("postgresql+asyncpg://"):
+        driver = sync_driver if isinstance(sync_driver, str) and sync_driver else "psycopg2"
+        return value.replace("postgresql+asyncpg://", f"postgresql+{driver}://", 1)
+    if value.startswith("postgres://"):
+        return value.replace("postgres://", "postgresql://", 1)
+    return value
+
+
+def imported_engine(spec: dict[str, object]):
+    reference = spec.get("engine_attr")
+    if not isinstance(reference, str):
+        raise ProbeFailure("probe_configuration_invalid", "engine_attr must be configured")
+    module_name, separator, attribute = reference.partition(":")
+    if not separator or not module_name or not attribute:
+        raise ProbeFailure("probe_configuration_invalid", "engine_attr must use module:attribute")
+    try:
+        engine = getattr(importlib.import_module(module_name), attribute)
+    except (AttributeError, ImportError) as error:
+        raise ProbeFailure(
+            "probe_configuration_invalid",
+            "configured application database engine is unavailable",
+            phase="configuration",
+        ) from error
+    if spec.get("engine_callable") is True:
+        engine = engine()
+    return engine
+
+
+def postgres_sqlalchemy_checks(connection, text, spec: dict[str, object], timeout: int) -> None:
+    connection.execute(text("SET TRANSACTION READ ONLY"))
+    connection.execute(text(f"SET LOCAL statement_timeout = {timeout * 1000}"))
+    connection.execute(text("SELECT current_user, current_database()"))
+    schemas = text_list(spec, "schema_checks") or ["public"]
+    for schema in schemas:
+        allowed = connection.execute(
+            text("SELECT has_schema_privilege(current_user, :schema, 'USAGE')"),
+            {"schema": schema},
+        ).scalar_one()
+        if not allowed:
+            raise ProbeFailure(
+                "missing_schema_grant",
+                "runtime role lacks configured schema usage",
+                phase="query",
+            )
+    relations = text_list(spec, "relation_checks")
+    if not relations:
+        visible = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                "WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') "
+                "AND n.nspname NOT LIKE 'pg_toast%' AND c.relkind IN ('r','p','v','m','f') "
+                "AND has_schema_privilege(current_user, n.oid, 'USAGE') "
+                "AND has_table_privilege(current_user, c.oid, 'SELECT')"
+            )
+        ).scalar_one()
+        if int(visible) < 1:
+            raise ProbeFailure(
+                "missing_relation_grant",
+                "runtime role has no readable application relation",
+                phase="query",
+            )
+    for relation in relations:
+        relation_oid = connection.execute(text("SELECT to_regclass(:relation)"), {"relation": relation}).scalar_one()
+        if relation_oid is None:
+            raise ProbeFailure(
+                "missing_table_or_materialized_view",
+                "configured relation is missing",
+                phase="query",
+            )
+        allowed = connection.execute(
+            text("SELECT has_table_privilege(current_user, to_regclass(:relation), 'SELECT')"),
+            {"relation": relation},
+        ).scalar_one()
+        if not allowed:
+            raise ProbeFailure(
+                "missing_relation_grant",
+                "runtime role lacks SELECT on a configured relation",
+                phase="query",
+            )
+        connection.execute(text(f"SELECT 1 FROM {quoted_identifier(relation)} LIMIT 0"))
+
+
+def run_sqlalchemy(engine, spec: dict[str, object], timeout: int) -> None:
+    from sqlalchemy import text
+
+    connection = engine.connect()
+    try:
+        dialect = str(getattr(engine.dialect, "name", ""))
+        try:
+            if dialect == "postgresql":
+                postgres_sqlalchemy_checks(connection, text, spec, timeout)
+            else:
+                connection.execute(text("SELECT 1"))
+                for relation in text_list(spec, "relation_checks"):
+                    connection.execute(text(f"SELECT 1 FROM {quoted_identifier(relation)} LIMIT 0"))
+        except ProbeFailure:
+            raise
+        except Exception as error:
+            raise ProbeFailure("database_query_error", str(error), phase="query") from error
+    finally:
+        connection.close()
+
+
+def environment_engine(spec: dict[str, object], secrets: list[str], timeout: int):
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import NullPool
+
+    value = credential_value(spec, secrets)
+    parsed = urlsplit(value)
+    if parsed.password:
+        secrets.append(parsed.password)
+    url = sqlalchemy_url(value, spec.get("sync_driver"))
+    connect_args: dict[str, object] = {}
+    if url.startswith("postgresql") or url.startswith("mysql"):
+        connect_args["connect_timeout"] = timeout
+    return create_engine(url, poolclass=NullPool, connect_args=connect_args)
+
+
+def psycopg_checks(cursor, spec: dict[str, object], timeout: int) -> None:
+    cursor.execute("SET TRANSACTION READ ONLY")
+    cursor.execute(f"SET LOCAL statement_timeout = {timeout * 1000}")
+    cursor.execute("SELECT current_user, current_database()")
+    schemas = text_list(spec, "schema_checks") or ["public"]
+    for schema in schemas:
+        cursor.execute("SELECT has_schema_privilege(current_user, %s, 'USAGE')", (schema,))
+        if cursor.fetchone()[0] is not True:
+            raise ProbeFailure(
+                "missing_schema_grant",
+                "runtime role lacks configured schema usage",
+                phase="query",
+            )
+    relations = text_list(spec, "relation_checks")
+    if not relations:
+        cursor.execute(
+            "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') "
+            "AND n.nspname NOT LIKE 'pg_toast%' AND c.relkind IN ('r','p','v','m','f') "
+            "AND has_schema_privilege(current_user, n.oid, 'USAGE') "
+            "AND has_table_privilege(current_user, c.oid, 'SELECT')"
+        )
+        if int(cursor.fetchone()[0]) < 1:
+            raise ProbeFailure(
+                "missing_relation_grant",
+                "runtime role has no readable application relation",
+                phase="query",
+            )
+    for relation in relations:
+        cursor.execute("SELECT to_regclass(%s)", (relation,))
+        if cursor.fetchone()[0] is None:
+            raise ProbeFailure(
+                "missing_table_or_materialized_view",
+                "configured relation is missing",
+                phase="query",
+            )
+        cursor.execute("SELECT has_table_privilege(current_user, to_regclass(%s), 'SELECT')", (relation,))
+        if cursor.fetchone()[0] is not True:
+            raise ProbeFailure(
+                "missing_relation_grant",
+                "runtime role lacks SELECT on a configured relation",
+                phase="query",
+            )
+        cursor.execute(f"SELECT 1 FROM {quoted_identifier(relation)} LIMIT 0")
+
+
+def run_psycopg(spec: dict[str, object], secrets: list[str], timeout: int) -> None:
+    value = normalized_postgres_url(credential_value(spec, secrets))
+    driver = spec.get("sync_driver")
+    if driver == "psycopg":
+        import psycopg
+
+        connection = psycopg.connect(value, connect_timeout=timeout)
+    elif driver == "psycopg2":
+        import psycopg2
+
+        connection = psycopg2.connect(value, connect_timeout=timeout)
+    else:
+        raise ProbeFailure("probe_configuration_invalid", "psycopg mode requires an explicit sync driver")
+    try:
+        try:
+            with connection.cursor() as cursor:
+                psycopg_checks(cursor, spec, timeout)
+        except ProbeFailure:
+            raise
+        except Exception as error:
+            raise ProbeFailure("database_query_error", str(error), phase="query") from error
+        connection.rollback()
+    finally:
+        connection.close()
+
+
+async def asyncpg_checks(connection, spec: dict[str, object]) -> None:
+    schemas = text_list(spec, "schema_checks") or ["public"]
+    await connection.fetchval("SELECT current_user")
+    for schema in schemas:
+        allowed = await connection.fetchval("SELECT has_schema_privilege(current_user, $1, 'USAGE')", schema)
+        if allowed is not True:
+            raise ProbeFailure(
+                "missing_schema_grant",
+                "runtime role lacks configured schema usage",
+                phase="query",
+            )
+    relations = text_list(spec, "relation_checks")
+    if not relations:
+        visible = await connection.fetchval(
+            "SELECT COUNT(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') "
+            "AND n.nspname NOT LIKE 'pg_toast%' AND c.relkind IN ('r','p','v','m','f') "
+            "AND has_schema_privilege(current_user, n.oid, 'USAGE') "
+            "AND has_table_privilege(current_user, c.oid, 'SELECT')"
+        )
+        if int(visible) < 1:
+            raise ProbeFailure(
+                "missing_relation_grant",
+                "runtime role has no readable application relation",
+                phase="query",
+            )
+    for relation in relations:
+        relation_oid = await connection.fetchval("SELECT to_regclass($1)", relation)
+        if relation_oid is None:
+            raise ProbeFailure(
+                "missing_table_or_materialized_view",
+                "configured relation is missing",
+                phase="query",
+            )
+        allowed = await connection.fetchval(
+            "SELECT has_table_privilege(current_user, to_regclass($1), 'SELECT')",
+            relation,
+        )
+        if allowed is not True:
+            raise ProbeFailure(
+                "missing_relation_grant",
+                "runtime role lacks SELECT on a configured relation",
+                phase="query",
+            )
+        await connection.execute(f"SELECT 1 FROM {quoted_identifier(relation)} LIMIT 0")
+
+
+async def run_asyncpg(spec: dict[str, object], secrets: list[str], timeout: int) -> None:
+    import asyncpg
+
+    value = normalized_postgres_url(credential_value(spec, secrets))
+    connection = await asyncpg.connect(dsn=value, timeout=float(timeout), command_timeout=float(timeout))
+    try:
+        try:
+            async with connection.transaction(readonly=True):
+                await asyncpg_checks(connection, spec)
+        except ProbeFailure:
+            raise
+        except Exception as error:
+            raise ProbeFailure("database_query_error", str(error), phase="query") from error
+    finally:
+        await connection.close(timeout=float(timeout))
+
+
+def perform(spec: dict[str, object], secrets: list[str], timeout: int) -> None:
+    mode = spec.get("mode")
+    if mode == "sqlite":
+        run_sqlite(spec, secrets, timeout)
+        return
+    if mode == "psycopg_url":
+        run_psycopg(spec, secrets, timeout)
+        return
+    if mode == "asyncpg_url":
+        asyncio.run(run_asyncpg(spec, secrets, timeout))
+        return
+    if mode == "sqlalchemy_url":
+        engine = environment_engine(spec, secrets, timeout)
+        try:
+            run_sqlalchemy(engine, spec, timeout)
+        finally:
+            engine.dispose()
+        return
+    if mode == "engine":
+        run_sqlalchemy(imported_engine(spec), spec, timeout)
+        return
+    raise ProbeFailure("probe_configuration_invalid", "unsupported connection mode")
+
+
+def main() -> None:
+    started = time.monotonic()
+    secrets: list[str] = []
+    phase = "configuration"
+    try:
+        decoded = base64.urlsafe_b64decode(sys.argv[1]).decode("utf-8")
+        raw_spec = json.loads(decoded)
+        if not isinstance(raw_spec, dict):
+            raise ProbeFailure("probe_configuration_invalid", "probe specification must be an object")
+        spec = raw_spec
+        timeout_value = spec.get("timeout_seconds")
+        if not isinstance(timeout_value, int) or isinstance(timeout_value, bool) or timeout_value < 1:
+            raise ProbeFailure("probe_configuration_invalid", "timeout_seconds must be positive")
+        phase = "connection"
+        with contextlib.redirect_stdout(io.StringIO()):
+            perform(spec, secrets, timeout_value)
+        phase = "query"
+        payload = {"ok": True, "latency_ms": round((time.monotonic() - started) * 1000.0, 2)}
+    except Exception as error:
+        kind = error.kind if isinstance(error, ProbeFailure) else type(error).__name__
+        error_phase = error.phase if isinstance(error, ProbeFailure) and error.phase is not None else phase
+        payload = {
+            "ok": False,
+            "latency_ms": round((time.monotonic() - started) * 1000.0, 2),
+            "error_kind": kind,
+            "phase": error_phase,
+            "sqlstate": sqlstate_for(error),
+            "error_excerpt": sanitize(error, secrets),
+        }
+    print(json.dumps(payload, separators=(",", ":")))
+
+
+main()

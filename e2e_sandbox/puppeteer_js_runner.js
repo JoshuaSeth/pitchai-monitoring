@@ -86,7 +86,10 @@ async function main() {
   let result = null;
   try {
     const puppeteer = require("puppeteer");
-    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium";
+    const executablePath =
+      process.env.PUPPETEER_EXECUTABLE_PATH ||
+      process.env.CHROMIUM_PATH ||
+      "/usr/bin/chromium";
     browser = await puppeteer.launch({
       headless: true,
       executablePath,
@@ -213,4 +216,3 @@ main().catch((e) => {
   process.stdout.write(RESULT_PREFIX + JSON.stringify(res) + "\n");
   process.exit(1);
 });
-

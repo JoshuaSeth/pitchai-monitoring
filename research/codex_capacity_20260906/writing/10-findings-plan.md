@@ -1,0 +1,3 @@
+# Findings section plan
+
+Purpose: make at least ten substantive results and their confidence easy to assess. Include values, source pointers, interpretation limits and measurement priority. Sources: all evidence families in the required fact sheet. Component: disk-capacity incident finding/mechanism/verification pattern. Use one numbered table and a separate hypothesis/observation table. Implicit message: an unresolved explanation is useful when its next observation is precise. Exclude provider motive, allegations of deception and new synthetic experiments. Open doubts: exact provider credit weighting, service tier and billing exposure.

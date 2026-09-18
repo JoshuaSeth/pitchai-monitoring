@@ -1,0 +1,12 @@
+[project]
+name = "pitchai-monitoring-quality-entrypoint"
+version = "1.0.0"
+description = "Repository-root entrypoint for the locked PitchAI monitoring quality gate"
+requires-python = "==3.12.12"
+dependencies = ["pitchai-repository-quality"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+pitchai-repository-quality = { path = "quality", editable = true }

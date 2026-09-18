@@ -105,7 +105,9 @@ class RegistrySettings:
     monitor_state_path: str = field(default_factory=lambda: _env_str("SERVICE_MONITOR_STATE_PATH", "/monitor_state/state.json"))
     # Path to the monitoring config yaml (baked into the image by default).
     monitor_config_path: str = field(default_factory=lambda: _env_str("SERVICE_MONITOR_CONFIG_PATH", "/app/domain_checks/config.yaml"))
-    # Require a monitoring/admin token login to view the dashboard.
-    dashboard_require_auth: bool = field(default_factory=lambda: _env_bool("MONITOR_DASHBOARD_REQUIRE_AUTH", True))
+    # Trusted identity header written by the Entra-authenticated loopback edge.
+    dashboard_identity_header: str = field(
+        default_factory=lambda: _env_str("MONITOR_DASHBOARD_IDENTITY_HEADER", "x-pitchai-email").lower()
+    )
     # How many points to return per timeseries (downsamples server-side).
     dashboard_max_points: int = field(default_factory=lambda: _env_int("MONITOR_DASHBOARD_MAX_POINTS", 1500))

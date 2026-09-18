@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "method": "global_turn_full_counters",
+  "earlier_call": "cf7de7b5f4b57f45a1540c93b20c1d2263f74a512779a33c892d21e42f090997",
+  "later_call": "ed868bc648953031e064d8ca681a737cac1aae9768c59bb38575a9d50924aabe",
+  "earlier_at": "2026-06-03T08:34:36.636000+00:00",
+  "later_at": "2026-07-07T12:00:40.901000+00:00",
+  "changed_session_id": true,
+  "same_turn_and_all_eight_counters": true,
+  "same_quota_windows_including_expired_deadlines": true,
+  "headers": [
+    [
+      "dev-main-and-monitoring",
+      "6a2f63cd10c6cb16e3edcd812089e3e570bca24d371fc066112b029b76d40b7d",
+      "cli_home",
+      "9084106c850ab3e95cac05a8096cd54a1ff3a0a8cc03db975fd11b104e980fa9",
+      "2026-05-11T18:00:52.120Z",
+      null,
+      1
+    ],
+    [
+      "dev-main-and-monitoring",
+      "1aaa257360fedca41c45c7171db54f4cb3cbd241143764b7488d4562264899d5",
+      "cli_home",
+      "e759932fb0ee524ae44e32aa6f8cb55913b0f36643dc93dfa47d28cca1b319cc",
+      "2026-07-07T12:00:40.262Z",
+      "fe46d0abe2491d5e9a3fdab73fd1da46183b350b8a8a72dde99a1b19a4c5d50f",
+      2
+    ]
+  ],
+  "counter_identity": {
+    "turn": "b979ff56308e8b6a1cbf0b3188c6f64f423c1f9879f6f650554f60311360060c",
+    "total": {
+      "cached_input_tokens": 825852928,
+      "input_tokens": 852170602,
+      "output_tokens": 1732623,
+      "reasoning_output_tokens": 474545,
+      "total_tokens": 853903225
+    },
+    "last": {
+      "cached_input_tokens": 236928,
+      "input_tokens": 242648,
+      "output_tokens": 450,
+      "reasoning_output_tokens": 0,
+      "total_tokens": 243098
+    }
+  },
+  "replay_v2_identity_equal_verified": true,
+  "qualification": "A changed outer/session ID is not proof of new work. Earliest retained timestamps still require provenance and window checks. Genuine new requests with changed cumulative counters remain distinct."
+}

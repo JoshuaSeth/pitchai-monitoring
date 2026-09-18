@@ -1,0 +1,43 @@
+{
+  "status": "reproduced_and_already_included",
+  "verified_date": "2026-09-07",
+  "lane": "reminder-cost-token-research-20260901-cli",
+  "original_report_at": "2026-09-01T19:12:43.333Z",
+  "original_query_at": "2026-09-01T18:18:56.158Z",
+  "original_response_line_sha256": "151b97f4a8273d6b8946671b6317b35566c41aef3123d22e48f3a3c5a7760ccd",
+  "original_query_result": {
+    "outcomes": 362,
+    "works": 362,
+    "numeric_outcomes": 342,
+    "input": 980702621,
+    "cached": 958765184,
+    "output": 3327738,
+    "reasoning": 1009582,
+    "total": 984030359,
+    "capacity_points": null,
+    "first_observed_at": "2026-08-29T05:31:42.129753Z",
+    "last_observed_at": "2026-09-01T18:14:54.578013Z"
+  },
+  "reproduction": {
+    "source": "dev-main:/code/pitchai-cli-new/.pitchai-state/control-plane.sqlite3",
+    "read_only_snapshot": true,
+    "cutoff_inclusive": "2026-09-01T18:14:54.578013Z",
+    "sql": "WITH ranked AS (SELECT o.*, ROW_NUMBER() OVER(PARTITION BY o.decision_id ORDER BY o.sequence DESC) rn FROM scheduling_decision_outcome o WHERE observed_at <= ?) SELECT r.outcome_id,r.turn_id,r.observed_input_tokens,r.observed_cached_input_tokens,r.observed_output_tokens,r.observed_reasoning_output_tokens,r.observed_total_tokens FROM agent_work w LEFT JOIN agent_work_scheduling s USING(work_id) JOIN ranked r USING(work_id) WHERE (w.trigger_kind='reminder' OR w.source_ref_kind='reminder_fire' OR w.root_trigger_kind='reminder') AND r.rn=1 AND r.observed_total_tokens IS NOT NULL ORDER BY r.sequence",
+    "numeric_outcomes": 342,
+    "distinct_turns": 342,
+    "all_five_token_sums_match_original": true,
+    "all_342_hashed_outcome_and_turn_ids_and_token_tuples_match_frozen_scheduling_exports": true,
+    "matching_export": "scheduling-main.jsonl.gz",
+    "matching_export_sha256": "6cbbead2fe613fc4edeb66dd8f607a2cd68e55569e9fba315b905d97b9cfa798",
+    "private_workspace_projection_file": "prior-reminder-audit.json",
+    "private_workspace_projection_sha256": "6855312fc228257943849484f6adfc6c9438341c4645c1430a70137298f40775",
+    "identity_projection": "SHA-256 of exact UTF-8 outcome_id and turn_id; no raw identity retained",
+    "additional_usage_added": 0
+  },
+  "prior_price_estimate": {
+    "sol_short_context_usd": 537.810582,
+    "formula": "((input-cached)*4 + cached*0.4 + output*20)/1000000",
+    "meaning": "Prior short-context Sol price substitution on aggregate counters; not dated actual-model billing or additional subscription consumption"
+  },
+  "qualification": "Current work classification fields can change; this query independently reproduces the exact original aggregate and all selected outcomes. The counters remain derived scheduling projections with the partial-turn and overlap limitations in scheduling-outcome-audit.json. The 2 September alternative-provider calculator and 4 September historical cost ledger reuse or extend prior history and are not additive datasets."
+}

@@ -1,0 +1,268 @@
+name: CodexStatus
+options:
+  createIntermediateGroups: true
+  developmentLanguage: en
+  xcodeVersion: "2640"
+  deploymentTarget:
+    iOS: "17.0"
+    watchOS: "10.0"
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: ZM6568G5FX
+    CODE_SIGN_STYLE: Automatic
+    CURRENT_PROJECT_VERSION: 9
+    MARKETING_VERSION: 1.0.0
+    SWIFT_VERSION: 5.0
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+
+targets:
+  CodexStatus:
+    type: application
+    platform: iOS
+    sources:
+      - path: Shared
+      - path: App
+      - path: Resources/Assets.xcassets
+        buildPhase: resources
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    info:
+      path: Generated/CodexStatus-Info.plist
+      properties:
+        CFBundleDisplayName: Codex Status
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.pitchai.codexstatus.refresh
+        UIBackgroundModes:
+          - fetch
+    entitlements:
+      path: Generated/CodexStatus.entitlements
+      properties:
+        com.apple.developer.devicecheck.appattest-environment: development
+        com.apple.security.application-groups:
+          - group.com.pitchai.codexstatus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pitchai.codexstatus
+        PRODUCT_NAME: CodexStatus
+        TARGETED_DEVICE_FAMILY: 1
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: PitchAI Codex Status iPhone Development
+    dependencies:
+      - target: CodexStatusWidget
+        embed: true
+      - target: CodexStatusWatch
+        embed: true
+        copy:
+          destination: plugins
+
+  CodexStatusWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Shared
+      - path: Widgets/iOS
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    info:
+      path: Generated/CodexStatusWidget-Info.plist
+      properties:
+        CFBundleDisplayName: Codex Status
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Generated/CodexStatusWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.pitchai.codexstatus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pitchai.codexstatus.widget
+        PRODUCT_NAME: CodexStatusWidget
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: PitchAI Codex Status Widget Development
+
+  CodexStatusWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: Shared
+      - path: WatchApp
+      - path: Resources/Assets.xcassets
+        buildPhase: resources
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    info:
+      path: Generated/CodexStatusWatch-Info.plist
+      properties:
+        CFBundleDisplayName: Codex Status
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.pitchai.codexstatus
+        WKWatchOnly: false
+    entitlements:
+      path: Generated/CodexStatusWatch.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.pitchai.codexstatus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pitchai.codexstatus.watchkitapp
+        PRODUCT_NAME: CodexStatusWatch
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: PitchAI Codex Status Watch Companion Development
+    dependencies:
+      - target: CodexStatusWatchWidget
+        embed: true
+
+  CodexStatusWatchWidget:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: Shared
+      - path: Widgets/Watch
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    info:
+      path: Generated/CodexStatusWatchWidget-Info.plist
+      properties:
+        CFBundleDisplayName: Codex Status
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Generated/CodexStatusWatchWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.pitchai.codexstatus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pitchai.codexstatus.watchkitapp.widget
+        PRODUCT_NAME: CodexStatusWatchWidget
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: PitchAI Codex Status Watch Companion Widget Develo
+
+  CodexStatusTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: CodexStatus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pitchai.codexstatus.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/CodexStatus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CodexStatus
+        BUNDLE_LOADER: $(TEST_HOST)
+
+  CodexStatusUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests/iOS
+    dependencies:
+      - target: CodexStatus
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pitchai.codexstatus.uitests
+        PRODUCT_NAME: CodexStatusUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: CodexStatus
+        CODE_SIGN_STYLE: Automatic
+
+  CodexStatusWatchUITests:
+    type: bundle.ui-testing
+    platform: watchOS
+    sources:
+      - path: UITests/Watch
+    dependencies:
+      - target: CodexStatusWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pitchai.codexstatus.watchuitests
+        PRODUCT_NAME: CodexStatusWatchUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: CodexStatusWatch
+        CODE_SIGN_STYLE: Automatic
+
+schemes:
+  CodexStatus:
+    build:
+      targets:
+        CodexStatus: all
+        CodexStatusTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - CodexStatusTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+  CodexStatusPhysicalLive:
+    build:
+      targets:
+        CodexStatus: all
+        CodexStatusTests: [test]
+        CodexStatusUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - CodexStatusTests
+        - CodexStatusUITests
+      environmentVariables:
+        CODEX_STATUS_PHYSICAL_LIVE: "1"
+  CodexStatusWatch:
+    build:
+      targets:
+        CodexStatusWatch: all
+        CodexStatusWatchUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - CodexStatusWatchUITests
+    analyze:
+      config: Debug

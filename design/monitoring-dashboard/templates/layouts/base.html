@@ -1,0 +1,31 @@
+{% from "components/chrome.html" import operator_chrome %}
+{% from "components/primitives.html" import metric_strip %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title }}</title>
+    <link rel="stylesheet" href="../static/tailwind.css">
+  </head>
+  <body class="min-h-screen bg-[#f0f7f3] text-[#15231d] antialiased">
+    <main class="mx-auto min-h-screen max-w-[1505px] py-5 {{ 'px-[34px]' if scenario.active_tab == 'Domains' else 'pl-8 pr-5' if scenario.active_tab == 'Infrastructure' else 'px-[29px]' }}">
+      {{ operator_chrome(shared, scenario.active_tab) }}
+      <section class="{{ 'mt-[10px]' if scenario.active_tab == 'Domains' else 'mt-6' }} overflow-hidden rounded-[18px] border border-[#d2dfd7] bg-[#fefefe] shadow-[0_14px_48px_rgba(23,56,40,0.06)]">
+        <header class="flex items-start justify-between gap-10 border-b border-[#dbe5df] px-8 {{ 'pb-[26px] pt-[30px]' if scenario.active_tab == 'Domains' else 'pb-[37px] pt-[33px]' }}">
+          <div class="max-w-[900px]">
+            <p class="text-[11px] font-extrabold tracking-[0.18em] text-[#527061]">{{ scenario.eyebrow }}</p>
+            <h1 class="mt-2 text-[32px] font-semibold leading-tight tracking-[-0.035em] text-[#10271d]">{{ scenario.title }}</h1>
+            <p class="mt-2 text-[14px] leading-[22px] text-[#587064]">{{ scenario.subtitle }}</p>
+          </div>
+          <div class="mt-1 flex items-center gap-2 rounded-full border border-[#bcd9c8] bg-[#f7fbf8] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#08775e]">
+            <span class="h-2 w-2 rounded-full bg-[#66c54a]"></span>
+            {{ shared.freshness }}
+          </div>
+        </header>
+        {{ metric_strip(scenario.metrics, scenario.active_tab) }}
+        {% block content %}{% endblock %}
+      </section>
+    </main>
+  </body>
+</html>

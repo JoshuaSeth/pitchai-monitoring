@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-09-07",
+  "method": "Read the seven provider notices identified by the anonymous mailbox extraction. Review only subscription, cancellation, renewal and credit statements. Retain paraphrased facts and hashes, never addresses, links, message bodies, invoice identifiers or credentials.",
+  "coverage": {
+    "exact_identity_M365_mailboxes": 6,
+    "complete_searches": 24,
+    "unique_messages_in_date_range": 616,
+    "provider_notices_reviewed": 7,
+    "invoice_receipt_amounts_found": 0,
+    "non_M365_accounts_not_queried": ["A02", "A07"],
+    "qualification": "Searches do not prove that no charges occurred. Deleted mail, other billing addresses, other providers, payment portals and unsearched attachment contents can contain additional evidence. EUR200 remains a comparison benchmark, not a verified per-account invoice denominator."
+  },
+  "notices": [
+    {
+      "account": "A01",
+      "received_at": "2026-06-05T20:33:19Z",
+      "source_id_sha256": "7c123d8ad2fd7bf268422435e18c68c09f6eb7965f4a9db3ec97faa671c7182f",
+      "classification": "account_restoration_and_complimentary_month_offer",
+      "finding": "The provider says account access was restored, paid subscription reinstatement may not have happened automatically, and resubscription could apply an offered free month.",
+      "offered_complimentary_months": 1,
+      "offer_redeemed": null,
+      "paid_plan_reinstated_at": null,
+      "qualification": "An offer does not prove redemption or a particular paid exposure interval."
+    },
+    {
+      "account": "A04",
+      "received_at": "2026-07-20T09:09:34Z",
+      "source_id_sha256": "2c56f8069ac614ff80a39ba97d6ad0ca0c4f7631c446ec3f3a9d321ae903ec10",
+      "classification": "scheduled_nonrenewal",
+      "announced_billing_period_end": "2026-08-04",
+      "plan_name_in_notice": null,
+      "actual_access_end_verified": false
+    },
+    {
+      "account": "A06",
+      "received_at": "2026-07-20T09:08:00Z",
+      "source_id_sha256": "34f9f3b6a68b15a8041f91c6f948b5a27618fcc226328f1f14fb284cc7525fea",
+      "classification": "scheduled_nonrenewal",
+      "announced_billing_period_end": "2026-08-06",
+      "plan_name_in_notice": null,
+      "actual_access_end_verified": false
+    },
+    {
+      "account": "A05",
+      "received_at": "2025-11-12T16:25:59Z",
+      "source_id_sha256": "8bd108e994547a0d30169d91e5a27c7cf4d1809643d09a9354a7d8967d657f84",
+      "classification": "scheduled_nonrenewal",
+      "announced_billing_period_end": "2025-11-14",
+      "plan_name_in_notice": "ChatGPT Plus",
+      "actual_access_end_verified": false
+    },
+    {
+      "account": "A05",
+      "received_at": "2026-02-12T14:25:14Z",
+      "source_id_sha256": "60cb4052f5a6c70d6d87df8e78e61a720882d281bddd9f87f345532d2058ea41",
+      "classification": "scheduled_nonrenewal",
+      "announced_billing_period_end": "2026-02-13",
+      "plan_name_in_notice": null,
+      "actual_access_end_verified": false
+    },
+    {
+      "account": "A05",
+      "received_at": "2026-06-16T17:13:25Z",
+      "source_id_sha256": "49698d6453cee5ccc29239fc355528ffa5c5e1047a6de4f23b57c9a683d707c0",
+      "classification": "survey_incentive_offer",
+      "finding": "A limited survey incentive offered a choice of two months of ChatGPT Pro or USD100 API credit. It is not a receipt or evidence that this account redeemed the incentive."
+    },
+    {
+      "account": "A05",
+      "received_at": "2026-09-01T02:27:56Z",
+      "source_id_sha256": "ee1bb1eb5e6b2aa39d5c7471edc106c5d2346e005cd6d4d203c8b13a8b3b9f9f",
+      "classification": "separate_API_credit_balance_notice",
+      "reported_API_balance_USD": 3,
+      "finding": "The notice concerns a separate API organization balance. It is not a Codex subscription allowance or subscription payment."
+    }
+  ],
+  "excluded_draft": {
+    "account": "A03",
+    "source_id_sha256": "e7f893dc04d0c2fdd12efc339c1bc3c5fa1640edb5377b015022efc002845b64",
+    "is_draft": true,
+    "has_sender": false,
+    "has_attachments": true,
+    "qualification": "A targeted Graph metadata read confirmed an unsent draft. Its attachment was not opened and it is not treated as provider billing evidence."
+  },
+  "later_usage_crosscheck": {
+    "method": "Read strict account_calls after the announced end dates. Both accounts have no surviving strict calls between the following day and September 3, then have September 4+ calls whose reported plan is pro. This neither proves cancellation nor identifies a resubscription date.",
+    "rows": [
+      {"account": "A04", "first_day": "2026-09-04", "last_day": "2026-09-05", "reported_plan": "pro", "calls": 22855, "standard_USD": 2559.72948344},
+      {"account": "A06", "first_day": "2026-09-04", "last_day": "2026-09-06", "reported_plan": "pro", "calls": 52953, "standard_USD": 4361.56564916}
+    ]
+  }
+}

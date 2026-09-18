@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "strict_candidates_inspected": 1693319,
+  "missing_cumulative_counters_preserved": 0,
+  "coincidence_groups": [
+    {
+      "cross_source": 1,
+      "changed_turn": 0,
+      "groups": 62,
+      "groups_with_missing_turn": 62,
+      "calls": 163,
+      "standard_usd": 4.6887928,
+      "maximum_time_separation_seconds": 326155.31200003624
+    }
+  ],
+  "cross_source_changed_or_missing_turn_daily": [
+    {
+      "account": "A03",
+      "day": "2026-09-02",
+      "coincident_calls": 1,
+      "standard_usd": 0.033145600000000004,
+      "later_calls": 0,
+      "later_standard_usd": 0
+    },
+    {
+      "account": "A03",
+      "day": "2026-09-06",
+      "coincident_calls": 2,
+      "standard_usd": null,
+      "later_calls": 2,
+      "later_standard_usd": null
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-24",
+      "coincident_calls": 34,
+      "standard_usd": 2.8556208,
+      "later_calls": 0,
+      "later_standard_usd": 0
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-26",
+      "coincident_calls": 34,
+      "standard_usd": null,
+      "later_calls": 34,
+      "later_standard_usd": null
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-27",
+      "coincident_calls": 27,
+      "standard_usd": 1.8000264000000001,
+      "later_calls": 0,
+      "later_standard_usd": 0
+    },
+    {
+      "account": "A08",
+      "day": "2026-08-28",
+      "coincident_calls": 65,
+      "standard_usd": null,
+      "later_calls": 65,
+      "later_standard_usd": null
+    }
+  ],
+  "qualification": "Complete-counter coincidence is not proof of replay. Primary keep decisions are unchanged. Later-call value is an exclusion sensitivity, not a deduction from verified consumption or a confidence interval."
+}

@@ -109,10 +109,14 @@ async def run_api_contract_checks(
         if not url:
             if not path.startswith("/"):
                 path = "/" + path if path else ""
-            url = urljoin(base.rstrip("/") + "/", path.lstrip("/"))
+            url = urljoin(base.rstrip("/") + "/", path)
         url = _substitute_env_refs(url)
         expected_statuses = [int(x) for x in _as_list(raw.get("expected_status_codes") or raw.get("expected_status") or [200])]
-        expected_ct = str(raw.get("expected_content_type_contains") or "application/json").strip() or None
+        if "expected_content_type_contains" in raw:
+            expected_ct_raw = raw.get("expected_content_type_contains")
+            expected_ct = None if expected_ct_raw is None else str(expected_ct_raw).strip() or None
+        else:
+            expected_ct = "application/json"
         json_required = [str(x) for x in _as_list(raw.get("json_paths_required")) if str(x or "").strip()]
         json_equal = raw.get("json_paths_equal") if isinstance(raw.get("json_paths_equal"), dict) else {}
         max_elapsed_ms = raw.get("max_elapsed_ms")

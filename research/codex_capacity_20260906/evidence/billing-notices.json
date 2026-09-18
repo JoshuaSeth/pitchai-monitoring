@@ -1,0 +1,222 @@
+{
+  "schema": 1,
+  "since": "2025-11-01T00:00:00Z",
+  "cutoff": "2026-09-06T20:20:00Z",
+  "accounts": [
+    {
+      "account": "A01",
+      "exact_identity_email_match": true,
+      "status": "complete",
+      "query_counts_before_date_filter": {
+        "\"from:openai.com\"": 184,
+        "\"subject:OpenAI\"": 53,
+        "\"subject:ChatGPT\"": 139,
+        "\"OpenAI AND (receipt OR invoice)\"": 8
+      },
+      "unique_messages_in_date_range": 189,
+      "notices": [
+        {
+          "received_at": "2026-06-05T20:33:19Z",
+          "provider_domain": "email.openai.com",
+          "source_id_sha256": "7c123d8ad2fd7bf268422435e18c68c09f6eb7965f4a9db3ec97faa671c7182f",
+          "body_sha256": "2b4dd7ce0044dc6223743d77c0ca9bfb2dfea3950030eeb1cfd69d90c092f6ba",
+          "direct_recipient_match": true,
+          "subject_terms": [
+            "subscription",
+            "cancel"
+          ],
+          "has_attachments": false,
+          "amount_mentions": [],
+          "plan_mentions": [],
+          "date_mentions": []
+        }
+      ]
+    },
+    {
+      "account": "A02",
+      "exact_identity_email_match": true,
+      "status": "non_M365_identity_not_queried"
+    },
+    {
+      "account": "A03",
+      "exact_identity_email_match": true,
+      "status": "complete",
+      "query_counts_before_date_filter": {
+        "\"from:openai.com\"": 91,
+        "\"subject:OpenAI\"": 33,
+        "\"subject:ChatGPT\"": 56,
+        "\"OpenAI AND (receipt OR invoice)\"": 2
+      },
+      "unique_messages_in_date_range": 90,
+      "notices": [
+        {
+          "source_id_sha256": "e7f893dc04d0c2fdd12efc339c1bc3c5fa1640edb5377b015022efc002845b64",
+          "received_at": "2026-02-10T11:36:42Z",
+          "status": "missing_sender_metadata"
+        }
+      ]
+    },
+    {
+      "account": "A04",
+      "exact_identity_email_match": true,
+      "status": "complete",
+      "query_counts_before_date_filter": {
+        "\"from:openai.com\"": 58,
+        "\"subject:OpenAI\"": 30,
+        "\"subject:ChatGPT\"": 28,
+        "\"OpenAI AND (receipt OR invoice)\"": 0
+      },
+      "unique_messages_in_date_range": 58,
+      "notices": [
+        {
+          "received_at": "2026-07-20T09:09:34Z",
+          "provider_domain": "tm.openai.com",
+          "source_id_sha256": "2c56f8069ac614ff80a39ba97d6ad0ca0c4f7631c446ec3f3a9d321ae903ec10",
+          "body_sha256": "0612c132eeb88583ebd34d73fabaa00b11220f2247cc502823b2739557d51ea2",
+          "direct_recipient_match": true,
+          "subject_terms": [
+            "renew"
+          ],
+          "has_attachments": false,
+          "amount_mentions": [],
+          "plan_mentions": [],
+          "date_mentions": [
+            "August 4, 2026"
+          ]
+        }
+      ]
+    },
+    {
+      "account": "A05",
+      "exact_identity_email_match": true,
+      "status": "complete",
+      "query_counts_before_date_filter": {
+        "\"from:openai.com\"": 140,
+        "\"subject:OpenAI\"": 85,
+        "\"subject:ChatGPT\"": 22,
+        "\"OpenAI AND (receipt OR invoice)\"": 12
+      },
+      "unique_messages_in_date_range": 158,
+      "notices": [
+        {
+          "received_at": "2025-11-12T16:25:59Z",
+          "provider_domain": "tm.openai.com",
+          "source_id_sha256": "8bd108e994547a0d30169d91e5a27c7cf4d1809643d09a9354a7d8967d657f84",
+          "body_sha256": "ebef31462b5f1dbe116c6f2e3ffed009c7792c971a5f6ceac450e5be9e063f48",
+          "direct_recipient_match": true,
+          "subject_terms": [
+            "renew"
+          ],
+          "has_attachments": false,
+          "amount_mentions": [],
+          "plan_mentions": [
+            "ChatGPT Plus"
+          ],
+          "date_mentions": [
+            "November 14, 2025"
+          ]
+        },
+        {
+          "received_at": "2026-02-12T14:25:14Z",
+          "provider_domain": "tm.openai.com",
+          "source_id_sha256": "60cb4052f5a6c70d6d87df8e78e61a720882d281bddd9f87f345532d2058ea41",
+          "body_sha256": "cbb13170de55adabedee2a414f62774438ba5fa4e146660c047ee03909ead78d",
+          "direct_recipient_match": true,
+          "subject_terms": [
+            "renew"
+          ],
+          "has_attachments": false,
+          "amount_mentions": [],
+          "plan_mentions": [],
+          "date_mentions": [
+            "February 13, 2026"
+          ]
+        },
+        {
+          "received_at": "2026-06-16T17:13:25Z",
+          "provider_domain": "email.openai.com",
+          "source_id_sha256": "49698d6453cee5ccc29239fc355528ffa5c5e1047a6de4f23b57c9a683d707c0",
+          "body_sha256": "eff1e3dfb27533c806541a25abe3e318d859573884092fd0737d9fbac929c570",
+          "direct_recipient_match": true,
+          "subject_terms": [
+            "credit"
+          ],
+          "has_attachments": false,
+          "amount_mentions": [
+            "$100",
+            "$100"
+          ],
+          "plan_mentions": [
+            "ChatGPT Pro"
+          ],
+          "date_mentions": []
+        },
+        {
+          "received_at": "2026-09-01T02:27:56Z",
+          "provider_domain": "tm.openai.com",
+          "source_id_sha256": "ee1bb1eb5e6b2aa39d5c7471edc106c5d2346e005cd6d4d203c8b13a8b3b9f9f",
+          "body_sha256": "9fe5bb27ad3b21eb89ed60d5ab05d7576ec1939b486a7dfaf2575799cb82b370",
+          "direct_recipient_match": true,
+          "subject_terms": [
+            "credit"
+          ],
+          "has_attachments": false,
+          "amount_mentions": [
+            "$3.00"
+          ],
+          "plan_mentions": [],
+          "date_mentions": []
+        }
+      ]
+    },
+    {
+      "account": "A06",
+      "exact_identity_email_match": true,
+      "status": "complete",
+      "query_counts_before_date_filter": {
+        "\"from:openai.com\"": 50,
+        "\"subject:OpenAI\"": 33,
+        "\"subject:ChatGPT\"": 36,
+        "\"OpenAI AND (receipt OR invoice)\"": 4
+      },
+      "unique_messages_in_date_range": 70,
+      "notices": [
+        {
+          "received_at": "2026-07-20T09:08:00Z",
+          "provider_domain": "tm.openai.com",
+          "source_id_sha256": "34f9f3b6a68b15a8041f91c6f948b5a27618fcc226328f1f14fb284cc7525fea",
+          "body_sha256": "ab16d602b337c18da5258ea28fc4403a4bc22a287454b88f3021491df55c40f0",
+          "direct_recipient_match": true,
+          "subject_terms": [
+            "renew"
+          ],
+          "has_attachments": false,
+          "amount_mentions": [],
+          "plan_mentions": [],
+          "date_mentions": [
+            "August 6, 2026"
+          ]
+        }
+      ]
+    },
+    {
+      "account": "A07",
+      "exact_identity_email_match": true,
+      "status": "non_M365_identity_not_queried"
+    },
+    {
+      "account": "A08",
+      "exact_identity_email_match": true,
+      "status": "complete",
+      "query_counts_before_date_filter": {
+        "\"from:openai.com\"": 51,
+        "\"subject:OpenAI\"": 19,
+        "\"subject:ChatGPT\"": 32,
+        "\"OpenAI AND (receipt OR invoice)\"": 0
+      },
+      "unique_messages_in_date_range": 51,
+      "notices": []
+    }
+  ],
+  "qualification": "Provider notice mentions are not proof of paid charges or complete billing history. No invoice attachments were opened by this extraction; read flags were not changed."
+}

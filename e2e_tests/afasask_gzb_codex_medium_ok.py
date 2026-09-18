@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+# The registry schedules this at 1800 seconds; keep the test itself short and read-only.
 import re
 import time
+import uuid
 from pathlib import Path
 
 
 async def run(page, base_url, artifacts_dir):
-    conversation_id = "afasask-monitor-codex-medium-ok"
+    conversation_id = f"afasask-monitor-codex-medium-ok-{uuid.uuid4().hex[:12]}"
     url = (
         base_url.rstrip("/")
         + f"/chat_mini/gzb/{conversation_id}?floating=false&reload=true&mode=codex&intensity=medium"
@@ -25,13 +27,15 @@ async def run(page, base_url, artifacts_dir):
         "AFASASK_MONITORING_CANARY_NOOP. "
         "Dit is een interne halfuurlijkse health check. Antwoord exact met: OK"
     )
+    assistant_count_before = await page.locator('article[data-role="assistant"]').count()
     await page.get_by_test_id("chat-input").fill(prompt)
     await page.get_by_test_id("chat-submit").click()
 
     started = time.time()
     await page.wait_for_function(
-        """() => {
+        """(assistantCountBefore) => {
           const articles = Array.from(document.querySelectorAll('article[data-role="assistant"]'));
+          if (articles.length <= assistantCountBefore) return false;
           const text = articles.length ? (articles[articles.length - 1].textContent || '') : '';
           const lower = text.toLowerCase();
           return /\\bok\\b/i.test(text)
@@ -40,11 +44,13 @@ async def run(page, base_url, artifacts_dir):
             || lower.includes('usage_limit_reached')
             || lower.includes('hit your usage limit')
             || lower.includes('http 429')
-            || lower.includes('auth')
             || lower.includes('refresh_token')
+            || lower.includes('auth failure')
+            || lower.includes('auth invalid')
             || lower.includes('backend')
             || lower.includes('geen tool-calls');
         }""",
+        arg=assistant_count_before,
         timeout=240_000,
     )
 

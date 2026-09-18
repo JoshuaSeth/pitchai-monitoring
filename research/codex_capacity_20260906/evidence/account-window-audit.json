@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "normalized_window_observations": 52551,
+  "semantic_sha256": "abf807feccbfa9b7f020c6294f4695df8a938752db146e374a901fed6f983fda",
+  "fingerprint_serialization": "SELECT * FROM observations ORDER BY observation_key; compact JSON array plus newline per row",
+  "positive_epoch_fingerprints": 280,
+  "different_accounts_sharing_positive_epoch": 0,
+  "different_accounts_with_adjacent_positive_epoch": 0,
+  "fresh_same_epoch_decreases_over_two_points": 0,
+  "qualification": "These are normalization and identity checks, not a proof of constant capacity or provider policy. Guardian readings use direct snapshot capture times. Legacy and stale values are excluded from the decrease check."
+}

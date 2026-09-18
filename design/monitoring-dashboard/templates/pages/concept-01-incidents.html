@@ -1,0 +1,5 @@
+{% extends "layouts/base.html" %}
+{% from "components/incidents.html" import incident_workspace %}
+{% block content %}
+  {{ incident_workspace(scenario.incidents, scenario.selected_incident) }}
+{% endblock %}

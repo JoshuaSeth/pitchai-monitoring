@@ -1,0 +1,33 @@
+{
+  "diff": "design/monitoring-dashboard/comparisons/concept-04-diff.png",
+  "histogram_percent": 84.318,
+  "luminance_rmse_percent": 86.6975,
+  "macro_rgb_rmse_percent": 91.2766,
+  "metric": "full-frame RGB mean-absolute similarity after symmetric 2px anti-alias normalization",
+  "passes_target": true,
+  "preprocessing": {
+    "alpha": "discarded against decoded image background",
+    "anti_alias_normalization": "2px Gaussian blur applied equally to the complete target and render",
+    "color_mode": "RGB",
+    "dpr": 1,
+    "ignored_regions": [],
+    "macro_size": [
+      256,
+      178
+    ],
+    "target_resize": "Lanczos to render dimensions"
+  },
+  "raw_rgb_mae_percent": 95.9392,
+  "render": "design/monitoring-dashboard/screenshots/concept-04-reliability.png",
+  "render_size": [
+    1440,
+    1000
+  ],
+  "similarity_percent": 97.0438,
+  "target": "design/monitoring-dashboard/concepts/concept-04-reliability-analysis.png",
+  "target_original_size": [
+    1505,
+    1045
+  ],
+  "target_percent": 96.0
+}

@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "baseline_commit": "a47440ec82ac9efdb76f9258c80869e681da37a3",
+  "baseline_pricing_helper_sha256": "bccaa33f007d5ad09e6f4d234c7feaf43dcf05d03b426a9c4fe6741a65c8772d",
+  "refactored_pricing_helper_sha256": "df840b13298fda4bc05bc38d9138ca522eaf7455c228a51f20d2aba6b3d07197",
+  "pricing_specification_sha256": "f3bf2417fa0c4c29f532fec59118d6b87271987441fd4d6d1839c4764b48f451",
+  "FX_series_sha256": "d97ad025dc1513140fa64179e49d864f01eff70c787cbeca97a573fe8d002dc4",
+  "rows_compared": 6066658,
+  "columns_compared": [
+    "call_key",
+    "price_status",
+    "price_source",
+    "long_context",
+    "price_boundary_day",
+    "standard_usd",
+    "write_upper_usd",
+    "usd_per_eur",
+    "fx_date",
+    "standard_eur",
+    "write_upper_eur",
+    "september6_reference_usd"
+  ],
+  "mismatched_rows": 0,
+  "price_status_counts": {
+    "dated_standard_reference": 6001237,
+    "no_supported_model_date_price": 49659,
+    "retrospective_rate_historical_continuity_unproved": 15762
+  },
+  "method": "Regenerate every candidate price from the unchanged joined-calls ledger, pricing specification and ECB series. Read both SQLite prices tables completely in bounded batches, compare every full row including call key and missing values, and check both cursors exhaust together. Identical streamed rows prove equality of the whole result even though SQL ordering is not otherwise assumed. The canonical frozen price database is never modified.",
+  "validation_database_disposable": true
+}

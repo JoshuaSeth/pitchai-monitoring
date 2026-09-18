@@ -1,0 +1,158 @@
+{
+  "schema": 1,
+  "status": "candidate_ledger_complete_replay_audit_pending",
+  "cutoff": "2026-09-06T20:20:00Z",
+  "input_manifests": [
+    {
+      "counts": {
+        "counter_reset_or_rollback": 49,
+        "last_call_does_not_reconcile": 47,
+        "last_call_reconciles": 166197,
+        "missing_or_invalid_last_call": 387,
+        "rollout_complete": 1,
+        "rollout_manifest": 1,
+        "rollout_source": 377,
+        "token_event": 334493,
+        "unchanged_cumulative": 167813
+      },
+      "manifest": {
+        "cell": "historical-main",
+        "cutoff": "2026-09-06T20:20:00Z",
+        "discovered_paths": 377,
+        "extracted_at": "2026-09-06T20:23:58.553769+00:00",
+        "kind": "rollout_manifest",
+        "schema": 1
+      },
+      "sha256": "08d359de0322fb8351eea36f01067dfbf7f46016db334f6cdb6ffcbebc544966"
+    },
+    {
+      "counts": {
+        "counter_reset_or_rollback": 38,
+        "first_observation_with_prior_cumulative_usage": 3,
+        "last_call_does_not_reconcile": 37,
+        "last_call_reconciles": 330323,
+        "missing_or_invalid_last_call": 272,
+        "rollout_complete": 1,
+        "rollout_manifest": 1,
+        "rollout_source": 1134,
+        "token_event": 384761,
+        "unchanged_cumulative": 54088
+      },
+      "manifest": {
+        "cell": "dev-jeff",
+        "cutoff": "2026-09-06T20:20:00Z",
+        "discovered_paths": 1134,
+        "extracted_at": "2026-09-06T20:23:28.942293+00:00",
+        "kind": "rollout_manifest",
+        "schema": 1
+      },
+      "sha256": "3f99f1ef85d4aa9cd926b4513c211ef03f7a42fa1efbea7e3386fc56740a708d"
+    },
+    {
+      "counts": {
+        "last_call_reconciles": 6,
+        "rollout_complete": 1,
+        "rollout_manifest": 1,
+        "rollout_source": 2,
+        "token_event": 6
+      },
+      "manifest": {
+        "cell": "dev-fsn1",
+        "cutoff": "2026-09-06T20:20:00Z",
+        "discovered_paths": 2,
+        "extracted_at": "2026-09-06T20:30:13.215864+00:00",
+        "kind": "rollout_manifest",
+        "schema": 1
+      },
+      "sha256": "58b7989dbeecb8e873bf5be088fc3fcb9f139d4d8921353e675b4fd52f56d5ef"
+    },
+    {
+      "counts": {
+        "counter_reset_or_rollback": 4560,
+        "first_observation_with_prior_cumulative_usage": 19,
+        "last_call_does_not_reconcile": 3365,
+        "last_call_reconciles": 5645006,
+        "missing_or_invalid_last_call": 82197,
+        "rollout_alias": 24,
+        "rollout_complete": 1,
+        "rollout_manifest": 1,
+        "rollout_source": 22168,
+        "token_event": 6600106,
+        "unchanged_cumulative": 864959
+      },
+      "manifest": {
+        "cell": "dev-main-and-monitoring",
+        "cutoff": "2026-09-06T20:20:00Z",
+        "discovered_paths": 22192,
+        "extracted_at": "2026-09-06T20:23:30.043451+00:00",
+        "kind": "rollout_manifest",
+        "schema": 1
+      },
+      "sha256": "7fff91c796fb7ee5e53d8cf408ebd73ff49884716cb4d7a7acca43539031d0df"
+    }
+  ],
+  "source_inventory": {
+    "dev-jeff": {
+      "records": 1134,
+      "FileNotFoundError": 345,
+      "bytes": 17105859623,
+      "token_events": 384761,
+      "candidate_json_errors": 4,
+      "after_cutoff": 21,
+      "session_meta": 850,
+      "read": 789
+    },
+    "historical-main": {
+      "records": 377,
+      "read": 369,
+      "bytes": 20616396096,
+      "token_events": 334493,
+      "candidate_json_errors": 4,
+      "after_cutoff": 0,
+      "session_meta": 371,
+      "FileNotFoundError": 8
+    },
+    "dev-fsn1": {
+      "records": 2,
+      "read": 2,
+      "bytes": 188560,
+      "token_events": 6,
+      "candidate_json_errors": 0,
+      "after_cutoff": 0,
+      "session_meta": 2
+    },
+    "dev-main-and-monitoring": {
+      "records": 22192,
+      "read": 18992,
+      "bytes": 96275948017,
+      "token_events": 6600106,
+      "candidate_json_errors": 38,
+      "after_cutoff": 189,
+      "session_meta": 18216,
+      "FileNotFoundError": 3176,
+      "rollout_alias": 24
+    }
+  },
+  "candidate_summary": {
+    "calls": 6066658,
+    "source_observations": 6149650,
+    "model_conflicts": 0,
+    "effort_conflicts": 187,
+    "first_day": "2025-11-05",
+    "last_day": "2026-09-06"
+  },
+  "account_join": {
+    "different_limit_id": 550179,
+    "epoch_with_one_second_tolerance": 47082,
+    "exact_epoch": 1950968,
+    "no_historical_epoch_anchor": 3518429
+  },
+  "service_tier": {
+    "None": 6066658
+  },
+  "limitations": [
+    "Candidate records are not certified live requests. A separate semantic replay audit is required.",
+    "Epoch matching is distinct from historical lease corroboration.",
+    "No call has an explicit service_tier in the extracted turn context."
+  ]
+}

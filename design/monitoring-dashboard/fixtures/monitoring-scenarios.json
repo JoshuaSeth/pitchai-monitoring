@@ -1,0 +1,132 @@
+{
+  "shared": {
+    "generated_at": "25 Aug 2026 · 19:44 UTC",
+    "environment": "Production",
+    "freshness": "Updated 18s ago",
+    "tabs": ["Domains", "Databases", "Infrastructure", "Reliability", "Journeys"]
+  },
+  "concept_01": {
+    "active_tab": "Domains",
+    "eyebrow": "CURRENT INCIDENTS",
+    "title": "Three incidents need an owner",
+    "subtitle": "The monitor is fresh. A critical route, a production database dependency, and one expected dashboard-only route are down.",
+    "metrics": [
+      {"label": "Active checks", "value": "60", "detail": "55 healthy · 5 dashboard-only", "status": "healthy"},
+      {"label": "Current incidents", "value": "3", "detail": "2 critical · 1 expected", "status": "critical"},
+      {"label": "24h availability", "value": "99.86%", "detail": "8,640 retained samples", "status": "attention"},
+      {"label": "Alert route", "value": "Telegram", "detail": "Critical policy enabled", "status": "healthy"}
+    ],
+    "incidents": [
+      {
+        "id": "dispatch-readiness",
+        "severity": "critical",
+        "title": "dispatch.pitchai.net is down",
+        "summary": "Operations · page/readiness check · 2 failing cycles",
+        "status": "Down",
+        "first_seen": "19:41:18 UTC",
+        "latest_seen": "19:43:18 UTC",
+        "owner": "PitchAI core / Dispatcher",
+        "check": "Public readiness request",
+        "service": "Dispatcher",
+        "code": "HTTP 503",
+        "last_success": "19:40:18 UTC · HTTP 200 · 126 ms",
+        "trend": "Degrading · 2/3 recent samples failed",
+        "policy": "Critical · Telegram after 2 failures",
+        "evidence": "upstream unavailable · response body not retained by current collector",
+        "action": "Reproduce the public readiness request, then inspect the Dispatcher deployment and proxy/container logs."
+      },
+      {
+        "id": "billing-web-runtime-postgres",
+        "severity": "critical",
+        "title": "Billing web cannot authenticate to runtime Postgres",
+        "summary": "Billing · database dependency · login/password probe · 3 failing cycles",
+        "status": "Down",
+        "first_seen": "19:40:18 UTC",
+        "latest_seen": "19:43:18 UTC",
+        "owner": "PitchAI core / Billing",
+        "check": "Runtime PostgreSQL login and bounded query",
+        "service": "Billing web · green slot · 100% traffic",
+        "code": "invalid_password",
+        "last_success": "19:39:18 UTC · authentication and SELECT 1 passed",
+        "trend": "Stale or revoked after last success · 3 failing cycles",
+        "signals": ["Stale credential after secret rotation", "Login/password probe failures (3 cycles)", "Possible grants drift on login role", "PgBouncer or tunnel path suspect", "Timeout on retry; routing slot healthy but auth failing"],
+        "inspection_owner": "Owner needed · DB Platform",
+        "policy": "Critical production dependency · Telegram incident open",
+        "evidence": "authentication failed for configured role · hostname, user, password, DSN, tunnel target, and secret ref redacted",
+        "action": "Confirm secret version in app/container, validate login role grants, test direct Postgres vs PgBouncer/tunnel, then re-run probe."
+      },
+      {
+        "id": "agentcloud-dashboard-only",
+        "severity": "expected",
+        "title": "agentcloud.pitchai.net is down — expected / dashboard only",
+        "summary": "Infrastructure · readiness check · Telegram suppressed by policy",
+        "status": "Expected down",
+        "first_seen": "19:42:18 UTC",
+        "latest_seen": "19:43:18 UTC",
+        "owner": "PitchAI infrastructure",
+        "check": "Page/readiness check",
+        "service": "AgentCloud",
+        "code": "HTTP 502",
+        "last_success": "19:38:18 UTC · HTTP 200",
+        "trend": "Degrading · 1 failing sample",
+        "policy": "Dashboard only · no Telegram route",
+        "evidence": "No safe response-body excerpt retained",
+        "action": "Confirm the dashboard-only condition is still intentional before changing alert policy."
+      }
+    ],
+    "selected_incident": "billing-web-runtime-postgres"
+  },
+  "concept_03": {
+    "active_tab": "Infrastructure",
+    "eyebrow": "INFRASTRUCTURE",
+    "title": "Host pressure is contributing",
+    "subtitle": "One retained host sample is above threshold. Container details are summary-only by design.",
+    "metrics": [
+      {"label": "CPU used", "value": "92.0%", "detail": "Threshold 85% · +14% / 24h", "status": "critical"},
+      {"label": "Memory used", "value": "88.0%", "detail": "Threshold 85% · +9% / 24h", "status": "attention"},
+      {"label": "Load / CPU", "value": "1.60", "detail": "Threshold 1.50 · 4 CPUs", "status": "attention"},
+      {"label": "Tracked runtimes", "value": "48", "detail": "Summary-only · 73 cumulative restarts", "status": "unknown"}
+    ],
+    "resources": [
+      {"resource": "CPU", "current": "92.0%", "pressure": "High / load elevated", "error": "None", "threshold": "85%", "trend": "Rising / critical", "freshness": "18s ago", "status": "critical"},
+      {"resource": "Memory", "current": "88.0%", "pressure": "Moderate-high", "error": "None", "threshold": "85%", "trend": "Rising / attention", "freshness": "18s ago", "status": "attention"},
+      {"resource": "Root disk", "current": "84.0%", "pressure": "Flat", "error": "None", "threshold": "90%", "trend": "Flat", "freshness": "18s ago", "status": "healthy"},
+      {"resource": "Container detail", "current": "Unavailable", "pressure": "Summary-only", "error": "Unavailable", "threshold": "—", "trend": "Summary only", "freshness": "18s ago", "status": "unknown"},
+      {"resource": "Runtime restarts", "current": "48 tracked / 73 restarts", "pressure": "No per-container CPU or memory retained", "error": "N/A", "threshold": "—", "trend": "Summary only", "freshness": "18s ago", "status": "unknown"}
+    ],
+    "trend": [42, 46, 44, 51, 58, 62, 68, 72, 81, 84, 88, 92],
+    "inspection": {
+      "title": "CPU saturation · production monitoring host",
+      "owner": "PitchAI core / platform operations",
+      "related": "2 active incidents · Dispatcher and host health",
+      "evidence": "CPU 92% · load/CPU 1.60 · memory 88% · observed 19:43:42 UTC",
+      "missing": "Per-container CPU/memory is not retained. Container health exposes 48 restart counters and an overall degraded signal only.",
+      "action": "Inspect the busiest production processes and related service containers before restarting or scaling anything."
+    }
+  },
+  "concept_04": {
+    "active_tab": "Reliability",
+    "eyebrow": "RELIABILITY · 24 HOURS",
+    "title": "Operations exhausted its error budget",
+    "subtitle": "Availability, latency, incident history, and alert routing are aggregated from retained samples.",
+    "metrics": [
+      {"label": "SLO target", "value": "99.900%", "detail": "Configured production target", "status": "healthy"},
+      {"label": "Groups at risk", "value": "1", "detail": "Operations · budget exhausted", "status": "critical"},
+      {"label": "Telegram alertable", "value": "55", "detail": "Critical production routes are routed to Telegram; dashboard-only and deprecated routes are suppressed.", "status": "healthy"},
+      {"label": "Incident transitions", "value": "7", "detail": "4 problems · 3 recoveries / 7d", "status": "attention"}
+    ],
+    "groups": [
+      {"group": "Operations", "services": "9", "availability": "99.71%", "budget": "290% used", "budget_fill": 82, "p95": "842 ms", "incidents": "2", "status": "critical", "route_alerts": true, "routing": "Telegram production alerts active"},
+      {"group": "PitchAI core", "services": "15", "availability": "99.99%", "budget": "10% used", "budget_fill": 20, "p95": "176 ms", "incidents": "0", "status": "healthy", "route_alerts": true, "routing": "Production alerts healthy"},
+      {"group": "DFT", "services": "3", "availability": "99.96%", "budget": "40% used", "budget_fill": 46, "p95": "261 ms", "incidents": "0", "status": "healthy", "route_alerts": false, "routing": "Suppressed (dashboard-only/deprecated)"},
+      {"group": "Potaito", "services": "4", "availability": "99.91%", "budget": "90% used", "budget_fill": 88, "p95": "315 ms", "incidents": "1 expected", "status": "attention", "route_alerts": false, "routing": "Suppressed (dashboard-only)"}
+    ],
+    "trend": [100, 100, 99, 100, 98, 100, 100, 97, 99, 100, 96, 100, 94, 99, 100, 98, 100, 99, 100, 93, 96, 99, 98, 97],
+    "history": [
+      {"time": "19:43", "kind": "domain_down", "target": "dispatch.pitchai.net", "owner": "Operations", "status": "problem"},
+      {"time": "19:42", "kind": "host_health_degraded", "target": "monitoring host", "owner": "PitchAI core", "status": "problem"},
+      {"time": "18:31", "kind": "domain_up", "target": "storage.pitchai.net", "owner": "PitchAI core", "status": "recovery"},
+      {"time": "17:12", "kind": "domain_down", "target": "agentcloud.pitchai.net", "owner": "Infrastructure · dashboard only", "status": "expected"}
+    ]
+  }
+}

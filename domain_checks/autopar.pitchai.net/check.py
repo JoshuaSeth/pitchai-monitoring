@@ -1,10 +1,10 @@
 CHECK = {
     "domain": "autopar.pitchai.net",
     "url": "https://autopar.pitchai.net",
-    "expected_title_contains": "AutoPAR Web App",
+    "expected_title_contains": "AutoPAR",
     "required_selectors_all": [
-        {"selector": "script#wss-connection", "state": "attached"},
-        {"selector": "input[name=token], #token", "state": "visible"},
+        {"selector": "#main", "state": "visible"},
+        {"selector": "#token-input", "state": "visible"},
     ],
     "api_contract_checks": [
         {
@@ -20,11 +20,11 @@ CHECK = {
     ],
     "synthetic_transactions": [
         {
-            "name": "token_login_landing",
+            "name": "secure_login_landing",
             "steps": [
                 {"type": "goto"},
-                {"type": "wait_for_selector", "selector": "input[name=token], #token", "state": "visible"},
-                {"type": "wait_for_selector", "selector": "script#wss-connection", "state": "attached"},
+                {"type": "wait_for_selector", "selector": "#main", "state": "visible"},
+                {"type": "wait_for_selector", "selector": "#token-input", "state": "visible"},
                 {"type": "expect_text", "text": "AutoPAR"},
             ],
         }

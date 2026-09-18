@@ -1,0 +1,41 @@
+{% from "components/primitives.html" import status_label, bar_sparkline %}
+{% macro infrastructure_workspace(scenario) -%}
+<section class="grid grid-cols-[minmax(0,1.45fr)_minmax(300px,0.62fr)] gap-0">
+  <div class="border-r border-[#dbe7df] px-8 py-7">
+    <div class="flex items-end justify-between gap-8">
+      <div>
+        <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#587064]">24-hour host pressure</p>
+        <p class="mt-1 text-[12px] text-[#71837a]">Retained once-per-minute monitor samples · zero dashboard probes</p>
+      </div>
+      <div class="w-[300px]">{{ bar_sparkline(scenario.trend, 'red') }}</div>
+    </div>
+    <div class="mt-7 overflow-hidden rounded-[14px] border border-[#d7e3db]">
+      <div class="grid grid-cols-[.9fr_.62fr_1.15fr_.75fr_.55fr_.65fr_.8fr] bg-[#f8faf8] px-5 py-3 text-[9px] font-extrabold uppercase tracking-[0.1em] text-[#6e8177]">
+        <span>Resource</span><span>Utilization</span><span>Saturation / pressure</span><span>Error state</span><span>Threshold</span><span>Freshness</span><span class="text-right">Status</span>
+      </div>
+      {% for resource in scenario.resources %}
+        <div class="grid grid-cols-[.9fr_.62fr_1.15fr_.75fr_.55fr_.65fr_.8fr] items-center border-t border-[#e1e9e4] px-5 py-[17px] text-[12px] text-[#31493d]">
+          <strong>{{ resource.resource }}</strong>
+          <span class="font-semibold">{{ resource.current }}</span>
+          <span>{{ resource.pressure }}</span>
+          <span>{{ resource.error }}</span>
+          <span>{{ resource.threshold }}</span>
+          <span>{{ resource.freshness }}</span>
+          <span class="justify-self-end">{{ status_label(resource.status, resource.trend) }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  <aside class="bg-[#fefefe] px-7 py-7">
+    <p class="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#6b7e74]">Selected hotspot</p>
+    <h2 class="mt-2 text-[19px] font-semibold leading-6 tracking-[-0.02em] text-[#173328]">{{ scenario.inspection.title }}</h2>
+    <dl class="mt-6 space-y-5 text-[12px]">
+      <div><dt class="font-extrabold uppercase tracking-[0.12em] text-[9px] text-[#7b8d84]">Owner</dt><dd class="mt-1 font-semibold text-[#2b4438]">{{ scenario.inspection.owner }}</dd></div>
+      <div><dt class="font-extrabold uppercase tracking-[0.12em] text-[9px] text-[#7b8d84]">Related impact</dt><dd class="mt-1 font-semibold text-[#9d312c]">{{ scenario.inspection.related }}</dd></div>
+      <div><dt class="font-extrabold uppercase tracking-[0.12em] text-[9px] text-[#7b8d84]">Retained evidence</dt><dd class="mt-1 leading-5 text-[#3d5549]">{{ scenario.inspection.evidence }}</dd></div>
+      <div class="border-l-[3px] border-[#d1a13c] bg-[#fffaf0] px-4 py-3"><dt class="font-extrabold uppercase tracking-[0.12em] text-[9px] text-[#8a6718]">Data boundary</dt><dd class="mt-1 leading-5 text-[#685323]">{{ scenario.inspection.missing }}</dd></div>
+      <div class="border-t border-[#dbe7df] pt-5"><dt class="font-extrabold uppercase tracking-[0.12em] text-[9px] text-[#3e7135]">Suggested next action</dt><dd class="mt-2 font-semibold leading-5 text-[#294237]">{{ scenario.inspection.action }}</dd></div>
+    </dl>
+  </aside>
+</section>
+{%- endmacro %}

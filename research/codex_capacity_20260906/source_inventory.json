@@ -1,0 +1,290 @@
+{
+  "status": "research_and_source_audit_complete_integration_and_delivery_pending",
+  "observation_date": "2026-09-06",
+  "counts_are_initial_discovery_observations_not_final_extraction_totals": true,
+  "sources": [
+    {
+      "key": "global_rollout_union",
+      "status": "candidate_ingestion_join_and_dated_pricing_complete; semantic replay correction applied separately",
+      "cutoff": "2026-09-06T20:20:00Z",
+      "cells": [
+        "dev-main-and-monitoring",
+        "dev-jeff",
+        "historical-main",
+        "dev-fsn1"
+      ],
+      "artifacts": [
+        "evidence/rollout-import-audit.json",
+        "replay_audit.py",
+        "evidence/replay-method-validation.json"
+      ],
+      "candidate_records": 6066658,
+      "later_cross_source_replays": 2249296,
+      "replay_revision": "evidence/replay-cost-impact-v2.json; global turn identity also catches replaced session IDs",
+      "cohort_artifacts": [
+        "tables/manifest.json",
+        "evidence/cohort-comparisons.json"
+      ],
+      "residual_counter_audit": "All 1,693,319 strict survivors audited: no full-counter coincidences with changed nonmissing turns; 62 missing-turn groups contain 163 calls, including 101 later unpriced records. Coincidence without a turn does not prove replay. No priced-dollar deduction follows. See evidence/residual-counter-audit.json.",
+      "prior_ledger_reconciliation": "119,835 modern numeric turns compared; 104,505 exact four-counter matches after replay correction. 15,072 prior zero-token turns have no current calls. All 99 nonzero missing turns map to 23 source files recorded FileNotFoundError. See evidence/prior-ledger-reconciliation.json and evidence/prior-ledger-review.md.",
+      "pending": [
+        "final objective and source audit before delivery"
+      ]
+    },
+    {
+      "key": "august_forensics",
+      "location": "/code/pitchai_monitoring-worktrees/auth-usage-history-forensics-20260827/docs/evidence/auth-usage-history-forensics-20260827",
+      "read": [
+        "README.md",
+        "extraction-notes.md",
+        "complete proof-observations.csv",
+        "original surviving recovery logs on dev-main, monitoring, Jeff and historical main"
+      ],
+      "pending": [
+        "The 108-observation gap remains unrecovered in accessible retained sources; its coverage limitation is reported in the dossier."
+      ],
+      "prior_definition_recheck": "Recreated the prior account/probe/window/percentage/reset tuple definition from all retained recovery inputs; 6,937 distinct pre-August-17 tuples remain. A different deduplication key does not explain the reported 7,045 count. The prior directory retains proof excerpts, not the complete union.",
+      "additional_export_search": "Searched local and main temporary/artifact roots and the surviving prior evidence directory. No complete earlier recovery union was located. This is a retained coverage discrepancy, not evidence of a quota change.",
+      "prior_claims_to_recheck": {
+        "unique_recovery_observations": 7045,
+        "accounts": 8,
+        "coverage_start": "2026-07-05",
+        "coverage_end": "2026-08-16",
+        "five_hour_observations": 104
+      },
+      "historical_numeric_projection": "219 historical receipts screened; 103 anonymous candidates from 70 reports. Ambiguous and unrelated percentages excluded from primary telemetry; source receipt clock sensitivity retained."
+    },
+    {
+      "key": "durable_history_implementation",
+      "location": "/code/pitchai_monitoring-worktrees/auth-broker-usage-limit-timeseries-20260827/docs/codex-auth-usage-dashboard.md",
+      "read": true,
+      "evidence": "Five-minute append-only SQLite sampler; last-known values and legacy imports explicitly marked; bank expiry is not an automatic reset; provider token analytics are separate from raw rollout tokens."
+    },
+    {
+      "key": "historical_cost_ledger",
+      "location": "/code/pitchai-cli-new/runs/historical-rollout-cost-ledger/2026-09-04",
+      "read": [
+        "methodology.md",
+        "coverage_and_totals.json",
+        "run_ledger.sh",
+        "complete report",
+        "turn/source CSV headers",
+        "extractor counter parsing and turn boundaries",
+        "global candidate selection, price and integrity logic",
+        "verifier token reconciliation checks"
+      ],
+      "independent_reconciliation": "evidence/prior-ledger-reconciliation.json; three separate source/counting scopes, prior integrity flags and discrepancy provenance retained. Exact matches are counter corroboration, not certified live consumption.",
+      "pending": [
+        "No extracted candidate has a service-tier field; policy code lacks complete historical deployment/override proof. The dossier retains this evidence limit."
+      ],
+      "snapshot_cutoff": "2026-09-04T12:03:50Z",
+      "prior_inventory": {
+        "cells": 3,
+        "indexed_source_records": 26120,
+        "scanned_bytes": 111660484559,
+        "logical_turns": 244113,
+        "turns_with_token_telemetry": 121354,
+        "integrity_flagged_turns": 737
+      },
+      "limitation": "Prior costs reprice workload shape at comparison-model snapshot prices; they are not dated actual-model subscription value. Prior all-time counters must not be used without clone, replay, counter-integrity, and account-join review."
+    },
+    {
+      "key": "named_reminder_cost_research",
+      "lane": "reminder-cost-token-research-20260901-cli",
+      "location": "dev-main:/code/pitchai_cli_new-worktrees/reminder-cost-token-research-20260901-cli",
+      "read": [
+        "Complete 1 September report through supported CLI get",
+        "Original 1 September reminder SQL and its source response",
+        "Complete 2 September comparison, fact sheet, background research, calculator and completion audit",
+        "4 September historical ledger and source datasets, independently reconciled above"
+      ],
+      "original_numeric_outcomes": 342,
+      "reproduced_distinct_turns": 342,
+      "exact_matches_in_frozen_scheduling_export": 342,
+      "additional_usage_added": 0,
+      "artifact": "evidence/prior-reminder-audit.json",
+      "limitation": "The earlier model-price substitution is not a separate request ledger or provider invoice. Its source counters have the scheduling projection limitations audited in this study.",
+      "pending": []
+    },
+    {
+      "key": "broker_host_quota_history",
+      "ssh_route": "pitchai-dev-main",
+      "location": "/srv/codex-usage-dashboard/usage-history.sqlite3",
+      "read_only_schema_verified": true,
+      "initial_counts": {
+        "collection_batches": 5115,
+        "account_usage_samples": 40920
+      },
+      "extracted_count": 40936,
+      "extracted_coverage": [
+        "2026-08-19T20:40:12.969723Z",
+        "2026-09-06T20:15:33.226154Z"
+      ],
+      "backups_compared": 9,
+      "quota_tuples_absent_from_live_backups": 0,
+      "lease_corroboration": {
+        "source_observations": 4563,
+        "distinct_renewal_states": 2947,
+        "distinct_issuances": 133,
+        "artifact": "evidence/lease-corroboration.json",
+        "limitation": "Exact source affinities were recovered, but issue-to-latest-expiry intervals do not prove continuous occupancy. Renewal states are not separate leases. Missing capture timestamps and early release can leave overlapping or apparently contradictory ranges."
+      },
+      "pending": [
+        "Missing capture and release times prevent resolving historical lease occupancy. The dossier preserves the conflicting range grades."
+      ]
+    },
+    {
+      "key": "broker_host_guardian",
+      "ssh_route": "pitchai-dev-main",
+      "location": "/var/lib/pitchai-auth-reset-guardian/audit.sqlite3",
+      "read_only_schema_verified": true,
+      "initial_counts": {
+        "runs": 2656,
+        "snapshots": 15627,
+        "events": 19926,
+        "redemption_attempts": 6,
+        "notifications": 138,
+        "warning_marks": 46
+      },
+      "extracted_counts": {
+        "snapshots": 15635,
+        "redemptions": 6,
+        "credit_refs": 27
+      },
+      "extracted_coverage": [
+        "2026-08-10T19:27:32.471788Z",
+        "2026-09-06T20:15:41.122621Z"
+      ],
+      "timing_correction": "Guardian usage_state comes from a direct provider read after the broker analytics probe. Normalize it at snapshot captured_at; the exported provider_observed_at is the earlier broker probe clock and must not date guardian usage.",
+      "credit_loss_classification": {
+        "direct_guardian_redemptions": 6,
+        "additional_pre_expiry_disappearances_with_new_window": 17,
+        "inferred_events_are_not_direct_redemption_responses": true
+      },
+      "pending": [
+        "Unexplained replacements and paid exposure remain qualified observations in the final report, without an inferred action or invoice."
+      ],
+      "manual_reset_corroboration": "Four original historical responses recovered; account-labelled for A05/A07/A08 and response-plus-deadline corroboration for A02. See evidence/manual-reset-responses.json and historical-events.json."
+    },
+    {
+      "key": "provider_documentation",
+      "manual_cache": "/private/tmp/openai-docs-cache/codex-manual.md",
+      "manual_outline": "/private/tmp/openai-docs-cache/codex-manual.outline.md",
+      "fetched_date": "2026-09-06",
+      "read": [
+        "Pricing section",
+        "official API pricing and model pages",
+        "API release and pricing changelog",
+        "June 26 GPT-5.6 preview pricing",
+        "July 30 and August 21 pricing changes",
+        "GPT-5 through GPT-5.5 launch pricing",
+        "ECB daily EUR/USD series"
+      ],
+      "artifacts": [
+        "pricing.json",
+        "evidence/eur-usd-daily.csv"
+      ],
+      "pending": [
+        "Historical service tier and paid-plan amounts remain unverified."
+      ],
+      "intraday_price_sensitivity": "evidence/price-boundary-sensitivity.json: 5,803 strict Sol calls on August 21, all within A02 segment 12, with USD123.9775028 maximum old-rate increment. No primary hourly or fixed-price comparison changes.",
+      "final_observed_model_set": "All named models have an explicit dated-price disposition; Spark and missing-model records remain unpriced rather than receiving an invented alias."
+    },
+    {
+      "key": "pm_history",
+      "schemas": [
+        "public",
+        "pitchai_dispatch"
+      ],
+      "connection_and_task_schema_verified": true,
+      "read": [
+        "nine initial and twelve additional related historical task descriptions",
+        "August 16 cancelled-seat classification",
+        "August 16 shared-lease correction",
+        "July 18 weighted routing change",
+        "July 21 idle-zero deadline investigation",
+        "September 4\u20137 reset follow-ups"
+      ],
+      "artifact": "evidence/historical-events.json",
+      "pending": [],
+      "additional_evidence": "Original July 12 and August 10 tool responses recovered through supported cross-cell CLI history search; no recorded action repeated."
+    },
+    {
+      "key": "provider_billing_mail",
+      "read_only": true,
+      "identity": "Exact in-memory match between stored subscription identity email claims and six M365 mailboxes; no addresses or credential claims retained.",
+      "coverage": [
+        "2025-11-01T00:00:00Z",
+        "2026-09-06T20:20:00Z"
+      ],
+      "complete_searches": 24,
+      "unique_messages_in_date_range": 616,
+      "provider_notices_reviewed": 7,
+      "invoice_receipt_amounts_found": 0,
+      "artifacts": [
+        "extract_billing_notices.py",
+        "evidence/billing-notices.json",
+        "evidence/billing-notice-review.json"
+      ],
+      "findings": "Dated scheduled nonrenewal notices, account restoration and complimentary-month offer; separate API balance and survey incentive excluded from subscription cost. Unsent draft identified by a targeted metadata read and excluded.",
+      "additional_mail_source": "The configured iCloud mailbox was searched read-only across 14 folders using 28 complete provider searches. Ten matching messages retained unchanged flags. One amount-mention candidate had no exact subscription identity match and does not establish a paid invoice. See evidence/icloud-billing-notices.json.",
+      "access_limits": "The iCloud mailbox-to-A02 relationship is unproved. No Gmail reader is exposed in the current tools, and no Gmail-named credential file was found in the configured PitchAI credential directory on main; A07 mailbox access is not established.",
+      "pending": [
+        "paid invoices and resubscription dates remain unverified; a subscription-linked receipt is required"
+      ],
+      "qualification": "No matched invoice amount establishes the denominator. A planned nonrenewal does not prove actual access ended. Search results do not certify complete billing history."
+    },
+    {
+      "key": "telegram_delivery",
+      "requester": "Seth",
+      "policy_read_from": "pitchai-dev-main:/root/code/pitchai-agent-kb/wiki/policies/current/2026-07-16-telegram-personal-update-routing.md",
+      "private_only": true,
+      "progress_receipt": "one requester-private progress delivery accepted and independently read back; no broad copy",
+      "attachment_capability": "Existing requester-private send-document helper verified in telegram_agent_server private-document-delivery worktree; prior September 6 Markdown/PDF delivery read back. This study has not made its final delivery.",
+      "pending": [
+        "final Markdown/PDF delivery"
+      ],
+      "initial_historical_candidate_reports": {
+        "count": 219,
+        "first": "2026-06-10T04:21:00.470108Z",
+        "last": "2026-09-05T23:31:29.207384Z",
+        "qualification": "Private outbound receipts containing a window-related term and a percentage; these are candidates, not yet validated quota observations."
+      },
+      "historical_candidate_reports": {
+        "count": 219,
+        "current_requester_route": 196,
+        "other_historical_routes": 23,
+        "first_native_receipt": "2026-06-16T20:27:59.793264",
+        "last_native_receipt": "2026-09-06T05:12:12.230558",
+        "candidate_lines": 103,
+        "reports_with_candidates": 70,
+        "qualification": "Explicit retained selection differs from the initial discovery query. Native timestamp-without-time-zone fields are not UTC. No narrative row enters the primary quota ledger.",
+        "artifacts": [
+          "evidence/telegram-quota-candidates.json",
+          "evidence/historical-corroboration.json"
+        ]
+      }
+    },
+    {
+      "key": "scheduling_outcome_history",
+      "status": "reconciled",
+      "sources": [
+        "dev-main",
+        "dev-jeff",
+        "dev-monitoring"
+      ],
+      "coverage": [
+        "2026-08-29T05:19:51.718455Z",
+        "2026-09-06T20:19:58.946959Z"
+      ],
+      "rows": 3605367,
+      "numeric_rows": 14365,
+      "distinct_turns": 622,
+      "capacity_point_rows": 0,
+      "service_tier_key_rows": 0,
+      "artifact": "evidence/scheduling-outcome-audit.json",
+      "limitation": "Derived from the same rollouts; repeated decisions and partial turn contexts do not establish additional request consumption. Four overlapping later-turn projections and three cumulative counter gaps remain outside additive accounting.",
+      "pending": []
+    }
+  ]
+}
