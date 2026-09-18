@@ -4,7 +4,9 @@ Client hotpaths are visible, value-bearing product journeys. They are deliberate
 
 ## Canonical inventory and timing
 
-`e2e_registry/hotpath_inventory.json` is the checked-in runtime inventory. Version 1 contains the complete 14-lane estate: DFT, AutoPAR, two intentional AIPC/SkyBuyFly lanes, potAIto, AFASAsk/GZB, Orthoparse, QuickChat RSR, DePlanBook Play, CISNL, AIGENDA Rules, DePlanBook CMS, Apologetica CMS, and AIGENDA Calendar. OrthoShare is not admitted because it has no deployed product surface.
+`e2e_registry/hotpath_inventory.json` is the checked-in runtime inventory. Version 1 contains 15 lanes: DFT, AutoPAR, two intentional AIPC/SkyBuyFly lanes, potAIto, AFASAsk/GZB, Orthoparse, QuickChat RSR, DePlanBook Play, CISNL, AIGENDA Rules, DePlanBook CMS, Apologetica CMS, AIGENDA Calendar, and the PitchAI public website. OrthoShare is not admitted because it has no deployed product surface.
+
+The public website lane uses `node scripts/public-hotpath.mjs` in `JoshuaSeth/pitchai_net` and its `docs/public-hotpath.md` runbook. Its coordinator-owned reminder runs daily; the shared inventory freshness policy remains unchanged. The website monitor is anonymous and read-only, including its contact-path check. The lane and reminder were resolved through the live PitchAI CLI on 2026-09-18; this registration does not create or alter a reminder.
 
 The AIPC duplication is deliberate. `aipc-pedantic-e2e-ui-qa-v2` preserves the older deep UI QA lane, reminder, retained results, and incident history. `aipc-hotpath-monitor` is the explicit current UI/API/browser owner across the primary and stable SkyBuyFly HEL1 ingress boundaries. The two lanes have separate agent and reminder identities and report independent state; neither may submit under the other's lane ID.
 

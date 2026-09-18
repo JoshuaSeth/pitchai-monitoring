@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-09-01",
+  "reviewed_at": "2026-09-18",
   "canonical_tag": "hot-path-testing",
   "expected_interval_seconds": 172800,
   "stale_after_seconds": 259200,
@@ -145,6 +145,16 @@
       "primary_domain": "aigenda.pitchai.net",
       "reminder_id": "reminder-central-43f01740-aac9-41ff-97d2-952162657608",
       "expected_behavior": "A synthetic planner creates and edits an event, finds it in Jaarkaart and Kalender, verifies matching ICS export, and cleans up the isolated fixture."
+    },
+    {
+      "lane_id": "pitchai-net-hotpath-monitor",
+      "agent_global_id": "05631af8-3fb1-5f01-a94a-b734829b8364",
+      "project": "pitchai_net",
+      "name": "PitchAI public website",
+      "target_surface": "pitchai.net with www alias",
+      "primary_domain": "pitchai.net",
+      "reminder_id": "reminder-central-fe745924-7e23-47cc-843f-406f3df7188c",
+      "expected_behavior": "An anonymous visitor follows visible links from the canonical homepage through services, one service, case studies, one case and back, field notes, footer legal links and the read-only contact path. Daily coordinator reminder; assert coherent English content, shared navigation, no browser errors, no broken internal targets and the www alias."
     }
   ]
 }
