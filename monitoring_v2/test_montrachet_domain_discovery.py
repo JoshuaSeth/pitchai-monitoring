@@ -1,5 +1,5 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Keep the dedicated client demo visible with an honest direct-serve contract."""
+"""Keep the dedicated client demo visible with its public-app contract."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from .json_types import optional_object, text_value
 from .testing_runtime import pytest
 
 
-def test_montrachet_demo_monitors_public_origin_with_normal_alerts() -> None:
-    """Require the live dedicated origin without invoking authenticated voice."""
+def test_montrachet_demo_monitors_public_app_with_normal_alerts() -> None:
+    """Require the live public app without invoking authenticated voice."""
     entry = entry_by_domain("montrachet-demo.pitchai.net")
     spec = load_domain_spec(entry)
     policy = inventory_runtime.parse_domain_alert_policy(entry)
@@ -19,17 +19,16 @@ def test_montrachet_demo_monitors_public_origin_with_normal_alerts() -> None:
         pytest.fail("client-facing demo must retain production signal coverage")
     if text_value(entry.get("group")) != "learning-demos":
         pytest.fail("client demo ownership group drifted")
-    if spec.url != "https://montrachet-demo.pitchai.net/" or spec.browser_enabled:
-        pytest.fail("demo must use the bounded anonymous HTTP edge check")
+    if spec.url != "https://montrachet-demo.pitchai.net/" or not spec.browser_enabled:
+        pytest.fail("demo must execute the public browser contract")
     if spec.allowed_status_codes != [200]:
-        pytest.fail("public demo landing page must answer successfully")
+        pytest.fail("public demo must return successfully")
     if check.get("expected_final_host_suffix") != "montrachet-demo.pitchai.net":
-        pytest.fail("public demo must keep answering from its own origin, not an SSO edge")
-    if text_value(check.get("expected_title_contains")) != "Montrachet":
-        pytest.fail("public demo landing page contract drifted")
-    missing_selectors = check.get("required_selectors_all")
-    if missing_selectors != [{"selector": "body", "state": "attached"}]:
-        pytest.fail("demo must retain the bounded landing-page selector contract")
+        pytest.fail("public demo destination contract drifted")
+    if spec.expected_title_contains != "Montrachet":
+        pytest.fail("public demo title readiness drifted")
+    if spec.required_text_all != ["Wine sales intelligence"]:
+        pytest.fail("public demo body readiness drifted")
     if spec.api_contract_checks:
         pytest.fail("anonymous availability must not invoke authenticated voice")
     if policy.telegram != "critical" or not policy.telegram_enabled:
