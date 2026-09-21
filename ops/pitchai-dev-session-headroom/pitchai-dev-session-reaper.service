@@ -1,0 +1,11 @@
+[Unit]
+Description=PitchAI dev logind session reaper (drop stuck closing sessions before the session ceiling refuses logins)
+Documentation=file:/root/code/pitchai-monitoring/ops/pitchai-dev-session-headroom/README.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pitchai-dev-session-reaper
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=300

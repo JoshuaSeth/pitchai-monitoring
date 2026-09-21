@@ -10,11 +10,14 @@ set -euo pipefail
 FS_PATH=${FS_PATH:-/}
 STATE_DIR=${STATE_DIR:-/var/lib/pitchai-montrachet-demo-disk-reserve}
 RESERVE_FILE="$STATE_DIR/reserve.bin"
+LOG_DIR=${LOG_DIR:-/var/log}
+RSYSLOG_LOGROTATE_CONF=${RSYSLOG_LOGROTATE_CONF:-/etc/logrotate.d/rsyslog}
 
 RESERVE_TARGET_BYTES=${RESERVE_TARGET_BYTES:-2147483648}   # 2 GiB held while healthy
 FREE_CRITICAL_BYTES=${FREE_CRITICAL_BYTES:-536870912}      # release below 512 MiB available
 FREE_REARM_BYTES=${FREE_REARM_BYTES:-4294967296}           # re-arm only above 4 GiB available
 CRISIS_FLOOR_BYTES=${CRISIS_FLOOR_BYTES:-268435456}        # reclaim caches below 256 MiB
+FREE_EMERGENCY_BYTES=${FREE_EMERGENCY_BYTES:-104857600}    # rotate active syslog below 100 MiB
 DRY_RUN=${DRY_RUN:-0}
 
 log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
@@ -35,6 +38,38 @@ pitchai-montrachet-demo-disk-reserve.timer first if you need the space.
 MARKER
 }
 
+# Rotated syslog/auth/kern/apport generations only: the active files stay
+# readable, logrotate keeps producing new generations, and the guard never
+# touches login records (*wtmp/*btmp) or anything outside /var/log.
+reclaim_rotated_log_archives() {
+  local removed=0 files=0 file
+  for file in "$LOG_DIR"/syslog.[0-9]* "$LOG_DIR"/auth.log.[0-9]* \
+              "$LOG_DIR"/kern.log.[0-9]* "$LOG_DIR"/apport.log.[0-9]* \
+              "$LOG_DIR"/user.log.[0-9]* "$LOG_DIR"/cron.log.[0-9]*; do
+    [ -e "$file" ] || continue
+    files=$(( files + 1 ))
+    if [ "$DRY_RUN" = 1 ]; then
+      log "dry-run: would remove rotated log archive $file"
+      continue
+    fi
+    rm -f -- "$file" && removed=$(( removed + 1 ))
+  done
+  log "crisis-reclaim: rotated log archives removed=${removed}/${files}"
+}
+
+# Last resort before the demo Postgres PANICs: force a real rsyslog rotation
+# (logrotate reopens the files through the sanctioned postrotate hook) and drop
+# the generations it just created. Only fires below FREE_EMERGENCY_BYTES.
+rotate_active_syslog() {
+  if [ "$DRY_RUN" = 1 ]; then
+    log "dry-run: would logrotate -f /etc/logrotate.d/rsyslog and drop the new generations"
+    return 0
+  fi
+  log "crisis-reclaim(emergency): logrotate -f $RSYSLOG_LOGROTATE_CONF"
+  logrotate -f "$RSYSLOG_LOGROTATE_CONF" >/dev/null 2>&1 || log "crisis-reclaim(emergency): logrotate failed (continuing)"
+  reclaim_rotated_log_archives
+}
+
 reclaim_regenerable_caches() {
   log "crisis-reclaim: journalctl --vacuum-size=200M"
   journalctl --vacuum-size=200M >/dev/null 2>&1 || log "crisis-reclaim: journalctl vacuum failed (continuing)"
@@ -42,6 +77,7 @@ reclaim_regenerable_caches() {
   docker image prune -af --filter until=24h >/dev/null 2>&1 || log "crisis-reclaim: docker image prune failed (continuing)"
   log "crisis-reclaim: docker builder prune --filter until=24h"
   docker builder prune -af --filter until=24h >/dev/null 2>&1 || log "crisis-reclaim: docker builder prune failed (continuing)"
+  reclaim_rotated_log_archives
 }
 
 free=$(available_bytes)
@@ -74,6 +110,11 @@ if [ "$free" -lt "$FREE_CRITICAL_BYTES" ]; then
       free=$(available_bytes)
     fi
     log "post-reclaim available=${free}B"
+  fi
+  if [ "$free" -lt "$FREE_EMERGENCY_BYTES" ]; then
+    rotate_active_syslog
+    free=$(available_bytes)
+    log "post-emergency available=${free}B"
   fi
   exit 0
 fi
