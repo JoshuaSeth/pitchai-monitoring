@@ -188,7 +188,6 @@ container_health:
     - "^pgbouncer-orthoparse$"
     - "^pitchai-onboarding-course-onboarding-course-1$"
     - "^pitchai-breakglass-web-terminal$"
-    - "^quickchat-rsr-demo$"
   exclude_name_patterns: []
   timeout_seconds: 3
   down_after_failures: 2
@@ -1739,15 +1738,6 @@ domains:
     check:
       <<: *html_200
       url: https://digibeat.demos.pitchai.net/
-  - domain: studentenreisproduct.demos.pitchai.net
-    label: "Studentenreisproduct demo"
-    group: learning-demos
-    environment: demo
-    kind: application
-    sources: [namecheap-zone-2026-08-24, pitchai-main-ingress, live-probe-2026-08-24]
-    check:
-      <<: *html_200
-      url: https://studentenreisproduct.demos.pitchai.net/
   - domain: apologetica-wagtail-staging.pitchai.net
     label: "Apologetica Wagtail staging"
     group: learning-demos
@@ -2006,6 +1996,10 @@ retired_domains:
     classification: replaced
     reason: "Historical product-name alias is NXDOMAIN; monitor staging.potaito.pitchai.net"
     sources: [repository-evidence-sweep, authoritative-dns-probe-2026-08-27]
+  - domain: studentenreisproduct.demos.pitchai.net
+    classification: retired
+    reason: "RSR STUDENT CHATBOT demo decommissioned 2026-09-21 after the TenderNed exclusion; container, cache, nginx site block, certificate, and hotpath lane retired"
+    sources: [tenderned-exclusion-2026-09-15, rsr-demo-teardown-2026-09-21, pitchai-main-ingress]
   - domain: studentenreisproduct.nl
     classification: not-owned
     reason: "External source website, not a PitchAI-operated deployment target"

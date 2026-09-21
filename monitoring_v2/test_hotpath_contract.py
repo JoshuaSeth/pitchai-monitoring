@@ -40,7 +40,6 @@ _REQUIRED_NAMES = {
     "DePlanBook Play",
     "Orthoparse",
     "PitchAI public website",
-    "QuickChat RSR",
     "potAIto / Aardappelprijs",
 }
 

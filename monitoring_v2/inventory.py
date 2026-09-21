@@ -40,7 +40,7 @@ EXPECTED_ACTIVE_DOMAINS = _words(
     formatiefleren.nl www.formatiefleren.nl
     privacy-gateway-staging.pitchai.net staging.afasask.pitchai.net staging.autopar.pitchai.net
     staging.chat.pitchai.net staging.formatief-toetsen.pitchai.net staging.hetcis.pitchai.net
-    staging.potaito.pitchai.net studentenreisproduct.demos.pitchai.net jeff-codex-voice.pitchai.net
+    staging.potaito.pitchai.net jeff-codex-voice.pitchai.net
     jeff-codex-voice.94.130.17.246.nip.io jeff-dispatch.pitchai.net jeff-work-inbox.pitchai.net
     jeff-work-inbox.94.130.17.246.nip.io aardappelprijs.nl akkerbouwprijs.nl afasask.gzb.nl
     deplanbook.com cms.deplanbook.com hetcis.nl www.hetcis.nl agentcloud.pitchai.net dashboards.pitchai.net
@@ -78,7 +78,8 @@ EXPECTED_RETIRED_DOMAINS = _words(
     aigenda.37.27.67.52.nip.io aigenda-rules.135-181-182-48.sslip.io
     driestar-aigenda.demos.pitchai.net theplanbook.com www.theplanbook.com staging.afasask.gzb.nl
     staging.hetcis.nl suggestions.demos.pitchai.net staging.potai.pitchai.net
-    staging.potato.pitchai.net studentenreisproduct.nl www.centrumvoorisraelstudies.nl
+    staging.potato.pitchai.net studentenreisproduct.demos.pitchai.net studentenreisproduct.nl
+    www.centrumvoorisraelstudies.nl
     www.intern.centrumvoorisraelstudies.nl events.pitchai.net mockopenai.pitchai.net
     aipc.skybuyfly.com skybuyfly.com www.skybuyfly.com api.skybuyfly.com unimixbr.netlify.app
     """,
@@ -102,7 +103,7 @@ REQUIRED_CONTAINER_NAMES = _words(
     meilisync-formatief-toetsen-staging pgbouncer-dft pgbouncer-dft-staging orthoparse-web-app
     orthoparse-web-app-green orthoparse-ceph-worker orthoparse-worker orthoparse-worker-green
     pgbouncer-orthoparse pitchai-onboarding-course-onboarding-course-1 pitchai-breakglass-web-terminal
-    quickchat-rsr-demo aigenda-webapp aigenda-webapp-monitor autopar-staging-web autopar-staging-db
+    aigenda-webapp aigenda-webapp-monitor autopar-staging-web autopar-staging-db
     """,
 )
 
