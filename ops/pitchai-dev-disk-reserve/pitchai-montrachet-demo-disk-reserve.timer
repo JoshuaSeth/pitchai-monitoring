@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Montrachet demo disk-reserve guard every minute
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=60s
+AccuracySec=10s
+Unit=pitchai-montrachet-demo-disk-reserve.service
+
+[Install]
+WantedBy=timers.target
