@@ -36,7 +36,7 @@ def _dns_query_sync(
 ) -> list[str]:
     # dnspython is intentionally imported lazily to keep startup fast and to allow
     # running the monitor with DNS checks disabled.
-    import dns.resolver  # type: ignore
+    import dns.resolver
 
     r = dns.resolver.Resolver(configure=True)
     if resolvers:

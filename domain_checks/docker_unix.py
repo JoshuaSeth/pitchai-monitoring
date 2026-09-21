@@ -12,7 +12,7 @@ class _UnixHTTPConnection(http.client.HTTPConnection):
         super().__init__("localhost", timeout=timeout)
         self._socket_path = socket_path
 
-    def connect(self) -> None:  # type: ignore[override]
+    def connect(self) -> None:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(self.timeout)
         sock.connect(self._socket_path)

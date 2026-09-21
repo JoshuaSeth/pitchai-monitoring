@@ -26,10 +26,10 @@ def _pick_free_port() -> int:
 
 
 class _SiteHandler(BaseHTTPRequestHandler):
-    def log_message(self, format: str, *args) -> None:  # noqa: A002
+    def log_message(self, format: str, *args) -> None:
         return
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         status = 200
         body = (
             "<!doctype html><html><head><title>OK Page</title></head>"

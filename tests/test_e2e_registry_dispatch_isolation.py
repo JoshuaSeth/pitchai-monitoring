@@ -15,10 +15,10 @@ from e2e_registry.settings import RegistrySettings
 
 
 class _SsoRedirectHandler(BaseHTTPRequestHandler):
-    def log_message(self, format: str, *args) -> None:  # noqa: A002
+    def log_message(self, format: str, *args) -> None:
         return
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         self.send_response(302)
         self.send_header("Location", "https://auth.pitchai.test/oauth2/start?rd=https%3A%2F%2Fdispatch.pitchai.test")
         self.end_headers()
