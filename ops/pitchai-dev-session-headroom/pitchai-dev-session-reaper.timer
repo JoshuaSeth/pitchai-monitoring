@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the pitchai-dev logind session reaper every 10 minutes
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=10min
+AccuracySec=1min
+Unit=pitchai-dev-session-reaper.service
+
+[Install]
+WantedBy=timers.target

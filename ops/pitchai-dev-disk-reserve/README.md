@@ -21,8 +21,18 @@ cross zero. This guard closes that gap for the monitored production surface:
 3. **Crisis reclaim.** If the filesystem is still below `CRISIS_FLOOR_BYTES`
    (256 MiB) after release, reclaim regenerable space only: journald vacuum to
    200 MiB, `docker image prune` and `docker builder prune` for objects older
-   than 24h. These are the same bounded reclaims the incident lane has applied
-   by hand; nothing outside regenerable caches is ever removed.
+   than 24h, and the rotated `syslog`/`auth.log`/`kern.log`/`apport.log`
+   archives (the active files stay readable and logrotate keeps producing new
+   generations). These are the same bounded reclaims the incident lane has
+   applied by hand; nothing outside regenerable caches and rotated log
+   generations is ever removed.
+4. **Emergency rotation.** If the filesystem is *still* below
+   `FREE_EMERGENCY_BYTES` (100 MiB) — a few seconds of write headroom away from
+   the Postgres PANIC — force `logrotate -f /etc/logrotate.d/rsyslog` so the
+   active logs are rotated through the sanctioned rsyslog reopen hook, then
+   drop the generations it just produced. This is the only rung that touches
+   active log files, and it only fires when the alternative is the production
+   surface going down.
 
 The guard never touches other lanes' work, never stops containers, and never
 changes the server-space registry policy. It writes one journal line per
@@ -41,7 +51,16 @@ systemctl enable --now pitchai-montrachet-demo-disk-reserve.timer
 State lives in `/var/lib/pitchai-montrachet-demo-disk-reserve/` (reserve file
 plus a README marker). Thresholds can be overridden with the environment
 variables `RESERVE_TARGET_BYTES`, `FREE_CRITICAL_BYTES`, `FREE_REARM_BYTES`,
-`CRISIS_FLOOR_BYTES`, and `DRY_RUN=1` for a no-touch dry run.
+`CRISIS_FLOOR_BYTES`, `FREE_EMERGENCY_BYTES`, and `DRY_RUN=1` for a no-touch
+dry run.
+
+The guard is paired with `pitchai-journald-cap.conf` (install as
+`/etc/systemd/journald.conf.d/10-pitchai-cap.conf`). Without it journald
+inherits its default ceiling of 10% of the filesystem (~90 GiB on this host) and
+regrows into whatever the host frees; with `SystemMaxUse=1G` and
+`SystemKeepFree=2G` the journal stays bounded and journald itself starts
+trimming whenever the root filesystem runs tight, which is exactly when the
+demo needs headroom.
 
 ## Verify
 
