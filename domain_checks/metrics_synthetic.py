@@ -11,7 +11,7 @@ from urllib.parse import urljoin
 
 from playwright.async_api import Browser, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
 
-from domain_checks.common_check import _is_browser_infra_error  # noqa: SLF001
+from domain_checks.common_check import _is_browser_infra_error
 
 
 @dataclass(frozen=True)

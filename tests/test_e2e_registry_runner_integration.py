@@ -29,10 +29,10 @@ def _pick_free_port() -> int:
 
 
 class _SiteHandler(BaseHTTPRequestHandler):
-    def log_message(self, format: str, *args) -> None:  # noqa: A002
+    def log_message(self, format: str, *args) -> None:
         return
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         routes: dict[str, tuple[int, dict[str, str], str]] = {
             "/": (
                 200,
@@ -142,7 +142,7 @@ async def test_e2e_registry_and_runner_end_to_end(
         pytest.skip("No chromium/chrome available for Playwright")
 
     base_url = str(registry_server["base_url"])
-    settings: RegistrySettings = registry_server["settings"]  # type: ignore[assignment]
+    settings: RegistrySettings = registry_server["settings"]
 
     async with httpx.AsyncClient() as client:
         # Create tenant + API key (admin).
