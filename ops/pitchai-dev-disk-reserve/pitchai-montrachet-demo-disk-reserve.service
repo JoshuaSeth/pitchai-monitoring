@@ -1,0 +1,12 @@
+[Unit]
+Description=Montrachet demo disk-reserve safety valve (release reserve at critical, re-arm with headroom)
+Documentation=file:/root/code/pitchai-monitoring/ops/pitchai-dev-disk-reserve/README.md
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pitchai-montrachet-demo-disk-reserve
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=120
