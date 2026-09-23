@@ -825,7 +825,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-09-15"
+  reviewed_at: "2026-09-20"
   authoritative_sources:
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
@@ -849,7 +849,7 @@ inventory:
     - "Four-cell nine-day agent, PM, repository, DNS and live ingress coverage sweep (2026-09-12)"
     - "PitchAI Host MCP production and isolated WebCodex comparison runtime contracts (2026-09-12)"
     - "Four-cell nine-day agent, PM, repository and live ingress sweep (2026-09-15); Namecheap snapshot 20260915T080544Z-9cef22fb92d1-44ba53aa: 77 records"
-    - "Montrachet dedicated client demo: valid HTTPS and Microsoft SSO edge; authenticated voice behavior is outside this availability check (2026-09-15)"
+    - "Montrachet public-demo ingress and live HTTPS application/runtime checks (2026-09-18); authenticated voice behavior is outside this availability check"
 
 domain_groups:
   corporate:
@@ -951,17 +951,43 @@ check_profiles:
         state: attached
 
 domains:
+  - domain: wrist-vault.135-181-182-48.sslip.io
+    label: "Wrist Vault private recorder backend"
+    group: infrastructure
+    environment: staging
+    kind: application
+    sources: [pitchai-dev-nginx-wrist-vault, WRIST-VAULT-001, live-probe-2026-09-20]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Personal pre-launch recorder; physical Watch installation and acceptance remain unfinished. Keep visible without paging until an operational handoff."
+    check:
+      <<: *json_200
+      url: https://wrist-vault.135-181-182-48.sslip.io/
+      allowed_status_codes: [401]
+      browser_enabled: false
+      expected_final_host_suffix: wrist-vault.135-181-182-48.sslip.io
+      required_text_all: ['"error": "authentication required"']
+      api_contract_checks:
+        - name: private_auth_boundary
+          path: /
+          expected_status_codes: [401]
+          expected_content_type_contains: application/json
+          json_paths_equal:
+            error: authentication required
   - domain: montrachet-demo.pitchai.net
     label: "Montrachet client demo"
     group: learning-demos
     environment: production
     kind: application
-    sources: [namecheap-zone-2026-09-15, pitchai-dev-montrachet-ingress, montrachet-project-handoff-2026-09-14, live-probe-2026-09-15]
+    sources: [namecheap-zone-2026-09-15, pitchai-dev-public-montrachet-ingress-2026-09-18, montrachet-project-handoff-2026-09-14, live-probe-2026-09-18]
     alert_policy:
       telegram: critical
     check:
-      <<: *sso_edge
+      <<: *html_200
       url: https://montrachet-demo.pitchai.net/
+      expected_final_host_suffix: montrachet-demo.pitchai.net
+      expected_title_contains: Montrachet
+      required_text_all: [Wine sales intelligence]
   - domain: host-mcp.135-181-182-48.sslip.io
     label: "PitchAI Host MCP"
     group: infrastructure

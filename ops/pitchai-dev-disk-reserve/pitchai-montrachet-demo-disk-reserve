@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# Montrachet demo disk-reserve safety valve.
+#
+# pitchai-dev's demo Postgres PANICs when the root filesystem cannot satisfy a
+# write. This guard holds a small reserve while there is headroom, releases it
+# when the filesystem goes critical, and as a last step reclaims regenerable
+# caches only. See README.md in this directory for the operational contract.
+set -euo pipefail
+
+FS_PATH=${FS_PATH:-/}
+STATE_DIR=${STATE_DIR:-/var/lib/pitchai-montrachet-demo-disk-reserve}
+RESERVE_FILE="$STATE_DIR/reserve.bin"
+LOG_DIR=${LOG_DIR:-/var/log}
+RSYSLOG_LOGROTATE_CONF=${RSYSLOG_LOGROTATE_CONF:-/etc/logrotate.d/rsyslog}
+
+RESERVE_TARGET_BYTES=${RESERVE_TARGET_BYTES:-2147483648}   # 2 GiB held while healthy
+FREE_CRITICAL_BYTES=${FREE_CRITICAL_BYTES:-536870912}      # release below 512 MiB available
+FREE_REARM_BYTES=${FREE_REARM_BYTES:-4294967296}           # re-arm only above 4 GiB available
+CRISIS_FLOOR_BYTES=${CRISIS_FLOOR_BYTES:-268435456}        # reclaim caches below 256 MiB
+FREE_EMERGENCY_BYTES=${FREE_EMERGENCY_BYTES:-104857600}    # rotate active syslog below 100 MiB
+DRY_RUN=${DRY_RUN:-0}
+
+log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+
+available_bytes() {
+  df -B1 --output=avail "$FS_PATH" | tail -1 | tr -d ' '
+}
+
+write_marker() {
+  cat > "$STATE_DIR/README.txt" <<'MARKER'
+Managed by the pitchai-monitoring lane (ops/pitchai-dev-disk-reserve).
+
+reserve.bin is an intentional emergency reserve for the montrachet-demo
+Postgres on this host. The guard releases it automatically when the root
+filesystem drops below its critical threshold and re-arms it when headroom
+returns. Do not delete reserve.bin by hand while the timer is active; disable
+pitchai-montrachet-demo-disk-reserve.timer first if you need the space.
+MARKER
+}
+
+# Rotated syslog/auth/kern/apport generations only: the active files stay
+# readable, logrotate keeps producing new generations, and the guard never
+# touches login records (*wtmp/*btmp) or anything outside /var/log.
+reclaim_rotated_log_archives() {
+  local removed=0 files=0 file
+  for file in "$LOG_DIR"/syslog.[0-9]* "$LOG_DIR"/auth.log.[0-9]* \
+              "$LOG_DIR"/kern.log.[0-9]* "$LOG_DIR"/apport.log.[0-9]* \
+              "$LOG_DIR"/user.log.[0-9]* "$LOG_DIR"/cron.log.[0-9]*; do
+    [ -e "$file" ] || continue
+    files=$(( files + 1 ))
+    if [ "$DRY_RUN" = 1 ]; then
+      log "dry-run: would remove rotated log archive $file"
+      continue
+    fi
+    rm -f -- "$file" && removed=$(( removed + 1 ))
+  done
+  log "crisis-reclaim: rotated log archives removed=${removed}/${files}"
+}
+
+# Last resort before the demo Postgres PANICs: force a real rsyslog rotation
+# (logrotate reopens the files through the sanctioned postrotate hook) and drop
+# the generations it just created. Only fires below FREE_EMERGENCY_BYTES.
+rotate_active_syslog() {
+  if [ "$DRY_RUN" = 1 ]; then
+    log "dry-run: would logrotate -f /etc/logrotate.d/rsyslog and drop the new generations"
+    return 0
+  fi
+  log "crisis-reclaim(emergency): logrotate -f $RSYSLOG_LOGROTATE_CONF"
+  logrotate -f "$RSYSLOG_LOGROTATE_CONF" >/dev/null 2>&1 || log "crisis-reclaim(emergency): logrotate failed (continuing)"
+  reclaim_rotated_log_archives
+}
+
+reclaim_regenerable_caches() {
+  log "crisis-reclaim: journalctl --vacuum-size=200M"
+  journalctl --vacuum-size=200M >/dev/null 2>&1 || log "crisis-reclaim: journalctl vacuum failed (continuing)"
+  log "crisis-reclaim: docker image prune --filter until=24h"
+  docker image prune -af --filter until=24h >/dev/null 2>&1 || log "crisis-reclaim: docker image prune failed (continuing)"
+  log "crisis-reclaim: docker builder prune --filter until=24h"
+  docker builder prune -af --filter until=24h >/dev/null 2>&1 || log "crisis-reclaim: docker builder prune failed (continuing)"
+  reclaim_rotated_log_archives
+}
+
+free=$(available_bytes)
+has_reserve=0
+reserve_size=0
+if [ -f "$RESERVE_FILE" ]; then
+  has_reserve=1
+  reserve_size=$(stat -c %s "$RESERVE_FILE")
+fi
+
+if [ "$free" -lt "$FREE_CRITICAL_BYTES" ]; then
+  if [ "$has_reserve" = 1 ]; then
+    log "critical: available=${free}B < ${FREE_CRITICAL_BYTES}B, releasing ${reserve_size}B reserve"
+    if [ "$DRY_RUN" = 1 ]; then
+      log "dry-run: would remove $RESERVE_FILE"
+      free=$(( free + reserve_size ))
+    else
+      rm -f "$RESERVE_FILE"
+      free=$(available_bytes)
+    fi
+    log "post-release available=${free}B"
+  else
+    log "critical: available=${free}B < ${FREE_CRITICAL_BYTES}B and no reserve is armed"
+  fi
+  if [ "$free" -lt "$CRISIS_FLOOR_BYTES" ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+      log "dry-run: would reclaim regenerable caches"
+    else
+      reclaim_regenerable_caches
+      free=$(available_bytes)
+    fi
+    log "post-reclaim available=${free}B"
+  fi
+  if [ "$free" -lt "$FREE_EMERGENCY_BYTES" ]; then
+    rotate_active_syslog
+    free=$(available_bytes)
+    log "post-emergency available=${free}B"
+  fi
+  exit 0
+fi
+
+# Comfortable headroom: keep the reserve armed and topped up toward the target.
+headroom_cap=$(( free - FREE_REARM_BYTES ))
+[ "$headroom_cap" -lt 0 ] && headroom_cap=0
+desired=$RESERVE_TARGET_BYTES
+[ "$desired" -gt "$headroom_cap" ] && desired=$headroom_cap
+
+if [ "$has_reserve" = 0 ]; then
+  if [ "$desired" -ge "$CRISIS_FLOOR_BYTES" ]; then
+    log "arming reserve: available=${free}B, holding ${desired}B"
+    if [ "$DRY_RUN" = 1 ]; then
+      log "dry-run: would create $RESERVE_FILE with ${desired}B"
+    else
+      mkdir -p "$STATE_DIR"
+      write_marker
+      fallocate -l "$desired" "$RESERVE_FILE"
+    fi
+  fi
+  exit 0
+fi
+
+if [ "$desired" -gt "$reserve_size" ]; then
+  grow_by=$(( desired - reserve_size ))
+  log "topping up reserve: available=${free}B, ${reserve_size}B -> ${desired}B"
+  if [ "$DRY_RUN" = 1 ]; then
+    log "dry-run: would grow $RESERVE_FILE by ${grow_by}B"
+  else
+    fallocate -l "$desired" "$RESERVE_FILE"
+  fi
+fi
+exit 0
