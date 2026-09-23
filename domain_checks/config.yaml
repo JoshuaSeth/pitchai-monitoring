@@ -824,7 +824,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-09-20"
+  reviewed_at: "2026-09-23"
   authoritative_sources:
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
@@ -966,6 +966,48 @@ check_profiles:
         state: attached
 
 domains:
+  - domain: aetherreel.37.27.67.52.nip.io
+    label: "AetherReel pre-launch platform"
+    group: platform-apps
+    owner_project: ai_movie_streaming_platform
+    environment: staging
+    kind: application
+    ownership: pitchai-operated-non-owned-dns
+    sources: [aetherreel-active-build-2026-09-23, pitchai-main-ingress, live-probe-2026-09-23]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Pre-launch streaming platform under active development; release and live payment/authentication acceptance remain unfinished. Keep visible without paging until operational handoff."
+    check:
+      <<: *html_200
+      url: https://aetherreel.37.27.67.52.nip.io/
+      expected_final_host_suffix: aetherreel.37.27.67.52.nip.io
+      expected_title_contains: "AetherReel"
+      required_selectors_all:
+        - selector: "#main-content"
+          state: visible
+        - selector: "a[aria-label='AetherReel home']"
+          state: visible
+  - domain: waddinxveen.demos.pitchai.net
+    label: "Waddinxveen municipality chatbot demo"
+    group: learning-demos
+    owner_project: quickchat
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-09-23, waddinxveen-demo-handoff-2026-09-22, pitchai-main-ingress, live-probe-2026-09-23]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://waddinxveen.demos.pitchai.net/waddinxveen/demo
+      expected_final_host_suffix: waddinxveen.demos.pitchai.net
+      expected_final_path: /waddinxveen/demo
+      expected_title_contains: "Waddinxveen"
+      required_text_all: ["PitchAI-demo", "Geen officiële gemeentelijke dienst."]
+      required_selectors_all:
+        - selector: "#open-chat"
+          state: visible
+        - selector: "#chat-frame[data-src^='/chat_mini/waddinxveen/start']"
+          state: attached
   - domain: wrist-vault.135-181-182-48.sslip.io
     label: "Wrist Vault private recorder backend"
     group: infrastructure
