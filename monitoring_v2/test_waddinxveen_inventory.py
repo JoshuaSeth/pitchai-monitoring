@@ -22,7 +22,7 @@ def test_waddinxveen_demo_keeps_normal_alerts_and_read_only_checks() -> None:
         pytest.fail("demo must verify its real public page")
     if check.get("expected_final_path") != "/waddinxveen/demo" or spec.allowed_status_codes != [200]:
         pytest.fail("demo route contract drifted")
-    if spec.synthetic_transactions or spec.api_contract_checks:
+    if check.get("synthetic_transactions") or spec.api_contract_checks:
         pytest.fail("availability check must not submit chat or invoke a model")
     if not any(item.selector == "#open-chat" for item in spec.required_selectors_all):
         pytest.fail("demo launcher must be present")
