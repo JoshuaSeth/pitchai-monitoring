@@ -987,6 +987,13 @@ domains:
           state: visible
         - selector: "a[aria-label='AetherReel home']"
           state: visible
+  # Availability only, and read-only by contract. The functional proof for this client-facing
+  # demonstration is owned by the dedicated hot path lane ordered from the 2026-09-24 weekly
+  # coverage inventory, not by this check. `monitoring_v2/test_waddinxveen_inventory.py`
+  # (`test_waddinxveen_demo_keeps_normal_alerts_and_read_only_checks`) fails if
+  # `synthetic_transactions` or `api_contract_checks` are added here, while requiring the critical
+  # telegram policy below. Do not widen this check to close that gap: a page contract can stay green
+  # while the model, the API key, or the chat configuration is broken.
   - domain: waddinxveen.demos.pitchai.net
     label: "Waddinxveen municipality chatbot demo"
     group: learning-demos
