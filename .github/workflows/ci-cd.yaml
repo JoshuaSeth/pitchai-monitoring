@@ -213,6 +213,14 @@ jobs:
               hotpath="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
               echo "E2E_HOTPATH_REPORTER_TOKEN=${hotpath}" >>"$E2E_ENV_FILE"
             fi
+            # The checked-in inventory is the single runtime source of truth.  A
+            # hand-installed E2E_HOTPATH_INVENTORY_PATH override once kept a
+            # retired lane admitted on a live engine because the mounted copy
+            # never followed the repository.  Remove any such override so the
+            # deployed image's inventory is what every engine actually serves.
+            if grep -qE '^E2E_HOTPATH_INVENTORY_PATH=' "$E2E_ENV_FILE"; then
+              sed -i '/^E2E_HOTPATH_INVENTORY_PATH=/d' "$E2E_ENV_FILE"
+            fi
             chmod 600 "$E2E_ENV_FILE"
             E2E_MONITOR_TOKEN="$(grep -E '^E2E_REGISTRY_MONITOR_TOKEN=' "$E2E_ENV_FILE" | head -n1 | cut -d= -f2-)"
             if [[ -z "${E2E_MONITOR_TOKEN}" ]]; then
@@ -438,6 +446,8 @@ jobs:
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
             docker exec "$REGISTRY_NAME" python -c \
               'import os; assert len(os.environ.get("E2E_HOTPATH_REPORTER_TOKEN", "")) >= 32'
+            docker exec "$REGISTRY_NAME" python -c \
+              'import json, os, pathlib; checked=pathlib.Path("/app/e2e_registry/hotpath_inventory.json"); override=os.environ.get("E2E_HOTPATH_INVENTORY_PATH", "").strip(); active=pathlib.Path(override) if override else checked; expected=[lane["lane_id"] for lane in json.loads(checked.read_text())["lanes"]]; actual=[lane["lane_id"] for lane in json.loads(active.read_text())["lanes"]]; assert actual == expected, "runtime hotpath inventory diverges from the checked-in inventory at %s" % active'
 
             echo "⏳ Waiting for the domain incident producer to bootstrap and drain..."
             domain_event_ready="false"
