@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+from .hotpath_contract_runtime import HOTPATH_TYPES
 from .testing_runtime import pytest
 
 _REPO_ROOT = Path(__file__).parents[1]
@@ -34,8 +34,8 @@ def test_deploy_asserts_runtime_inventory_matches_checked_in_inventory() -> None
 
 def test_checked_in_inventory_keeps_the_retired_lane_out() -> None:
     """The retired RSR lane stays retired until its demo surface returns."""
-    inventory = json.loads(_INVENTORY_PATH.read_text(encoding="utf-8"))
-    lane_ids = [lane["lane_id"] for lane in inventory["lanes"]]
+    inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
+    lane_ids = {lane.lane_id for lane in inventory.lanes}
 
     if _RETIRED_LANE_ID in lane_ids:
         pytest.fail("retired QuickChat RSR lane was re-admitted without a deployed demo surface")
