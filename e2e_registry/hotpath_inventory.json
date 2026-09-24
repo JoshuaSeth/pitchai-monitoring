@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
- "reviewed_at": "2026-09-18",
+ "reviewed_at": "2026-09-24",
   "canonical_tag": "hot-path-testing",
   "expected_interval_seconds": 172800,
   "stale_after_seconds": 259200,
@@ -145,6 +145,16 @@
    "primary_domain": "pitchai.net",
    "reminder_id": "reminder-central-fe745924-7e23-47cc-843f-406f3df7188c",
    "expected_behavior": "An anonymous visitor walks the public site through visible navigation: homepage, Services and one service page, Case studies and one case study, Field notes, the legal footer links, and the well-formed contact path, with coherent per-page content and zero unexpected console or request errors."
+  },
+  {
+   "lane_id": "quickchat-waddinxveen-hotpath-monitor",
+   "agent_global_id": "5dc4b437-1c3b-5a18-92f8-ca7f79142a0f",
+   "project": "quickchat",
+   "name": "QuickChat Waddinxveen demo",
+   "target_surface": "waddinxveen.demos.pitchai.net/waddinxveen/demo with the same-origin /chat_mini/waddinxveen/start frame",
+   "primary_domain": "waddinxveen.demos.pitchai.net",
+   "reminder_id": "reminder-central-b08f59c4-ef94-40fc-96e0-91257817ce5b",
+   "expected_behavior": "A synthetic visitor opens the demo, asks exactly one generic municipality-service question through the visible chat frame, observes a genuine progress transition, and receives one coherent completed answer with input readiness restored."
   }
  ]
 }
