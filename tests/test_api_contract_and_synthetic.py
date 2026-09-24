@@ -15,7 +15,7 @@ from domain_checks.metrics_synthetic import run_synthetic_transactions
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def log_message(self, format: str, *args) -> None:  # noqa: A002
+    def log_message(self, format: str, *args) -> None:
         return
 
     def _send(self, status: int, headers: dict[str, str], body: bytes) -> None:
@@ -26,7 +26,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if self.path == "/private":
             expected = "Bearer secret-token"
             got = self.headers.get("Authorization") or ""

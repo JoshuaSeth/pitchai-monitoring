@@ -54,6 +54,7 @@ jobs:
             sh -lc "pip install --no-cache-dir -r requirements-dev.txt && python -m pytest -o cache_dir=/tmp/pytest_cache"
 
   deploy-prod:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[quality-only:PYHYP-20260919-monitoring-main]')
     runs-on: ubuntu-22.04
     needs: test
     steps:
