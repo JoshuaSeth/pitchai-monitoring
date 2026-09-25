@@ -2,6 +2,8 @@
 set -Eeuo pipefail
 
 readonly TELEGRAM_HELPER_ROOT="/root/code/telegram_agent_server"
+readonly RUNTIME_TMP="${TMPDIR:-/tmp}"
+readonly RUNTIME_CACHE="${XDG_CACHE_HOME:-${RUNTIME_TMP}}"
 
 if [[ ! -r "${TELEGRAM_HELPER_ROOT}/main.py" ]]; then
   printf '{"error_code":"helper_unavailable","status":"failed"}\n'
@@ -9,6 +11,7 @@ if [[ ! -r "${TELEGRAM_HELPER_ROOT}/main.py" ]]; then
 fi
 
 exec /usr/bin/env -i HOME=/root PATH=/usr/bin:/bin LANG=C.UTF-8 \
+  PYTHONDONTWRITEBYTECODE=1 TMPDIR="${RUNTIME_TMP}" XDG_CACHE_HOME="${RUNTIME_CACHE}" \
   /usr/bin/python3 - "${TELEGRAM_HELPER_ROOT}" <<'PY'
 from __future__ import annotations
 

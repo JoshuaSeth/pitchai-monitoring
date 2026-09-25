@@ -1,0 +1,12 @@
+[Unit]
+Description=Check broker accounts for ASTRA every five minutes
+
+[Timer]
+OnCalendar=*-*-* *:00/5:00 UTC
+AccuracySec=5s
+RandomizedDelaySec=0
+Persistent=true
+Unit=pitchai-astra-model-watch.service
+
+[Install]
+WantedBy=timers.target

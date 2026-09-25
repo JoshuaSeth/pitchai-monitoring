@@ -1,0 +1,10 @@
+/mnt/pitchai-dev-data/monitoring/auth-broker-astra-model-watch/durable-astra-model-watch.jsonl
+/mnt/pitchai-dev-data/monitoring/auth-broker-astra-model-watch/durable-console.log {
+    size 8M
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0600 root root
+}
