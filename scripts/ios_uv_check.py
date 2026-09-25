@@ -1,33 +1,38 @@
-"""Expose the existing Make aggregate through the repository's uv command."""
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Forward the uv entrypoint to native and existing Python aggregates."""
 
 from __future__ import annotations
 
 import argparse
-import subprocess
-import sys
+from pathlib import Path
+from typing import cast
 
-
-PYTHON_CHECK: tuple[str, ...] = ("-c", "import subprocess; raise SystemExit(subprocess.call(['uv', 'run', '--project', 'quality', '--python', '3.12.12', '--frozen', 'check']))")
+from .ios_quality.runtime import ProcessRunner
 
 
 def main() -> int:
-    """Run Apple checks and preserve any existing Python aggregate and failures."""
+    """Execute both aggregates and preserve a failure from either one.
+
+    Returns:
+        The first failed aggregate status, or zero when both pass.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--list", action="store_true", help="List configured Apple gates")
     mode.add_argument("--probe", action="store_true", help="Verify deliberate failing fixtures")
     arguments = parser.parse_args()
     target = "check"
-    if arguments.list:
+    if cast("bool", arguments.list):
         target = "check-list"
-    elif arguments.probe:
+    elif cast("bool", arguments.probe):
         target = "check-probe"
-    native_status = subprocess.run(["make", target], check=False).returncode
+    native_status = ProcessRunner.run(("make", target), cwd=Path.cwd())
     python_status = 0
-    if PYTHON_CHECK and target == "check":
-        python_status = subprocess.run(
-            [sys.executable, *PYTHON_CHECK], check=False,
-        ).returncode
+    if target == "check":
+        python_status = ProcessRunner.run(
+            ("uv", "run", "--project", "quality", "--python", "3.12.12", "--frozen", "check"),
+            cwd=Path.cwd(),
+        )
     return native_status or python_status
 
 
