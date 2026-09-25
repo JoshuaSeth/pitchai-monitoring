@@ -1,3 +1,6 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""PitchAI domain monitoring support for check."""
+
 CHECK = {
     "domain": "autopar.pitchai.net",
     "url": "https://autopar.pitchai.net",
@@ -16,7 +19,7 @@ CHECK = {
             "json_paths_required": ["status", "timestamp", "runtime_config_version"],
             "json_paths_equal": {"status": "healthy"},
             "max_elapsed_ms": 1500,
-        }
+        },
     ],
     "synthetic_transactions": [
         {
@@ -27,7 +30,7 @@ CHECK = {
                 {"type": "wait_for_selector", "selector": "#token-input", "state": "visible"},
                 {"type": "expect_text", "text": "AutoPAR"},
             ],
-        }
+        },
     ],
     "forbidden_text_any": [
         "maintenance",

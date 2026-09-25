@@ -1,3 +1,6 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""PitchAI domain monitoring support for check."""
+
 CHECK = {
     "domain": "cms.deplanbook.com",
     "url": "https://cms.deplanbook.com",
@@ -15,10 +18,10 @@ CHECK = {
             "name": "open_admin_login",
             "steps": [
                 {"type": "goto"},
-                {"type": "click", "selector": "a[href=\"/admin/login/\"]"},
+                {"type": "click", "selector": 'a[href="/admin/login/"]'},
                 {"type": "expect_url_contains", "value": "/admin/login"},
             ],
-        }
+        },
     ],
     "forbidden_text_any": [
         "maintenance",

@@ -1,15 +1,44 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
 """Half-hourly AFASAsk Codex real-generation monitoring canary."""
 
 from __future__ import annotations
 
 # The registry schedules this at 1800 seconds; keep the test itself short and read-only.
+import asyncio
 import re
 import time
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from playwright.async_api import Page
+
+_FAILURE_MARKERS = (
+    "❌ mislukt",
+    "codex-modus te voltooien",
+    "usage_limit_reached",
+    "hit your usage limit",
+    "http 429",
+    "refresh_token",
+    "please log out",
+    "backend problem",
+    "geen tool-calls",
+)
 
 
-async def run(page, base_url, artifacts_dir):
+def _require(message: str, *, condition: bool) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def _write_artifact(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+async def run(page: Page, base_url: str, artifacts_dir: str | Path) -> None:
+    """Exercise the Codex-medium GZB flow and record read-only evidence."""
     conversation_id = f"afasask-monitor-codex-medium-ok-{uuid.uuid4().hex[:12]}"
     url = (
         base_url.rstrip("/")
@@ -21,11 +50,11 @@ async def run(page, base_url, artifacts_dir):
 
     await page.get_by_test_id("codex-intensity-medium").click()
     hidden_intensity = await page.locator("#codex-intensity").input_value(timeout=10_000)
-    assert hidden_intensity == "medium", f"wrong_intensity: {hidden_intensity!r}"
+    _require(f"wrong_intensity: {hidden_intensity!r}", condition=hidden_intensity == "medium")
 
     prompt = (
-        "AFASASK_MONITORING_CANARY_NOOP. "
-        "Dit is een interne halfuurlijkse health check. Antwoord exact met: OK"
+        "AFASASK_MONITORING_CANARY_NOOP. Dit is een interne halfuurlijkse "
+        "health check. Antwoord exact met: OK"
     )
     assistant_count_before = await page.locator('article[data-role="assistant"]').count()
     await page.get_by_test_id("chat-input").fill(prompt)
@@ -56,24 +85,16 @@ async def run(page, base_url, artifacts_dir):
 
     assistant_text = await page.locator('article[data-role="assistant"]').last.inner_text(timeout=10_000)
     lower = assistant_text.lower()
-    failure_markers = [
-        "❌ mislukt",
-        "codex-modus te voltooien",
-        "usage_limit_reached",
-        "hit your usage limit",
-        "http 429",
-        "refresh_token",
-        "please log out",
-        "backend problem",
-        "geen tool-calls",
-    ]
-    for marker in failure_markers:
-        assert marker not in lower, f"afasask_codex_canary_failed_marker: {marker}"
-    assert re.search(r"\bOK\b", assistant_text), f"afasask_codex_canary_wrong_response: {assistant_text[:500]!r}"
+    for marker in _FAILURE_MARKERS:
+        _require(f"afasask_codex_canary_failed_marker: {marker}", condition=marker not in lower)
+    _require(
+        f"afasask_codex_canary_wrong_response: {assistant_text[:500]!r}",
+        condition=re.search(r"\bOK\b", assistant_text) is not None,
+    )
 
-    artifacts = Path(artifacts_dir)
-    artifacts.mkdir(parents=True, exist_ok=True)
-    (artifacts / "afasask_codex_medium_ok.txt").write_text(
+    artifact_path = Path(artifacts_dir) / "afasask_codex_medium_ok.txt"
+    await asyncio.to_thread(
+        _write_artifact,
+        artifact_path,
         f"url={page.url}\nelapsed_seconds={time.time() - started:.1f}\nresponse={assistant_text[:1000]}\n",
-        encoding="utf-8",
     )

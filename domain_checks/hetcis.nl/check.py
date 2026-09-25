@@ -1,3 +1,6 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""PitchAI domain monitoring support for check."""
+
 CHECK = {
     "domain": "hetcis.nl",
     "url": "https://hetcis.nl",
@@ -13,9 +16,9 @@ CHECK = {
             "name": "open_contact",
             "steps": [
                 {"type": "goto"},
-                {"type": "click", "selector": "a[href=\"/contact\"]"},
+                {"type": "click", "selector": 'a[href="/contact"]'},
                 {"type": "expect_url_contains", "value": "/contact"},
             ],
-        }
+        },
     ],
 }

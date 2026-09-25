@@ -1,12 +1,21 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""DNS availability and address-drift monitoring."""
+
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, NamedTuple, NotRequired, TypedDict, Unpack, cast
+
+import dns.exception
+import dns.resolver
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
-@dataclass(frozen=True)
-class DnsCheckResult:
+class DnsCheckResult(NamedTuple):
+    """Represent one domain's DNS check outcome."""
+
     domain: str
     ok: bool
     a_records: list[str]
@@ -16,15 +25,43 @@ class DnsCheckResult:
     expected_ips: list[str] | None
 
 
-def _normalize_ip_list(items: Any) -> list[str]:
-    if not isinstance(items, list):
-        return []
-    out: list[str] = []
-    for x in items:
-        s = str(x or "").strip()
-        if s:
-            out.append(s)
-    return out
+class DnsCheckOptions(TypedDict):
+    """Keyword controls accepted by DNS checks."""
+
+    resolvers: list[str] | None
+    timeout_seconds: float
+    require_ipv4: bool
+    require_ipv6: bool
+    previous_ips_by_domain: NotRequired[dict[str, list[str]] | None]
+    expected_ips_by_domain: NotRequired[dict[str, list[str]] | None]
+    alert_on_drift_by_domain: NotRequired[dict[str, bool] | None]
+    concurrency: NotRequired[int]
+
+
+class _DnsContext(NamedTuple):
+    resolvers: list[str] | None
+    timeout_seconds: float
+    require_ipv4: bool
+    require_ipv6: bool
+    previous_ips: dict[str, list[str]]
+    expected_ips: dict[str, list[str]]
+    drift_alerts: dict[str, bool]
+    semaphore: asyncio.Semaphore
+
+
+class _DnsRecords(NamedTuple):
+    ipv4: list[str]
+    ipv6: list[str]
+    error: str | None
+
+
+def _normalize_ip_list(items: list[str] | None) -> list[str]:
+    normalized: list[str] = []
+    for item in items or []:
+        address = str(item or "").strip()
+        if address:
+            normalized.append(address)
+    return normalized
 
 
 def _dns_query_sync(
@@ -34,136 +71,150 @@ def _dns_query_sync(
     resolvers: list[str] | None,
     timeout_seconds: float,
 ) -> list[str]:
-    # dnspython is intentionally imported lazily to keep startup fast and to allow
-    # running the monitor with DNS checks disabled.
-    import dns.resolver  # type: ignore
-
-    r = dns.resolver.Resolver(configure=True)
+    resolver = dns.resolver.Resolver(configure=True)
     if resolvers:
-        r.nameservers = list(resolvers)
-    r.timeout = max(0.5, float(timeout_seconds))
-    r.lifetime = max(0.5, float(timeout_seconds))
+        resolver.nameservers = list(resolvers)
+    resolver.timeout = max(0.5, float(timeout_seconds))
+    resolver.lifetime = max(0.5, float(timeout_seconds))
     try:
-        ans = r.resolve(domain, record_type)
+        answer = resolver.resolve(domain, record_type)
     except dns.resolver.NoAnswer:
-        # "NoAnswer" is a normal outcome (e.g. no AAAA record); treat it as empty.
         return []
-    out: list[str] = []
-    for rr in ans:
-        s = str(rr or "").strip()
-        if s:
-            out.append(s)
-    return out
+    records: list[str] = []
+    answer_records = cast("Sequence[object]", cast("object", answer.rrset or ()))
+    for record in answer_records:
+        value = str(record or "").strip()
+        if value:
+            records.append(value)
+    return records
+
+
+async def _query_record(
+    domain: str,
+    record_type: str,
+    context: _DnsContext,
+) -> tuple[list[str], str | None]:
+    try:
+        return (
+            await asyncio.to_thread(
+                _dns_query_sync,
+                domain=domain,
+                record_type=record_type,
+                resolvers=context.resolvers,
+                timeout_seconds=context.timeout_seconds,
+            ),
+            None,
+        )
+    except (dns.exception.DNSException, OSError) as exc:
+        return [], f"{record_type}: {type(exc).__name__}: {exc}"
+
+
+async def _query_records(domain: str, context: _DnsContext) -> _DnsRecords:
+    async with context.semaphore:
+        ipv4, ipv4_error = await _query_record(domain, "A", context)
+        ipv6, ipv6_error = await _query_record(domain, "AAAA", context)
+    error = ipv4_error
+    if ipv6_error:
+        error = f"{error}; {ipv6_error}" if error else ipv6_error
+    return _DnsRecords(ipv4, ipv6, error)
+
+
+def _required_records_error(
+    ipv4: set[str],
+    ipv6: set[str],
+    context: _DnsContext,
+    initial_error: str | None,
+) -> tuple[bool, str | None]:
+    ok = True
+    error = initial_error
+    if context.require_ipv4 and not ipv4:
+        ok = False
+        error = error or "missing_A_record"
+    if context.require_ipv6 and not ipv6:
+        ok = False
+        error = f"{error}; missing_AAAA_record" if error else "missing_AAAA_record"
+    if not ipv4 and not ipv6:
+        ok = False
+        error = error or "no_dns_records"
+    return ok, error
+
+
+def _expected_ip_error(
+    current_ips: set[str],
+    expected_ips: list[str],
+    error: str | None,
+) -> str | None:
+    if expected_ips and not current_ips.intersection(expected_ips):
+        return f"{error}; expected_ip_mismatch" if error else "expected_ip_mismatch"
+    return error
+
+
+def _drift_outcome(
+    current_ips: set[str],
+    previous_ips: set[str],
+    error: str | None,
+    *,
+    alert_on_drift: bool,
+) -> tuple[bool, str | None]:
+    drift_detected = bool(previous_ips and current_ips and current_ips != previous_ips)
+    if drift_detected and alert_on_drift:
+        error = f"{error}; drift_detected" if error else "drift_detected"
+    return drift_detected, error
+
+
+async def _check_domain(domain: str, context: _DnsContext) -> DnsCheckResult:
+    cleaned_domain = str(domain or "").strip().lower()
+    records = await _query_records(cleaned_domain, context)
+    ipv4 = set(_normalize_ip_list(records.ipv4))
+    ipv6 = set(_normalize_ip_list(records.ipv6))
+    current_ips = ipv4 | ipv6
+    expected_ips = _normalize_ip_list(context.expected_ips.get(cleaned_domain))
+    previous_ips = set(_normalize_ip_list(context.previous_ips.get(cleaned_domain)))
+    ok, error = _required_records_error(ipv4, ipv6, context, records.error)
+    expected_error = _expected_ip_error(current_ips, expected_ips, error)
+    if expected_error != error:
+        ok = False
+    drift_detected, drift_error = _drift_outcome(
+        current_ips,
+        previous_ips,
+        expected_error,
+        alert_on_drift=bool(context.drift_alerts.get(cleaned_domain, False)),
+    )
+    if drift_error != expected_error:
+        ok = False
+    return DnsCheckResult(
+        domain=cleaned_domain,
+        ok=ok,
+        a_records=sorted(ipv4),
+        aaaa_records=sorted(ipv6),
+        error=drift_error,
+        drift_detected=drift_detected,
+        expected_ips=expected_ips or None,
+    )
 
 
 async def check_dns(
     *,
     domains: list[str],
-    resolvers: list[str] | None,
-    timeout_seconds: float,
-    require_ipv4: bool,
-    require_ipv6: bool,
-    previous_ips_by_domain: dict[str, list[str]] | None = None,
-    expected_ips_by_domain: dict[str, list[str]] | None = None,
-    alert_on_drift_by_domain: dict[str, bool] | None = None,
-    concurrency: int = 50,
+    **options: Unpack[DnsCheckOptions],
 ) -> list[DnsCheckResult]:
-    sem = asyncio.Semaphore(max(1, int(concurrency)))
-    prev = previous_ips_by_domain if isinstance(previous_ips_by_domain, dict) else {}
-    expected = expected_ips_by_domain if isinstance(expected_ips_by_domain, dict) else {}
-    drift_cfg = alert_on_drift_by_domain if isinstance(alert_on_drift_by_domain, dict) else {}
+    """Check DNS records and configured address expectations concurrently.
 
-    async def _run_one(domain: str) -> DnsCheckResult:
-        cleaned = str(domain or "").strip().lower()
-        exp = _normalize_ip_list(expected.get(cleaned))
-        prev_ips = set(_normalize_ip_list(prev.get(cleaned)))
-        alert_on_drift = bool(drift_cfg.get(cleaned, False))
-
-        a: list[str] = []
-        aaaa: list[str] = []
-        err = None
-
-        async with sem:
-            try:
-                a = await asyncio.to_thread(
-                    _dns_query_sync,
-                    domain=cleaned,
-                    record_type="A",
-                    resolvers=resolvers,
-                    timeout_seconds=float(timeout_seconds),
-                )
-            except Exception as exc:
-                # Preserve error, but still try AAAA (helps distinguish partial resolver issues).
-                err = f"A: {type(exc).__name__}: {exc}"
-                a = []
-
-            try:
-                aaaa = await asyncio.to_thread(
-                    _dns_query_sync,
-                    domain=cleaned,
-                    record_type="AAAA",
-                    resolvers=resolvers,
-                    timeout_seconds=float(timeout_seconds),
-                )
-            except Exception as exc:
-                if err:
-                    err = f"{err}; AAAA: {type(exc).__name__}: {exc}"
-                else:
-                    err = f"AAAA: {type(exc).__name__}: {exc}"
-                aaaa = []
-
-        a_set = set(_normalize_ip_list(a))
-        aaaa_set = set(_normalize_ip_list(aaaa))
-        cur_ips = a_set | aaaa_set
-
-        ok = True
-        if require_ipv4 and not a_set:
-            ok = False
-            if not err:
-                err = "missing_A_record"
-        if require_ipv6 and not aaaa_set:
-            ok = False
-            if err:
-                err = f"{err}; missing_AAAA_record"
-            else:
-                err = "missing_AAAA_record"
-        if not cur_ips:
-            ok = False
-            if not err:
-                err = "no_dns_records"
-
-        if exp:
-            exp_set = set(exp)
-            if not (cur_ips & exp_set):
-                ok = False
-                if err:
-                    err = f"{err}; expected_ip_mismatch"
-                else:
-                    err = "expected_ip_mismatch"
-
-        drift_detected = False
-        if prev_ips and cur_ips and (cur_ips != prev_ips):
-            drift_detected = True
-            if alert_on_drift:
-                ok = False
-                if err:
-                    err = f"{err}; drift_detected"
-                else:
-                    err = "drift_detected"
-
-        return DnsCheckResult(
-            domain=cleaned,
-            ok=ok,
-            a_records=sorted(a_set),
-            aaaa_records=sorted(aaaa_set),
-            error=err,
-            drift_detected=drift_detected,
-            expected_ips=(exp or None),
-        )
-
-    tasks = [asyncio.create_task(_run_one(d)) for d in domains]
-    out: list[DnsCheckResult] = []
-    for fut in asyncio.as_completed(tasks):
-        out.append(await fut)
-    out.sort(key=lambda x: x.domain)
-    return out
+    Returns:
+        DNS outcomes ordered by domain.
+    """
+    context = _DnsContext(
+        resolvers=options["resolvers"],
+        timeout_seconds=float(options["timeout_seconds"]),
+        require_ipv4=options["require_ipv4"],
+        require_ipv6=options["require_ipv6"],
+        previous_ips=options.get("previous_ips_by_domain") or {},
+        expected_ips=options.get("expected_ips_by_domain") or {},
+        drift_alerts=options.get("alert_on_drift_by_domain") or {},
+        semaphore=asyncio.Semaphore(max(1, int(options.get("concurrency", 50)))),
+    )
+    tasks = [asyncio.create_task(_check_domain(domain, context)) for domain in domains]
+    completed_tasks = asyncio.as_completed(tasks)
+    results = [await future for future in completed_tasks]
+    results.sort(key=lambda result: result.domain)
+    return results

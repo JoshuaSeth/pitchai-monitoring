@@ -1,8 +1,10 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
 """Sandbox runners for developer-submitted E2E tests.
 
-These runners are executed by `e2e_runner` either directly (local mode) or inside
-an isolated Docker container (sandbox mode). They provide a stable contract so
-external developers can upload simple single-file tests without needing to wire
-up browsers, timeouts, and artifact capture themselves.
+The root supervisor launches each submitted test under a leased non-root UID,
+private staged source/HOME/TMP/artifact paths, and a dedicated process session.
+It kills the process group and any escaped process still owned by that UID before
+sealing the job tree back to root. This is an identity/process/filesystem boundary,
+not a container or network namespace; world-readable host files and the network
+remain reachable by submitted code.
 """
-

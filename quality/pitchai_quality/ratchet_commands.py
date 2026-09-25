@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import anyio
-
+from pitchai_quality.source_files import validate_tracked_source_topology
 from pitchai_quality.strict_policy import (
     EXPECTED_GATES,
     EXPECTED_NON_SOURCE_DIRECTORIES,
@@ -80,6 +80,7 @@ def _discover(root: Path, roots: Sequence[Path], suffixes: frozenset[str]) -> tu
 def current_profile(root: Path) -> QualityProfile:
     """Return the current complete-source strict profile."""
     resolved = root.resolve(strict=True)
+    validate_tracked_source_topology(resolved)
     python_files = _discover(resolved, (resolved,), frozenset({".py", ".pyi"}))
     runtime_files = tuple(path for path in python_files if path.suffix == ".py")
     return QualityProfile(

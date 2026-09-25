@@ -1,3 +1,6 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""PitchAI domain monitoring support for check."""
+
 CHECK = {
     "domain": "afasask.pitchai.net",
     "url": "https://afasask.pitchai.net",
@@ -16,7 +19,7 @@ CHECK = {
                 {"type": "wait_for_selector", "selector": "nav", "state": "visible"},
                 {"type": "expect_text", "text": "AFASAsk"},
             ],
-        }
+        },
     ],
     "forbidden_text_any": [
         "maintenance",

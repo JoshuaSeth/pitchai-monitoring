@@ -1,33 +1,292 @@
 name: Service Monitoring Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Python strict gate"]
     branches: [main]
-    # Avoid auto-deploys when only workflow or documentation files change.
-    paths-ignore:
-      - ".github/workflows/**"
-      - "docs/**"
-      - "README.md"
-  workflow_dispatch: {}
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
 
 concurrency:
   group: service-monitoring-prod
   cancel-in-progress: false
 
 jobs:
-  test:
+  select-release:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-22.04
+    outputs:
+      deploy-required: ${{ steps.changed-paths.outputs.deploy-required }}
     steps:
-      # Self-hosted runner + dockerized pytest: the container runs as root and can leave
-      # behind root-owned files in the workspace (e.g. `.pytest_cache`), which then
-      # breaks the next `actions/checkout` clean step. Pre-clean with sudo to keep
-      # the runner from getting stuck.
-      - name: Pre-clean workspace (avoid root-owned leftovers)
-        run: |
-          sudo rm -rf "$GITHUB_WORKSPACE"/* "$GITHUB_WORKSPACE"/.[!.]* "$GITHUB_WORKSPACE"/..?* || true
+      - name: Download the triggering push provenance
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: python-release-provenance-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+          path: ${{ runner.temp }}/release-provenance
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Verify the validated SHA is the current main tip
+        env:
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$VALIDATED_SHA"
+          git fetch --no-tags --depth=1 origin refs/heads/main
+          test "$(git rev-parse FETCH_HEAD)" = "$VALIDATED_SHA"
+
+      - name: Preserve non-runtime deployment exclusions
+        id: changed-paths
+        env:
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+          EXPECTED_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          EXPECTED_RUN_ID: ${{ github.event.workflow_run.id }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PROVENANCE_PATH: ${{ runner.temp }}/release-provenance/release-provenance.json
+          RELEASE_MARKER_NAME: service-monitoring-production-release
+          RELEASE_MARKER_ROOT: ${{ runner.temp }}/production-release-marker
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          provenance_dir="$(dirname "$PROVENANCE_PATH")"
+          mapfile -d '' -t provenance_entries < <(find "$provenance_dir" -mindepth 1 -maxdepth 1 -print0)
+          if [[ "${#provenance_entries[@]}" -ne 1 || "${provenance_entries[0]}" != "$PROVENANCE_PATH" ]]; then
+            echo "Triggering run supplied an unexpected provenance artifact" >&2
+            exit 1
+          fi
+          if [[ ! -f "$PROVENANCE_PATH" || -L "$PROVENANCE_PATH" ]]; then
+            echo "Triggering run provenance is not one regular file" >&2
+            exit 1
+          fi
+          jq --exit-status \
+            --arg after "$VALIDATED_SHA" \
+            --arg repository "$EXPECTED_REPOSITORY" \
+            --arg run_attempt "$EXPECTED_RUN_ATTEMPT" \
+            --arg run_id "$EXPECTED_RUN_ID" \
+            'type == "object" and
+             keys == ["after", "before", "event", "ref", "repository", "run_attempt", "run_id", "schema"] and
+             .schema == 1 and .event == "push" and .ref == "refs/heads/main" and
+             .repository == $repository and .run_id == $run_id and .run_attempt == $run_attempt and
+             .after == $after and
+             (.before | type == "string" and test("^[0-9a-f]{40}$"))' \
+            "$PROVENANCE_PATH" >/dev/null
+          before_sha="$(jq --raw-output '.before' "$PROVENANCE_PATH")"
+
+          publish_decision() {
+            printf 'deploy-required=%s\n' "$1" >>"$GITHUB_OUTPUT"
+          }
+
+          zero_sha="0000000000000000000000000000000000000000"
+          if [[ "$before_sha" == "$zero_sha" ]]; then
+            echo "A newly created main ref must deploy"
+            publish_decision true
+            exit 0
+          fi
+          if ! git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+            if ! git fetch --no-tags origin "$before_sha"; then
+              echo "The original main tip is unavailable; deployment is required"
+              publish_decision true
+              exit 0
+            fi
+          fi
+          if ! git merge-base --is-ancestor "$before_sha" "$VALIDATED_SHA"; then
+            echo "The original main tip is not an ancestor; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+
+          # A later docs-only push can supersede an earlier runtime run. Base
+          # exclusions on the last release that actually completed, not merely
+          # on this push's immediate parent.
+          mkdir -p "$RELEASE_MARKER_ROOT"
+          artifacts_path="$RELEASE_MARKER_ROOT/artifacts.json"
+          if ! curl --fail --location --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GITHUB_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$EXPECTED_REPOSITORY/actions/artifacts?name=$RELEASE_MARKER_NAME&per_page=100" \
+              --output "$artifacts_path"; then
+            echo "Production-release marker discovery is unavailable; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+          mapfile -t artifact_candidates < <(
+            jq --raw-output \
+              '.artifacts | sort_by(.created_at) | reverse | .[] |
+               select(.expired == false) | [.id, .workflow_run.id] | @tsv' \
+              "$artifacts_path"
+          )
+          marker_artifact_id=""
+          marker_run_id=""
+          for artifact_candidate in "${artifact_candidates[@]}"; do
+            IFS=$'\t' read -r candidate_artifact_id candidate_run_id <<<"$artifact_candidate"
+            if [[ ! "$candidate_artifact_id" =~ ^[1-9][0-9]*$ || ! "$candidate_run_id" =~ ^[1-9][0-9]*$ ]]; then
+              echo "Ignoring malformed production-release artifact identity" >&2
+              continue
+            fi
+            candidate_run_path="$RELEASE_MARKER_ROOT/run-${candidate_run_id}.json"
+            if ! curl --fail --location --silent --show-error \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer $GITHUB_TOKEN" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                "$GITHUB_API_URL/repos/$EXPECTED_REPOSITORY/actions/runs/$candidate_run_id" \
+                --output "$candidate_run_path"; then
+              echo "Production-release workflow provenance is unavailable; deployment is required"
+              publish_decision true
+              exit 0
+            fi
+            if jq --exit-status \
+              --arg repository "$EXPECTED_REPOSITORY" \
+              '.event == "workflow_run" and .status == "completed" and .conclusion == "success" and
+               .path == ".github/workflows/ci-cd.yaml" and .repository.full_name == $repository' \
+              "$candidate_run_path" >/dev/null; then
+              marker_artifact_id="$candidate_artifact_id"
+              marker_run_id="$candidate_run_id"
+              break
+            fi
+          done
+          if [[ -z "$marker_artifact_id" ]]; then
+            echo "No successful production-release marker is available; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+
+          marker_zip="$RELEASE_MARKER_ROOT/release-marker.zip"
+          marker_dir="$RELEASE_MARKER_ROOT/release-marker"
+          if ! curl --fail --location --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GITHUB_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$EXPECTED_REPOSITORY/actions/artifacts/$marker_artifact_id/zip" \
+              --output "$marker_zip"; then
+            echo "Production-release marker download is unavailable; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+          mkdir -p "$marker_dir"
+          marker_path="$marker_dir/production-release.json"
+          mapfile -t marker_members < <(unzip -Z1 "$marker_zip")
+          if [[ "${#marker_members[@]}" -ne 1 || "${marker_members[0]}" != "production-release.json" ]]; then
+            echo "The production-release marker archive has unexpected contents; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+          if ! unzip -p "$marker_zip" production-release.json >"$marker_path"; then
+            echo "The production-release marker cannot be read; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+          if [[ ! -f "$marker_path" || -L "$marker_path" ]]; then
+            echo "The production-release marker is not one regular file; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+          if ! jq --exit-status \
+            --arg deploy_run_id "$marker_run_id" \
+            --arg repository "$EXPECTED_REPOSITORY" \
+            'type == "object" and
+             keys == ["deploy_run_id", "repository", "schema", "strict_run_attempt", "strict_run_id", "validated_sha"] and
+             .schema == 1 and .repository == $repository and .deploy_run_id == $deploy_run_id and
+             (.strict_run_id | type == "string" and test("^[1-9][0-9]*$")) and
+             (.strict_run_attempt | type == "string" and test("^[1-9][0-9]*$")) and
+             (.validated_sha | type == "string" and test("^[0-9a-f]{40}$"))' \
+            "$marker_path" >/dev/null; then
+            echo "The production-release marker contract is invalid; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+          last_deployed_sha="$(jq --raw-output '.validated_sha' "$marker_path")"
+          marker_strict_run_id="$(jq --raw-output '.strict_run_id' "$marker_path")"
+          marker_strict_run_attempt="$(jq --raw-output '.strict_run_attempt' "$marker_path")"
+          marker_strict_run_path="$RELEASE_MARKER_ROOT/strict-run-${marker_strict_run_id}.json"
+          if ! curl --fail --location --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GITHUB_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$EXPECTED_REPOSITORY/actions/runs/$marker_strict_run_id" \
+              --output "$marker_strict_run_path"; then
+            echo "The deployed strict-run provenance is unavailable; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+          if ! jq --exit-status \
+            --arg repository "$EXPECTED_REPOSITORY" \
+            --arg run_attempt "$marker_strict_run_attempt" \
+            --arg validated_sha "$last_deployed_sha" \
+            '.event == "push" and .status == "completed" and .conclusion == "success" and
+             .path == ".github/workflows/python-strict.yml" and .head_branch == "main" and
+             .head_sha == $validated_sha and .repository.full_name == $repository and
+             (.run_attempt | tostring) == $run_attempt' \
+            "$marker_strict_run_path" >/dev/null; then
+            echo "The deployed strict-run provenance is invalid; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+          if [[ "$last_deployed_sha" == "$VALIDATED_SHA" ]]; then
+            echo "The validated SHA is already the recorded production release"
+            publish_decision false
+            exit 0
+          fi
+          if ! git cat-file -e "${last_deployed_sha}^{commit}" 2>/dev/null; then
+            if ! git fetch --no-tags origin "$last_deployed_sha"; then
+              echo "The recorded production SHA is unavailable; deployment is required"
+              publish_decision true
+              exit 0
+            fi
+          fi
+          if ! git merge-base --is-ancestor "$last_deployed_sha" "$VALIDATED_SHA"; then
+            echo "The recorded production SHA is not an ancestor; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+
+          # Preserve production's documentation and quality-tooling exclusions
+          # only across everything not yet recorded as deployed.
+          mapfile -d '' -t changed_paths < <(
+            git diff --name-only --no-renames -z "$last_deployed_sha" "$VALIDATED_SHA"
+          )
+          if [[ "${#changed_paths[@]}" -eq 0 ]]; then
+            echo "The undeployed range has no changed paths; deployment is required"
+            publish_decision true
+            exit 0
+          fi
+          deploy_required=false
+          for changed_path in "${changed_paths[@]}"; do
+            case "$changed_path" in
+              .github/workflows/* | .python-version | docs/* | QUALITY.md | pyproject.toml | quality/* | README.md | uv.lock) ;;
+              *)
+                deploy_required=true
+                break
+                ;;
+            esac
+          done
+          publish_decision "$deploy_required"
+
+  test:
+    needs: select-release
+    if: needs.select-release.outputs.deploy-required == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout the validated candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
 
       - name: Build test image
         run: docker build -t service-monitoring:ci .
@@ -35,6 +294,8 @@ jobs:
       - name: Run tests (HTTP + Playwright UI)
         run: |
           docker run --rm \
+            --security-opt no-new-privileges:true \
+            --shm-size 1g \
             -v "$GITHUB_WORKSPACE:/work" \
             -w /work \
             service-monitoring:ci \
@@ -43,9 +304,10 @@ jobs:
   deploy-prod:
     runs-on: ubuntu-22.04
     needs: test
+    environment: production
     steps:
       - name: Deploy to production (SSH + Docker)
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
         with:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
@@ -53,72 +315,232 @@ jobs:
           port: 22
           script: |
             set -euo pipefail
+            umask 077
 
             APP_NAME="service-monitoring"
             OLD_NAME="monitoring"
             REGISTRY_NAME="e2e-registry"
             RUNNER_NAME="e2e-runner"
             NET_NAME="pitchai-shared"
-            IMAGE_SHA="service-monitoring:${{ github.sha }}"
+            VALIDATED_SHA="${{ github.event.workflow_run.head_sha }}"
+            IMAGE_SHA="service-monitoring:${VALIDATED_SHA}"
             IMAGE_LATEST="service-monitoring:latest"
             EVENT_BUS_SECRET="${{ secrets.PITCHAI_MONITORING_EVENT_BUS_SECRET }}"
+            RUN_ID="${{ github.run_id }}"
+            RUN_ATTEMPT="${{ github.run_attempt }}"
 
+            if [[ ! "$VALIDATED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "Invalid validated deployment SHA"
+              exit 1
+            fi
             if [[ "${#EVENT_BUS_SECRET}" -lt 32 ]]; then
               echo "Missing or invalid PITCHAI_MONITORING_EVENT_BUS_SECRET"
               exit 1
             fi
+            if [[ ! "$RUN_ID" =~ ^[1-9][0-9]*$ ||
+                  ! "$RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
+              echo "Invalid deployment run identity"
+              exit 1
+            fi
 
-            echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} @ ${{ github.sha }}"
+            echo "🚀 Deploying ${APP_NAME} + ${REGISTRY_NAME} + ${RUNNER_NAME} @ ${VALIDATED_SHA}"
 
-            DEPLOY_DIR="/tmp/${APP_NAME}-deploy-${{ github.run_id }}-${{ github.run_attempt }}"
-            mkdir -p "$DEPLOY_DIR"
+            DEPLOY_DIR="/tmp/${APP_NAME}-deploy-${RUN_ID}-${RUN_ATTEMPT}"
+            ROLLBACK_SUFFIX="rollback-${RUN_ID}-${RUN_ATTEMPT}"
+            if [[ ! "$DEPLOY_DIR" =~ ^/tmp/service-monitoring-deploy-[1-9][0-9]*-[1-9][0-9]*$ ||
+                  ! "$ROLLBACK_SUFFIX" =~ ^rollback-[1-9][0-9]*-[1-9][0-9]*$ ]]; then
+              echo "Invalid deployment workspace identity"
+              exit 1
+            fi
+            readonly DEPLOY_DIR ROLLBACK_SUFFIX
+            CONTAINER_NAMES=("$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME")
+            PRESERVED_NAMES=()
+            deployment_committed=false
+            cutover_started=false
+            rollback_active=false
+            latest_tag_changed=false
+            previous_latest_image=""
+            mkdir -m 700 -- "$DEPLOY_DIR"
+
+            container_exists() {
+              local name="$1"
+              docker ps -a --format '{{.Names}}' | grep -qx "$name"
+            }
+
+            cleanup_deploy_dir() {
+              if [[ ! "$DEPLOY_DIR" =~ ^/tmp/service-monitoring-deploy-[1-9][0-9]*-[1-9][0-9]*$ ]]; then
+                echo "Refusing unsafe deployment-workspace cleanup: $DEPLOY_DIR" >&2
+                return 1
+              fi
+              cd /
+              rm -rf -- "$DEPLOY_DIR"
+            }
+
+            restore_previous_release() {
+              local name rollback_name restore_failed
+              restore_failed=0
+              if [[ "$cutover_started" != "true" &&
+                    "$rollback_active" != "true" &&
+                    "$latest_tag_changed" != "true" ]]; then
+                return 0
+              fi
+              echo "↩️ Restoring the preserved production release..."
+              if [[ "$cutover_started" == "true" ]]; then
+                for name in "${CONTAINER_NAMES[@]}"; do
+                  if container_exists "$name"; then
+                    docker rm --force "$name" || restore_failed=1
+                  fi
+                done
+              fi
+              if [[ "$rollback_active" == "true" ]]; then
+                for name in "${PRESERVED_NAMES[@]}"; do
+                  rollback_name="${name}-${ROLLBACK_SUFFIX}"
+                  if ! container_exists "$rollback_name"; then
+                    continue
+                  fi
+                  if container_exists "$name"; then
+                    echo "Cannot restore $rollback_name because $name still exists" >&2
+                    restore_failed=1
+                    continue
+                  fi
+                  docker rename "$rollback_name" "$name" || restore_failed=1
+                done
+                for name in "${PRESERVED_NAMES[@]}"; do
+                  if ! container_exists "$name"; then
+                    echo "Preserved production container is missing: $name" >&2
+                    restore_failed=1
+                    continue
+                  fi
+                  docker start "$name" || restore_failed=1
+                done
+              fi
+              if [[ "$latest_tag_changed" == "true" ]]; then
+                if [[ -n "$previous_latest_image" ]]; then
+                  docker tag "$previous_latest_image" "$IMAGE_LATEST" || restore_failed=1
+                else
+                  docker image rm "$IMAGE_LATEST" || restore_failed=1
+                fi
+              fi
+              return "$restore_failed"
+            }
+
+            on_deploy_exit() {
+              local original_status="$1"
+              local rollback_status
+              rollback_status=0
+              trap - EXIT
+              if [[ "$deployment_committed" != "true" ]]; then
+                if [[ "$original_status" -eq 0 ]]; then
+                  original_status=1
+                fi
+                set +e
+                restore_previous_release
+                rollback_status=$?
+                set -e
+              fi
+              if ! cleanup_deploy_dir; then
+                echo "Failed to remove deployment workspace: $DEPLOY_DIR" >&2
+              fi
+              if [[ "$rollback_status" -ne 0 ]]; then
+                echo "❌ Automatic production rollback did not complete" >&2
+              fi
+              exit "$original_status"
+            }
+            trap 'on_deploy_exit "$?"' EXIT
             cd "$DEPLOY_DIR"
 
             echo "📥 Cloning repo..."
             git clone https://github.com/JoshuaSeth/pitchai-monitoring.git .
-            git checkout ${{ github.sha }}
+            remote_main_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+            if [[ "$remote_main_sha" != "$VALIDATED_SHA" ]]; then
+              echo "Validated SHA is no longer the current main tip"
+              exit 1
+            fi
+            git checkout --detach "$VALIDATED_SHA"
+            test "$(git rev-parse HEAD)" = "$VALIDATED_SHA"
 
             echo "🌐 Ensuring docker network exists: $NET_NAME"
             if ! docker network ls --format '{{.Name}}' | grep -qx "$NET_NAME"; then
               docker network create "$NET_NAME" >/dev/null
             fi
 
-            stop_rm_if_exists() {
-              local name="$1"
-              if docker ps -a --format '{{.Names}}' | grep -qx "$name"; then
-                echo "🛑 Stopping existing container: $name"
-                docker stop "$name" || true
-                docker rm "$name" || true
+            preserve_current_release() {
+              local existing_count image name rollback_name
+              existing_count=0
+              for name in "${CONTAINER_NAMES[@]}"; do
+                if container_exists "$name"; then
+                  existing_count=$((existing_count + 1))
+                fi
+              done
+              if [[ "$existing_count" -ne 0 &&
+                    "$existing_count" -ne "${#CONTAINER_NAMES[@]}" ]]; then
+                echo "Refusing a cutover with an incomplete current container set" >&2
+                return 1
               fi
+              if [[ "$existing_count" -eq "${#CONTAINER_NAMES[@]}" ]]; then
+                for name in "${CONTAINER_NAMES[@]}"; do
+                  image="$(docker inspect "$name" --format '{{.Config.Image}}')"
+                  case "$image" in
+                    service-monitoring | service-monitoring:*) ;;
+                    *)
+                      echo "Refusing to replace $name with unexpected image: $image" >&2
+                      return 1
+                      ;;
+                  esac
+                  PRESERVED_NAMES+=("$name")
+                done
+              fi
+              if container_exists "$OLD_NAME"; then
+                image="$(docker inspect "$OLD_NAME" --format '{{.Config.Image}}')"
+                case "$image" in
+                  monitoring-system | monitoring-system:* | service-monitoring | service-monitoring:*) ;;
+                  *)
+                    echo "Refusing to replace $OLD_NAME with unexpected image: $image" >&2
+                    return 1
+                    ;;
+                esac
+                PRESERVED_NAMES+=("$OLD_NAME")
+              fi
+              if [[ "${#PRESERVED_NAMES[@]}" -eq 0 ]]; then
+                return 0
+              fi
+              for name in "${PRESERVED_NAMES[@]}"; do
+                rollback_name="${name}-${ROLLBACK_SUFFIX}"
+                if container_exists "$rollback_name"; then
+                  echo "Rollback container name is already occupied: $rollback_name" >&2
+                  return 1
+                fi
+              done
+              rollback_active=true
+              for name in "${PRESERVED_NAMES[@]}"; do
+                echo "🛑 Preserving existing container: $name"
+                docker stop "$name"
+              done
+              for name in "${PRESERVED_NAMES[@]}"; do
+                docker rename "$name" "${name}-${ROLLBACK_SUFFIX}"
+              done
             }
 
-            if docker ps -a --format '{{.Names}}' | grep -qx "$OLD_NAME"; then
-              old_image="$(docker inspect "$OLD_NAME" --format '{{.Config.Image}}' || true)"
-              echo "Found legacy container '$OLD_NAME' image=$old_image"
-              if [[ "$old_image" == monitoring-system:* || "$old_image" == monitoring-system || "$old_image" == service-monitoring:* || "$old_image" == service-monitoring ]]; then
-                echo "🛑 Stopping legacy container: $OLD_NAME"
-                docker stop "$OLD_NAME" || true
-                docker rm "$OLD_NAME" || true
-              else
-                echo "⚠️ Refusing to stop '$OLD_NAME' (unexpected image: $old_image)"
-              fi
+            echo "🔨 Building image while the current release remains available..."
+            if docker image inspect "$IMAGE_LATEST" >/dev/null 2>&1; then
+              previous_latest_image="$(docker image inspect "$IMAGE_LATEST" --format '{{.Id}}')"
             fi
-
-            stop_rm_if_exists "$APP_NAME"
-            stop_rm_if_exists "$REGISTRY_NAME"
-            stop_rm_if_exists "$RUNNER_NAME"
-
-            echo "🔨 Building image..."
-            docker build -t "$IMAGE_SHA" -t "$IMAGE_LATEST" .
+            docker build -t "$IMAGE_SHA" .
 
             echo "📦 Ensuring volumes exist..."
             docker volume create service-monitoring-state >/dev/null
             docker volume create e2e-registry-data >/dev/null
             docker volume create e2e-artifacts >/dev/null
+            docker volume create e2e-runner-leases >/dev/null
 
             echo "🔐 Ensuring E2E registry tokens exist..."
             SECRETS_DIR="${HOME}/service-monitoring"
             mkdir -p "$SECRETS_DIR"
+            if [[ -L "$SECRETS_DIR" || ! -d "$SECRETS_DIR" ]]; then
+              echo "❌ Invalid service-monitoring secrets directory: $SECRETS_DIR"
+              exit 1
+            fi
+            chmod 700 "$SECRETS_DIR"
             E2E_ENV_FILE="$SECRETS_DIR/e2e-registry.env"
             if [[ ! -f "$E2E_ENV_FILE" ]]; then
               echo "Generating new E2E registry tokens at $E2E_ENV_FILE"
@@ -133,12 +555,16 @@ jobs:
                 echo "E2E_ARTIFACTS_DIR=/artifacts"
                 echo "E2E_TESTS_DIR=/data/e2e-tests"
                 echo "E2E_REGISTRY_ALERTS_ENABLED=1"
-                echo "E2E_REGISTRY_DISPATCH_ENABLED=1"
+                echo "E2E_REGISTRY_DISPATCH_ENABLED=0"
                 echo "E2E_REGISTRY_STRICT_BASE_URL_POLICY=1"
                 echo "E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=1"
               } >"$E2E_ENV_FILE"
-              chmod 600 "$E2E_ENV_FILE" || true
             fi
+            if [[ -L "$E2E_ENV_FILE" || ! -f "$E2E_ENV_FILE" ]]; then
+              echo "❌ Invalid E2E registry credential file: $E2E_ENV_FILE"
+              exit 1
+            fi
+            chmod 600 "$E2E_ENV_FILE"
             # Backfill new required settings into an existing env file.
             if ! grep -qE '^E2E_TESTS_DIR=' "$E2E_ENV_FILE"; then
               echo "E2E_TESTS_DIR=/data/e2e-tests" >>"$E2E_ENV_FILE"
@@ -149,7 +575,14 @@ jobs:
             if ! grep -qE '^E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=' "$E2E_ENV_FILE"; then
               echo "E2E_REGISTRY_ALLOW_MONITORED_DOMAINS=1" >>"$E2E_ENV_FILE"
             fi
-            E2E_MONITOR_TOKEN="$(grep -E '^E2E_REGISTRY_MONITOR_TOKEN=' "$E2E_ENV_FILE" | head -n1 | cut -d= -f2-)"
+            # Converge hosts created by older deployments. The retired
+            # Dispatcher endpoint must not remain enabled in persisted config.
+            if grep -qE '^E2E_REGISTRY_DISPATCH_ENABLED=' "$E2E_ENV_FILE"; then
+              sed -i 's/^E2E_REGISTRY_DISPATCH_ENABLED=.*/E2E_REGISTRY_DISPATCH_ENABLED=0/' "$E2E_ENV_FILE"
+            else
+              echo "E2E_REGISTRY_DISPATCH_ENABLED=0" >>"$E2E_ENV_FILE"
+            fi
+            E2E_MONITOR_TOKEN="$(awk -F= '$1 == "E2E_REGISTRY_MONITOR_TOKEN" {sub(/^[^=]*=/, ""); value=$0} END {print value}' "$E2E_ENV_FILE")"
             if [[ -z "${E2E_MONITOR_TOKEN}" ]]; then
               echo "❌ Missing E2E_REGISTRY_MONITOR_TOKEN in $E2E_ENV_FILE"
               exit 1
@@ -160,31 +593,49 @@ jobs:
               {
                 echo "AFASASK_MONITOR_TOKEN=${afasask_monitor_token}"
               } >"$AFASASK_MONITOR_ENV_FILE"
-              chmod 600 "$AFASASK_MONITOR_ENV_FILE" || true
             fi
-            # shellcheck disable=SC1090
-            source "$AFASASK_MONITOR_ENV_FILE"
+            if [[ -L "$AFASASK_MONITOR_ENV_FILE" || ! -f "$AFASASK_MONITOR_ENV_FILE" ]]; then
+              echo "❌ Invalid AFASAsk monitor credential file: $AFASASK_MONITOR_ENV_FILE"
+              exit 1
+            fi
+            chmod 600 "$AFASASK_MONITOR_ENV_FILE"
+            AFASASK_MONITOR_TOKEN="$(awk -F= '$1 == "AFASASK_MONITOR_TOKEN" {sub(/^[^=]*=/, ""); value=$0} END {print value}' "$AFASASK_MONITOR_ENV_FILE")"
+            AFASASK_DEMO_USERNAME="$(awk -F= '$1 == "AFASASK_DEMO_USERNAME" {sub(/^[^=]*=/, ""); value=$0} END {print value}' "$AFASASK_MONITOR_ENV_FILE")"
+            AFASASK_DEMO_PASSWORD="$(awk -F= '$1 == "AFASASK_DEMO_PASSWORD" {sub(/^[^=]*=/, ""); value=$0} END {print value}' "$AFASASK_MONITOR_ENV_FILE")"
             if [[ -z "${AFASASK_MONITOR_TOKEN:-}" ]]; then
               echo "❌ Missing AFASASK_MONITOR_TOKEN in $AFASASK_MONITOR_ENV_FILE"
               exit 1
             fi
+            if [[ -z "${AFASASK_DEMO_USERNAME:-}" || -z "${AFASASK_DEMO_PASSWORD:-}" ]]; then
+              echo "❌ Missing AFASASK_DEMO_USERNAME or AFASASK_DEMO_PASSWORD in $AFASASK_MONITOR_ENV_FILE"
+              exit 1
+            fi
+
+            remote_main_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+            if [[ "$remote_main_sha" != "$VALIDATED_SHA" ]]; then
+              echo "Validated SHA became stale during deployment preflight"
+              exit 1
+            fi
+
+            preserve_current_release
+            cutover_started=true
 
             echo "🚀 Starting e2e-registry..."
             docker run -d \
               --name "$REGISTRY_NAME" \
               --restart unless-stopped \
               --init \
+              --security-opt no-new-privileges:true \
               --network "$NET_NAME" \
               -p 127.0.0.1:8111:8111 \
               -v service-monitoring-state:/monitor_state:ro \
               -v e2e-registry-data:/data \
               -v e2e-artifacts:/artifacts \
               --env-file "$E2E_ENV_FILE" \
+              -e E2E_REGISTRY_DISPATCH_ENABLED="0" \
               -e SERVICE_MONITOR_STATE_PATH="/monitor_state/state.json" \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
-              -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
               "$IMAGE_SHA" \
               python -m e2e_registry.server
 
@@ -193,15 +644,20 @@ jobs:
               --name "$RUNNER_NAME" \
               --restart unless-stopped \
               --init \
+              --security-opt no-new-privileges:true \
               --shm-size 1g \
               --network "$NET_NAME" \
               -v e2e-artifacts:/artifacts \
               -v e2e-registry-data:/data:ro \
+              -v e2e-runner-leases:/uid-leases \
               --env-file "$E2E_ENV_FILE" \
+              --env-file "$AFASASK_MONITOR_ENV_FILE" \
               -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
+              -e E2E_REGISTRY_DISPATCH_ENABLED="0" \
               -e E2E_RUNNER_POLL_SECONDS="5" \
               -e E2E_RUNNER_CONCURRENCY="1" \
               -e E2E_RUNNER_TRACE_ON_FAILURE="0" \
+              -e E2E_SANDBOX_UID_LEASE_DIR="/uid-leases/locks" \
               "$IMAGE_SHA" \
               python -m e2e_runner.main
 
@@ -210,6 +666,7 @@ jobs:
               --name "$APP_NAME" \
               --restart unless-stopped \
               --init \
+              --security-opt no-new-privileges:true \
               --shm-size 1g \
               --network "$NET_NAME" \
               -v service-monitoring-state:/data \
@@ -217,13 +674,11 @@ jobs:
               -v /var/log/nginx:/var/log/nginx:ro \
               -e TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
               -e TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              -e PITCHAI_DISPATCH_BASE_URL="https://dispatch.pitchai.net" \
-              -e PITCHAI_DISPATCH_TOKEN="${{ secrets.PITCHAI_DISPATCH_TOKEN }}" \
               -e PITCHAI_MONITORING_EVENT_BUS_URL="https://pitchai.net/events-bus/webhooks/pitchai-monitoring" \
               -e PITCHAI_MONITORING_EVENT_BUS_SECRET="${EVENT_BUS_SECRET}" \
               -e PITCHAI_MONITORING_ENVIRONMENT="production" \
               -e PITCHAI_MONITORING_INSTANCE="pitchai-main" \
-              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${{ github.sha }}" \
+              -e PITCHAI_MONITORING_DEPLOYMENT_SHA="${VALIDATED_SHA}" \
               -e STATE_PATH="/data/state.json" \
               -e E2E_REGISTRY_BASE_URL="http://${REGISTRY_NAME}:8111" \
               -e E2E_REGISTRY_MONITOR_TOKEN="${E2E_MONITOR_TOKEN}" \
@@ -258,11 +713,69 @@ jobs:
             docker exec "$APP_NAME" python -c \
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
 
+            candidate_image_id="$(docker image inspect "$IMAGE_SHA" --format '{{.Id}}')"
+            for name in "${CONTAINER_NAMES[@]}"; do
+              running_image_id="$(docker inspect "$name" --format '{{.Image}}')"
+              if [[ "$running_image_id" != "$candidate_image_id" ]]; then
+                echo "❌ Container is not running the validated candidate image: $name" >&2
+                exit 1
+              fi
+            done
+
+            docker tag "$IMAGE_SHA" "$IMAGE_LATEST"
+            latest_tag_changed=true
+            test "$candidate_image_id" = \
+              "$(docker image inspect "$IMAGE_LATEST" --format '{{.Id}}')"
+            deployment_committed=true
+
+            for name in "${PRESERVED_NAMES[@]}"; do
+              rollback_name="${name}-${ROLLBACK_SUFFIX}"
+              if container_exists "$rollback_name"; then
+                if ! docker rm "$rollback_name"; then
+                  echo "⚠️ Preserved container cleanup remains pending: $rollback_name" >&2
+                fi
+              fi
+            done
+
             echo "✅ Containers running"
             docker ps --filter "name=${APP_NAME}|${REGISTRY_NAME}|${RUNNER_NAME}"
             docker logs "$REGISTRY_NAME" --tail 40 || true
             docker logs "$RUNNER_NAME" --tail 40 || true
             docker logs "$APP_NAME" --tail 80 || true
 
-            cd /
-            rm -rf "$DEPLOY_DIR"
+      - name: Record the exact successful production release
+        env:
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+          RELEASE_MARKER_PATH: ${{ runner.temp }}/production-release.json
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          STRICT_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          STRICT_RUN_ID: ${{ github.event.workflow_run.id }}
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$DEPLOY_RUN_ID" =~ ^[1-9][0-9]*$ ||
+                ! "$STRICT_RUN_ID" =~ ^[1-9][0-9]*$ ||
+                ! "$STRICT_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ||
+                ! "$VALIDATED_SHA" =~ ^[0-9a-f]{40}$ ||
+                -z "$RELEASE_REPOSITORY" ]]; then
+            echo "Invalid successful-release provenance" >&2
+            exit 1
+          fi
+          jq --null-input \
+            --arg deploy_run_id "$DEPLOY_RUN_ID" \
+            --arg repository "$RELEASE_REPOSITORY" \
+            --arg strict_run_attempt "$STRICT_RUN_ATTEMPT" \
+            --arg strict_run_id "$STRICT_RUN_ID" \
+            --arg validated_sha "$VALIDATED_SHA" \
+            '{schema: 1, repository: $repository, validated_sha: $validated_sha,
+              deploy_run_id: $deploy_run_id, strict_run_id: $strict_run_id,
+              strict_run_attempt: $strict_run_attempt}' \
+            >"$RELEASE_MARKER_PATH"
+
+      - name: Preserve the exact successful production release
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: service-monitoring-production-release
+          path: ${{ runner.temp }}/production-release.json
+          if-no-files-found: error
+          retention-days: 90

@@ -1,17 +1,25 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Lock deployment payload validation and secret rejection."""
+
 from __future__ import annotations
 
+import io
 import json
-import subprocess
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from auth_usage_dashboard.deployment_check import validate_capacity_payload
+from auth_usage_dashboard.deployment_check import main, validate_capacity_payload
+from domain_checks.testing import verify
+
+if TYPE_CHECKING:
+    import pytest
+
+    from auth_usage_dashboard.json_contract import JsonObject
+
+FORBIDDEN_VALUE = "must-not-pass"
+MINIMUM_LARGE_PAYLOAD_LENGTH = 300_000
 
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def _payload() -> dict[str, object]:
+def _payload() -> JsonObject:
     return {
         "schema_version": 4,
         "summary": {
@@ -30,7 +38,7 @@ def _payload() -> dict[str, object]:
             {
                 "five_hour": {"reported": False},
                 "weekly": {"reported": True},
-            }
+            },
         ],
         "usage_history": {
             "provider_granularity": "daily",
@@ -47,30 +55,35 @@ def _payload() -> dict[str, object]:
 
 
 def test_deployment_validator_accepts_schema_four_capacity() -> None:
-    validate_capacity_payload(_payload())
+    """Verify the behavior described by this test."""
+    payload = _payload()
+    validate_capacity_payload(payload)
 
 
-def test_large_capacity_payload_is_validated_over_stdin() -> None:
+def test_large_capacity_payload_is_validated_over_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify the behavior described by this test."""
     encoded = json.dumps(_payload())
-    assert len(encoded) > 300_000
+    verify(len(encoded) > MINIMUM_LARGE_PAYLOAD_LENGTH)
 
-    result = subprocess.run(
-        [sys.executable, str(ROOT / "auth_usage_dashboard" / "deployment_check.py")],
-        input=encoded,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
+    monkeypatch.setattr("sys.stdin", io.StringIO(encoded))
+    main()
 
 
 def test_deployment_validator_rejects_secret_key_names() -> None:
+    """Verify the behavior described by this test.
+
+    Raises:
+        AssertionError: If the value violates the validation contract.
+
+    """
     payload = _payload()
-    payload["access_token"] = "must-not-pass"
+    payload["access_token"] = FORBIDDEN_VALUE
 
     try:
         validate_capacity_payload(payload)
     except AssertionError:
         return
-    raise AssertionError("secret-bearing payload passed deployment validation")
+    msg = "secret-bearing payload passed deployment validation"
+    raise AssertionError(msg)

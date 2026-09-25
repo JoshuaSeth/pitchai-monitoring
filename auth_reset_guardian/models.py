@@ -1,55 +1,56 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Define validated domain models for guardian provider payloads."""
+
 from __future__ import annotations
 
 import hashlib
-import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING
 
+from .consume_result import ConsumeResult
+from .model_values import (
+    PayloadError,
+    parse_timestamp,
+    safe_label,
+    utc_iso,
+    utc_now,
+)
 
-UTC = timezone.utc
-_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
+if TYPE_CHECKING:
+    from datetime import datetime
 
+    from .json_contract import JsonObject, JsonValue
 
-class PayloadError(RuntimeError):
-    """A broker or provider payload did not satisfy the protection contract."""
-
-
-def utc_now() -> datetime:
-    return datetime.now(tz=UTC)
-
-
-def utc_iso(value: datetime) -> str:
-    if value.tzinfo is None:
-        raise ValueError("UTC timestamp must be timezone-aware")
-    return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
-
-
-def parse_timestamp(value: object, *, field_name: str) -> datetime:
-    if not isinstance(value, str) or not value.strip():
-        raise PayloadError(f"{field_name} must be a non-empty RFC3339 timestamp")
-    try:
-        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise PayloadError(f"{field_name} is not a valid RFC3339 timestamp") from exc
-    if parsed.tzinfo is None:
-        raise PayloadError(f"{field_name} must include a timezone")
-    return parsed.astimezone(UTC)
+__all__ = [
+    "AccountDescriptor",
+    "AccountObservation",
+    "ConsumeResult",
+    "PayloadError",
+    "ProviderCredentials",
+    "ResetCredit",
+    "parse_timestamp",
+    "safe_label",
+    "stable_hash",
+    "utc_iso",
+    "utc_now",
+]
 
 
 def stable_hash(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+    """Hash one secret-bearing provider identifier into a stable reference.
 
+    Returns:
+        The resulting text.
 
-def safe_label(value: object) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise PayloadError("broker account label must be present")
-    normalized = _CONTROL_CHARACTERS.sub(" ", value.strip())
-    return normalized[:240]
+    """
+    digest = hashlib.sha256(value.encode("utf-8"))
+    return digest.hexdigest()
 
 
 @dataclass(frozen=True)
 class AccountDescriptor:
+    """Represent AccountDescriptor."""
+
     broker_account_id: str = field(repr=False)
     label: str
     enabled: bool
@@ -57,18 +58,31 @@ class AccountDescriptor:
 
     @property
     def account_ref(self) -> str:
+        """Handle account ref."""
         return stable_hash(self.broker_account_id)
 
     @classmethod
-    def from_broker(cls, payload: object) -> "AccountDescriptor":
+    def from_broker(cls, payload: JsonValue) -> AccountDescriptor:
+        """Build from broker.
+
+        Returns:
+            The resulting value.
+
+        Raises:
+            PayloadError: If provider data violates the payload contract.
+
+        """
         if not isinstance(payload, dict):
-            raise PayloadError("broker account entry must be an object")
+            msg = "broker account entry must be an object"
+            raise PayloadError(msg)
         metadata = payload.get("metadata")
         if not isinstance(metadata, dict):
-            raise PayloadError("broker account metadata must be an object")
+            msg = "broker account metadata must be an object"
+            raise PayloadError(msg)
         account_id = metadata.get("account_id")
         if not isinstance(account_id, str) or not account_id.strip():
-            raise PayloadError("broker account metadata is missing account_id")
+            msg = "broker account metadata is missing account_id"
+            raise PayloadError(msg)
         raw_priority = metadata.get("priority")
         priority = raw_priority if isinstance(raw_priority, int) and not isinstance(raw_priority, bool) else None
         return cls(
@@ -81,12 +95,16 @@ class AccountDescriptor:
 
 @dataclass(frozen=True)
 class ProviderCredentials:
+    """Represent ProviderCredentials."""
+
     access_token: str = field(repr=False)
     account_id: str = field(repr=False)
 
 
 @dataclass(frozen=True)
 class ResetCredit:
+    """Represent ResetCredit."""
+
     provider_id: str = field(repr=False)
     reset_type: str
     status: str
@@ -97,10 +115,12 @@ class ResetCredit:
 
     @property
     def credit_ref(self) -> str:
+        """Handle credit ref."""
         return stable_hash(self.provider_id)
 
     @property
     def is_redeemable(self) -> bool:
+        """Return whether is redeemable."""
         return (
             self.status == "available"
             and self.reset_type == "codex_rate_limits"
@@ -108,7 +128,8 @@ class ResetCredit:
             and self.expires_at is not None
         )
 
-    def sanitized(self) -> dict[str, Any]:
+    def sanitized(self) -> JsonObject:
+        """Return sanitized."""
         return {
             "credit_ref": self.credit_ref,
             "reset_type": self.reset_type,
@@ -121,24 +142,33 @@ class ResetCredit:
         }
 
     @classmethod
-    def from_provider(cls, payload: object) -> "ResetCredit":
+    def from_provider(cls, payload: JsonValue) -> ResetCredit:
+        """Build from provider.
+
+        Returns:
+            The resulting value.
+
+        Raises:
+            PayloadError: If provider data violates the payload contract.
+
+        """
         if not isinstance(payload, dict):
-            raise PayloadError("provider credit entry must be an object")
+            msg = "provider credit entry must be an object"
+            raise PayloadError(msg)
         provider_id = payload.get("id")
         if not isinstance(provider_id, str) or not provider_id.strip():
-            raise PayloadError("provider credit entry is missing its opaque id")
+            msg = "provider credit entry is missing its opaque id"
+            raise PayloadError(msg)
         reset_type = payload.get("reset_type")
         status = payload.get("status")
         if not isinstance(reset_type, str) or not reset_type.strip():
-            raise PayloadError("provider credit entry is missing reset_type")
+            msg = "provider credit entry is missing reset_type"
+            raise PayloadError(msg)
         if not isinstance(status, str) or not status.strip():
-            raise PayloadError("provider credit entry is missing status")
+            msg = "provider credit entry is missing status"
+            raise PayloadError(msg)
         raw_expiry = payload.get("expires_at")
-        expiry = (
-            parse_timestamp(raw_expiry, field_name="credit.expires_at")
-            if raw_expiry is not None
-            else None
-        )
+        expiry = parse_timestamp(raw_expiry, field_name="credit.expires_at") if raw_expiry is not None else None
         raw_title = payload.get("title")
         title = safe_label(raw_title) if isinstance(raw_title, str) and raw_title.strip() else None
         supported = payload.get("is_supported_by_plan")
@@ -147,7 +177,10 @@ class ResetCredit:
             provider_id=provider_id.strip(),
             reset_type=reset_type.strip(),
             status=status.strip(),
-            granted_at=parse_timestamp(payload.get("granted_at"), field_name="credit.granted_at"),
+            granted_at=parse_timestamp(
+                payload.get("granted_at"),
+                field_name="credit.granted_at",
+            ),
             expires_at=expiry,
             title=title,
             supported_by_plan=supported_by_plan,
@@ -156,15 +189,22 @@ class ResetCredit:
 
 @dataclass(frozen=True)
 class AccountObservation:
+    """Represent AccountObservation."""
+
     descriptor: AccountDescriptor
     captured_at: datetime
-    broker_state: dict[str, Any]
-    usage_state: dict[str, Any]
+    broker_state: JsonObject
+    usage_state: JsonObject
     available_count: int
     credits: tuple[ResetCredit, ...]
-    credentials: ProviderCredentials | None = field(default=None, repr=False, compare=False)
+    credentials: ProviderCredentials | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
 
-    def sanitized(self) -> dict[str, Any]:
+    def sanitized(self) -> JsonObject:
+        """Return sanitized."""
         return {
             "account_ref": self.descriptor.account_ref,
             "account_label": self.descriptor.label,
@@ -178,22 +218,8 @@ class AccountObservation:
         }
 
     def find_credit(self, credit_ref: str) -> ResetCredit | None:
-        return next((credit for credit in self.credits if credit.credit_ref == credit_ref), None)
-
-
-@dataclass(frozen=True)
-class ConsumeResult:
-    code: str
-    windows_reset: int
-
-    @classmethod
-    def from_provider(cls, payload: object) -> "ConsumeResult":
-        if not isinstance(payload, dict):
-            raise PayloadError("provider consume response must be an object")
-        code = payload.get("code")
-        if code not in {"reset", "nothing_to_reset", "no_credit", "already_redeemed"}:
-            raise PayloadError("provider consume response contains an unsupported code")
-        raw_windows = payload.get("windows_reset", 0)
-        if isinstance(raw_windows, bool) or not isinstance(raw_windows, int) or raw_windows < 0:
-            raise PayloadError("provider consume response windows_reset must be a non-negative integer")
-        return cls(code=code, windows_reset=raw_windows)
+        """Return find credit."""
+        return next(
+            (credit for credit in self.credits if credit.credit_ref == credit_ref),
+            None,
+        )

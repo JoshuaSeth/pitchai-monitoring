@@ -1,25 +1,40 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Tests for test host and performance checks behavior."""
+
 from __future__ import annotations
+
+import math
+from typing import TYPE_CHECKING
 
 from domain_checks.common_check import DomainCheckResult
 from domain_checks.main import (
-    _collect_host_health_violations,
-    _collect_performance_violations,
-    _compute_cpu_used_percent,
+    collect_host_health_violations,
+    collect_performance_violations,
+    compute_cpu_used_percent,
 )
+from domain_checks.testing import verify
+
+if TYPE_CHECKING:
+    from domain_checks.types import JsonObject
+
+_EXPECTED_CPU_USED_PERCENT = 80.0
 
 
 def test_compute_cpu_used_percent_basic() -> None:
-    used = _compute_cpu_used_percent(prev_total=100, prev_idle=10, cur_total=200, cur_idle=30)
-    assert used == 80.0
+    """Verify compute cpu used percent basic."""
+    used = compute_cpu_used_percent(prev_total=100, prev_idle=10, cur_total=200, cur_idle=30)
+    verify(used is not None and math.isclose(used, _EXPECTED_CPU_USED_PERCENT))
 
 
 def test_compute_cpu_used_percent_zero_or_negative_delta_returns_none() -> None:
-    assert _compute_cpu_used_percent(prev_total=100, prev_idle=10, cur_total=100, cur_idle=20) is None
-    assert _compute_cpu_used_percent(prev_total=200, prev_idle=10, cur_total=100, cur_idle=20) is None
+    """Verify compute cpu used percent zero or negative delta returns none."""
+    verify(compute_cpu_used_percent(prev_total=100, prev_idle=10, cur_total=100, cur_idle=20) is None)
+    verify(compute_cpu_used_percent(prev_total=200, prev_idle=10, cur_total=100, cur_idle=20) is None)
 
 
 def test_collect_host_health_violations_thresholds() -> None:
-    snap = {
+    """Verify collect host health violations thresholds."""
+    snap: JsonObject = {
         "disk": {
             "/": {"used_percent": 90.0},
             "/data": {"used_percent": 70.0},
@@ -29,7 +44,7 @@ def test_collect_host_health_violations_thresholds() -> None:
         "cpu_used_percent": 85.0,
         "load1_per_cpu": 2.5,
     }
-    violations = _collect_host_health_violations(
+    violations = collect_host_health_violations(
         snap,
         disk_used_percent_max=80.0,
         mem_used_percent_max=80.0,
@@ -37,14 +52,20 @@ def test_collect_host_health_violations_thresholds() -> None:
         cpu_used_percent_max=80.0,
         load1_per_cpu_max=2.0,
     )
-    assert any(v.startswith("Disk /:") for v in violations)
-    assert any(v.startswith("Memory:") for v in violations)
-    assert any(v.startswith("CPU:") for v in violations)
-    assert any(v.startswith("Load1/CPU:") for v in violations)
-    assert not any(v.startswith("Swap:") for v in violations)
+    disk_violations = [value.startswith("Disk /:") for value in violations]
+    memory_violations = [value.startswith("Memory:") for value in violations]
+    cpu_violations = [value.startswith("CPU:") for value in violations]
+    load_violations = [value.startswith("Load1/CPU:") for value in violations]
+    swap_violations = [value.startswith("Swap:") for value in violations]
+    verify(any(disk_violations))
+    verify(any(memory_violations))
+    verify(any(cpu_violations))
+    verify(any(load_violations))
+    verify(not any(swap_violations))
 
 
 def test_collect_performance_violations_thresholds_and_overrides() -> None:
+    """Verify collect performance violations thresholds and overrides."""
     results = {
         "a.example": DomainCheckResult(
             domain="a.example",
@@ -66,13 +87,13 @@ def test_collect_performance_violations_thresholds_and_overrides() -> None:
         ),
     }
 
-    slow = _collect_performance_violations(
+    slow = collect_performance_violations(
         results,
         http_elapsed_ms_max=1500.0,
         browser_elapsed_ms_max=4000.0,
         per_domain_overrides={"a.example": {"http_elapsed_ms_max": 2500.0}},
     )
-    domains = {entry["domain"] for entry in slow}
-    assert "a.example" not in domains  # overridden threshold
-    assert "b.example" in domains
-    assert "down.example" not in domains  # down domains are excluded from perf warnings
+    domains = {str(entry["domain"]) for entry in slow}
+    verify("a.example" not in domains)
+    verify("b.example" in domains)
+    verify("down.example" not in domains)

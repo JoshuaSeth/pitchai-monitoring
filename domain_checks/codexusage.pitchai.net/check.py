@@ -1,3 +1,6 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""PitchAI domain monitoring support for check."""
+
 CHECK = {
     "domain": "codexusage.pitchai.net",
     "url": "https://codexusage.pitchai.net/healthz",
@@ -20,7 +23,7 @@ CHECK = {
             "json_paths_required": ["status", "generated_at", "source_stale"],
             "json_paths_equal": {"status": "ok", "source_stale": False},
             "max_elapsed_ms": 1500,
-        }
+        },
     ],
     "forbidden_text_any": [
         "maintenance",

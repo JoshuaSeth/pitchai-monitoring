@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import anyio
-
 from pitchai_quality.source_files import PYTHON_SUFFIXES, REPOSITORY_ROOT, RUNTIME_PYTHON_SUFFIXES, iter_python_files
 from pitchai_quality.strict_policy import EXPECTED_GATES, RUFF_ARGUMENTS, SEMGREP_ARGUMENTS
 from pitchai_quality.tool_environment import locked_tool_environment

@@ -28,8 +28,7 @@ _MANIFEST_RELATIVE_PATH = "quality/portable-enforcement-manifest.json"
 _STRICT_WORKFLOW_RELATIVE_PATH = ".github/workflows/python-strict.yml"
 _EXPECTED_PORTABLE_MANIFEST_SHA256 = "ab3554dddfed6d42abfa95296874c172efbe6eb3c074c01c671ec2a7385a7f24"
 _CONFIG_PATHS = (
-    _QUALITY_ROOT / "pyproject.toml",
-    _QUALITY_ROOT / ".semgrep.yml",
+    _QUALITY_ROOT / "pyproject.toml", _QUALITY_ROOT / ".semgrep.yml",
     _QUALITY_ROOT / ".semgrepignore",
     _STRICT_WORKFLOW_PATH,
 )
@@ -78,7 +77,10 @@ def _portable_disk_paths() -> set[str]:
         )
         if not generated and (path.is_file() or path.is_symlink()):
             paths.add(path.relative_to(REPOSITORY_ROOT).as_posix())
-    for relative in (_STRICT_WORKFLOW_RELATIVE_PATH, ".python-version", "QUALITY.md", "pyproject.toml", "uv.lock"):
+    for relative in (
+        _STRICT_WORKFLOW_RELATIVE_PATH, ".github/workflows/ci-cd.yaml", ".python-version",
+        "QUALITY.md", "pyproject.toml", "uv.lock",
+    ):
         path = REPOSITORY_ROOT / relative
         if path.is_file() or path.is_symlink():
             paths.add(relative)

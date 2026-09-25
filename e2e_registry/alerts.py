@@ -1,28 +1,43 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Human-readable alert and read-only triage message builders."""
+
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, NamedTuple
 
-import httpx
-
-from domain_checks.dispatch_client import DispatchConfig, dispatch_job, run_ui_url, wait_for_terminal_status, get_run_log_tail
-from domain_checks.dispatch_client import extract_last_agent_message_from_exec_log, extract_last_error_message_from_exec_log
 from domain_checks.telegram import TelegramConfig, send_telegram_message_chunked
-from e2e_registry import db as dbm
-from e2e_registry.settings import RegistrySettings
 
+if TYPE_CHECKING:
+    import httpx
+
+    from e2e_registry.models import JsonObject, JsonValue
+    from e2e_registry.settings import RegistrySettings
 
 LOGGER = logging.getLogger("e2e-registry")
 
 
-def _safe_json(obj: Any, *, max_len: int = 20_000) -> str:
-    try:
-        s = json.dumps(obj, ensure_ascii=False, sort_keys=True, indent=2)
-    except Exception:
-        s = str(obj)
-    return s if len(s) <= max_len else s[:max_len] + "\n...truncated..."
+class FailureAlertDetails(NamedTuple):
+    """Stable failure facts shared by Telegram and triage messages."""
+
+    tenant_id: str
+    test_id: str
+    test_name: str
+    test_kind: str | None
+    base_url: str
+    run_id: str
+    fail_streak: int
+    down_after_failures: int
+    error_kind: str | None
+    error_message: str | None
+    final_url: str | None
+    artifacts: JsonObject | None
+
+
+def _safe_json(value: JsonValue, *, max_len: int = 20_000) -> str:
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2)
+    return encoded if len(encoded) <= max_len else encoded[:max_len] + "\n...truncated..."
 
 
 def _public_url(settings: RegistrySettings, path: str) -> str:
@@ -37,40 +52,41 @@ def _public_url(settings: RegistrySettings, path: str) -> str:
 def build_failure_telegram_message(
     *,
     settings: RegistrySettings,
-    tenant_id: str,
-    test_id: str,
-    test_name: str,
-    test_kind: str | None = None,
-    run_id: str,
-    fail_streak: int,
-    down_after_failures: int,
-    error_kind: str | None,
-    error_message: str | None,
-    final_url: str | None,
-    artifacts: dict[str, Any] | None,
+    details: FailureAlertDetails,
 ) -> str:
-    lines = ["External E2E test is FAILING ❌", f"Test: {test_name}", f"Test ID: {test_id}", f"Run ID: {run_id}"]
-    if test_kind:
-        lines.append(f"Kind: {str(test_kind)[:40]}")
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={int(fail_streak)}/{int(down_after_failures)}")
-    if error_kind:
-        lines.append(f"Error kind: {str(error_kind)[:120]}")
-    if error_message:
-        lines.append(f"Error: {str(error_message)[:500]}")
-    if final_url:
-        lines.append(f"Final URL: {str(final_url)[:800]}")
+    """Build the operator-facing Telegram message for a failure transition.
 
-    run_link = _public_url(settings, f"/ui/runs/{run_id}")
-    test_link = _public_url(settings, f"/ui/tests/{test_id}")
-    lines.append(f"UI: {run_link}")
-    lines.append(f"Test: {test_link}")
+    Returns:
+        A complete Telegram alert message.
+    """
+    lines = [
+        "External E2E test is FAILING ❌",
+        f"Test: {details.test_name}",
+        f"Test ID: {details.test_id}",
+        f"Run ID: {details.run_id}",
+    ]
+    if details.test_kind:
+        lines.append(f"Kind: {str(details.test_kind)[:40]}")
+    if details.down_after_failures > 1:
+        lines.append(
+            f"Debounce: fail_streak={int(details.fail_streak)}/{int(details.down_after_failures)}",
+        )
+    if details.error_kind:
+        lines.append(f"Error kind: {str(details.error_kind)[:120]}")
+    if details.error_message:
+        lines.append(f"Error: {str(details.error_message)[:500]}")
+    if details.final_url:
+        lines.append(f"Final URL: {str(details.final_url)[:800]}")
 
-    if artifacts and isinstance(artifacts, dict):
+    run_link = _public_url(settings, f"/ui/runs/{details.run_id}")
+    test_link = _public_url(settings, f"/ui/tests/{details.test_id}")
+    lines.extend((f"UI: {run_link}", f"Test: {test_link}"))
+
+    if details.artifacts:
         # Surface a stable artifact link if present.
-        names = []
+        names: list[str] = []
         for k in ("failure_screenshot", "trace_zip", "run_log"):
-            v = artifacts.get(k)
+            v = details.artifacts.get(k)
             if isinstance(v, str) and v.strip():
                 names.append(k)
         if names:
@@ -86,6 +102,11 @@ def build_recovery_telegram_message(
     test_name: str,
     run_id: str,
 ) -> str:
+    """Build the operator-facing Telegram message for a recovery transition.
+
+    Returns:
+        A complete Telegram recovery message.
+    """
     run_link = _public_url(settings, f"/ui/runs/{run_id}")
     return "\n".join(
         [
@@ -93,7 +114,7 @@ def build_recovery_telegram_message(
             f"Test: {test_name}",
             f"Test ID: {test_id}",
             f"Run: {run_link}",
-        ]
+        ],
     ).strip()
 
 
@@ -111,24 +132,22 @@ def _dispatch_read_only_rules() -> str:
 
 def build_dispatch_prompt_for_failure(
     *,
-    test_id: str,
-    test_name: str,
-    test_kind: str | None = None,
-    base_url: str,
-    run_id: str,
-    error_kind: str | None,
-    error_message: str | None,
-    artifacts: dict[str, Any] | None,
+    details: FailureAlertDetails,
 ) -> str:
-    payload = {
-        "test_id": test_id,
-        "test_name": test_name,
-        "test_kind": test_kind,
-        "base_url": base_url,
-        "run_id": run_id,
-        "error_kind": error_kind,
-        "error_message": error_message,
-        "artifacts": artifacts or {},
+    """Build a read-only investigation prompt from normalized failure facts.
+
+    Returns:
+        A bounded prompt that prohibits mutating triage actions.
+    """
+    payload: JsonObject = {
+        "test_id": details.test_id,
+        "test_name": details.test_name,
+        "test_kind": details.test_kind,
+        "base_url": details.base_url,
+        "run_id": details.run_id,
+        "error_kind": details.error_kind,
+        "error_message": details.error_message,
+        "artifacts": details.artifacts or {},
     }
     return (
         "An external developer-submitted end-to-end UI test is failing.\n\n"
@@ -154,6 +173,7 @@ async def maybe_send_failure_alert(
     settings: RegistrySettings,
     msg: str,
 ) -> None:
+    """Send an alert only when Telegram alerting is explicitly configured."""
     if not settings.alerts_enabled:
         return
     if not settings.telegram_bot_token or not settings.telegram_chat_id:
@@ -162,105 +182,3 @@ async def maybe_send_failure_alert(
     cfg = TelegramConfig(bot_token=settings.telegram_bot_token, chat_id=settings.telegram_chat_id)
     ok_all, _resps = await send_telegram_message_chunked(http_client, cfg, msg)
     LOGGER.info("Telegram alert sent ok=%s", ok_all)
-
-
-async def maybe_dispatch_failure_investigation(
-    *,
-    http_client: httpx.AsyncClient,
-    settings: RegistrySettings,
-    prompt: str,
-    context: dict[str, Any] | None = None,
-) -> None:
-    if not settings.dispatch_enabled:
-        return
-    if not settings.dispatch_token:
-        LOGGER.warning("Dispatcher token missing; skipping dispatch")
-        return
-
-    cfg = DispatchConfig(
-        base_url=settings.dispatch_base_url,
-        token=settings.dispatch_token,
-        model=(settings.dispatch_model or None),
-        poll_interval_seconds=5.0,
-        max_wait_seconds=20 * 60,
-        log_tail_bytes=250_000,
-    )
-
-    config_toml = "\n".join(
-        [
-            'approval_policy = "never"',
-            'sandbox_mode = "danger-full-access"',
-            "hide_agent_reasoning = true",
-            "",
-        ]
-    )
-
-    state_key = "e2e-registry.failure"
-    bundle, _runner = await dispatch_job(http_client, cfg, prompt=prompt, config_toml=config_toml, state_key=state_key)
-    status = await wait_for_terminal_status(http_client, cfg, bundle=bundle)
-    queue_state = str(status.get("queue_state") or "")
-    ui = run_ui_url(cfg.base_url, bundle)
-
-    tail = await get_run_log_tail(http_client, cfg, bundle=bundle)
-    msg = extract_last_agent_message_from_exec_log(tail)
-    if msg:
-        LOGGER.info("Dispatch completed state=%s ui=%s last_msg=%s", queue_state, ui, msg[:200])
-        try:
-            await asyncio.to_thread(
-                dbm.insert_dispatch_run,
-                settings,
-                state_key=state_key,
-                bundle=bundle,
-                ui_url=ui,
-                queue_state=queue_state,
-                agent_message=msg,
-                error_message=None,
-                context=context or {},
-            )
-        except Exception:
-            LOGGER.exception("Failed to persist dispatch run record")
-        await maybe_send_failure_alert(
-            http_client=http_client,
-            settings=settings,
-            msg="\n".join(["Dispatcher triage completed:", ui, "", msg]).strip(),
-        )
-        return
-
-    if queue_state != "processed":
-        err = extract_last_error_message_from_exec_log(tail) or ""
-        try:
-            await asyncio.to_thread(
-                dbm.insert_dispatch_run,
-                settings,
-                state_key=state_key,
-                bundle=bundle,
-                ui_url=ui,
-                queue_state=queue_state,
-                agent_message=None,
-                error_message=err,
-                context=context or {},
-            )
-        except Exception:
-            LOGGER.exception("Failed to persist dispatch run record")
-        await maybe_send_failure_alert(
-            http_client=http_client,
-            settings=settings,
-            msg=f"Dispatcher triage failed state={queue_state} ui={ui}\nError: {err[:500]}",
-        )
-        return
-
-    # processed but no message
-    try:
-        await asyncio.to_thread(
-            dbm.insert_dispatch_run,
-            settings,
-            state_key=state_key,
-            bundle=bundle,
-            ui_url=ui,
-            queue_state=queue_state,
-            agent_message=None,
-            error_message="no_agent_message",
-            context=context or {},
-        )
-    except Exception:
-        LOGGER.exception("Failed to persist dispatch run record")

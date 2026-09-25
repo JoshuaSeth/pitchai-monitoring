@@ -34,6 +34,7 @@ COPY domain_checks ./domain_checks
 COPY e2e_registry ./e2e_registry
 COPY e2e_runner ./e2e_runner
 COPY e2e_sandbox ./e2e_sandbox
+RUN chmod 0644 /app/e2e_sandbox/puppeteer_js_runner.js
 COPY specs ./specs
 
 CMD ["python", "-m", "domain_checks.main"]

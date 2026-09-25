@@ -1,56 +1,71 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Bounded Nginx access and error-log analysis."""
+
 from __future__ import annotations
 
-import gzip
-import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, NamedTuple, NotRequired, TypedDict, Unpack
 
+from domain_checks.nginx_log_io import tail_bytes
+
+if TYPE_CHECKING:
+    from datetime import tzinfo
 
 _ACCESS_RE = re.compile(
-    r'^\S+\s+\S+\s+\S+\s+\[(?P<ts>[^\]]+)\]\s+"(?P<req>[^"]*)"\s+(?P<status>\d{3})\s+(?P<size>\S+)\s+"(?P<ref>[^"]*)"\s+"(?P<ua>[^"]*)"'
+    r'^\S+\s+\S+\s+\S+\s+\[(?P<ts>[^\]]+)\]\s+"(?P<req>[^"]*)"\s+'
+    r'(?P<status>\d{3})\s+(?P<size>\S+)\s+"(?P<ref>[^"]*)"\s+'
+    r'"(?P<ua>[^"]*)"',
+)
+_ERROR_TS_RE = re.compile(
+    r"^(?P<ts>\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\s+"
+    r"\[(?P<level>\w+)\]\s+",
 )
 
-_ERROR_TS_RE = re.compile(r"^(?P<ts>\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(?P<level>\w+)\]\s+")
-
-
-def _tail_bytes(path: Path, *, max_bytes: int) -> str:
-    """
-    Best-effort tail read.
-    - Supports .gz (reads entire compressed file, so use small max_bytes for .gz configs).
-    """
-    p = Path(path)
-    if not p.exists():
-        return ""
-    if p.suffix == ".gz":
-        try:
-            with gzip.open(p, "rt", encoding="utf-8", errors="replace") as f:
-                data = f.read()
-            return data[-max(1, int(max_bytes)) :]
-        except Exception:
-            return ""
-
-    try:
-        with open(p, "rb") as f:
-            f.seek(0, os.SEEK_END)
-            size = f.tell()
-            n = max(1, min(int(max_bytes), int(size)))
-            f.seek(size - n, os.SEEK_SET)
-            raw = f.read(n)
-        return raw.decode("utf-8", errors="replace")
-    except Exception:
-        return ""
+_CLIENT_ERROR_MIN = 400
+_SERVER_ERROR_MIN = 500
+_STATUS_MAX_EXCLUSIVE = 600
+_UPSTREAM_SAMPLE_LIMIT = 3
 
 
 @dataclass(frozen=True)
 class NginxAccessWindowStats:
+    """Summarize status codes in a recent access-log window."""
+
     total: int
     status_5xx: int
     status_502_504: int
     status_4xx: int
     sample_lines: list[str]
+
+
+class _AccessEntry(NamedTuple):
+    timestamp: float
+    status: int
+
+
+def _parse_access_entry(line: str) -> _AccessEntry | None:
+    match = _ACCESS_RE.match(line.strip())
+    if match is None:
+        return None
+    try:
+        timestamp = (
+            datetime
+            .strptime(
+                match.group("ts"),
+                "%d/%b/%Y:%H:%M:%S %z",
+            )
+            .astimezone(UTC)
+            .timestamp()
+        )
+    except ValueError:
+        return None
+    try:
+        status = int(match.group("status"))
+    except ValueError:
+        status = 0
+    return _AccessEntry(timestamp, status)
 
 
 def compute_access_window_stats(
@@ -61,45 +76,29 @@ def compute_access_window_stats(
     max_bytes: int = 1_000_000,
     sample_limit: int = 8,
 ) -> NginxAccessWindowStats | None:
-    txt = _tail_bytes(Path(access_log_path), max_bytes=int(max_bytes))
-    if not txt.strip():
+    """Compute recent Nginx access status counts and bounded failure samples.
+
+    Returns:
+        Recent access-log statistics, or ``None`` when the log is empty.
+    """
+    text = tail_bytes(access_log_path, max_bytes=int(max_bytes))
+    if not text.strip():
         return None
-
-    cutoff = now.astimezone(timezone.utc).timestamp() - max(1, int(window_seconds))
-    total = 0
-    status_5xx = 0
-    status_502_504 = 0
-    status_4xx = 0
+    cutoff = now.astimezone(UTC).timestamp() - max(1, int(window_seconds))
+    total = status_5xx = status_502_504 = status_4xx = 0
     samples: list[str] = []
-
-    for line in reversed(txt.splitlines()):
-        m = _ACCESS_RE.match(line.strip())
-        if not m:
+    for line in reversed(text.splitlines()):
+        entry = _parse_access_entry(line)
+        if entry is None:
             continue
-        ts_s = m.group("ts")
-        try:
-            dt = datetime.strptime(ts_s, "%d/%b/%Y:%H:%M:%S %z")
-        except Exception:
-            continue
-        ts = dt.astimezone(timezone.utc).timestamp()
-        if ts < cutoff:
+        if entry.timestamp < cutoff:
             break
-
-        try:
-            status = int(m.group("status"))
-        except Exception:
-            status = 0
-
         total += 1
-        if 500 <= status < 600:
-            status_5xx += 1
-        if status in {502, 504}:
-            status_502_504 += 1
-        if 400 <= status < 500:
-            status_4xx += 1
-        if (status in {502, 503, 504}) and len(samples) < int(sample_limit):
+        status_5xx += int(_SERVER_ERROR_MIN <= entry.status < _STATUS_MAX_EXCLUSIVE)
+        status_502_504 += int(entry.status in {502, 504})
+        status_4xx += int(_CLIENT_ERROR_MIN <= entry.status < _SERVER_ERROR_MIN)
+        if entry.status in {502, 503, 504} and len(samples) < int(sample_limit):
             samples.append(line.strip()[:800])
-
     samples.reverse()
     return NginxAccessWindowStats(
         total=total,
@@ -112,6 +111,8 @@ def compute_access_window_stats(
 
 @dataclass(frozen=True)
 class NginxUpstreamErrorEvent:
+    """Represent one relevant Nginx upstream error event."""
+
     ts: str
     level: str
     server: str | None
@@ -119,14 +120,70 @@ class NginxUpstreamErrorEvent:
     message: str
 
 
+class NginxErrorOptions(TypedDict):
+    """Optional bounds accepted by error-log parsing."""
+
+    max_bytes: NotRequired[int]
+    max_events: NotRequired[int]
+
+
 def _extract_kv(line: str, key: str) -> str | None:
     marker = f"{key}: "
     if marker not in line:
         return None
-    rest = line.split(marker, 1)[1]
-    if "," in rest:
-        rest = rest.split(",", 1)[0]
-    return rest.strip().strip('"') or None
+    value = line.split(marker, 1)[1]
+    if "," in value:
+        value = value.split(",", 1)[0]
+    return value.strip().strip('"') or None
+
+
+def _relevant_upstream_error(line: str) -> bool:
+    lowered = line.lower()
+    if "upstream" not in lowered and "connect()" not in lowered:
+        return False
+    signals = (
+        "timed out",
+        "failed",
+        "refused",
+        "no live upstreams",
+        "upstream prematurely closed",
+    )
+    if any(signal in lowered for signal in signals):
+        return True
+    return "upstream response is buffered" not in lowered
+
+
+class _TimestampedError(NamedTuple):
+    timestamp: float
+    event: NginxUpstreamErrorEvent
+
+
+def _parse_error_event(line: str, local_tz: tzinfo) -> _TimestampedError | None:
+    stripped = line.strip()
+    match = _ERROR_TS_RE.match(stripped)
+    if match is None or not _relevant_upstream_error(stripped):
+        return None
+    timestamp_text = match.group("ts")
+    try:
+        timestamp = (
+            datetime
+            .strptime(
+                timestamp_text,
+                "%Y/%m/%d %H:%M:%S",
+            )
+            .replace(tzinfo=local_tz)
+            .timestamp()
+        )
+    except ValueError:
+        return None
+    event = NginxUpstreamErrorEvent(
+        ts=timestamp_text,
+        level=match.group("level"),
+        server=_extract_kv(stripped, "server"),
+        upstream=_extract_kv(stripped, "upstream"),
+        message=stripped[:1000],
+    )
+    return _TimestampedError(timestamp, event)
 
 
 def parse_recent_upstream_errors(
@@ -134,72 +191,55 @@ def parse_recent_upstream_errors(
     error_log_path: str,
     now: datetime,
     window_seconds: int,
-    local_tz,
-    max_bytes: int = 1_000_000,
-    max_events: int = 200,
+    local_tz: tzinfo,
+    **options: Unpack[NginxErrorOptions],
 ) -> list[NginxUpstreamErrorEvent]:
-    txt = _tail_bytes(Path(error_log_path), max_bytes=int(max_bytes))
-    if not txt.strip():
-        return []
+    """Parse recent, relevant upstream errors from an Nginx error log.
 
-    # error.log timestamps do not include TZ; interpret using configured tz (host local).
+    Returns:
+        Relevant upstream failures ordered from oldest to newest.
+    """
+    max_bytes = int(options.get("max_bytes", 1_000_000))
+    max_events = int(options.get("max_events", 200))
+    text = tail_bytes(error_log_path, max_bytes=max_bytes)
+    if not text.strip():
+        return []
     cutoff = now.astimezone(local_tz).timestamp() - max(1, int(window_seconds))
     events: list[NginxUpstreamErrorEvent] = []
-
-    for line in reversed(txt.splitlines()):
-        s = line.strip()
-        if not s:
+    for line in reversed(text.splitlines()):
+        parsed = _parse_error_event(line, local_tz)
+        if parsed is None:
             continue
-        m = _ERROR_TS_RE.match(s)
-        if not m:
-            continue
-        ts_s = m.group("ts")
-        level = m.group("level")
-        try:
-            dt = datetime.strptime(ts_s, "%Y/%m/%d %H:%M:%S").replace(tzinfo=local_tz)
-        except Exception:
-            continue
-        ts = dt.timestamp()
-        if ts < cutoff:
+        if parsed.timestamp < cutoff:
             break
-
-        # Focus on upstream failures (timeouts/connect errors/502/504 surfaces).
-        low = s.lower()
-        if "upstream" not in low and "connect()" not in low:
-            continue
-        if not any(x in low for x in ("timed out", "failed", "refused", "no live upstreams", "upstream prematurely closed")):
-            # Keep some upstream warnings, but avoid noise like buffering warnings.
-            if "upstream response is buffered" in low:
-                continue
-
-        server = _extract_kv(s, "server")
-        upstream = _extract_kv(s, "upstream")
-        msg = s
-        events.append(
-            NginxUpstreamErrorEvent(
-                ts=ts_s,
-                level=level,
-                server=server,
-                upstream=upstream,
-                message=msg[:1000],
-            )
-        )
-        if len(events) >= int(max_events):
+        events.append(parsed.event)
+        if len(events) >= max_events:
             break
-
     events.reverse()
     return events
 
 
-def summarize_upstream_errors(events: list[NginxUpstreamErrorEvent]) -> dict[str, Any]:
-    by_server: dict[str, int] = {}
-    samples: dict[str, list[str]] = {}
-    for e in events:
-        server = e.server or "(unknown)"
-        by_server[server] = int(by_server.get(server, 0)) + 1
-        if server not in samples:
-            samples[server] = []
-        if len(samples[server]) < 3:
-            samples[server].append(e.message)
-    return {"counts_by_server": by_server, "samples_by_server": samples}
+class NginxUpstreamSummary(TypedDict):
+    """Aggregate upstream failure counts and samples by server."""
 
+    counts_by_server: dict[str, int]
+    samples_by_server: dict[str, list[str]]
+
+
+def summarize_upstream_errors(
+    events: list[NginxUpstreamErrorEvent],
+) -> NginxUpstreamSummary:
+    """Aggregate upstream failure counts and bounded samples by server.
+
+    Returns:
+        Counts and bounded message samples grouped by server.
+    """
+    counts: dict[str, int] = {}
+    samples: dict[str, list[str]] = {}
+    for event in events:
+        server = event.server or "(unknown)"
+        counts[server] = int(counts.get(server, 0)) + 1
+        samples.setdefault(server, [])
+        if len(samples[server]) < _UPSTREAM_SAMPLE_LIMIT:
+            samples[server].append(event.message)
+    return {"counts_by_server": counts, "samples_by_server": samples}

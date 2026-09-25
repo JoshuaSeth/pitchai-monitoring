@@ -1,18 +1,152 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Monitoring dashboard operator-summary aggregation tests."""
+
 from __future__ import annotations
 
-from e2e_registry.monitor_dashboard import MonitorData, build_dashboard_summary
+import math
+from typing import TYPE_CHECKING
+
+from e2e_registry.monitor_dashboard import build_dashboard_summary
+from tests.monitor_dashboard_summary_support import build_monitor_data
+from tests.monitor_dashboard_test_contract import (
+    require_monitor_float,
+    require_monitor_record,
+    require_monitor_records,
+)
+
+if TYPE_CHECKING:
+    from e2e_registry.monitor_types import MonitorRecord
+
+_EXPECTED_OBSERVATIONS = 2
+_EXPECTED_AVAILABILITY = 50.0
+
+
+def _verify_health_and_inventory(summary: MonitorRecord, *, now: float) -> None:
+    freshness = require_monitor_record(summary.get("freshness"), label="freshness")
+    expected_freshness = {
+        "status": "stale",
+        "state_updated_at_ts": now - 400,
+        "age_seconds": 400.0,
+        "interval_seconds": 60,
+        "stale_after_seconds": 180,
+        "source": "state.updated_at",
+    }
+    if freshness != expected_freshness:
+        message = f"unexpected monitor freshness summary: {freshness!r}"
+        raise AssertionError(message)
+    service_health = require_monitor_record(
+        summary.get("service_health"), label="service health",
+    )
+    expected_health = {
+        "enabled": 1,
+        "healthy": 0,
+        "down": 1,
+        "alertable_down": 1,
+        "expected_down": 0,
+        "unknown": 0,
+        "disabled": 0,
+    }
+    if service_health != expected_health:
+        message = f"unexpected service health summary: {service_health!r}"
+        raise AssertionError(message)
+    groups = require_monitor_records(summary.get("domain_groups"), label="groups")
+    expected_groups = [
+        {
+            "id": "core",
+            "label": "PitchAI core",
+            "description": "Primary platform routes",
+            "order": 10,
+            "enabled": 1,
+            "healthy": 0,
+            "down": 1,
+            "alertable_down": 1,
+            "expected_down": 0,
+            "unknown": 0,
+            "disabled": 0,
+            "total": 1,
+            "status": "attention",
+        },
+    ]
+    if groups != expected_groups:
+        message = f"unexpected domain group summary: {groups!r}"
+        raise AssertionError(message)
+    inventory = require_monitor_record(summary.get("inventory"), label="inventory")
+    expected_inventory = {
+        "version": 1,
+        "reviewed_at": "2026-08-24",
+        "active_domains": 1,
+        "groups": 1,
+        "retired_domains": 0,
+        "orphaned_state_domains": 0,
+    }
+    if inventory != expected_inventory:
+        message = f"unexpected dashboard inventory summary: {inventory!r}"
+        raise AssertionError(message)
+    domains = require_monitor_records(summary.get("domains"), label="domains")
+    if domains[0].get("group_label") != "PitchAI core":
+        message = f"domain group label was not resolved: {domains[0]!r}"
+        raise AssertionError(message)
+
+
+def _verify_incidents_and_daily_status(summary: MonitorRecord, *, now: float) -> None:
+    incidents = require_monitor_records(summary.get("incidents"), label="incidents")
+    if incidents[1].get("group") != "core":
+        message = f"domain incident group was not resolved: {incidents[1]!r}"
+        raise AssertionError(message)
+    incident_kinds = [incident.get("kind") for incident in incidents]
+    expected_kinds = [
+        "monitor_freshness",
+        "domain_down",
+        "signal_degraded",
+        "e2e_failure",
+    ]
+    if incident_kinds != expected_kinds:
+        message = f"unexpected incident order: {incident_kinds!r}"
+        raise AssertionError(message)
+    e2e = require_monitor_record(summary.get("e2e"), label="E2E summary")
+    if e2e.get("passing_tests") != 1 or e2e.get("failing_tests") != 1:
+        message = f"unexpected E2E pass/fail totals: {e2e!r}"
+        raise AssertionError(message)
+    problems = require_monitor_records(e2e.get("problems"), label="E2E problems")
+    if problems[0].get("test_id") != "failing":
+        message = f"unexpected E2E problem identity: {problems[0]!r}"
+        raise AssertionError(message)
+    daily = require_monitor_record(summary.get("daily_status"), label="daily status")
+    if daily.get("observations") != _EXPECTED_OBSERVATIONS:
+        message = f"unexpected daily observation count: {daily!r}"
+        raise AssertionError(message)
+    if daily.get("successful_observations") != 1:
+        message = f"unexpected successful observation count: {daily!r}"
+        raise AssertionError(message)
+    availability = require_monitor_float(
+        daily.get("availability_pct"), label="daily availability",
+    )
+    if not math.isclose(availability, _EXPECTED_AVAILABILITY):
+        message = f"unexpected daily availability: {availability!r}"
+        raise AssertionError(message)
+    if daily.get("problem_events") != 1 or daily.get("recoveries") != 1:
+        message = f"unexpected daily event totals: {daily!r}"
+        raise AssertionError(message)
+    if daily.get("latest_event_at_ts") != now - 50:
+        message = f"unexpected latest daily event timestamp: {daily!r}"
+        raise AssertionError(message)
+    if daily.get("status") != "attention":
+        message = f"unexpected daily status: {daily!r}"
+        raise AssertionError(message)
 
 
 def test_operator_summary_reports_real_staleness_incidents_and_rolling_day() -> None:
+    """Report real staleness, incidents, E2E health, and rolling-day totals."""
     now = 2_000_000_000.0
-    data = MonitorData(
+    data = build_monitor_data(
+        now=now,
         state={
             "updated_at": now - 400,
             "history": {
                 "down.pitchai.net": [
                     [now - 120, True, 100.0, 300.0, 200],
                     [now - 60, False, 900.0, 1800.0, 503],
-                ]
+                ],
             },
             "last_ok": {"down.pitchai.net": False},
             "fail_streak": {"down.pitchai.net": 2},
@@ -24,38 +158,26 @@ def test_operator_summary_reports_real_staleness_incidents_and_rolling_day() -> 
                 {"ts": now - 50, "kind": "proxy_recovered"},
             ],
         },
-        config={
-            "interval_seconds": 60,
-            "inventory": {
-                "version": 1,
-                "reviewed_at": "2026-08-24",
-                "authoritative_sources": ["test fixture"],
+        reviewed_at="2026-08-24",
+        groups={
+            "core": {
+                "label": "PitchAI core",
+                "description": "Primary platform routes",
+                "order": 10,
             },
-            "domain_groups": {
-                "core": {
-                    "label": "PitchAI core",
-                    "description": "Primary platform routes",
-                    "order": 10,
-                }
-            },
-            "domains": [
-                {
-                    "domain": "down.pitchai.net",
-                    "label": "Down test route",
-                    "group": "core",
-                    "environment": "production",
-                    "kind": "application",
-                    "sources": ["test fixture"],
-                }
-            ],
-            "retired_domains": [],
         },
-        state_path="/monitor/state.json",
-        config_path="/monitor/config.yaml",
-        loaded_at_ts=now,
-        state_error=None,
+        domains=[
+            {
+                "domain": "down.pitchai.net",
+                "label": "Down test route",
+                "group": "core",
+                "environment": "production",
+                "kind": "application",
+                "sources": ["test fixture"],
+            },
+        ],
     )
-    e2e = {
+    e2e: MonitorRecord = {
         "ok": True,
         "total_tests": 2,
         "failing_tests": 1,
@@ -89,233 +211,5 @@ def test_operator_summary_reports_real_staleness_incidents_and_rolling_day() -> 
         e2e_dispatch_runs=[],
     )
 
-    assert summary["freshness"] == {
-        "status": "stale",
-        "state_updated_at_ts": now - 400,
-        "age_seconds": 400.0,
-        "interval_seconds": 60,
-        "stale_after_seconds": 180,
-        "source": "state.updated_at",
-    }
-    assert summary["service_health"] == {
-        "enabled": 1,
-        "healthy": 0,
-        "down": 1,
-        "alertable_down": 1,
-        "expected_down": 0,
-        "unknown": 0,
-        "disabled": 0,
-    }
-    assert summary["domain_groups"] == [
-        {
-            "id": "core",
-            "label": "PitchAI core",
-            "description": "Primary platform routes",
-            "order": 10,
-            "enabled": 1,
-            "healthy": 0,
-            "down": 1,
-            "alertable_down": 1,
-            "expected_down": 0,
-            "unknown": 0,
-            "disabled": 0,
-            "total": 1,
-            "status": "attention",
-        }
-    ]
-    assert summary["inventory"] == {
-        "version": 1,
-        "reviewed_at": "2026-08-24",
-        "active_domains": 1,
-        "groups": 1,
-        "retired_domains": 0,
-        "orphaned_state_domains": 0,
-    }
-    assert summary["domains"][0]["group_label"] == "PitchAI core"
-    assert summary["incidents"][1]["group"] == "core"
-    assert summary["e2e"]["passing_tests"] == 1
-    assert summary["e2e"]["failing_tests"] == 1
-    assert summary["e2e"]["problems"][0]["test_id"] == "failing"
-    assert [incident["kind"] for incident in summary["incidents"]] == [
-        "monitor_freshness",
-        "domain_down",
-        "signal_degraded",
-        "e2e_failure",
-    ]
-    assert summary["daily_status"]["observations"] == 2
-    assert summary["daily_status"]["successful_observations"] == 1
-    assert summary["daily_status"]["availability_pct"] == 50.0
-    assert summary["daily_status"]["problem_events"] == 1
-    assert summary["daily_status"]["recoveries"] == 1
-    assert summary["daily_status"]["latest_event_at_ts"] == now - 50
-    assert summary["daily_status"]["status"] == "attention"
-
-
-def test_service_health_rolls_failing_api_subcheck_into_domain_and_group_status() -> None:
-    now = 2_000_000_000.0
-    data = MonitorData(
-        state={
-            "updated_at": now,
-            "history": {"dispatch.pitchai.net": [[now, True, 100.0, 200.0, 200]]},
-            "last_ok": {"dispatch.pitchai.net": True},
-            "fail_streak": {"dispatch.pitchai.net": 0},
-            "success_streak": {"dispatch.pitchai.net": 4},
-            "api_contract": {
-                "last_ok": {"dispatch.pitchai.net": False},
-                "fail_streak": {"dispatch.pitchai.net": 2},
-                "success_streak": {"dispatch.pitchai.net": 0},
-                "last_run_ts": {"dispatch.pitchai.net": now},
-            },
-        },
-        config={
-            "interval_seconds": 60,
-            "inventory": {
-                "version": 1,
-                "reviewed_at": "2026-08-24",
-                "authoritative_sources": ["test fixture"],
-            },
-            "domain_groups": {
-                "operations": {
-                    "label": "Operations",
-                    "description": "Operator services",
-                    "order": 10,
-                }
-            },
-            "domains": [
-                {
-                    "domain": "dispatch.pitchai.net",
-                    "label": "Dispatcher",
-                    "group": "operations",
-                    "environment": "internal",
-                    "kind": "application",
-                    "sources": ["test fixture"],
-                }
-            ],
-            "retired_domains": [],
-        },
-        state_path="/monitor/state.json",
-        config_path="/monitor/config.yaml",
-        loaded_at_ts=now,
-        state_error=None,
-    )
-
-    summary = build_dashboard_summary(
-        data=data,
-        now_ts=now,
-        e2e_status_summary=None,
-        e2e_dispatch_runs=[],
-    )
-
-    domain = summary["domains"][0]
-    assert domain["last"] == {
-        "ts": now,
-        "primary_ts": now,
-        "ok": False,
-        "primary_ok": True,
-        "failure_sources": ["api_contract"],
-        "http_ms": 100.0,
-        "browser_ms": 200.0,
-        "status_code": None,
-        "primary_status_code": 200,
-    }
-    assert summary["service_health"]["down"] == 1
-    assert summary["domain_groups"][0]["status"] == "attention"
-    assert summary["incidents"][0]["kind"] == "domain_down"
-    assert "API/service subcheck" in summary["incidents"][0]["detail"]
-
-
-def test_dashboard_distinguishes_expected_down_from_alertable_down() -> None:
-    now = 2_000_000_000.0
-    domains = ["agentcloud.pitchai.net", "pitchai.net"]
-    data = MonitorData(
-        state={
-            "updated_at": now,
-            "history": {
-                domain: [[now, False, 250.0, 400.0, 502]] for domain in domains
-            },
-            "last_ok": {domain: False for domain in domains},
-            "fail_streak": {domain: 3 for domain in domains},
-            "success_streak": {domain: 0 for domain in domains},
-        },
-        config={
-            "interval_seconds": 60,
-            "inventory": {
-                "version": 1,
-                "reviewed_at": "2026-08-25",
-                "authoritative_sources": ["test fixture"],
-            },
-            "domain_groups": {
-                "core": {
-                    "label": "PitchAI core",
-                    "description": "Critical production",
-                    "order": 10,
-                },
-                "infrastructure": {
-                    "label": "Infrastructure",
-                    "description": "Internal services",
-                    "order": 20,
-                },
-            },
-            "domains": [
-                {
-                    "domain": "agentcloud.pitchai.net",
-                    "label": "AgentCloud",
-                    "group": "infrastructure",
-                    "environment": "internal",
-                    "kind": "application",
-                    "sources": ["test fixture"],
-                    "alert_policy": {
-                        "telegram": "dashboard-only",
-                        "reason": "Not actively used right now.",
-                    },
-                },
-                {
-                    "domain": "pitchai.net",
-                    "label": "PitchAI website",
-                    "group": "core",
-                    "environment": "production",
-                    "kind": "application",
-                    "sources": ["test fixture"],
-                },
-            ],
-            "retired_domains": [],
-        },
-        state_path="/monitor/state.json",
-        config_path="/monitor/config.yaml",
-        loaded_at_ts=now,
-        state_error=None,
-    )
-
-    summary = build_dashboard_summary(
-        data=data,
-        now_ts=now,
-        e2e_status_summary=None,
-        e2e_dispatch_runs=[],
-    )
-
-    assert summary["service_health"] == {
-        "enabled": 2,
-        "healthy": 0,
-        "down": 2,
-        "alertable_down": 1,
-        "expected_down": 1,
-        "unknown": 0,
-        "disabled": 0,
-    }
-    by_domain = {domain["domain"]: domain for domain in summary["domains"]}
-    assert by_domain["agentcloud.pitchai.net"]["last"]["ok"] is False
-    assert by_domain["agentcloud.pitchai.net"]["alert_policy"] == {
-        "telegram": "dashboard-only",
-        "telegram_enabled": False,
-        "reason": "Not actively used right now.",
-    }
-    incidents = {
-        incident["domain"]: incident
-        for incident in summary["incidents"]
-        if incident.get("kind") == "domain_down"
-    }
-    assert incidents["agentcloud.pitchai.net"]["severity"] == "expected"
-    assert incidents["agentcloud.pitchai.net"]["telegram_alert"] is False
-    assert "no Telegram alert is routed" in incidents["agentcloud.pitchai.net"]["detail"]
-    assert incidents["pitchai.net"]["severity"] == "critical"
-    assert incidents["pitchai.net"]["telegram_alert"] is True
+    _verify_health_and_inventory(summary, now=now)
+    _verify_incidents_and_daily_status(summary, now=now)

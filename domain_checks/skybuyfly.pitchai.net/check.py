@@ -1,3 +1,6 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""PitchAI domain monitoring support for check."""
+
 CHECK = {
     "domain": "skybuyfly.pitchai.net",
     "url": "https://skybuyfly.pitchai.net",
@@ -15,7 +18,7 @@ CHECK = {
         "alert_on_missing": False,
     },
     "required_selectors_all": [
-        {"selector": "meta[property=\"og:title\"]", "state": "attached"},
+        {"selector": 'meta[property="og:title"]', "state": "attached"},
     ],
     "required_text_all": [
         "SkyBuyFly",
@@ -30,17 +33,17 @@ CHECK = {
             "json_paths_required": ["status", "service", "timestamp"],
             "json_paths_equal": {"status": "healthy"},
             "max_elapsed_ms": 1500,
-        }
+        },
     ],
     "synthetic_transactions": [
         {
             "name": "landing_render",
             "steps": [
                 {"type": "goto"},
-                {"type": "wait_for_selector", "selector": "meta[property=\"og:title\"]", "state": "attached"},
+                {"type": "wait_for_selector", "selector": 'meta[property="og:title"]', "state": "attached"},
                 {"type": "expect_text", "text": "SkyBuyFly"},
             ],
-        }
+        },
     ],
     "forbidden_text_any": [
         "maintenance",

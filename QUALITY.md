@@ -27,7 +27,7 @@ cannot silently skip the gate.
 
 ## Immediate ratchet
 
-The workflow separates the still-red full gate from the merge-blocking
+The phase-one workflow separated the still-red full gate from the merge-blocking
 `Quality ratchet` job. The ratchet runs the same ten gates and compares their
 machine-readable diagnostics with
 `quality/baselines/python-strict-activation-f4b541b.json`. It fails when a gate
@@ -51,9 +51,55 @@ the requested July evidence at commit
 enforcement baseline.
 
 The ratchet also verifies its comparison logic before each run and uploads the
-complete candidate report even when the comparison fails. Branch protection
-must require `Quality ratchet`; the full gate stays visible and becomes the
-release gate only after every counter reaches zero.
+complete candidate report even when the comparison fails. During convergence,
+branch protection requires `Enforcement integrity` and `Quality ratchet`.
+Before the zero-debt candidate may merge, protection must also require
+`Full zero-debt gate`. The ratchet remains required after every counter reaches
+zero because it independently checks changed-file cleanliness and fingerprint
+behavior.
+
+## Release coupling
+
+The production workflow is triggered only by completion of `Python strict
+gate` on `main`. It accepts only a successful same-repository `push` run whose
+head branch is `main`. The strict run captures the original push event's
+`before` and `after` SHAs without executing repository code and uploads that
+closed-schema provenance under its exact run ID and attempt. Deployment
+downloads only that artifact, validates every identity field, checks out the
+upstream run's exact head SHA, and verifies that both the checkout and fetched
+`main` tip still equal that SHA. The remote deployment repeats the `main`-tip
+comparison, uses a detached checkout of the same SHA, tags the image with it,
+and supplies it as the runtime deployment SHA. It builds the SHA-tagged image
+while the current release remains live, repeats the remote-tip check after the
+build, validates persisted runtime configuration before stopping containers,
+and removes its temporary checkout on every exit path. The cutover retains a
+complete current container set under run-unique rollback names. Before commit,
+any failure removes partial candidate containers, restores and restarts the
+preserved set, and restores the previous mutable `latest` image tag. A
+first-ever failed deployment returns to an empty container set. The old release
+is removed only after both post-start stability checks, the event-bus assertion,
+and exact candidate image-tag identity succeed. The runner's cross-process UID
+leases live on a dedicated named volume and use an explicit absolute path so
+replacement containers share the same lease state. Every service container
+also runs with Docker's no-new-privileges security option. Only then does the
+workflow preserve a closed-schema marker for that exact SHA and successful
+deployment-workflow run. A later selector revalidates both that deployment run
+and the marker's exact successful strict run through the read-only Actions API
+before trusting its SHA.
+
+Non-runtime commits retain production's deployment exclusions after the quality
+tooling migration: workflows, documentation, the Python-version pin, the root
+quality entrypoint and lockfile, and the complete `quality/` package do not
+restart production when they are the only paths changed since the last exact
+successful production-release marker. That deployed range deliberately spans
+runtime pushes whose strict run was canceled, superseded, or still awaiting
+deployment, so a later documentation-only push cannot hide undeployed runtime
+work. Any mixed range or other changed path continues through the full
+container behavior suite and the protected `production` environment. A
+missing, malformed, expired, new-ref, non-ancestor, or otherwise unprovable
+marker/range also deploys rather than silently taking the exclusion. There is
+no manual-dispatch deployment path. A failed, pull-request, fork, stale, or
+non-`main` strict run therefore cannot start production deployment.
 
 The read-only GitHub workflow is the external CI trust root. Before installing
 or executing the quality project, it compares the anti-bypass verifier with an
@@ -62,9 +108,9 @@ The verifier hardcodes the exact digest of the required-file manifest. The
 manifest, in turn, hashes both lockfiles, the root command contract, both
 baseline artifacts, the ratchet and its tests, the runner, all five preference
 checkers, every semantic helper, the complete-source resolver,
-`strict_policy.py`, tool configuration, Semgrep policy, and this documentation.
-The workflow, verifier, and manifest are intentionally excluded from the
-manifest to keep the digest chain acyclic.
+`strict_policy.py`, tool configuration, Semgrep policy, the exact-SHA deployment
+workflow, and this documentation. The strict workflow, verifier, and manifest
+are intentionally excluded from the manifest to keep the digest chain acyclic.
 
 The verifier rejects missing or unexpected portable files, altered manifest
 membership, and every manifested-file hash mismatch. It also validates the

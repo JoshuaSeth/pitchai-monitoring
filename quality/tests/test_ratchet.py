@@ -14,6 +14,8 @@ from pitchai_quality.ratchet_model import DiagnosticSpan, RawDiagnostic, diagnos
 from pitchai_quality.ratchet_pylint import parse_pylint
 from pitchai_quality.ratchet_verify import verify_snapshots
 
+from quality.tests.source_topology_cases import SOURCE_TOPOLOGY_TESTS
+
 if TYPE_CHECKING:
     from pitchai_quality.ratchet_model import JsonValue
 
@@ -227,6 +229,7 @@ _TESTS = (
     test_changed_file_must_be_clean,
     test_pull_request_comparison_base,
     test_initial_push_uses_activation_comparison_base,
+    *SOURCE_TOPOLOGY_TESTS,
 )
 
 

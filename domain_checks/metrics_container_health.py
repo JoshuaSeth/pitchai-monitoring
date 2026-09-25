@@ -1,215 +1,226 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Docker container-health monitoring."""
+
 from __future__ import annotations
 
 import asyncio
 import re
-from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Unpack
 
+from domain_checks.common_values import coerce_optional_int
+from domain_checks.container_models import (
+    ContainerHealthIssue,
+    ContainerJob,
+    ContainerScanContext,
+    ContainerState,
+)
 from domain_checks.docker_unix import docker_unix_get_json
 
-
-@dataclass(frozen=True)
-class ContainerHealthIssue:
-    name: str
-    container_id: str
-    running: bool | None
-    status: str | None
-    restart_count: int | None
-    restart_increase: int | None
-    oom_killed: bool | None
-    health_status: str | None
-    exit_code: int | None
-    error: str | None
+if TYPE_CHECKING:
+    from domain_checks.container_models import (
+        ContainerHealthOptions,
+    )
+    from domain_checks.types import JsonObject, JsonValue
 
 
-def _compile_patterns(items: Any) -> list[re.Pattern[str]]:
-    if not isinstance(items, list):
-        return []
-    out: list[re.Pattern[str]] = []
-    for x in items:
-        s = str(x or "").strip()
-        if not s:
-            continue
-        try:
-            out.append(re.compile(s))
-        except re.error:
-            # Treat invalid regex as a literal substring match.
-            out.append(re.compile(re.escape(s)))
-    return out
+def container_health_boundary_failure(error: str) -> ContainerHealthIssue:
+    """Build a container-health issue for a Docker boundary failure.
+
+    Returns:
+        A normalized Docker-boundary issue.
+    """
+    return ContainerHealthIssue(
+        name="docker",
+        container_id="",
+        running=None,
+        status=None,
+        restart_count=None,
+        restart_increase=None,
+        oom_killed=None,
+        health_status=None,
+        exit_code=None,
+        error=error,
+    )
+
+
+def _compile_patterns(items: list[str] | None) -> list[re.Pattern[str]]:
+    patterns: list[re.Pattern[str]] = []
+    for item in items or []:
+        expression = str(item or "").strip()
+        if expression:
+            patterns.append(re.compile(expression))
+    return patterns
 
 
 def _matches_any(name: str, patterns: list[re.Pattern[str]]) -> bool:
-    if not patterns:
-        return False
-    for p in patterns:
-        try:
-            if p.search(name):
-                return True
-        except Exception:
+    return any(pattern.search(name) for pattern in patterns)
+
+
+def _container_name(entry: JsonObject, container_id: str) -> str:
+    names = entry.get("Names")
+    if isinstance(names, list) and names:
+        name = str(names[0] or "").lstrip("/")
+        if name:
+            return name
+    return container_id[:12]
+
+
+def _selected_jobs(
+    data: list[JsonValue],
+    context: ContainerScanContext,
+) -> list[ContainerJob]:
+    jobs: list[ContainerJob] = []
+    for entry in data:
+        if not isinstance(entry, dict):
             continue
-    return False
+        container_id = str(entry.get("Id") or "").strip()
+        if not container_id:
+            continue
+        name = _container_name(entry, container_id)
+        if _matches_any(name, context.exclude_patterns):
+            continue
+        if not context.monitor_all and not context.include_patterns:
+            continue
+        if not context.monitor_all and not _matches_any(name, context.include_patterns):
+            continue
+        status = str(entry.get("Status") or "").strip() or None
+        jobs.append(ContainerJob(container_id, name, status))
+    return jobs
+
+
+def _health_status(state: JsonObject) -> str | None:
+    health = state.get("Health")
+    if not isinstance(health, dict):
+        return None
+    status = health.get("Status")
+    return status.strip() if isinstance(status, str) and status.strip() else None
+
+
+def _container_state(inspect_data: JsonObject) -> ContainerState:
+    state_value = inspect_data.get("State")
+    state = state_value if isinstance(state_value, dict) else {}
+    running_value = state.get("Running")
+    oom_value = state.get("OOMKilled")
+    return ContainerState(
+        running=running_value if isinstance(running_value, bool) else None,
+        oom_killed=oom_value if isinstance(oom_value, bool) else None,
+        exit_code=coerce_optional_int(state.get("ExitCode")),
+        health_status=_health_status(state),
+        restart_count=coerce_optional_int(inspect_data.get("RestartCount")),
+    )
+
+
+def _restart_increase(
+    container_id: str,
+    restart_count: int | None,
+    previous_counts: dict[str, int],
+) -> int | None:
+    previous_count = previous_counts.get(container_id)
+    if restart_count is None or previous_count is None:
+        return None
+    delta = restart_count - previous_count
+    return delta if delta != 0 else None
+
+
+def _state_is_bad(state: ContainerState, restart_increase: int | None) -> bool:
+    unhealthy = bool(state.health_status and state.health_status != "healthy")
+    restarted = restart_increase is not None and restart_increase > 0
+    exited_with_error = state.exit_code not in {None, 0} and state.running is False
+    return state.running is False or unhealthy or restarted or exited_with_error
+
+
+def _inspection_failure(job: ContainerJob, error: str) -> ContainerHealthIssue:
+    return ContainerHealthIssue(
+        name=job.name,
+        container_id=job.container_id[:12],
+        running=None,
+        status=job.status,
+        restart_count=None,
+        restart_increase=None,
+        oom_killed=None,
+        health_status=None,
+        exit_code=None,
+        error=error,
+    )
+
+
+async def _inspect_container(
+    job: ContainerJob,
+    context: ContainerScanContext,
+    current_counts: dict[str, int],
+) -> ContainerHealthIssue | None:
+    async with context.semaphore:
+        inspection = await asyncio.to_thread(
+            docker_unix_get_json,
+            socket_path=context.socket_path,
+            path=f"/containers/{job.container_id}/json",
+            timeout_seconds=context.timeout_seconds,
+        )
+    if not inspection.ok or not isinstance(inspection.data, dict):
+        return _inspection_failure(
+            job,
+            f"docker_inspect_failed: {inspection.error or inspection.status}",
+        )
+    state = _container_state(inspection.data)
+    if state.restart_count is not None:
+        current_counts[job.container_id] = state.restart_count
+    increase = _restart_increase(
+        job.container_id,
+        state.restart_count,
+        context.previous_counts,
+    )
+    if not _state_is_bad(state, increase):
+        return None
+    return ContainerHealthIssue(
+        name=job.name,
+        container_id=job.container_id[:12],
+        running=state.running,
+        status=job.status,
+        restart_count=state.restart_count,
+        restart_increase=increase,
+        oom_killed=state.oom_killed,
+        health_status=state.health_status,
+        exit_code=state.exit_code,
+        error=None,
+    )
 
 
 async def check_container_health(
     *,
     docker_socket_path: str,
-    include_name_patterns: list[str] | None,
-    exclude_name_patterns: list[str] | None,
-    monitor_all: bool,
-    previous_restart_counts: dict[str, int] | None,
-    timeout_seconds: float = 3.0,
-    concurrency: int = 8,
+    **options: Unpack[ContainerHealthOptions],
 ) -> tuple[list[ContainerHealthIssue], dict[str, int]]:
-    """
-    Returns: (issues, current_restart_counts_by_container_id)
-    """
-    include_p = _compile_patterns(include_name_patterns or [])
-    exclude_p = _compile_patterns(exclude_name_patterns or [])
-    prev = previous_restart_counts if isinstance(previous_restart_counts, dict) else {}
+    """Inspect configured containers through the Docker Unix socket.
 
+    Returns:
+        Container issues and current restart counts.
+    """
+    timeout_seconds = float(options.get("timeout_seconds", 3.0))
     listing = await asyncio.to_thread(
         docker_unix_get_json,
         socket_path=docker_socket_path,
         path="/containers/json?all=1",
-        timeout_seconds=float(timeout_seconds),
+        timeout_seconds=timeout_seconds,
     )
     if not listing.ok or not isinstance(listing.data, list):
-        issue = ContainerHealthIssue(
-            name="docker",
-            container_id="",
-            running=None,
-            status=None,
-            restart_count=None,
-            restart_increase=None,
-            oom_killed=None,
-            health_status=None,
-            exit_code=None,
-            error=f"docker_list_failed: {listing.error or listing.status}",
-        )
-        return [issue], {}
-
-    sem = asyncio.Semaphore(max(1, int(concurrency)))
-    current_restart_counts: dict[str, int] = {}
-
-    async def _inspect_one(container_id: str, name: str, status: str | None) -> ContainerHealthIssue | None:
-        async with sem:
-            insp = await asyncio.to_thread(
-                docker_unix_get_json,
-                socket_path=docker_socket_path,
-                path=f"/containers/{container_id}/json",
-                timeout_seconds=float(timeout_seconds),
-            )
-        if not insp.ok or not isinstance(insp.data, dict):
-            return ContainerHealthIssue(
-                name=name,
-                container_id=container_id[:12],
-                running=None,
-                status=status,
-                restart_count=None,
-                restart_increase=None,
-                oom_killed=None,
-                health_status=None,
-                exit_code=None,
-                error=f"docker_inspect_failed: {insp.error or insp.status}",
-            )
-
-        state = insp.data.get("State") if isinstance(insp.data.get("State"), dict) else {}
-        running = state.get("Running") if isinstance(state.get("Running"), bool) else None
-        oom = state.get("OOMKilled") if isinstance(state.get("OOMKilled"), bool) else None
-        exit_code = None
-        try:
-            if state.get("ExitCode") is not None:
-                exit_code = int(state.get("ExitCode"))
-        except Exception:
-            exit_code = None
-
-        health_status = None
-        health = state.get("Health")
-        if isinstance(health, dict):
-            hs = health.get("Status")
-            if isinstance(hs, str) and hs.strip():
-                health_status = hs.strip()
-
-        restart_count = None
-        try:
-            if insp.data.get("RestartCount") is not None:
-                restart_count = int(insp.data.get("RestartCount"))
-        except Exception:
-            restart_count = None
-
-        if restart_count is not None:
-            current_restart_counts[container_id] = restart_count
-
-        prev_count = prev.get(container_id)
-        restart_increase = None
-        if restart_count is not None and prev_count is not None:
-            try:
-                delta = int(restart_count) - int(prev_count)
-                if delta != 0:
-                    restart_increase = delta
-            except Exception:
-                restart_increase = None
-
-        # Decide if this container is in a bad state.
-        bad = False
-        if running is False:
-            bad = True
-        if isinstance(health_status, str) and health_status and health_status != "healthy":
-            bad = True
-        # Docker's State.OOMKilled can remain True long after a container has recovered
-        # (it reflects the last stop reason, not necessarily a current incident). We
-        # still surface the flag in alerts when another problem is present, but we
-        # do not treat it as a standalone, persistent failure condition.
-        if restart_increase is not None and restart_increase > 0:
-            bad = True
-        if exit_code is not None and exit_code != 0 and running is False:
-            bad = True
-
-        if not bad:
-            return None
-
-        return ContainerHealthIssue(
-            name=name,
-            container_id=container_id[:12],
-            running=running,
-            status=status,
-            restart_count=restart_count,
-            restart_increase=restart_increase,
-            oom_killed=oom,
-            health_status=health_status,
-            exit_code=exit_code,
-            error=None,
-        )
-
-    tasks: list[asyncio.Task[ContainerHealthIssue | None]] = []
-    for entry in listing.data:
-        if not isinstance(entry, dict):
-            continue
-        cid = str(entry.get("Id") or "").strip()
-        if not cid:
-            continue
-        names = entry.get("Names")
-        name = ""
-        if isinstance(names, list) and names:
-            name = str(names[0] or "").lstrip("/")
-        if not name:
-            name = cid[:12]
-        status = str(entry.get("Status") or "").strip() or None
-
-        if _matches_any(name, exclude_p):
-            continue
-        if not monitor_all and include_p and not _matches_any(name, include_p):
-            continue
-        if not monitor_all and not include_p:
-            continue
-
-        tasks.append(asyncio.create_task(_inspect_one(cid, name, status)))
-
+        error = f"docker_list_failed: {listing.error or listing.status}"
+        return [container_health_boundary_failure(error)], {}
+    context = ContainerScanContext(
+        socket_path=docker_socket_path,
+        timeout_seconds=timeout_seconds,
+        include_patterns=_compile_patterns(options["include_name_patterns"]),
+        exclude_patterns=_compile_patterns(options["exclude_name_patterns"]),
+        monitor_all=options["monitor_all"],
+        previous_counts=options["previous_restart_counts"] or {},
+        semaphore=asyncio.Semaphore(max(1, int(options.get("concurrency", 8)))),
+    )
+    current_counts: dict[str, int] = {}
+    selected_jobs = _selected_jobs(listing.data, context)
+    tasks = [asyncio.create_task(_inspect_container(job, context, current_counts)) for job in selected_jobs]
     issues: list[ContainerHealthIssue] = []
-    for fut in asyncio.as_completed(tasks):
-        r = await fut
-        if r is not None:
-            issues.append(r)
-
-    issues.sort(key=lambda x: x.name)
-    return issues, current_restart_counts
+    for future in asyncio.as_completed(tasks):
+        issue = await future
+        if issue is not None:
+            issues.append(issue)
+    issues.sort(key=lambda issue: issue.name)
+    return issues, current_counts

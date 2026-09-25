@@ -6,7 +6,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import anyio
-
 from pitchai_quality.ratchet_commands import run_gate, tool_versions
 from pitchai_quality.ratchet_model import gate_payload, sha256_bytes
 from pitchai_quality.ratchet_parsers import parse_gate

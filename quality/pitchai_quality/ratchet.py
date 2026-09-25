@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import anyio
-
 from pitchai_quality.ratchet_commands import current_profile, historical_profile
 from pitchai_quality.ratchet_event import comparison_base, validate_commit_sha
 from pitchai_quality.ratchet_model import canonical_json
