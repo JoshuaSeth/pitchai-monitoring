@@ -50,7 +50,7 @@ class _FakeDispatchHandler(BaseHTTPRequestHandler):
         '{"type":"response.completed"}\n'
     )
 
-    def log_message(self, format: str, *args) -> None:  # noqa: A002
+    def log_message(self, format: str, *args) -> None:
         return
 
     def _auth_ok(self) -> bool:
@@ -64,7 +64,7 @@ class _FakeDispatchHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         if self.path != "/dispatch":
             self.send_error(404)
             return
@@ -83,7 +83,7 @@ class _FakeDispatchHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if not self._auth_ok():
             self.send_error(401)
             return
@@ -165,7 +165,7 @@ async def test_dispatch_end_to_end(fake_dispatcher_base_url: str) -> None:
 class _FlakyDispatchHandler(_FakeDispatchHandler):
     status_calls = 0
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == f"/runs/{self.bundle}/status":
             type(self).status_calls += 1

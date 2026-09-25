@@ -737,7 +737,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     # -----------------
     @app.get("/dashboard/api/v1/monitoring/summary")
     @app.get("/api/v1/monitoring/summary")
-    async def api_monitoring_summary(req: Request, range: str = "24h") -> dict[str, Any]:  # noqa: A002
+    async def api_monitoring_summary(req: Request, range: str = "24h") -> dict[str, Any]:
         _require_monitoring_access(req)
         settings2: RegistrySettings = app.state.settings
         now_ts = time.time()
@@ -792,7 +792,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     async def api_domain_series(
         domain: str,
         req: Request,
-        range: str = "24h",  # noqa: A002
+        range: str = "24h",
         since_ts: float | None = None,
         until_ts: float | None = None,
     ) -> dict[str, Any]:
@@ -819,7 +819,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     async def api_signal_series(
         signal: str,
         req: Request,
-        range: str = "24h",  # noqa: A002
+        range: str = "24h",
         since_ts: float | None = None,
         until_ts: float | None = None,
     ) -> dict[str, Any]:
