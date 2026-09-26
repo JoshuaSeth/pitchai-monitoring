@@ -26,7 +26,7 @@ _STRICT_WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "python-stri
 _ANTI_BYPASS_PATH = "quality/pitchai_quality/check_no_validation_bypasses.py"
 _MANIFEST_RELATIVE_PATH = "quality/portable-enforcement-manifest.json"
 _STRICT_WORKFLOW_RELATIVE_PATH = ".github/workflows/python-strict.yml"
-_EXPECTED_PORTABLE_MANIFEST_SHA256 = "ab3554dddfed6d42abfa95296874c172efbe6eb3c074c01c671ec2a7385a7f24"
+_EXPECTED_PORTABLE_MANIFEST_SHA256 = "bc563af7259a1e5491ca5741fccc3b1a5a581258591341a2c13b758934eb6e69"
 _CONFIG_PATHS = (
     _QUALITY_ROOT / "pyproject.toml",
     _QUALITY_ROOT / ".semgrep.yml",

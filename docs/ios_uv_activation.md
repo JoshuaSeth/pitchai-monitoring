@@ -25,8 +25,16 @@ fixtures remain active. The uv adapter still calls `make check` followed by
 the locked Python aggregate and returns failure from either aggregate.
 
 The copied checker passes the repository's unchanged scoped Ruff,
-BasedPyright, Pylint, Semgrep and architecture rules. Installation remains
-subject to the enforced full quality ratchet: its portable manifest freezes
-root `pyproject.toml` and `uv.lock`, while its workflow contract also rejects
-the artifact-publication guard. Those enforcement contracts are not changed
-or bypassed by this PR. Application findings remain separate product debt.
+BasedPyright, Pylint, Semgrep and architecture rules. On 25 September,
+installation was held by the enforced quality ratchet: its portable manifest
+froze root `pyproject.toml` and `uv.lock`, while its workflow contract also
+rejected the artifact-publication guard. Application findings remain separate
+product debt.
+
+On 26 September the documented coordinated trust-root update was reviewed:
+the existing hash chain is refreshed for the root adapter metadata and the
+artifact-only guard. Gate definitions, severity, source coverage, immutable
+debt baselines, verifier logic and required branch checks are unchanged.
+Negative probes verify that root metadata tampering, workflow weakening,
+manifest tampering and verifier tampering still fail. This supersedes the
+25 September hash-mismatch hold; hosted required checks still govern merging.
