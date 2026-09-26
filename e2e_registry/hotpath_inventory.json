@@ -77,16 +77,6 @@
       "expected_behavior": "A synthetic clinician opens one sanitized case, exercises STL, CBCT, editor, and compare, then proves a least-privilege short-lived share only in an approved synthetic environment."
     },
     {
-      "lane_id": "quickchat-rsr-hotpath-monitor",
-      "agent_global_id": "23e9ba5f-dffb-521c-ba7e-9f15cc321a20",
-      "project": "quickchat",
-      "name": "QuickChat RSR",
-      "target_surface": "studentenreisproduct.demos.pitchai.net/rsr/demo/embed-preview",
-      "primary_domain": "studentenreisproduct.demos.pitchai.net",
-      "reminder_id": "reminder-central-3fa4c376-b152-46f5-a422-8293d765004f",
-      "expected_behavior": "A public traveller asks the stop-product question in the embed, observes progress, receives a source-bounded answer, and regains a ready input."
-    },
-    {
       "lane_id": "deplanbook-play-hotpath-monitor",
       "agent_global_id": "11f2c996-f394-5b06-a945-e82039540672",
       "project": "deplanbook_play",
