@@ -6,8 +6,9 @@ From the repository root, run the complete fail-closed Python gate with:
 uv run check
 ```
 
-The root project is only an entrypoint for the locked `quality` package. CI
-uses the equivalent explicit command:
+The root project calls the existing `make check` native aggregate and then
+the locked `quality` package, preserving failure from either. CI uses this
+explicit command for the Python portion:
 
 ```sh
 uv run --project quality --python 3.12.12 --frozen check
@@ -51,7 +52,10 @@ the requested July evidence at commit
 enforcement baseline.
 
 The ratchet also verifies its comparison logic before each run and uploads the
-complete candidate report even when the comparison fails. Branch protection
+complete candidate report even when the comparison fails, except for the exact
+iOS installation branch or commits marked `[ios-quality-no-artifacts]`.
+Those runs still perform every check and retain their local candidate report.
+Branch protection
 must require `Quality ratchet`; the full gate stays visible and becomes the
 release gate only after every counter reaches zero.
 
