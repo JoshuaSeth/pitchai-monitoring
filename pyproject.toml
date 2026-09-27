@@ -6,7 +6,17 @@ requires-python = "==3.12.12"
 dependencies = ["pitchai-repository-quality"]
 
 [tool.uv]
-package = false
+package = true
 
 [tool.uv.sources]
 pitchai-repository-quality = { path = "quality", editable = true }
+
+[project.scripts]
+check = "scripts.ios_uv_check:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["scripts", "scripts.ios_quality"]

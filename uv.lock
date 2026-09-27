@@ -601,7 +601,7 @@ wheels = [
 [[package]]
 name = "pitchai-monitoring-quality-entrypoint"
 version = "1.0.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "pitchai-repository-quality" },
 ]
