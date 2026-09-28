@@ -74,6 +74,7 @@ class DashboardSettings:
     history_file: Path | None = None
     history_retention_days: int = 8
     history_sample_interval_seconds: int = 300
+    claude_accounts_file: Path = Path("/dashboard-data/claude-accounts.json")
 
     @classmethod
     def from_env(cls) -> "DashboardSettings":
@@ -99,6 +100,7 @@ class DashboardSettings:
             raise RuntimeError("AUTH_USAGE_BROKER_ADMIN_TOKEN or AUTH_TOKEN_SERVER_ADMIN_TOKEN is required")
 
         return cls(
+            claude_accounts_file=Path(os.getenv("AUTH_USAGE_CLAUDE_ACCOUNTS_FILE", "/dashboard-data/claude-accounts.json")),
             broker_data_dir=Path(os.getenv("AUTH_USAGE_BROKER_DATA_DIR", "/broker-data")).expanduser(),
             broker_url=broker_url,
             broker_admin_token=admin_token,

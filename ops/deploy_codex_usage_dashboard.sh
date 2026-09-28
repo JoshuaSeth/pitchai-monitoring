@@ -79,6 +79,15 @@ if count < 1:
 print(count)
 PY
 )"
+# Export only redacted owner status; login homes are never mounted in the dashboard.
+install -d -m 755 /usr/local/lib/pitchai-codex-usage
+install -m 644 "${REPO_ROOT}/auth_usage_dashboard/claude_accounts.py" /usr/local/lib/pitchai-codex-usage/claude_accounts.py
+install -m 644 "${REPO_ROOT}/ops/claude-usage-export.service" /etc/systemd/system/claude-usage-export.service
+install -m 644 "${REPO_ROOT}/ops/claude-usage-export.timer" /etc/systemd/system/claude-usage-export.timer
+systemctl daemon-reload
+systemctl enable --now claude-usage-export.timer >/dev/null
+systemctl start claude-usage-export.service
+
 image="${1:-codex-usage-dashboard:${git_sha}}"
 if [[ $# -eq 0 ]]; then
   docker build --pull --tag "${image}" --file "${REPO_ROOT}/Dockerfile.auth-usage" "${REPO_ROOT}"
@@ -96,6 +105,9 @@ run_dashboard() {
   if [[ "${port}" != "${PROD_PORT}" ]]; then
     health_args+=(--no-healthcheck)
     history_args+=("--tmpfs" "/dashboard-data:rw,nosuid,nodev,noexec,size=16m")
+    if [[ -f "${DASHBOARD_DATA}/claude-accounts.json" ]]; then
+      history_args+=(--mount "type=bind,src=${DASHBOARD_DATA}/claude-accounts.json,dst=/dashboard-data/claude-accounts.json,readonly")
+    fi
   else
     history_args+=(--mount "type=bind,src=${DASHBOARD_DATA},dst=/dashboard-data")
   fi
@@ -221,7 +233,14 @@ check_dashboard() {
             --data '{"purpose":"capacity","key_id":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}' \
             "http://127.0.0.1:${port}/api/v1/mobile/challenge" 2>/dev/null || true)"
           if [[ "${mobile_status}" == "401" ]]; then
-            return 0
+            local claude_output
+            if claude_output="$(curl --fail --silent --max-time 3 \
+              --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
+              "http://127.0.0.1:${port}/api/v1/claude-accounts")" && \
+              python3 -c 'import json,sys; p=json.load(sys.stdin); expected=json.load(open(sys.argv[1])); assert p["schema_version"] == 1 and not p["stale"] and not p["error"]; assert len(p["accounts"]) == len(expected["accounts"])' \
+              "${DASHBOARD_DATA}/claude-accounts.json" <<<"${claude_output}"; then
+              return 0
+            fi
           fi
         fi
       fi
