@@ -855,7 +855,7 @@
       ].join(" · ")));
       const used = finiteNumber(account.used_percent);
       if (used !== null) {
-        card.append(element("strong", "claude-usage", `${number(used, 0)}% used${account.usage_stale ? " · Last reported" : ""}`));
+        card.append(element("strong", "claude-usage", `${number(100 - used, 0)}% remaining${account.usage_stale ? " · Last reported" : ""}`));
         card.append(meter(100 - used));
         card.append(element("p", "claude-account-meta", `${windows[account.window] || "Reported usage window"} · ${ageFromIso(account.usage_observed_at)}`));
       } else {
