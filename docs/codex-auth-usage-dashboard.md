@@ -177,6 +177,19 @@ The JSON ledger continues as an eight-day compatibility input for the dashboard'
 
 Runout probability uses deterministic burn-rate scenarios around the trailing two-hour sample rate. Until enough native samples exist, the UI labels a current-window average estimate and lowers confidence. Capacity is consumed earliest-reset-first and automatic resets for the declared basis are modeled. If no five-hour window is reported but weekly data is authoritative, the forecast explicitly uses weekly percentage points; if neither window is available, the forecast is unavailable rather than inferred as 0% or 100%. Banked resets never enter forecast capacity because they require a forbidden manual redemption action.
 
+## Verified subscription state
+
+The dashboard's subscription section is the only place that reports ChatGPT plan billing state, and it keeps that state separate from usage-window exhaustion. Weekly and five-hour usage resets are rolling provider limits; they say nothing about whether a subscription renews. Subscription rows therefore carry their own renewal flag, cancellation-request moment, and effective access-end date, each with the verification time and source that produced it.
+
+Derived display states are intentionally conservative:
+
+- `renewing` requires a verified `renewal_enabled: true` on the account.
+- `active_until_end` means auto-renewal is cancelled while verified paid access still runs to its natural period end. A cancelled auto-renewal is not lost access, and an ended date in the past is reported as `access_ended`, never resurrected.
+- `inactive` is used only when the account's own billing state says so; a broker `disabled`/`last_resort` flag is routing metadata and never cancels or inactivates a subscription.
+- Anything unstated or unverifiable stays `unknown`. Missing dates, unreadable files, oversized sources, and unparseable rows produce an explicit unavailable state instead of invented accounts, dates, or amounts.
+
+The curated snapshot lives outside this public repository at `/srv/codex-usage-dashboard-src/codex-subscriptions.json` (root-owned, mode `600`) because it names account identities, billing days, and amounts. Deployments install the reviewed file to `/srv/codex-usage-dashboard/codex-subscriptions.json`, mount it read-only at `/dashboard-data/codex-subscriptions.json`, and validate the shape before installing. The canary and production checks then require `/api/v1/subscription-accounts` to serve a payload whose account count matches the installed source; validation runs inside the candidate container via `python -m auth_usage_dashboard.subscription_accounts_check`. If the source file is absent, the section says subscription status is unavailable rather than showing stale or guessed rows. The endpoint follows the same protected-operator rule as the other account-bearing routes and returns no credentials, tokens, or payment-card data.
+
 ## Operations
 
 Build and deploy the container from the repository root:

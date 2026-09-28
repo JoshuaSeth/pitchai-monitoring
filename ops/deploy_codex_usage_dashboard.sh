@@ -9,6 +9,7 @@ readonly BROKER_ACCOUNTS="/srv/auth-token-server/data/accounts"
 readonly DASHBOARD_DATA="/srv/codex-usage-dashboard"
 readonly HISTORY_DB="${DASHBOARD_DATA}/usage-history.sqlite3"
 readonly HISTORY_BACKUPS="${DASHBOARD_DATA}/backups"
+readonly SUBSCRIPTIONS_FILE="${DASHBOARD_DATA}/codex-subscriptions.json"
 readonly PROD_PORT="8124"
 readonly CANARY_PORT="18124"
 readonly MOBILE_APP_ID_PREFIX="ZM6568G5FX"
@@ -16,6 +17,7 @@ readonly MOBILE_BUNDLE_ID="com.pitchai.codexstatus"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
 mobile_enrollment_enabled="${AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED:-0}"
+subscriptions_source="${CODEX_SUBSCRIPTIONS_SOURCE:-/srv/codex-usage-dashboard-src/codex-subscriptions.json}"
 
 if [[ "$(hostname -s)" != "${EXPECTED_HOST}" ]]; then
   printf 'Refusing deployment: expected host %s, found %s\n' "${EXPECTED_HOST}" "$(hostname -s)" >&2
@@ -79,6 +81,30 @@ if count < 1:
 print(count)
 PY
 )"
+
+# The curated subscription snapshot lives outside this public repository; the
+# deployment only installs an already reviewed file and never invents states.
+if [[ -f "${subscriptions_source}" ]]; then
+  python3 - "${subscriptions_source}" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+accounts = payload["accounts"]
+assert payload["schema_version"] == 1
+assert accounts
+assert all(
+    row["email"] and row["access_status"] in {"active", "inactive", "unknown"}
+    for row in accounts
+)
+PY
+  install -m 600 -o root -g root "${subscriptions_source}" "${SUBSCRIPTIONS_FILE}"
+else
+  printf 'Subscription source %s is absent; states stay unavailable.\n' \
+    "${subscriptions_source}" >&2
+fi
+
 image="${1:-codex-usage-dashboard:${git_sha}}"
 if [[ $# -eq 0 ]]; then
   docker build --pull --tag "${image}" --file "${REPO_ROOT}/Dockerfile.auth-usage" "${REPO_ROOT}"
@@ -96,6 +122,9 @@ run_dashboard() {
   if [[ "${port}" != "${PROD_PORT}" ]]; then
     health_args+=(--no-healthcheck)
     history_args+=("--tmpfs" "/dashboard-data:rw,nosuid,nodev,noexec,size=16m")
+    if [[ -f "${SUBSCRIPTIONS_FILE}" ]]; then
+      history_args+=(--mount "type=bind,src=${SUBSCRIPTIONS_FILE},dst=/dashboard-data/codex-subscriptions.json,readonly")
+    fi
   else
     history_args+=(--mount "type=bind,src=${DASHBOARD_DATA},dst=/dashboard-data")
   fi
@@ -221,7 +250,9 @@ check_dashboard() {
             --data '{"purpose":"capacity","key_id":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}' \
             "http://127.0.0.1:${port}/api/v1/mobile/challenge" 2>/dev/null || true)"
           if [[ "${mobile_status}" == "401" ]]; then
-            return 0
+            if check_subscriptions "${port}" "${name}"; then
+              return 0
+            fi
           fi
         fi
       fi
@@ -229,6 +260,24 @@ check_dashboard() {
     attempts=$((attempts - 1))
     sleep 0.25
   done
+  return 1
+}
+
+check_subscriptions() {
+  local port="$1"
+  local name="$2"
+  if [[ ! -f "${SUBSCRIPTIONS_FILE}" ]]; then
+    return 0
+  fi
+  local output
+  if output="$(curl --fail --silent --show-error --max-time 3 \
+    --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
+    "http://127.0.0.1:${port}/api/v1/subscription-accounts" 2>/dev/null)" \
+    && docker exec --interactive "${name}" python -m \
+      auth_usage_dashboard.subscription_accounts_check \
+      /dashboard-data/codex-subscriptions.json <<<"${output}"; then
+    return 0
+  fi
   return 1
 }
 
