@@ -127,16 +127,16 @@ class ClaudeAccountsTest(UsageTimeSeriesCase):
 
     def write_snapshot(self, document: JsonObject, name: str = "claude-accounts.json") -> Path:
         """Return the path of one written snapshot document inside the test root."""
-        path = self.root / name
-        path.write_text(json.dumps(document), encoding="utf-8")
-        return path
+        target = self.root / name
+        target.write_text(json.dumps(document), encoding="utf-8")
+        return target
 
     def create_application(self, service: StaticCapacityService) -> Application:
         """Return the protected dashboard composed around one static capacity service."""
         return create_scheduling_app(
             dashboard_settings(self.root),
-            source=cast("StateSource", object()),
             service=cast("CapacityService", cast("object", service)),
+            source=cast("StateSource", object()),
         )
 
     def test_collect_reports_identity_usage_and_unreported_limits(self) -> None:
