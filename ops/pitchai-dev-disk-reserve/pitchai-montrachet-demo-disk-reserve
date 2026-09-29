@@ -73,10 +73,14 @@ rotate_active_syslog() {
 reclaim_regenerable_caches() {
   log "crisis-reclaim: journalctl --vacuum-size=200M"
   journalctl --vacuum-size=200M >/dev/null 2>&1 || log "crisis-reclaim: journalctl vacuum failed (continuing)"
-  log "crisis-reclaim: docker image prune --filter until=24h"
-  docker image prune -af --filter until=24h >/dev/null 2>&1 || log "crisis-reclaim: docker image prune failed (continuing)"
-  log "crisis-reclaim: docker builder prune --filter until=24h"
-  docker builder prune -af --filter until=24h >/dev/null 2>&1 || log "crisis-reclaim: docker builder prune failed (continuing)"
+  # This path only runs after the production reserve has discharged or the
+  # filesystem is already below the crisis floor. At that point recent unused
+  # cache is less valuable than database write headroom. Active containers and
+  # their images remain protected by Docker's prune semantics.
+  log "crisis-reclaim: docker image prune (all unused)"
+  docker image prune -af >/dev/null 2>&1 || log "crisis-reclaim: docker image prune failed (continuing)"
+  log "crisis-reclaim: docker builder prune (all unused)"
+  docker builder prune -af >/dev/null 2>&1 || log "crisis-reclaim: docker builder prune failed (continuing)"
   reclaim_rotated_log_archives
 }
 
@@ -89,6 +93,7 @@ if [ -f "$RESERVE_FILE" ]; then
 fi
 
 if [ "$free" -lt "$FREE_CRITICAL_BYTES" ]; then
+  released_reserve=0
   if [ "$has_reserve" = 1 ]; then
     log "critical: available=${free}B < ${FREE_CRITICAL_BYTES}B, releasing ${reserve_size}B reserve"
     if [ "$DRY_RUN" = 1 ]; then
@@ -99,10 +104,24 @@ if [ "$free" -lt "$FREE_CRITICAL_BYTES" ]; then
       free=$(available_bytes)
     fi
     log "post-release available=${free}B"
+    released_reserve=1
   else
     log "critical: available=${free}B < ${FREE_CRITICAL_BYTES}B and no reserve is armed"
   fi
-  if [ "$free" -lt "$CRISIS_FLOOR_BYTES" ]; then
+
+  # Reclaim immediately when the discharged reserve still leaves too little
+  # room to re-arm. Waiting until the much lower crisis floor allowed the 2 GiB
+  # reserve to be consumed while several GiB of recent, unused Docker cache
+  # remained available for safe reclamation.
+  if [ "$released_reserve" = 1 ] && [ "$free" -lt "$FREE_REARM_BYTES" ]; then
+    if [ "$DRY_RUN" = 1 ]; then
+      log "dry-run: would reclaim regenerable caches"
+    else
+      reclaim_regenerable_caches
+      free=$(available_bytes)
+    fi
+    log "post-release-reclaim available=${free}B"
+  elif [ "$free" -lt "$CRISIS_FLOOR_BYTES" ]; then
     if [ "$DRY_RUN" = 1 ]; then
       log "dry-run: would reclaim regenerable caches"
     else
