@@ -1677,6 +1677,16 @@ footer {
 .claude-usage { display: block; margin: 20px 0 10px; font-size: 19px; }
 .claude-reset { margin-bottom: 0; color: var(--amber); font-size: 12px; }
 @media (max-width: 720px) { .claude-grid { grid-template-columns: 1fr; } }
+.subscription-section { margin: 28px 0; }
+.subscription-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.subscription-account { padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.subscription-account-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.subscription-account-heading h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.subscription-account-meta, .subscription-note { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.subscription-state { display: block; margin: 18px 0 10px; font-size: 16px; overflow-wrap: anywhere; }
+.subscription-verification { margin-bottom: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+@media (max-width: 720px) { .subscription-grid { grid-template-columns: 1fr; } }
 
 @media (prefers-reduced-motion: reduce) {
   *,

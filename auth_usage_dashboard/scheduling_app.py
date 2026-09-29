@@ -19,6 +19,7 @@ from .scheduling_web_runtime import (
 from .service import CapacityService
 from .settings import DashboardSettings
 from .source import BrokerStateSource
+from .subscription_routes import register_subscription_route
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -138,6 +139,12 @@ def create_scheduling_app(
         luna_reserve_capacity,
         methods=["GET"],
         response_model=None,
+    )
+    register_subscription_route(
+        application,
+        settings=selected_settings,
+        identity_default=identity_header,
+        require_operator=_require_operator,
     )
     return application
 
