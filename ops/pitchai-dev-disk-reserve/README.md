@@ -18,14 +18,15 @@ cross zero. This guard closes that gap for the monitored production surface:
    (512 MiB) available, delete the reserve immediately. A few hundred MiB is
    all the demo Postgres needs to finish its end-of-recovery checkpoint, so the
    surface stays up.
-3. **Crisis reclaim.** If the filesystem is still below `CRISIS_FLOOR_BYTES`
-   (256 MiB) after release, reclaim regenerable space only: journald vacuum to
-   200 MiB, `docker image prune` and `docker builder prune` for objects older
-   than 24h, and the rotated `syslog`/`auth.log`/`kern.log`/`apport.log`
-   archives (the active files stay readable and logrotate keeps producing new
-   generations). These are the same bounded reclaims the incident lane has
-   applied by hand; nothing outside regenerable caches and rotated log
-   generations is ever removed.
+3. **Post-release reclaim.** If releasing the reserve still leaves less than
+   `FREE_REARM_BYTES` (4 GiB), immediately reclaim regenerable space instead of
+   waiting for the filesystem to approach zero again: journald vacuum to
+   200 MiB, all unused Docker images and build cache, and the rotated
+   `syslog`/`auth.log`/`kern.log`/`apport.log` archives. Docker preserves images
+   referenced by active or stopped containers; removed cache and unused images
+   can be rebuilt or pulled. If no reserve is armed, the same reclaim runs when
+   available space falls below `CRISIS_FLOOR_BYTES` (256 MiB). Nothing outside
+   regenerable cache and rotated log generations is removed.
 4. **Emergency rotation.** If the filesystem is *still* below
    `FREE_EMERGENCY_BYTES` (100 MiB) — a few seconds of write headroom away from
    the Postgres PANIC — force `logrotate -f /etc/logrotate.d/rsyslog` so the
