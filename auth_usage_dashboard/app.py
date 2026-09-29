@@ -12,7 +12,6 @@ from fastapi.templating import Jinja2Templates
 from .service import CapacityService, StateSource
 from .settings import DashboardSettings
 from .source import BrokerStateSource
-from .claude_accounts import read_snapshot as read_claude_snapshot
 
 
 ROOT = Path(__file__).resolve().parent
@@ -127,10 +126,5 @@ def create_app(
         if action != "refresh":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="missing refresh action header")
         return JSONResponse(await service.request_manual_probe())
-
-    @app.get("/api/v1/claude-accounts")
-    async def claude_accounts(request: Request) -> JSONResponse:
-        require_operator(request)
-        return JSONResponse(read_claude_snapshot(settings.claude_accounts_file))
 
     return app

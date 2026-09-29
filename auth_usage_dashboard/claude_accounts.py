@@ -1,8 +1,8 @@
-"""Redacted Claude owner inventory; the dashboard never receives login files.
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Redacted Claude owner inventory for the usage dashboard.
 
-Run this file on the owner host once per minute. Only the official Claude CLI
-reads credentials. This collector reads owner configuration and health, and
-exports a small allowlisted snapshot into the dashboard's existing data mount.
+Only the official Claude CLI reads credentials; this collector asks it for one
+allowlisted identity summary per owner home and writes a redacted snapshot.
 """
 
 from __future__ import annotations
@@ -12,166 +12,235 @@ import hashlib
 import json
 import math
 import os
-import subprocess
+import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
-STATUSES = {"ready", "cooldown", "sign_in_required", "unavailable"}
-WINDOWS = {"five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet"}
-PLANS = {"max", "pro", "team", "enterprise"}
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from .timeseries_types import JsonObject, JsonValue
+
+SCHEMA_VERSION = 1
+CLAUDE_ACCOUNTS_FILE = Path("/dashboard-data/claude-accounts.json")
+COLLECTOR_OUTPUT_FILE = Path("/srv/codex-usage-dashboard/claude-accounts.json")
+DEFAULT_OWNERS_ROOT = Path("/var/lib/pitchai-cli-new/claude-owners")
+DEFAULT_RUNTIME_ROOT = Path("/opt/pitchai-claude-code-owner/current")
+BUNDLED_BINARY_GLOB = ".venv/lib/python*/site-packages/claude_agent_sdk/_bundled/claude"
+MINIMUM_UTILIZATION, MAXIMUM_UTILIZATION, FRESH_SECONDS = 0.0, 1.0, 60.0
+MAX_EMAIL_LENGTH, MAX_SNAPSHOT_BYTES = 254, 262_144
+MINIMUM_PROFILES, MAXIMUM_PROFILES, FIRST_VISIBLE_ORDINAL, LAST_VISIBLE_ORDINAL = 1, 8, 33, 126
+FINGERPRINT_LENGTH, SNAPSHOT_DIRECTORY_MODE, SNAPSHOT_SUFFIX = 16, 0o700, ".partial"
+WINDOWS = frozenset({"five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet"})
+PLANS = frozenset({"max", "pro", "team", "enterprise"})
+OWNER_UNAVAILABLE_ERROR = "owner_inventory_unavailable"
+MISSING_BINARY_MESSAGE = "Pinned Claude binary unavailable; previous snapshot will become stale\n"
+FALLBACK_PROFILES: list[JsonValue] = [{"id": "primary", "home": "home"}]
 
 
-def _number(value):
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+def number_value(value: JsonValue) -> float | None:
+    """Return one finite JSON number, excluding booleans."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return value
+    number = float(value)
+    return number if math.isfinite(number) else None
 
 
-def _iso(value):
-    value = _number(value)
-    if value is None or not 0 < value < 253402300799:
+def object_value(value: JsonValue) -> JsonObject:
+    """Return one JSON object, or an empty object for any other value."""
+    return value if isinstance(value, dict) else {}
+
+
+def member_value(value: JsonValue, allowed: frozenset[str]) -> str | None:
+    """Return the value when it is one of the allowed members."""
+    return value if isinstance(value, str) and value in allowed else None
+
+
+def email_value(value: JsonValue) -> str | None:
+    """Return one printable single-at-sign address, or nothing."""
+    if not isinstance(value, str) or not 0 < len(value) <= MAX_EMAIL_LENGTH or value.count("@") != 1:
         return None
-    return datetime.fromtimestamp(value, timezone.utc).isoformat()
+    visible = (FIRST_VISIBLE_ORDINAL <= ord(character) <= LAST_VISIBLE_ORDINAL for character in value)
+    return value if all(visible) else None
 
 
-def _email(value):
-    if not isinstance(value, str) or len(value) > 254 or value.count("@") != 1:
+def _decode_object(text: str | None) -> JsonObject:
+    value: JsonValue | None = None
+    with suppress(ValueError):
+        value = cast("JsonValue", json.loads(text or ""))
+    return object_value(value)
+
+
+def load_json_object(path: Path) -> JsonObject | None:
+    """Return one size-capped JSON object, or nothing when unreadable."""
+    text: str | None = None
+    with suppress(OSError):
+        if path.stat().st_size <= MAX_SNAPSHOT_BYTES:
+            text = path.read_text(encoding="utf-8")
+    return None if text is None else _decode_object(text)
+
+
+def _cli_status_text(executable: Path, home: Path) -> str | None:
+    arguments = (str(executable), "auth", "status")
+    environment = {"HOME": str(home), "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8"}
+    previous_directory = Path.cwd()
+    text: str | None = None
+    with suppress(OSError):
+        os.chdir(home)
+    with tempfile.TemporaryFile() as capture:
+        actions = ((os.POSIX_SPAWN_DUP2, capture.fileno(), 1), (os.POSIX_SPAWN_DUP2, capture.fileno(), 2))
+        process_id: int | None = None
+        with suppress(OSError):
+            process_id = os.posix_spawn(str(executable), arguments, environment, file_actions=actions)
+        if process_id is not None:
+            _, wait_status = os.waitpid(process_id, 0)
+            if os.waitstatus_to_exitcode(wait_status) == 0:
+                capture.seek(0)
+                text = capture.read().decode("utf-8", errors="replace")
+    with suppress(OSError):
+        os.chdir(previous_directory)
+    return text
+
+
+def auth_status(cli: Path, home: Path) -> JsonObject:
+    """Return the official CLI's allowlisted identity summary for one owner home."""
+    document = _decode_object(_cli_status_text(cli, home))
+    key_source = document.get("apiKeySource")
+    signed_in = (
+        document.get("loggedIn") is True
+        and document.get("apiProvider") == "firstParty"
+        and document.get("authMethod") == "claude.ai"
+        and key_source in {None, "none"}
+    )
+    email = email_value(document.get("email"))
+    plan = member_value(document.get("subscriptionType"), PLANS)
+    return {"signed_in": signed_in, "email": email, "plan": plan}
+
+
+def _profile_entries(root: Path, configuration: JsonObject) -> list[tuple[str, Path]] | None:
+    profiles = configuration.get("accounts")
+    if not isinstance(profiles, list) or not MINIMUM_PROFILES <= len(profiles) <= MAXIMUM_PROFILES:
         return None
-    return value if all(32 < ord(c) < 127 for c in value) else None
+    owner_root = root.resolve()
+    entries: list[tuple[str, Path]] = []
+    for profile in profiles:
+        identifier = profile.get("id") if isinstance(profile, dict) else None
+        home_name = profile.get("home") if isinstance(profile, dict) else None
+        home = (root / home_name).resolve() if isinstance(home_name, str) else None
+        if not isinstance(identifier, str) or home is None or not home.is_relative_to(owner_root):
+            return None
+        entries.append((identifier, home))
+    return entries
 
 
-def auth_status(cli: Path, home: Path) -> dict:
-    """Read only the official CLI's identity summary, never a credential file."""
-    try:
-        result = subprocess.run(
-            [str(cli), "auth", "status"], cwd=home, capture_output=True, text=True,
-            env={"HOME": str(home), "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8"},
-            timeout=15, check=False,
-        )
-        value = json.loads(result.stdout)
-        subscription = (value.get("loggedIn") is True and value.get("apiProvider") == "firstParty"
-                        and value.get("authMethod") == "claude.ai"
-                        and value.get("apiKeySource") in (None, "none"))
-        return {"signed_in": subscription, "email": _email(value.get("email")),
-                "plan": value.get("subscriptionType") if value.get("subscriptionType") in PLANS else None}
-    except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
-        return {"signed_in": False, "email": None, "plan": None}
+def _usage_limit(health: JsonObject, identifier: str, index: int) -> JsonObject:
+    rows = health.get("accounts")
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, dict) and row.get("id") == identifier:
+            return object_value(row.get("usageLimit"))
+    return object_value(health.get("usageLimit")) if index == 0 else {}
 
 
-def collect(owner_root: Path, cli: Path, *, now: float | None = None) -> dict:
-    now = time.time() if now is None else now
-    accounts = []
-    errors = []
+def _row_status(auth: JsonObject, reset_at: float | None, *, stale: bool, now: float) -> str:
+    if stale:
+        return "unavailable"
+    if auth.get("signed_in") is not True:
+        return "sign_in_required"
+    return "cooldown" if reset_at is not None and reset_at > now else "ready"
+
+
+@dataclass(frozen=True)
+class _Context:
+    state_name: str
+    observed_at: float
+    rotation: bool
+    stale: bool
+    now: float
+
+
+def _account_row(context: _Context, identifier: str, auth: JsonObject, usage: JsonObject, index: int) -> JsonObject:
+    reset_at = number_value(usage.get("limitedUntil"))
+    source = f"{context.state_name}:{identifier}"
+    utilization = number_value(usage.get("utilization"))
+    used_percent = None
+    if utilization is not None and MINIMUM_UTILIZATION <= utilization <= MAXIMUM_UTILIZATION:
+        used_percent = round(utilization * 100.0, 1)
+    return {
+        "id": hashlib.sha256(source.encode()).hexdigest()[:FINGERPRINT_LENGTH],
+        "signed_in": auth.get("signed_in") is True,
+        "email": email_value(auth.get("email")),
+        "plan": member_value(auth.get("plan"), PLANS),
+        "role": "Primary" if index == 0 else "Fallback",
+        "status": _row_status(auth, reset_at, stale=context.stale, now=context.now),
+        "rotation_enabled": context.rotation,
+        "owner_observed_at": context.observed_at,
+        "usage_observed_at": number_value(usage.get("observedAt")),
+        "used_percent": used_percent,
+        "window": member_value(usage.get("limitType"), WINDOWS),
+        "cooldown_until": reset_at,
+    }
+
+
+def _owner_rows(state: Path, cli: Path, *, now: float) -> list[JsonValue] | None:
+    owner = load_json_object(state)
+    if owner is None or owner.get("provider") != "claude_code":
+        return None
+    configuration = load_json_object(state.parent / "accounts.json") or {**owner, "accounts": FALLBACK_PROFILES}
+    mismatch = any(configuration.get(key) != owner.get(key) for key in ("tenant_id", "user_id"))
+    entries = None if mismatch else _profile_entries(state.parent, configuration)
+    if entries is None:
+        return None
+    health = load_json_object(state.parent / "health.json") or {}
+    observed = number_value(health.get("writtenAt")) or 0.0
+    context = _Context(state.parent.name, observed, len(entries) > 1, not 0 <= now - observed <= FRESH_SECONDS, now)
+    rows: list[JsonValue] = []
+    for index, (identifier, home) in enumerate(entries):
+        usage = _usage_limit(health, identifier, index)
+        rows.append(_account_row(context, identifier, auth_status(cli, home), usage, index))
+    return rows
+
+
+def collect(owner_root: Path, cli: Path, *, now: float | None = None) -> JsonObject:
+    """Return the redacted Claude inventory from every owner directory."""
+    current = time.time() if now is None else now
+    rows: list[JsonValue] = []
+    failures = 0
     for state in sorted(owner_root.glob("*/owner.json")):
-        try:
-            owner = json.loads(state.read_text())
-            config_path = state.parent / "accounts.json"
-            config = json.loads(config_path.read_text()) if config_path.exists() else {
-                **owner, "accounts": [{"id": "primary", "home": "home"}]}
-            if owner.get("provider") != "claude_code" or any(
-                config.get(key) != owner.get(key) for key in ("tenant_id", "user_id")
-            ):
-                raise ValueError("profile principal mismatch")
-            health_path = state.parent / "health.json"
-            try:
-                health = json.loads(health_path.read_text())
-            except (OSError, ValueError):
-                health = {}
-            owner_at = _number(health.get("writtenAt")) or 0
-            owner_stale = not 0 <= now - owner_at <= 60
-            limits = {row["id"]: row.get("usageLimit", {}) for row in health.get("accounts", [])}
-            profiles = config["accounts"]
-            if not isinstance(profiles, list) or not 1 <= len(profiles) <= 8:
-                raise ValueError("invalid profile inventory")
-            for index, profile in enumerate(profiles):
-                home = (state.parent / profile["home"]).resolve()
-                if not home.is_relative_to(state.parent.resolve()):
-                    raise ValueError("profile outside owner")
-                auth = auth_status(cli, home)
-                usage = limits.get(profile["id"], health.get("usageLimit", {}) if index == 0 else {})
-                reset_at = _number(usage.get("limitedUntil"))
-                observed_at = _number(usage.get("observedAt"))
-                utilization = _number(usage.get("utilization"))
-                used = round(utilization * 100, 1) if utilization is not None and 0 <= utilization <= 1 else None
-                status = "unavailable" if owner_stale else (
-                    "sign_in_required" if not auth["signed_in"] else (
-                        "cooldown" if reset_at and reset_at > now else "ready"))
-                fingerprint = hashlib.sha256(f"{state.parent.name}:{profile['id']}".encode()).hexdigest()[:16]
-                accounts.append({
-                    "id": fingerprint, **auth, "role": "Primary" if index == 0 else "Fallback",
-                    "status": status, "rotation_enabled": len(profiles) > 1,
-                    "owner_observed_at": owner_at, "usage_observed_at": observed_at,
-                    "used_percent": used, "window": usage.get("limitType") if usage.get("limitType") in WINDOWS else None,
-                    "cooldown_until": reset_at,
-                })
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
-            errors.append("owner_inventory_unavailable")
-    return {"schema_version": 1, "generated_at": now, "accounts": accounts, "errors": sorted(set(errors))}
+        owner_rows = _owner_rows(state, cli, now=current)
+        if owner_rows is None:
+            failures += 1
+            continue
+        rows.extend(owner_rows)
+    errors: list[JsonValue] = [OWNER_UNAVAILABLE_ERROR] if failures else []
+    return {"schema_version": SCHEMA_VERSION, "generated_at": current, "accounts": rows, "errors": errors}
 
 
-def read_snapshot(path: Path, *, now: float | None = None) -> dict:
-    """Build an explicit public schema, with no pass-through fields or errors."""
-    now = time.time() if now is None else now
-    unavailable = {"schema_version": 1, "generated_at": None, "stale": True,
-                   "accounts": [], "error": "Claude account status is unavailable"}
-    try:
-        if path.stat().st_size > 262144:
-            return unavailable
-        raw = json.loads(path.read_text())
-        generated = _number(raw.get("generated_at"))
-        if raw.get("schema_version") != 1 or generated is None or not isinstance(raw.get("accounts"), list):
-            return unavailable
-        stale = not 0 <= now - generated <= 180
-        accounts = []
-        for row in raw["accounts"][:128]:
-            owner_at = _number(row.get("owner_observed_at")) or 0
-            status = row.get("status") if row.get("status") in STATUSES else "unavailable"
-            if stale or not 0 <= now - owner_at <= 180:
-                status = "unavailable"
-            used = _number(row.get("used_percent"))
-            observed = _number(row.get("usage_observed_at"))
-            accounts.append({
-                "email": _email(row.get("email")), "plan": row.get("plan") if row.get("plan") in PLANS else None,
-                "role": row.get("role") if row.get("role") in {"Primary", "Fallback"} else "Account",
-                "signed_in": row.get("signed_in") is True, "status": status,
-                "rotation_enabled": row.get("rotation_enabled") is True,
-                "used_percent": used if used is not None and 0 <= used <= 100 else None,
-                "window": row.get("window") if row.get("window") in WINDOWS else None,
-                "usage_observed_at": _iso(observed),
-                "usage_stale": observed is None or not 0 <= now - observed <= 600,
-                "cooldown_until": _iso(row.get("cooldown_until")),
-            })
-        return {"schema_version": 1, "generated_at": _iso(generated), "stale": stale, "accounts": accounts,
-                "error": "Some Claude account status could not be read" if raw.get("errors") else None}
-    except (OSError, ValueError, TypeError, AttributeError):
-        return unavailable
-
-
-def main():
+def main(argv: Sequence[str] | None = None) -> int:
+    """Return zero after writing one redacted Claude inventory snapshot."""
     parser = argparse.ArgumentParser(description="Export redacted Claude account status for the usage dashboard")
-    parser.add_argument("--owners", type=Path, default=Path("/var/lib/pitchai-cli-new/claude-owners"))
-    parser.add_argument("--runtime", type=Path, default=Path("/opt/pitchai-claude-code-owner/current"))
-    parser.add_argument("--output", type=Path, default=Path("/srv/codex-usage-dashboard/claude-accounts.json"))
-    args = parser.parse_args()
-    binaries = list(args.runtime.glob(".venv/lib/python*/site-packages/claude_agent_sdk/_bundled/claude"))
+    parser.add_argument("--owners", type=Path, default=DEFAULT_OWNERS_ROOT)
+    parser.add_argument("--runtime", type=Path, default=DEFAULT_RUNTIME_ROOT)
+    parser.add_argument("--output", type=Path, default=COLLECTOR_OUTPUT_FILE)
+    arguments = parser.parse_args(list(argv) if argv is not None else None)
+    binaries = sorted(cast("Path", arguments.runtime).glob(BUNDLED_BINARY_GLOB))
     if len(binaries) != 1:
-        raise SystemExit("Pinned Claude binary unavailable; previous snapshot will become stale")
-    snapshot = collect(args.owners, binaries[0])
-    args.output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd, temporary = tempfile.mkstemp(prefix=".claude-accounts-", dir=args.output.parent)
-    try:
-        with os.fdopen(fd, "w") as handle:
-            json.dump(snapshot, handle, allow_nan=False)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, args.output)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-    print(json.dumps({"accounts": len(snapshot["accounts"]), "errors": len(snapshot["errors"])}))
+        sys.stderr.write(MISSING_BINARY_MESSAGE)
+        return 1
+    document = collect(cast("Path", arguments.owners), binaries[0])
+    output = cast("Path", arguments.output)
+    output.parent.mkdir(parents=True, exist_ok=True, mode=SNAPSHOT_DIRECTORY_MODE)
+    temporary = output.with_name(output.name + SNAPSHOT_SUFFIX)
+    temporary.write_text(json.dumps(document, allow_nan=False), encoding="utf-8")
+    temporary.replace(output)
+    accounts = len(cast("list[JsonValue]", document.get("accounts")))
+    errors = len(cast("list[JsonValue]", document.get("errors")))
+    sys.stdout.write(json.dumps({"accounts": accounts, "errors": errors}) + "\n")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
