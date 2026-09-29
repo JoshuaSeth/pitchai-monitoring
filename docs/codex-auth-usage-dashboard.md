@@ -280,3 +280,32 @@ For an Nginx rollback, restore the timestamped backup beside `/etc/nginx/sites-a
 - The dashboard-owned history mount is the only writable persistent path in the read-only container.
 - Active requester/session counts are informational telemetry only. They never reduce account availability.
 - Only actual auth validity, provider rate/quota state, disabled state, freshness, and the broker safety floor affect displayed selectability.
+
+## Claude accounts
+
+The browser also reads the SSO-protected `/api/v1/claude-accounts` endpoint.
+Claude accounts appear in their own section and never enter Codex pool totals,
+capacity forecasts, usage history, or the native mobile API.
+
+`claude-usage-export.timer` runs once per minute on the owner host. Its Python
+collector reads only `owner.json`, `accounts.json`, and `health.json`, and asks
+the pinned official Claude binary for `auth status` with each profile's private
+HOME. It never opens login files or calls a generation/usage endpoint. Only
+allowlisted identity, plan, availability, and usage-event fields are written
+atomically to `/srv/codex-usage-dashboard/claude-accounts.json` (0600). The
+dashboard reads that snapshot through its existing data mount; no Claude home,
+credential, bearer token, or owner SQLite database is mounted in the container.
+
+“Ready” means signed in and eligible under the engine's cooldown state, not a
+guarantee of unused quota. Usage is the most recent official lane rate-limit
+event. Missing utilization remains unknown, readings older than ten minutes
+are labeled last reported, and status becomes unavailable if the exporter or
+owner heartbeat is stale. A profile without a reported usage window never
+appears as zero usage or unlimited capacity. Cooldowns show the engine's next
+eligible time, which can be a conservative retry time if no provider reset was
+reported. The dashboard does not switch accounts or alter cooldowns.
+
+Deployment installs the exporter and timer, then checks the same read-only
+status file in the loopback canary. Run `systemctl start claude-usage-export`
+to refresh identity/status immediately; normal refresh never submits a model
+prompt.

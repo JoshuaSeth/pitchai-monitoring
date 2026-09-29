@@ -7,6 +7,7 @@ from asyncio import to_thread
 from functools import partial
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
+from .claude_routes import register_claude_route
 from .history import UsageSampleStore
 from .luna_reserve_gateway import read_luna_reserve_snapshot
 from .scheduling_capacity import build_scheduling_capacity_snapshot
@@ -141,6 +142,12 @@ def create_scheduling_app(
         response_model=None,
     )
     register_subscription_route(
+        application,
+        settings=selected_settings,
+        identity_default=identity_header,
+        require_operator=_require_operator,
+    )
+    register_claude_route(
         application,
         settings=selected_settings,
         identity_default=identity_header,
