@@ -824,7 +824,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-09-26"
+  reviewed_at: "2026-09-29"
   authoritative_sources:
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
@@ -851,6 +851,8 @@ inventory:
     - "Montrachet public-demo ingress and live HTTPS application/runtime checks (2026-09-18); authenticated voice behavior is outside this availability check"
     - "Nine-day agent, PM, repository and live ingress sweep (2026-09-26); Namecheap snapshot 20260926T204722Z-1cbfa0103218-ca75227f: 78 records"
     - "PitchAI Screens test-service nginx, release-validation notes and read-only /health contract (2026-09-26)"
+    - "Nine-day agent, PM, repository and live ingress sweep (2026-09-29); Namecheap snapshot 20260929T204813Z-2f5a7360f9a5-f34d34e7: 79 records"
+    - "SalesEngine public demo and private GZB/Jeugdtandarts review ingress, PM handoffs and credential-free HTTPS contracts (2026-09-29)"
 
 domain_groups:
   corporate:
@@ -968,6 +970,70 @@ check_profiles:
         state: attached
 
 domains:
+  - domain: apologetica-react-staging.web.app
+    label: "Apologetica React Firebase preview"
+    group: learning-demos
+    environment: staging
+    kind: application
+    ownership: pitchai-operated-non-owned-dns
+    sources: [apologetica-react-firebase-handoff-20260717, repository-evidence-20260929, live-probe-2026-09-29]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Historical review-ready Firebase preview remains reachable, but the custom-domain and production handoff are incomplete. Keep the hosted preview visible without paging."
+    check:
+      <<: *html_200
+      url: https://apologetica-react-staging.web.app/
+      browser_enabled: false
+      expected_final_host_suffix: apologetica-react-staging.web.app
+      expected_title_contains: "Geloofsverdediging.nl"
+  - domain: salesengine.demos.pitchai.net
+    label: "SalesEngine Ember Duplex demo"
+    group: learning-demos
+    owner_project: ember_duplex
+    environment: demo
+    kind: application
+    sources: [namecheap-zone-2026-09-29, salesengine-demo-dns-20260928, pitchai-dev-ingress, live-probe-2026-09-29]
+    alert_policy:
+      telegram: critical
+    check:
+      <<: *html_200
+      url: https://salesengine.demos.pitchai.net/
+      browser_enabled: false
+      expected_final_host_suffix: salesengine.demos.pitchai.net
+      expected_title_contains: "Ember Duplex"
+      required_text_all: ["Start call"]
+  - domain: gzb-review.135-181-182-48.sslip.io
+    label: "GZB private review"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [pitchai-dev-ingress, thomas-websites-review-20260929, live-probe-2026-09-29]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Private review workspace, not a production service. Monitor only the intentional credential-free access denial; no personal access links, media probes or Telegram alerts."
+    check:
+      <<: *edge_403
+      url: https://gzb-review.135-181-182-48.sslip.io/
+      browser_enabled: false
+      expected_final_host_suffix: gzb-review.135-181-182-48.sslip.io
+      expected_title_contains: "GZB Review"
+      required_text_all: ["Deze reviewruimte is privé."]
+  - domain: jeugdtandarts-review.135-181-182-48.sslip.io
+    label: "Jeugdtandarts private review"
+    group: learning-demos
+    environment: demo
+    kind: application
+    sources: [pitchai-dev-ingress, thomas-websites-review-20260929, live-probe-2026-09-29]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Private review workspace, not a production service. Monitor only the intentional credential-free access denial; no personal access links, media probes or Telegram alerts."
+    check:
+      <<: *edge_403
+      url: https://jeugdtandarts-review.135-181-182-48.sslip.io/
+      browser_enabled: false
+      expected_final_host_suffix: jeugdtandarts-review.135-181-182-48.sslip.io
+      expected_title_contains: "Jeugdtandarts Review"
+      required_text_all: ["Deze reviewruimte is privé."]
   - domain: aetherreel.37.27.67.52.nip.io
     label: "AetherReel pre-launch platform"
     group: platform-apps
