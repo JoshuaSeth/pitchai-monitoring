@@ -105,7 +105,9 @@ def _capacity_state(
     for window in windows:
         if window["used_percent"] < FULLY_USED_PERCENT:
             continue
-        reset_value = _window_reset_epoch(window, observation=observation)
+        reset_value = window.get(
+            "reset_at", int(observation.captured_at.timestamp()) + window.get("reset_after_seconds", 0),
+        )
         if window.get("limit_window_seconds", 0) <= 0 or reset_value <= now.timestamp():
             return "indeterminate", "full allowance window is missing an active duration or reset", ()
         exhausted_reset_values.append(reset_value)
@@ -144,10 +146,6 @@ def _capacity_state(
         "all authoritative capacity windows have positive remaining capacity",
         (),
     )
-
-
-def _window_reset_epoch(window: dict[str, int], *, observation: AccountObservation) -> int:
-    return window.get("reset_at", int(observation.captured_at.timestamp()) + window.get("reset_after_seconds", 0))
 
 
 def _reported_windows(observation: AccountObservation) -> tuple[dict[str, int], ...]:

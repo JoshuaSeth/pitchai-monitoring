@@ -23,14 +23,45 @@ class ExecutionFailure(TypedDict):
     quota_windows: dict[str, dict[str, int]]
 
 
-def execution_failure_evidence(payload: object, *, account_id: str) -> ExecutionFailure | None:
+class BrokerExecutionDocument(TypedDict):
+    """Unvalidated account-detail response from the broker JSON boundary."""
+
+    state: object
+
+
+class BrokerExecutionReport(TypedDict, total=False):
+    """Named unvalidated fields of the opt-in broker evidence contract."""
+
+    schema_version: object
+    source: object
+    error_code: object
+    occurred_at: object
+    received_at: object
+    account_id: object
+    lease_id: object
+    client_name: object
+    quota_windows: object
+
+
+class QuotaWindowDocument(TypedDict):
+    """Unvalidated quota-window member of an execution-evidence document."""
+
+    quota_windows: object
+
+
+def execution_failure_evidence(payload: BrokerExecutionDocument, *, account_id: str) -> ExecutionFailure | None:
     """Read only the versioned, explicit provider execution-error proof.
 
     Returns:
         Sanitized proof or none for missing, legacy, mismatched, or invalid evidence.
     """
-    state = _mapping(_mapping(payload).get("state"))
-    proof = _mapping(state.get("execution_exhaustion"))
+    raw_state = payload.get("state")
+    if not isinstance(raw_state, dict):
+        return None
+    raw_proof = cast("dict[str, object]", raw_state).get("execution_exhaustion")
+    if not isinstance(raw_proof, dict):
+        return None
+    proof = cast("dict[str, object]", raw_proof)
     expected = {
         "schema_version": 1, "source": "provider_execution_error", "error_code": "usage_limit_reached",
         "account_id": account_id,
@@ -44,7 +75,7 @@ def execution_failure_evidence(payload: object, *, account_id: str) -> Execution
         return None
     occurred = parse_timestamp(proof.get("occurred_at"), field_name="execution_exhaustion.occurred_at")
     received = parse_timestamp(proof.get("received_at"), field_name="execution_exhaustion.received_at")
-    windows = _quota_windows(proof.get("quota_windows"))
+    windows = _quota_windows(QuotaWindowDocument(quota_windows=proof.get("quota_windows")))
     if occurred > received or not windows:
         return None
     return ExecutionFailure(
@@ -59,7 +90,10 @@ def proof_is_current(observation: AccountObservation, *, now: datetime, max_age:
     Returns:
         True only while the original execution failure still describes these windows.
     """
-    proof = _mapping(observation.broker_state.get("execution_exhaustion"))
+    raw_proof = cast("object", observation.broker_state.get("execution_exhaustion"))
+    if not isinstance(raw_proof, dict):
+        return False
+    proof = cast("dict[str, object]", raw_proof)
     if proof.get("source") != "provider_execution_error" or proof.get("error_code") != "usage_limit_reached":
         return False
     occurred = parse_timestamp(proof.get("occurred_at"), field_name="execution_exhaustion.occurred_at")
@@ -68,8 +102,8 @@ def proof_is_current(observation: AccountObservation, *, now: datetime, max_age:
         return False
     if any(not 0 <= (now - value).total_seconds() <= max_age.total_seconds() for value in (occurred, received)):
         return False
-    recorded = _quota_windows(proof.get("quota_windows"))
-    current = _quota_windows(observation.usage_state)
+    recorded = _quota_windows(QuotaWindowDocument(quota_windows=proof.get("quota_windows")))
+    current = _quota_windows(QuotaWindowDocument(quota_windows=observation.usage_state))
     if not recorded or recorded != current:
         return False
     return all(
@@ -78,24 +112,26 @@ def proof_is_current(observation: AccountObservation, *, now: datetime, max_age:
     )
 
 
-def _quota_windows(value: object) -> dict[str, dict[str, int]]:
-    windows = _mapping(value)
+def _quota_windows(document: QuotaWindowDocument) -> dict[str, dict[str, int]]:
+    raw_windows = document["quota_windows"]
+    if not isinstance(raw_windows, dict):
+        return {}
+    windows = cast("dict[str, object]", raw_windows)
     result: dict[str, dict[str, int]] = {}
     fields = ("limit_window_seconds", "reset_at")
     for name in ("primary_window", "secondary_window"):
         raw = windows.get(name)
         if raw is None:
             continue
-        window = _mapping(raw)
-        epoch = {
-            key: field for key in fields
-            if isinstance(field := window.get(key), int) and not isinstance(field, bool) and field > 0
-        }
+        if not isinstance(raw, dict):
+            return {}
+        window = cast("dict[str, object]", raw)
+        epoch: dict[str, int] = {}
+        for key in fields:
+            field = window.get(key)
+            if isinstance(field, int) and not isinstance(field, bool) and field > 0:
+                epoch[key] = field
         if len(epoch) != len(fields):
             return {}
         result[name] = epoch
     return result
-
-
-def _mapping(value: object) -> dict[str, object]:
-    return cast("dict[str, object]", value) if isinstance(value, dict) else {}

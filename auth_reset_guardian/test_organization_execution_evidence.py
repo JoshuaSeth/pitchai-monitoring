@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from .execution_exhaustion import execution_failure_evidence
+from .execution_exhaustion import BrokerExecutionDocument, execution_failure_evidence
 from .test_organization_support import NOW, require_equal
 
 
@@ -33,5 +33,5 @@ def test_mismatched_account_and_nonexecution_errors_never_qualify() -> None:
         {"error_code": "rate_limited"}, {"schema_version": True}, {"schema_version": 2},
         {"client_name": ""}, {"lease_id": None},
     ):
-        payload = {"state": {"execution_exhaustion": {**proof, **change}}}
+        payload = BrokerExecutionDocument(state={"execution_exhaustion": {**proof, **change}})
         require_equal(execution_failure_evidence(payload, account_id="account") is None, expected=True)

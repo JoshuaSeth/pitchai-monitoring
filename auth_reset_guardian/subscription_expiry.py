@@ -27,6 +27,12 @@ class SubscriptionDocument(TypedDict):
     accounts: object
 
 
+class SubscriptionCutoff(TypedDict):
+    """Unvalidated exact entitlement cutoff from the reviewed snapshot."""
+
+    access_ends_at: object
+
+
 def read_subscription_expiry(label: str, *, now: datetime) -> dict[str, str | None]:
     """Read one exact account's reviewed end date at the filesystem IO edge.
 
@@ -106,10 +112,13 @@ def subscription_expiry(
         "subscription_verified_at": utc_iso(verified_at),
         "subscription_source": "reviewed_subscription_snapshot",
     }
-    return {**result, **_precise_cutoff(row, end=result["subscription_access_ends_on"], zone=zone)}
+    return {**result, **_precise_cutoff(
+        SubscriptionCutoff(access_ends_at=row.get("access_ends_at")),
+        end=result["subscription_access_ends_on"], zone=zone,
+    )}
 
 
-def _precise_cutoff(row: dict[str, object], *, end: str, zone: str) -> dict[str, str]:
+def _precise_cutoff(row: SubscriptionCutoff, *, end: str, zone: str) -> dict[str, str]:
     exact = row.get("access_ends_at")
     if exact is not None:
         cutoff = parse_timestamp(exact, field_name="subscription.access_ends_at")

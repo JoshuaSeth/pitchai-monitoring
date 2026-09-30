@@ -22,10 +22,11 @@ from .test_organization_support import (
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from .execution_exhaustion import BrokerExecutionReport
     from .models import AccountObservation
 
 
-def provider_proof() -> dict[str, object]:
+def provider_proof() -> BrokerExecutionReport:
     """Return broker v1 evidence from an actual current-epoch execution error."""
     return {
         "schema_version": 1, "source": "provider_execution_error", "error_code": "usage_limit_reached",
@@ -38,7 +39,7 @@ def provider_proof() -> dict[str, object]:
     }
 
 
-def proved_observation(change: dict[str, object] | None = None) -> AccountObservation:
+def proved_observation(change: BrokerExecutionReport | None = None) -> AccountObservation:
     """Build a permissive-flag observation carrying sanitized provider execution proof.
 
     Returns:
@@ -63,7 +64,7 @@ def test_fresh_execution_error_establishes_effective_exhaustion_without_leaking_
 
 def test_stale_future_delayed_or_unbound_failures_do_not_qualify() -> None:
     """The server receipt cannot freshen an old execution or a different quota epoch."""
-    changes: tuple[dict[str, object], ...] = (
+    changes: tuple[BrokerExecutionReport, ...] = (
         {"occurred_at": (NOW - timedelta(seconds=121)).isoformat()},
         {"received_at": (NOW + timedelta(seconds=1)).isoformat()},
         {"occurred_at": (NOW + timedelta(seconds=1)).isoformat()},
