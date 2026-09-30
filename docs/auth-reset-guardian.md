@@ -22,6 +22,8 @@ The provider can return `nothing_to_reset`. That outcome does not consume the cr
 
 An unfinished credit that reaches its recorded expiry becomes `expired_unverified`, including when the provider still lists it as available. This releases the claim with an audited error, without replaying consume or claiming a successful reset.
 
+Successful account + credit + expiry identities remain suppressed across policy changes and subscription-priority updates, including legacy attempts created before organization claims existed. A changed decision key cannot authorize replay of that completed identity.
+
 ## Subscription evidence and expiry meanings
 
 The live source reads the existing reviewed snapshot at `/srv/codex-usage-dashboard/codex-subscriptions.json` on every account refresh, including the pre-consume recheck. It uses exact account-label matching, `access_status: active`, `renewal_enabled: false`, `access_ends_on`, a nonempty verification source, and `verified_at` no more than 30 days old and not in the future. The snapshot timezone is required for a confirmed date. Only the date, timezone, verification timestamp, and a fixed source label enter the audit; billing amounts and free-text notes are not copied.
