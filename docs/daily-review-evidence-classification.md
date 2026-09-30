@@ -67,6 +67,10 @@ Read the artifacts before classifying: the production lane only inspects
 as a 240 s `TimeoutError` with `browser_infra_error=false`. A `failure.png`
 showing `Mislukt - "Het is niet gelukt om Codex-modus te voltooien"` is a
 product failure; the demo lane reads the marker directly and fails in seconds.
+On 2026-09-30 both lanes failed twice in a row (20:10-20:14Z plus 20:45-20:49Z
+on production, 20:15Z plus 20:49Z on demo), which is the difference between one
+flaky run and a broken pattern: always wait for the next scheduled run before
+calling a single failure transient.
 
 ## Hotpath lanes are a separate stream
 
@@ -107,7 +111,12 @@ Read-only SQLite handle inside `e2e-registry` (`mode=ro`), verified
   claim row; that row resolved at 20:14:16Z as a real failure, and by 20:16:37Z
   the window was 635 runs / 633 pass, the two non-passes being
   `afasask_production_codex_medium_synthetic_ok` (`TimeoutError`, screenshot
-  shows `Mislukt`) and `afasask_demo_codex_fast_ok` (marker `❌ mislukt`). Both
-  lanes `effective_ok=0`, `fail_streak=1`, next due 20:45Z.
+  shows `Mislukt`) and `afasask_demo_codex_fast_ok` (marker `❌ mislukt`).
+- Verified 20:44-20:50Z: both retries repeated the failure (production
+  20:45:20Z - 20:49:35Z, 251 909 ms, same `Mislukt` state; demo 20:49:35Z -
+  20:49:47Z, same marker), leaving both lanes `effective_ok=0`,
+  `fail_streak=2`, next due 21:19:58Z / 21:19:59Z - a broken pattern, recorded
+  for escalation at the next review rather than sent under this follow-up's
+  no-external-message constraint.
 - 16 live hotpath lanes, 204 lane reports, 81 outbox intents all `delivered`,
   with 2 lanes critical and 4 lanes stale since 20-25 September.

@@ -340,10 +340,18 @@ and monitoring alerts" (Human Review, updated 2026-09-30T17:38Z) and the
 2026-09-18 "Codex account pool weekly exhaustion" incident (Done), so account
 pool exhaustion is a plausible cause to confirm rather than assume.
 
-This finding is recorded, not escalated: the follow-up that produced this
-correction is limited to internal documentation, so no external message was
-sent. The next scheduled runs (20:45Z) decide whether it is a single episode or
-a broken pattern, and the next morning review must re-check it.
+The 20:45Z retries **repeated** the failure, so this is a pattern rather than a
+hiccup: the production lane failed again 20:45:20Z - 20:49:35Z (251 909 ms, same
+`TimeoutError`, same `Mislukt` state in its `failure.png`), and the demo lane
+failed again 20:49:35Z - 20:49:47Z with the same marker. Both lanes now sit at
+`effective_ok=0`, `fail_streak=2`, next due 21:19:58Z / 21:19:59Z.
+
+Under the daily-review policy a failing enabled external E2E test with a repeat
+is a broken pattern that needs the requester's escalation. This follow-up is
+explicitly limited to internal documentation, so no external message was sent:
+the finding is recorded here and in PM for the monitoring manager and for the
+next scheduled review (2026-10-01T03:00Z), which must confirm recovery or
+escalate.
 
 ## Hotpath lane outcomes (separate evidence stream, 2026-09-30T20:03Z)
 
@@ -417,7 +425,7 @@ All rows re-verified 2026-09-30T20:03-20:05Z against the live registry on
 | Separate hotpath outcomes from the E2E aggregate | 16 lanes, 204 lane reports, latest severity + timestamp per lane listed above | met |
 | Outbox delivery is not lane health | 81/81 `delivered` while 2 lanes are critical and 4 are stale | met |
 | In-flight claim rows are resolved, not dismissed | re-read 20:11-20:14Z showed 634 rows / 633 `pass`; the one non-pass was the claim row for the 20:10:08Z AFASAsk production run, which resolved at 20:14:16Z as a real `TimeoutError` failure - reported above, not waved away | met |
-| Post-window AFASAsk Codex failure recorded | both enabled AFASAsk lanes red at 20:14:16Z and 20:15:41Z (screenshot shows `Mislukt`), evidence, detection gap and owner named above | met |
+| Post-window AFASAsk Codex failure recorded | both enabled AFASAsk lanes red twice (20:14:16Z / 20:15:41Z and the 20:45Z retries at 20:49:35Z / 20:49:47Z, `Mislukt` in both screenshots), `fail_streak=2` each; evidence, detection gap and owner named above | met |
 | Preserve schedule, human stops, alert policy and data | documentation-only change; no test, scheduler, alert or runtime mutation; runbook edit is additive | met |
 
 ## Future review guidance (added 2026-09-30)
