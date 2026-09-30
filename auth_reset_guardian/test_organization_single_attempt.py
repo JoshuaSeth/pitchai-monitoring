@@ -10,8 +10,9 @@ from typing import final
 from uuid import uuid4
 
 from .clients import RemoteCallError
+from .expiry_source import ExpiryAwareSource
 from .models import ProviderCredentials
-from .organization_io import SingleAttemptBrokerProviderSource, capture_io
+from .organization_io import capture_io
 from .test_organization_support import (
     NOW,
     account_observation,
@@ -40,6 +41,14 @@ class AmbiguousTransport:
             RemoteCallError: Every request models a lost provider response.
         """
         self._calls += 1
+        require(condition=arguments.get("method") == "POST", message="unexpected payment or account mutation")
+        require(
+            condition=arguments.get("url") == "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume",
+            message="only the exact banked reset endpoint is permitted",
+        )
+        headers = arguments.get("headers")
+        if isinstance(headers, dict):
+            require_equal(headers.get("ChatGPT-Account-Id"), "test-account-id")
         raw_payload = arguments.get("payload")
         if isinstance(raw_payload, dict):
             self._target = (
@@ -72,7 +81,7 @@ def test_ambiguous_provider_response_has_one_targeted_http_attempt() -> None:
         ),
     )
     transport = AmbiguousTransport()
-    source = SingleAttemptBrokerProviderSource(
+    source = ExpiryAwareSource(
         broker_url="http://broker.invalid",
         broker_admin_token=uuid4().hex,
         http=transport,

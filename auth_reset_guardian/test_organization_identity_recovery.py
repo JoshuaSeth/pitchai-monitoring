@@ -83,7 +83,7 @@ def test_restart_rejects_same_opaque_id_with_changed_expiry(tmp_path: Path) -> N
     require_equal(row_text(events[0], "severity"), "error")
 
 
-def test_restart_retires_claim_when_selected_weekly_reset_changes(
+def test_restart_preserves_claim_when_selected_weekly_reset_changes(
     tmp_path: Path,
 ) -> None:
     """Never reuse an ambiguous attempt after its selected weekly identity moves."""
@@ -117,9 +117,6 @@ def test_restart_retires_claim_when_selected_weekly_reset_changes(
         db_path,
         "SELECT status, verification, error_code FROM redemption_attempts",
     )
-    require_equal(row_text(attempts[0], "status"), "identity_mismatch")
-    require_equal(
-        row_text(attempts[0], "verification"),
-        "fresh_policy_selected_different_exact_target",
-    )
-    require_equal(row_text(attempts[0], "error_code"), "active_selection_mismatch")
+    require_equal(row_text(attempts[0], "status"), "uncertain")
+    claims = database_rows(db_path, "SELECT state FROM organization_redemption_claims")
+    require_equal(row_text(claims[0], "state"), "uncertain")

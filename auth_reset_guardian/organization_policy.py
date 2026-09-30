@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal
 
 from .organization_capacity import account_capacity_evidence
 from .organization_fingerprint import organization_decision_key
+from .subscription_expiry import confirmed_end_date, subscription_may_have_ended
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -142,15 +143,16 @@ def _decision_outcome(
     if not selections:
         return DecisionOutcome(
             "no_eligible_credit",
-            "all usable accounts are exhausted, but no banked reset has a weekly reset more than 48 hours away",
+            "all accounts exhausted, but no reset meets credit, subscription, and weekly-distance eligibility",
             None,
         )
-    selection = max(
+    selection = min(
         selections,
         key=lambda item: (
-            item.weekly_reset_at,
-            item.observation.descriptor.account_ref,
+            confirmed_end_date(item.observation) or "9999-12-31",
             _expiry_sort_value(item.credit),
+            item.observation.descriptor.account_ref,
+            item.credit.credit_ref,
         ),
     )
     return DecisionOutcome(
@@ -179,6 +181,8 @@ def _eligible_selections(
         observation = observations.get(item.account_ref)
         if observation is None or observation.available_count <= 0:
             continue
+        if subscription_may_have_ended(observation, now=now):
+            continue
         redeemable = (credit for credit in observation.credits if credit.is_redeemable)
         with_expiry = (credit for credit in redeemable if credit.expires_at is not None)
         unexpired = [
@@ -189,7 +193,7 @@ def _eligible_selections(
         candidates.append(
             RedemptionSelection(
                 observation,
-                min(unexpired, key=_expiry_sort_value),
+                min(unexpired, key=lambda credit: (_expiry_sort_value(credit), credit.credit_ref)),
                 weekly_reset_at,
             ),
         )

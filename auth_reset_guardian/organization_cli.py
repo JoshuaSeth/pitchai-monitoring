@@ -6,8 +6,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from . import cli as legacy_cli
+from .expiry_source import ExpiryAwareSource
 from .organization_guardian import OrganizationGuardian
-from .organization_io import SingleAttemptBrokerProviderSource
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -22,7 +22,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     guardian_binding = "Guardian"
     provider_binding = "BrokerProviderSource"
     setattr(legacy_cli, guardian_binding, OrganizationGuardian)
-    setattr(legacy_cli, provider_binding, SingleAttemptBrokerProviderSource)
+    setattr(legacy_cli, provider_binding, ExpiryAwareSource)
     return legacy_cli.main(list(argv) if argv is not None else None)
 
 

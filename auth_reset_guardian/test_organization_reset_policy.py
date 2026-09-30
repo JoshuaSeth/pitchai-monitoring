@@ -39,10 +39,10 @@ def evaluate(*observations: AccountObservation) -> OrganizationDecision:
     )
 
 
-def test_furthest_weekly_reset_wins_across_exhausted_accounts() -> None:
-    """Choose one account by natural weekly distance, never by expiry alone."""
-    near_credit = reset_credit("support-reset", expires_at=NOW + timedelta(days=20))
-    far_credit = reset_credit("elise-reset", expires_at=NOW + timedelta(days=10))
+def test_earliest_credit_expiry_wins_when_subscription_dates_are_unknown() -> None:
+    """Use banked-credit expiry before weekly distance among eligible accounts."""
+    near_credit = reset_credit("support-reset", expires_at=NOW + timedelta(days=10))
+    far_credit = reset_credit("elise-reset", expires_at=NOW + timedelta(days=20))
     support = account_observation(
         "support@pitchai.net",
         weekly_reset_at=NOW + timedelta(days=3),
@@ -64,8 +64,8 @@ def test_furthest_weekly_reset_wins_across_exhausted_accounts() -> None:
     )
     if selection is None:
         return
-    require_equal(selection.observation.descriptor.label, "elise@pitchai.net")
-    require_equal(selection.credit.credit_ref, far_credit.credit_ref)
+    require_equal(selection.observation.descriptor.label, "support@pitchai.net")
+    require_equal(selection.credit.credit_ref, near_credit.credit_ref)
 
 
 def test_exactly_48_hours_is_ineligible_but_one_second_more_is_eligible() -> None:
