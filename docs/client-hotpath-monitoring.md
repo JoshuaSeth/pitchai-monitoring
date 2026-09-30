@@ -14,6 +14,12 @@ Every row binds lane ID, project, display name, target surface, primary domain, 
 
 ## HTTP interface and authentication
 
+### QuickChat practice admission — 2026-09-30
+
+The inventory now has 17 result identities, not 17 agents. Waddinxveen's existing production row is reconciled into staging unchanged. Ridderkerk and Walburg are two additional per-client report identities bound to that same existing worker `5dc4b437-1c3b-5a18-92f8-ca7f79142a0f`; their single shared reminder is `reminder-central-c73278a5-4325-4286-9632-a204ab9a3717`, daily 02:15 Europe/Brussels. Wadd's `reminder-central-b08f59c4-ef94-40fc-96e0-91257817ce5b` and history remain separate. RSR stays retired. No new agent or reminder is created by this inventory change.
+
+The practice rows bind the exact public websites and tenant-specific production frames confirmed by the worker. They begin `never_reported`: registration, staging checks and intercepted fixtures are not production browser acceptance. Only the existing worker's actual per-client production evidence may set passing. Each client's evidence prefix, result history and incident key remain isolated; sharing an agent or reminder never copies a verdict across clients. PM task: `a6563758-cd91-41ba-ac5c-a3dedde6bfa4`.
+
 - `POST /api/v1/hotpaths/reports` accepts one strict version 1 report with `Authorization: Bearer <E2E_HOTPATH_REPORTER_TOKEN>`. This path is machine-only at the edge; browser identity headers are stripped.
 - `GET /dashboard/api/v1/hotpaths/summary` is the Entra-protected operator route used by dashboard JavaScript.
 - `GET /api/v1/hotpaths/summary` is the bearer-authenticated machine alias.
