@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypedDict
 
 from .models import utc_iso
-from .subscription_expiry import confirmed_end_date
+from .subscription_expiry import confirmed_end_date, confirmed_end_time
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -26,6 +26,7 @@ class SanitizedSelection(TypedDict):
     weekly_reset_at: str
     weekly_reset_distance_seconds: int
     subscription_access_ends_on: str | None
+    subscription_access_ends_at: str | None
 
 
 class SanitizedAccount(TypedDict):
@@ -37,6 +38,7 @@ class SanitizedAccount(TypedDict):
     reason: str
     captured_at: str | None
     exhausted_window_resets: list[int]
+    included_allowance_exhausted: bool
     weekly_reset_at: str | None
     weekly_reset_distance_seconds: int | None
 
@@ -68,6 +70,7 @@ def sanitized_decision(
     selection: SanitizedSelection | None = None
     if decision.selection is not None:
         credit = decision.selection.credit
+        exact_end = confirmed_end_time(decision.selection.observation)
         selection = {
             "account_ref": decision.selection.observation.descriptor.account_ref,
             "account_label": decision.selection.observation.descriptor.label,
@@ -75,6 +78,7 @@ def sanitized_decision(
             "expires_at": utc_iso(credit.expires_at) if credit.expires_at else None,
             "weekly_reset_at": utc_iso(decision.selection.weekly_reset_at),
             "subscription_access_ends_on": confirmed_end_date(decision.selection.observation),
+            "subscription_access_ends_at": utc_iso(exact_end) if exact_end else None,
             "weekly_reset_distance_seconds": int(
                 (decision.selection.weekly_reset_at - now).total_seconds(),
             ),
@@ -138,6 +142,7 @@ def _sanitized_account(
         "reason": evidence.reason,
         "captured_at": utc_iso(evidence.captured_at) if evidence.captured_at else None,
         "exhausted_window_resets": list(evidence.exhausted_window_resets),
+        "included_allowance_exhausted": bool(evidence.exhausted_window_resets),
         "weekly_reset_at": utc_iso(evidence.weekly_reset_at)
         if evidence.weekly_reset_at
         else None,

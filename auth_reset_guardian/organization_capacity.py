@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Literal, cast
 
+from .execution_exhaustion import proof_is_current
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import datetime
@@ -78,6 +80,7 @@ def account_capacity_evidence(
     state, reason, exhausted_resets = _capacity_state(
         observation=observation,
         windows=windows,
+        now=now,
     )
     return AccountCapacityEvidence(
         descriptor.account_ref,
@@ -94,6 +97,7 @@ def _capacity_state(
     *,
     observation: AccountObservation,
     windows: Sequence[dict[str, int]],
+    now: datetime,
 ) -> tuple[CapacityState, str, tuple[int, ...]]:
     if not windows:
         return "indeterminate", "provider reported no measurable capacity window", ()
@@ -101,21 +105,34 @@ def _capacity_state(
     for window in windows:
         if window["used_percent"] < FULLY_USED_PERCENT:
             continue
-        reset_value = window.get("reset_at", 0)
+        reset_value = window.get(
+            "reset_at", int(observation.captured_at.timestamp()) + window.get("reset_after_seconds", 0),
+        )
+        if window.get("limit_window_seconds", 0) <= 0 or reset_value <= now.timestamp():
+            return "indeterminate", "full allowance window is missing an active duration or reset", ()
         exhausted_reset_values.append(reset_value)
     exhausted_resets = tuple(sorted(exhausted_reset_values))
     allowed = observation.usage_state.get("allowed")
     limit_reached = observation.usage_state.get("limit_reached")
-    if exhausted_resets and (allowed or not limit_reached):
+    coherent_denial = not allowed and limit_reached
+    if (
+        exhausted_resets and not coherent_denial
+        and not proof_is_current(observation, now=now, max_age=MAX_OBSERVATION_AGE)
+    ):
         return (
             "indeterminate",
-            "provider scheduling flags conflict with a zero-remaining window",
+            "included allowance exhausted; effective capacity unproven without fresh execution failure",
             exhausted_resets,
         )
     if exhausted_resets:
+        reason = (
+            "included allowance exhausted; provider coherently denies effective capacity"
+            if coherent_denial else
+            "included allowance exhausted; fresh account-bound execution error proves effective exhaustion"
+        )
         return (
             "exhausted",
-            "at least one authoritative capacity window has zero percent remaining",
+            reason,
             exhausted_resets,
         )
     if limit_reached or not allowed:

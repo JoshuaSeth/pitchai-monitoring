@@ -30,6 +30,7 @@ def test_refresh_rereads_snapshot_without_changing_oauth_affinity(tmp_path: Path
     with (
         patch("auth_reset_guardian.subscription_expiry.SUBSCRIPTION_FILE", path),
         patch.object(BrokerProviderSource, "refresh_account", return_value=observation),
+        patch.object(source.http, "request", return_value={"state": {}}),
     ):
         for day in ("2026-09-10", "2026-09-11"):
             document = {

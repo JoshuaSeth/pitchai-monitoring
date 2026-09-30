@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, cast, final
+from urllib.parse import quote
 
+from .execution_exhaustion import BrokerExecutionDocument, execution_failure_evidence
 from .organization_io import SingleAttemptBrokerProviderSource
 from .subscription_expiry import read_subscription_expiry
 
@@ -25,4 +27,16 @@ class ExpiryAwareSource(SingleAttemptBrokerProviderSource):
         """
         observation = super().refresh_account(descriptor)
         expiry = read_subscription_expiry(descriptor.label, now=observation.captured_at)
-        return replace(observation, broker_state={**observation.broker_state, **expiry})
+        account = self.http.request(
+            method="GET",
+            url=f"{self.broker_url}/v1/admin/accounts/{quote(descriptor.broker_account_id, safe='')}",
+            endpoint="broker_execution_evidence",
+            headers=self._broker_headers,
+        )
+        failure = execution_failure_evidence(
+            BrokerExecutionDocument(state=cast("object", account.get("state"))),
+            account_id=descriptor.broker_account_id,
+        )
+        return replace(observation, broker_state={
+            **observation.broker_state, **expiry, "execution_exhaustion": failure,
+        })

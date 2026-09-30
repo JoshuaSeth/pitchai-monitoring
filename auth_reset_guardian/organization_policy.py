@@ -9,7 +9,12 @@ from typing import TYPE_CHECKING, Literal
 
 from .organization_capacity import account_capacity_evidence
 from .organization_fingerprint import organization_decision_key
-from .subscription_expiry import confirmed_end_date, subscription_may_have_ended
+from .subscription_expiry import (
+    confirmed_end_date,
+    confirmed_end_time,
+    subscription_end_upper_bound,
+    subscription_may_have_ended,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -150,6 +155,7 @@ def _decision_outcome(
         selections,
         key=lambda item: (
             confirmed_end_date(item.observation) or "9999-12-31",
+            _subscription_time_rank(item.observation),
             _expiry_sort_value(item.credit),
             item.observation.descriptor.account_ref,
             item.credit.credit_ref,
@@ -173,10 +179,7 @@ def _eligible_selections(
     with_weekly_reset = (item for item in exhausted if item.weekly_reset_at is not None)
     for item in with_weekly_reset:
         weekly_reset_at = item.weekly_reset_at
-        if (
-            weekly_reset_at is None
-            or weekly_reset_at - now <= MINIMUM_WEEKLY_RESET_DISTANCE
-        ):
+        if weekly_reset_at is None or weekly_reset_at <= now:
             continue
         observation = observations.get(item.account_ref)
         if observation is None or observation.available_count <= 0:
@@ -190,10 +193,18 @@ def _eligible_selections(
         ]
         if not unexpired:
             continue
+        earliest = min(unexpired, key=lambda credit: (_expiry_sort_value(credit), credit.credit_ref))
+        subscription_end = subscription_end_upper_bound(observation)
+        expires_before_reset = (
+            _expiry_sort_value(earliest) <= weekly_reset_at
+            or (subscription_end is not None and subscription_end <= weekly_reset_at)
+        )
+        if weekly_reset_at - now <= MINIMUM_WEEKLY_RESET_DISTANCE and not expires_before_reset:
+            continue
         candidates.append(
             RedemptionSelection(
                 observation,
-                min(unexpired, key=lambda credit: (_expiry_sort_value(credit), credit.credit_ref)),
+                earliest,
                 weekly_reset_at,
             ),
         )
@@ -206,3 +217,8 @@ def _expiry_sort_value(credit: ResetCredit) -> datetime:
         message = "selected reset credit is missing its expiry"
         raise ValueError(message)
     return expires_at
+
+
+def _subscription_time_rank(observation: AccountObservation) -> float:
+    exact = confirmed_end_time(observation)
+    return exact.timestamp() if exact else float("inf")
