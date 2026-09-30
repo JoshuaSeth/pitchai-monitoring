@@ -8,6 +8,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Literal, cast
 
 from .execution_exhaustion import proof_is_current
+from .funded_capacity import FundedCapacityDocument, funding_requires_execution_proof
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -114,14 +115,17 @@ def _capacity_state(
     exhausted_resets = tuple(sorted(exhausted_reset_values))
     allowed = observation.usage_state.get("allowed")
     limit_reached = observation.usage_state.get("limit_reached")
-    coherent_denial = not allowed and limit_reached
+    funded_conflict = funding_requires_execution_proof(FundedCapacityDocument(
+        funded_capacity=cast("object", observation.usage_state.get("funded_capacity")),
+    ))
+    coherent_denial = allowed is False and limit_reached is True and not funded_conflict
     if (
         exhausted_resets and not coherent_denial
         and not proof_is_current(observation, now=now, max_age=MAX_OBSERVATION_AGE)
     ):
         return (
             "indeterminate",
-            "included allowance exhausted; effective capacity unproven without fresh execution failure",
+            "included allowance exhausted; flags or funded capacity require fresh execution failure",
             exhausted_resets,
         )
     if exhausted_resets:
