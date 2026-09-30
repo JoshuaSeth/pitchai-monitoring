@@ -69,23 +69,8 @@ class OrganizationAttemptStore:
 
     def reconcile_terminal_attempts(self) -> None:
         """Mirror terminal attempt states so a restart cannot leave a stale active claim."""
-        statement = """
-            UPDATE organization_redemption_claims
-               SET state = (
-                       SELECT status FROM redemption_attempts
-                        WHERE attempt_id = organization_redemption_claims.attempt_id
-                   ),
-                   updated_at = (
-                       SELECT updated_at FROM redemption_attempts
-                        WHERE attempt_id = organization_redemption_claims.attempt_id
-                   )
-             WHERE state IN ('claimed', 'uncertain', 'verification_failed')
-               AND (SELECT status FROM redemption_attempts
-                     WHERE attempt_id = organization_redemption_claims.attempt_id)
-                   NOT IN ('started', 'uncertain', 'verification_failed')
-        """
         with self._connection:
-            _ = self._connection.execute(statement)
+            self._sync_terminal_attempts_in_transaction()
 
     def claim(self, request: ClaimRequest) -> CoordinatedAttempt:
         """Atomically acquire, resume, or suppress the sole organization claim.
@@ -115,13 +100,23 @@ class OrganizationAttemptStore:
             "sqlite3.Row | None",
             self._connection.execute(
                 """
-                SELECT claims.*, attempts.idempotency_key, attempts.status AS attempt_status
-                  FROM organization_redemption_claims AS claims
-                  JOIN redemption_attempts AS attempts USING (attempt_id)
-                 WHERE claims.decision_key = ?
-                 ORDER BY claims.created_at DESC LIMIT 1
+                SELECT attempts.*, attempts.status AS attempt_status
+                  FROM redemption_attempts AS attempts
+                  LEFT JOIN organization_redemption_claims AS claims USING (attempt_id)
+                 WHERE claims.decision_key = ? OR (
+                       attempts.account_ref = ? AND attempts.credit_ref = ?
+                       AND attempts.expires_at = ?
+                       AND attempts.status IN ('succeeded', 'reconciled_absent'))
+                 ORDER BY attempts.status IN ('succeeded', 'reconciled_absent') DESC,
+                          attempts.updated_at DESC LIMIT 1
                 """,
-                (request.decision_key,),
+                (
+                    request.decision_key,
+                    request.selection.observation.descriptor.account_ref,
+                    request.selection.credit.credit_ref,
+                    utc_iso(request.selection.credit.expires_at)
+                    if request.selection.credit.expires_at else "",
+                ),
             ).fetchone(),
         )
         if recent is not None and self._terminal_suppresses(recent, request.now):

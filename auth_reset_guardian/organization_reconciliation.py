@@ -55,7 +55,7 @@ def reconcile_pending_attempts(
         record = cast("PendingAttemptRecord", cast("object", raw_attempt))
         pending = _pending_attempt(record)
         credit = observation.find_credit(pending.credit_ref)
-        if credit is not None and credit.is_redeemable:
+        if credit is not None and credit.is_redeemable and context.clock() < pending.expires_at:
             if credit.expires_at == pending.expires_at:
                 continue
             _record_identity_mismatch(context, observation, pending, credit)

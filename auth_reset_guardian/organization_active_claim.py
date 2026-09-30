@@ -1,5 +1,5 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Safe retirement of an unfinished claim whose exact selection changed."""
+"""Keep an unresolved mutation fenced when expiry ordering changes the target."""
 
 from __future__ import annotations
 
@@ -18,21 +18,8 @@ def resolve_active_mismatch(
     attempt: CoordinatedAttempt,
     selection: RedemptionSelection,
 ) -> None:
-    """Retire an ambiguous claim that no longer matches the fresh target."""
+    """Suppress a different target until the original mutation is reconciled."""
     verification = "fresh_policy_selected_different_exact_target"
-    context.audit.update_attempt(
-        attempt_id=attempt.attempt_id,
-        now=context.clock(),
-        status="identity_mismatch",
-        verification=verification,
-        error_code="active_selection_mismatch",
-        details={"consume_attempted": False},
-    )
-    context.claims.mark(
-        attempt_id=attempt.attempt_id,
-        state="identity_mismatch",
-        now=context.clock(),
-    )
     context.summary.error_count += 1
     descriptor = selection.observation.descriptor
     context.audit.record_event(
@@ -49,7 +36,7 @@ def resolve_active_mismatch(
     )
     line = (
         "ERROR a prior ambiguous reset claim no longer matches the fresh exact "
-        "target; consume suppressed."
+        "target; consume suppressed and the durable claim remains active."
     )
     context.alerts.append(
         Alert(key=f"active-claim-mismatch:{attempt.attempt_id}", line=line),

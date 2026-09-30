@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, TypedDict
 
 from .models import utc_iso
+from .subscription_expiry import confirmed_end_date
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -24,6 +25,7 @@ class SanitizedSelection(TypedDict):
     expires_at: str | None
     weekly_reset_at: str
     weekly_reset_distance_seconds: int
+    subscription_access_ends_on: str | None
 
 
 class SanitizedAccount(TypedDict):
@@ -72,6 +74,7 @@ def sanitized_decision(
             "credit_ref": credit.credit_ref,
             "expires_at": utc_iso(credit.expires_at) if credit.expires_at else None,
             "weekly_reset_at": utc_iso(decision.selection.weekly_reset_at),
+            "subscription_access_ends_on": confirmed_end_date(decision.selection.observation),
             "weekly_reset_distance_seconds": int(
                 (decision.selection.weekly_reset_at - now).total_seconds(),
             ),

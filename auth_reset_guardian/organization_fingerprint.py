@@ -7,6 +7,7 @@ import json
 from typing import TYPE_CHECKING, Protocol, TypedDict
 
 from .models import stable_hash, utc_iso
+from .subscription_expiry import confirmed_end_date
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -42,6 +43,7 @@ class DecisionKeySelection(TypedDict):
     credit_ref: str
     expires_at: str | None
     weekly_reset_at: str
+    subscription_access_ends_on: str | None
 
 
 class DecisionKeyAccount(TypedDict):
@@ -91,6 +93,7 @@ def _decision_key_payload(
                 else None
             ),
             "weekly_reset_at": utc_iso(selection.weekly_reset_at),
+            "subscription_access_ends_on": confirmed_end_date(selection.observation),
         }
     accounts: list[DecisionKeyAccount] = []
     for item in evidence:
