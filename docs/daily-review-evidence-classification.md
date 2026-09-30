@@ -32,6 +32,13 @@ to the monitoring lane.
 - Treat a nonzero `failing_tests` from the registry summary as an escalation
   signal even when the summary `ok` flag is true, and inspect enabled tests whose
   `last_status` is not `pass` even when `effective_ok=1` (one-failure grace).
+- The registry summary is not a health verdict:
+  `e2e_registry/db.py::status_summary` returns a hardcoded `ok: True` and counts
+  `failing_tests` as every test with `effective_ok=0`, enabled or disabled.
+  Quote it as `<n> rows with effective_ok=0 (<x> enabled, <y> disabled)`. On
+  2026-09-30 it read 2 (both disabled historical `dft_prod_exam_import_2doc_sla_daily_e2e`
+  rows) at 20:03Z and 4 (those two plus the two enabled AFASAsk lanes) at
+  20:59Z, while `ok` stayed `True` throughout.
 
 ## Resolve claim rows, do not dismiss them
 

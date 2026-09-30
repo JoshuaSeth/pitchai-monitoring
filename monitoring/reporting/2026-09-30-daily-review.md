@@ -291,14 +291,23 @@ of the read, so none of them is stale. The manager's 2026-09-30T12:19Z
 reference snapshot showed the same 634 passes split 47/47/270/270; the per-test
 split moves with cadence while the aggregate stayed at 634.
 
-Registry summary endpoint (still useful, still needs the scope): `ok=true`,
-`failing_tests=2` - both disabled historical
-`dft_prod_exam_import_2doc_sla_daily_e2e` rows - and zero enabled tests with a
-non-pass `last_status`. The morning report's line "Runs in the 24 h window:
-634 total, 634 pass, 0 non-pass" is true **for the four schedulable recurring
-tests only** and must not be read as "the whole E2E estate is green". The
-earlier table row "three `zz_disabled_temp_*` | pass (February records)" was
-ambiguous and is superseded by this section.
+The registry summary endpoint is useful only with its scope, because
+`e2e_registry/db.py::status_summary` returns a hardcoded `ok: True` and counts
+`failing_tests` as every test with `effective_ok=0`, enabled or not. At the
+20:03Z read that was `failing_tests=2`, both disabled historical
+`dft_prod_exam_import_2doc_sla_daily_e2e` rows (last fails 2026-05-21/22), with
+zero enabled tests carrying a non-pass `last_status`. By 20:59Z, after the
+AFASAsk failures recorded below, the same call returned `failing_tests=4` - the
+same two disabled rows plus the two enabled AFASAsk lanes. Quote it as
+`<n> rows with effective_ok=0 (<x> enabled, <y> disabled)`; `ok=true` is not a
+health verdict, and `enabled_tests` / `disabled_tests` are not populated by this
+implementation at all.
+
+The morning report's line "Runs in the 24 h window: 634 total, 634 pass, 0
+non-pass" is true **for the four schedulable recurring tests only** and must not
+be read as "the whole E2E estate is green". The earlier table row "three
+`zz_disabled_temp_*` | pass (February records)" was ambiguous and is superseded
+by this section.
 
 ### Re-read, and both AFASAsk Codex lanes going red (2026-09-30T20:11-20:17Z)
 
