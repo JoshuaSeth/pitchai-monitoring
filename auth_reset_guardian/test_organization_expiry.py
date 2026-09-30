@@ -7,7 +7,7 @@ from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from .subscription_expiry import subscription_expiry
+from .subscription_expiry import SubscriptionDocument, subscription_expiry
 from .test_organization_reset_policy import evaluate
 from .test_organization_support import NOW, account_observation, require_equal, reset_credit
 
@@ -83,7 +83,7 @@ def test_subscription_parser_does_not_infer_expiry_from_other_credit_dates() -> 
         "renewal_enabled": False, "access_ends_on": "2026-09-10",
         "verified_at": NOW.isoformat(), "verified_source": "signed-in billing review",
     }
-    document: dict[str, object] = {"schema_version": 1, "timezone": "Europe/Berlin", "accounts": [row]}
+    document = SubscriptionDocument(schema_version=1, timezone="Europe/Berlin", accounts=[row])
     confirmed = subscription_expiry(document, label="account@example.test", now=NOW)
     require_equal(confirmed["subscription_access_ends_on"], "2026-09-10")
     for change in (
@@ -93,6 +93,6 @@ def test_subscription_parser_does_not_infer_expiry_from_other_credit_dates() -> 
         {"verified_source": None},
         {"access_ends_on": None, "renews_on": "2026-09-10", "assigned_credit_expires_at": "2026-09-10"},
     ):
-        changed = {**document, "accounts": [{**row, **change}]}
+        changed: SubscriptionDocument = {**document, "accounts": [{**row, **change}]}
         result = subscription_expiry(changed, label="account@example.test", now=NOW)
         require_equal(result["subscription_access_ends_on"], None)

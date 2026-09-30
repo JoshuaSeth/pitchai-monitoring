@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from datetime import date, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 from zoneinfo import ZoneInfo
 
 from .models import PayloadError, parse_timestamp, utc_iso
@@ -19,6 +19,14 @@ if TYPE_CHECKING:
 SUBSCRIPTION_FILE = Path("/srv/codex-usage-dashboard/codex-subscriptions.json")
 MAX_VERIFIED_AGE = timedelta(days=30)
 MAX_SNAPSHOT_BYTES = 131_072
+
+
+class SubscriptionDocument(TypedDict):
+    """Unvalidated fields at the reviewed subscription JSON boundary."""
+
+    schema_version: object
+    timezone: object
+    accounts: object
 
 
 def read_subscription_expiry(label: str, *, now: datetime) -> dict[str, str | None]:
@@ -41,13 +49,17 @@ def read_subscription_expiry(label: str, *, now: datetime) -> dict[str, str | No
     if not isinstance(document, dict):
         message = "subscription snapshot must be an object"
         raise PayloadError(message)
-    return subscription_expiry(
-        cast("dict[str, object]", document), label=label, now=now,
+    fields = cast("dict[str, object]", document)
+    snapshot = SubscriptionDocument(
+        schema_version=fields.get("schema_version"),
+        timezone=fields.get("timezone"),
+        accounts=fields.get("accounts"),
     )
+    return subscription_expiry(snapshot, label=label, now=now)
 
 
 def subscription_expiry(
-    document: dict[str, object], *, label: str, now: datetime,
+    document: SubscriptionDocument, *, label: str, now: datetime,
 ) -> dict[str, str | None]:
     """Select confirmed end-date evidence, preserving its calendar precision.
 
