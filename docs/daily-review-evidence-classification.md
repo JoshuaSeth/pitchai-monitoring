@@ -78,6 +78,11 @@ reads `info`, so report the staleness explicitly. See
 `docs/client-hotpath-monitoring.md` for the lane contract and
 `e2e_registry/hotpath_inventory.json` for expected intervals.
 
+Each report carries the `source_sha` / `deployed_sha` observed when it was
+written, so the revisions in a stale lane are as old as the report and only a
+fresh report can speak to the current deployment. Say which revisions a claim
+rests on instead of implying a live deployment check.
+
 ## Outbox delivery is not health
 
 `hotpath_event_outbox.status='delivered'` proves the publisher handed the event

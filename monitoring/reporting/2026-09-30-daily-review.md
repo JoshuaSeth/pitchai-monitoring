@@ -382,6 +382,17 @@ Reading rules:
   why delivery status cannot be quoted as health.
 - A lane's latest severity describes its **last report**, not now: the four
   stale lanes read `info` only because nothing newer exists.
+- **A lane report is point-in-time, including its revisions.** Each report
+  records the `source_sha` / `deployed_sha` seen when it was written, so a stale
+  lane's revisions are as old as its report (the 2026-09-20 aigenda calendar /
+  rules and quickchat-rsr rows still cite 20 September revisions) and only a
+  fresh report can speak to the current deployment. Both AIPC criticals turn on
+  revision evidence: the pedantic UI/QA lane's `expected source e482e9e9` vs
+  `served 8d70b334`, and the image-refresh trigger that never observed a new
+  reference.
+- Delivery receipts are the mirror image of that limit: the 81 `delivered`
+  outbox intents prove the publisher handed the event to the receiver inbox, not
+  that any recipient acted on it.
 - Two AIPC lanes are the live criticals. The 2026-09-30T12:19Z reference
   snapshot recorded both as the 29 September revision mismatch; by 20:03Z the
   UI/API/browser lane had a newer 30 September critical
