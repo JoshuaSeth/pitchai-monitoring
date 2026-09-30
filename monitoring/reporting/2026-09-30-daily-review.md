@@ -2,9 +2,13 @@
 
 ## Decision
 
-Six of the seven enabled domains were clean for the whole 24 h window and the
-external E2E lane passed every run, but the day is **not** all clear. Three
-items need a human decision, and one of them is new.
+Six of the seven enabled domains were clean for the whole 24 h window and every
+run of the external E2E lane's **four schedulable recurring tests** passed
+(634/634), but the day is **not** all clear. Three items need a human decision,
+and one of them is new. The External E2E section below carries a dated
+evidence-classification correction: the registry's 36 rows split into 4
+schedulable, 3 temporarily paused and 29 disabled, and the pass aggregate
+covers only the schedulable four.
 
 **`skybuyfly.pitchai.net` broke three times in the window** after a clean day -
 2026-09-29 16:46-17:49Z, 21:19-21:27Z and 2026-09-30 00:55-01:01Z - finishing at
@@ -248,24 +252,224 @@ remediated from this lane.
 
 ## External E2E
 
-Registry summary: `ok=true`, **36 tests**, `failing_tests=2` - both the disabled
-historical `dft_prod_exam_import_2doc_sla_daily_e2e` rows. **Zero enabled tests
-carry a non-pass `last_status`** and zero enabled tests have
-`effective_ok=0`.
+### Registry inventory, classified (re-verified 2026-09-30T20:03Z)
 
-Runs in the 24 h window: **634 total, 634 pass, 0 non-pass.**
+The registry holds **36 test rows**, and that is not the number of tests that
+produce current evidence. Applying the scheduler's own predicate
+(`e2e_registry/db.py`: `t.enabled=1 AND (t.disabled_until_ts IS NULL OR
+t.disabled_until_ts <= now)`) splits the inventory three ways:
 
-| Enabled test | Latest | Streak | Elapsed |
+| Class | Rows | Tests |
+| --- | --- | --- |
+| **Schedulable recurring** | 4 | `afasask_demo_codex_fast_ok` (1 800 s), `afasask_production_codex_medium_synthetic_ok` (1 800 s), `deplanbook_cms_home_smoke_py` (300 s), `deplanbook_cms_on_demand_translation_py` (300 s) |
+| **Temporarily paused** | 3 | `zz_disabled_temp_1772130669179007598`, `zz_disabled_temp_1772130669316856871`, `zz_disabled_temp_1772130685662537984` - `enabled=1` with `disabled_until_ts=1893456000` (2030-01-01) and reason `temporary probe cleanup` |
+| **Disabled** | 29 | 28 rows auto-disabled `disallowed base_url host: formatief-toetsen.pitchai.net`, plus the retired `afasask_gzb_codex_medium_ok_daily` (retirement reason dated 2026-09-03) |
+
+The three paused rows are **intentionally parked, not healthy current evidence
+and not a scheduler failure**. They are excluded by design through
+`disabled_until_ts`; each has exactly one run ever (last pass
+2026-02-26T18:31:10Z, 18:31:11Z and 18:31:41Z), a stale `next_due_ts` from the
+same day, and `success_streak=1`. Their `last_status=pass` is a February
+record. Pausing, activating or retiring them belongs to the owning project;
+this lane leaves them untouched.
+
+### Prior 24 h window (2026-09-29T20:03Z - 2026-09-30T20:03Z)
+
+Only the four schedulable tests ran: **634 runs, 634 pass, 0 non-pass.**
+
+| Schedulable test | Runs | Pass | Last finish | Last status |
+| --- | --- | --- | --- | --- |
+| `deplanbook_cms_home_smoke_py` | 271 | 271 | 2026-09-30T20:02:30Z | pass |
+| `deplanbook_cms_on_demand_translation_py` | 270 | 270 | 2026-09-30T20:02:25Z | pass |
+| `afasask_demo_codex_fast_ok` | 47 | 47 | 2026-09-30T19:44:45Z | pass |
+| `afasask_production_codex_medium_synthetic_ok` | 46 | 46 | 2026-09-30T19:39:48Z | pass |
+| **Total** | **634** | **634** | | |
+
+Scheduler state at the same read: all four `effective_ok=1`, `fail_streak=0`,
+success streaks 3 028 / 833 / 227 / 226, and `next_due_ts` a few minutes ahead
+of the read, so none of them is stale. The manager's 2026-09-30T12:19Z
+reference snapshot showed the same 634 passes split 47/47/270/270; the per-test
+split moves with cadence while the aggregate stayed at 634.
+
+The registry summary endpoint is useful only with its scope, because
+`e2e_registry/db.py::status_summary` returns a hardcoded `ok: True` and counts
+`failing_tests` as every test with `effective_ok=0`, enabled or not. At the
+20:03Z read that was `failing_tests=2`, both disabled historical
+`dft_prod_exam_import_2doc_sla_daily_e2e` rows (last fails 2026-05-21/22), with
+zero enabled tests carrying a non-pass `last_status`. By 20:59Z, after the
+AFASAsk failures recorded below, the same call returned `failing_tests=4` - the
+same two disabled rows plus the two enabled AFASAsk lanes. Quote it as
+`<n> rows with effective_ok=0 (<x> enabled, <y> disabled)`; `ok=true` is not a
+health verdict, and `enabled_tests` / `disabled_tests` are not populated by this
+implementation at all.
+
+The morning report's line "Runs in the 24 h window: 634 total, 634 pass, 0
+non-pass" is true **for the four schedulable recurring tests only** and must not
+be read as "the whole E2E estate is green". The earlier table row "three
+`zz_disabled_temp_*` | pass (February records)" was ambiguous and is superseded
+by this section.
+
+### Re-read, and both AFASAsk Codex lanes going red (2026-09-30T20:11-20:17Z)
+
+Re-reading the same window minutes later returned 634 rows with 633 `pass`. The
+single non-pass was a run still in flight: the scheduler writes a claim row
+before the browser starts (`status=infra_degraded`, `error_kind=pending`,
+`started_at_ts`/`finished_at_ts` NULL, id matching
+`test_state.running_lock_id`), then updates **that same row** with the outcome.
+Minutes later it resolved as a real failure, below. A pending row is therefore
+neither a failure nor a dismissal: resolve it, or wait one cadence, before
+quoting it either way - and never count it as a pass. Abandoned claims do
+residue: 25 rows registry-wide still sit at `pending` with `started_at_ts IS
+NULL`, the oldest 2026-08-27.
+
+Both AFASAsk Codex lanes then failed back to back, after a clean 24 h window in
+which they contributed 93 passing runs:
+
+| Enabled test | Run (UTC) | Result | Evidence |
 | --- | --- | --- | --- |
-| `afasask_demo_codex_fast_ok` | pass | 194 | 9 844 ms |
-| `afasask_production_codex_medium_synthetic_ok` | pass | 193 | 21 181 ms |
-| `deplanbook_cms_home_smoke_py` | pass | 2 836 | 1 913 ms |
-| `deplanbook_cms_on_demand_translation_py` | pass | 642 | 769 ms |
-| three `zz_disabled_temp_*` | pass (February records) | 1 | 313-669 ms |
+| `afasask_production_codex_medium_synthetic_ok` | 20:10:08Z - 20:14:16Z, 241 253 ms (typical 10.8-18.8 s) | `fail` / `TimeoutError`: `Page.wait_for_function: Timeout 240000ms exceeded.` | `failure.png` shows **Mislukt** - "Het is niet gelukt om Codex-modus te voltooien. Probeer het later opnieuw." on `afasask.gzb.nl/chat/demo/afasask-production-monitor-codex-medium-...` |
+| `afasask_demo_codex_fast_ok` | 20:15:39Z - 20:15:41Z, 1 374 ms | `fail` / `AssertionError`: `afasask_demo_codex_canary_failed_marker: ❌ mislukt` | `demo.afasask.pitchai.net/chat/demo/afasask-demo-monitor-codex-fast-ok-...` |
 
-The reminder's named `afasask_gzb_codex_medium_ok_daily` remains `enabled=0`
-(retired); its active replacement, `afasask_production_codex_medium_synthetic_ok`,
-passed every run in the window and exercises the medium Codex UI end to end.
+`test_state` for both flipped to `effective_ok=0`, `fail_streak=1`,
+`success_streak=0` (`next_due_ts` 20:45:16Z and 20:45:48Z), while
+`deplanbook_cms_home_smoke_py` kept passing at 20:14:19Z. Two surfaces failing
+within six minutes is a Codex-mode failure rather than a page hiccup: the auth
+broker, Codex medium execution and the live UI together are exactly what these
+tests verify, and the lane's own policy makes any non-pass actionable.
+
+Detection gap worth fixing: the production lane looks for success and failure
+markers inside `article[data-role="assistant"]`, while the `Mislukt` block
+renders outside that article, so a hard UI failure surfaces as a 240 s timeout
+instead of a named marker. The demo lane reads the marker directly and fails in
+1.4 s. Open the run's `failure.png` / `run.log` before classifying an E2E
+timeout as infrastructure - `browser_infra_error` was `false` here.
+
+Related work in the owning project: PM task "Harden AFASAsk Codex account pool
+and monitoring alerts" (Human Review, updated 2026-09-30T17:38Z) and the
+2026-09-18 "Codex account pool weekly exhaustion" incident (Done), so account
+pool exhaustion is a plausible cause to confirm rather than assume.
+
+The 20:45Z retries **repeated** the failure, so this is a pattern rather than a
+hiccup: the production lane failed again 20:45:20Z - 20:49:35Z (251 909 ms, same
+`TimeoutError`, same `Mislukt` state in its `failure.png`), and the demo lane
+failed again 20:49:35Z - 20:49:47Z with the same marker. Both lanes now sit at
+`effective_ok=0`, `fail_streak=2`, next due 21:19:58Z / 21:19:59Z.
+
+Under the daily-review policy a failing enabled external E2E test with a repeat
+is a broken pattern that needs the requester's escalation. This follow-up is
+explicitly limited to internal documentation, so no external message was sent:
+the finding is recorded here and in PM for the monitoring manager and for the
+next scheduled review (2026-10-01T03:00Z), which must confirm recovery or
+escalate.
+
+## Hotpath lane outcomes (separate evidence stream, 2026-09-30T20:03Z)
+
+Project hotpath lanes are **not** covered by the E2E registry aggregate and are
+reported separately. Live registry: **16 real lanes** in `hotpath_lane_state`,
+**204 reports** across them (206 rows in `hotpath_reports` including 2
+intentional `monitoring-hotpath-synthetic` protocol-proof rows), and **81
+outbox intents, all `status=delivered`** (58 `hotpath_red`, 23
+`hotpath_recovered`).
+
+| Lane (project) | Latest severity | Latest report (UTC) | Failure class / note |
+| --- | --- | --- | --- |
+| `aipc-hotpath-monitor` (ai_price_crawler) | **critical** | 2026-09-30T18:58:04Z | `image_refresh_trigger_not_observed`, `fail_streak=24` |
+| `aipc-pedantic-e2e-ui-qa-v2` (ai_price_crawler) | **critical** | 2026-09-29T19:45:32Z | `RECOMMENDATION_API_DEPLOYMENT_REVISION_MISMATCH`, `fail_streak=13` |
+| `afasask-hotpath-monitor` (afasask) | warning | 2026-09-29T19:33:52Z | `synthetic_authorization_absent`, `fail_streak=14` |
+| `pitchai-net-hotpath-monitor` | info | 2026-09-30T14:17:04Z | ok |
+| `potaito-hotpath-monitor` | info | 2026-09-29T23:26:04Z | ok |
+| `quickchat-waddinxveen-hotpath-monitor` | info | 2026-09-29T23:01:05Z | ok |
+| `orthoparse-hotpath-monitor` | info | 2026-09-29T21:06:07Z | ok |
+| `cisnl-hotpath-monitor` | info | 2026-09-29T19:38:00Z | ok |
+| `deplanbook-cms-hotpath-monitor` | info | 2026-09-29T19:34:14Z | ok |
+| `deplanbook-play-hotpath-monitor` | info | 2026-09-29T19:20:42Z | ok |
+| `dft-frontend-hotpath-playwright-b2-revival` | info | 2026-09-29T19:09:53Z | ok |
+| `autopar-hotpath-monitor` | info | 2026-09-29T18:53:13Z | ok |
+| `apologetica-cms-hotpath-monitor` | info | **2026-09-25T18:59:00Z** | stale ~5 days |
+| `aigenda-rules-hotpath-monitor` | info | **2026-09-20T03:36:43Z** | stale ~10.7 days |
+| `quickchat-rsr-hotpath-monitor` | info | **2026-09-20T03:30:48Z** | stale ~10.7 days |
+| `aigenda-calendar-hotpath-monitor` | info | **2026-09-20T03:26:37Z** | stale ~10.7 days |
+
+Reading rules:
+
+- **Outbox `delivered` proves publisher delivery only.** It says the event
+  reached the receiver inbox; it is not lane health, not remediation and not
+  alert acknowledgement. Today all 81 intents are delivered while two lanes sit
+  critical and four have not reported since 20-25 September, which is exactly
+  why delivery status cannot be quoted as health.
+- A lane's latest severity describes its **last report**, not now: the four
+  stale lanes read `info` only because nothing newer exists.
+- **A lane report is point-in-time, including its revisions.** Each report
+  records the `source_sha` / `deployed_sha` seen when it was written, so a stale
+  lane's revisions are as old as its report (the 2026-09-20 aigenda calendar /
+  rules and quickchat-rsr rows still cite 20 September revisions) and only a
+  fresh report can speak to the current deployment. Both AIPC criticals turn on
+  revision evidence: the pedantic UI/QA lane's `expected source e482e9e9` vs
+  `served 8d70b334`, and the image-refresh trigger that never observed a new
+  reference.
+- Delivery receipts are the mirror image of that limit: the 81 `delivered`
+  outbox intents prove the publisher handed the event to the receiver inbox, not
+  that any recipient acted on it.
+- Two AIPC lanes are the live criticals. The 2026-09-30T12:19Z reference
+  snapshot recorded both as the 29 September revision mismatch; by 20:03Z the
+  UI/API/browser lane had a newer 30 September critical
+  (`image_refresh_trigger_not_observed`) while the pedantic UI/QA lane still
+  carries the revision mismatch.
+- Current-UI and hotpath remediation is owned by the AIPC manager; this report
+  records evidence only and starts no competing work.
+
+## Dated evidence and acceptance matrix (correction)
+
+All rows re-verified 2026-09-30T20:03-20:05Z against the live registry on
+`pitchai-main` through a read-only SQLite handle
+(`sqlite3.connect(f"file:{settings.db_path}?mode=ro", uri=True)`) inside the
+`e2e-registry` container. No write, no lock, no runtime change.
+
+| Requirement | Evidence (dated 2026-09-30) | State |
+| --- | --- | --- |
+| Classify schedulable / paused / disabled | 36 rows = 4 schedulable + 3 paused (`disabled_until_ts=1893456000`) + 29 disabled (28 DFT disallowed-host, 1 retired AFASAsk), predicate from `e2e_registry/db.py` | met |
+| Paused rows are deliberate, not a scheduler failure | excluded by design; 1 run each, last pass 2026-02-26T18:31Z, stale `next_due_ts`, `success_streak=1` | met |
+| Scope the pass aggregate | 634/634 split 271/270/47/46 over the four schedulable tests, window 2026-09-29T20:03Z-2026-09-30T20:03Z | met |
+| Freshness per schedulable test | last finishes 20:02:30Z / 20:02:25Z / 19:44:45Z / 19:39:48Z; all `effective_ok=1`, `fail_streak=0` | met |
+| Separate hotpath outcomes from the E2E aggregate | 16 lanes, 204 lane reports, latest severity + timestamp per lane listed above | met |
+| Outbox delivery is not lane health | 81/81 `delivered` while 2 lanes are critical and 4 are stale | met |
+| In-flight claim rows are resolved, not dismissed | re-read 20:11-20:14Z showed 634 rows / 633 `pass`; the one non-pass was the claim row for the 20:10:08Z AFASAsk production run, which resolved at 20:14:16Z as a real `TimeoutError` failure - reported above, not waved away | met |
+| Post-window AFASAsk Codex failure recorded | both enabled AFASAsk lanes red twice (20:14:16Z / 20:15:41Z and the 20:45Z retries at 20:49:35Z / 20:49:47Z, `Mislukt` in both screenshots), `fail_streak=2` each; evidence, detection gap and owner named above | met |
+| Preserve schedule, human stops, alert policy and data | documentation-only change; no test, scheduler, alert or runtime mutation; runbook edit is additive | met |
+
+## Future review guidance (added 2026-09-30)
+
+Recorded here and in the durable surfaces a later review actually reads: the
+tracked guide `docs/daily-review-evidence-classification.md` (the canonical,
+reviewable copy with the dated evidence snapshot), the runbook section
+`monitoring/runbooks/daily-monitoring-review.md` > "E2E evidence
+classification", and the repeating reminder prompt. Together they mean a later
+review cannot repeat the ambiguity:
+
+1. Classify the registry before quoting any aggregate: **schedulable recurring**
+   (`enabled=1`, no future `disabled_until_ts`), **temporarily paused**
+   (`enabled=1` with a future `disabled_until_ts`), **disabled** (`enabled=0`).
+2. Quote the pass aggregate with its scope and per-test split - never as a bare
+   "E2E is green".
+3. Never present a paused or disabled row's historical `last_status` as current
+   evidence, and never read a paused row as a scheduler failure.
+4. Report each schedulable test's last finish and status; treat a test whose
+   last run is older than roughly two intervals as stale evidence to
+   investigate.
+5. Report hotpath lanes from `hotpath_lane_state` / `hotpath_reports` per lane,
+   with severity, failure class and last-report age, kept separate from the E2E
+   aggregate.
+6. Treat outbox `delivered` as publisher-delivery proof only.
+7. Do not activate, pause, retire or edit tests from the monitoring lane; that
+   belongs to the owning project.
+8. Resolve an in-flight claim row (`error_kind='pending'`, `started_at_ts IS
+   NULL`) before quoting it: the scheduler updates that same row with the
+   outcome. A lone non-pass is either a real failure or a claim that has not
+   finished - it is never a pass and never something to wave away.
+9. Open a failing run's `failure.png` / `run.log` artifacts before classifying
+   an E2E timeout as infrastructure, and check the sibling lane for the same
+   product path (`browser_infra_error=false` plus a `Mislukt` screenshot is a
+   product failure, not a runner problem).
 
 ## Topology compliance and actions
 
@@ -283,6 +487,11 @@ passed every run in the window and exercises the medium Codex UI end to end.
   covering the SkyBuyFly upstream recurrence, the `pitchai-main` disk/builder
   guard, the `aipc-hel1-01` storage plus Meilisync failure loop, the
   `aipc-fsn1-01` growth and failed audit units, and the resolved certificate.
+- The later E2E evidence correction appended to this report was
+  documentation-only: no test activation or pause, no synthetic submission, no
+  runtime, production or `main` change, and no external message (including
+  Telegram). The repeating schedule, human stops, alert policy and data are
+  unchanged.
 
 ## Recommended follow-ups
 
@@ -300,5 +509,10 @@ passed every run in the window and exercises the medium Codex UI end to end.
 5. Watch the `aipc-fsn1-01` growth (+75 GB/day, `chronicle*` 260 GB) and repair
    its two audit units (`ci-runner-*` contract, `deploy-authorized-key-policy`)
    with server-ops.
-6. Fix `container_health`'s include pattern so the intentionally-stopped
-   `dft-worker` standby no longer pins the signal down (9 days now).
+6. `container_health` still pins itself on the intentionally-stopped
+   `dft-worker` standby; coverage owner **583034b6** owns that fix. This lane
+   records the evidence and does not duplicate it.
+7. Four hotpath lanes have not reported since 20-25 September (aigenda
+   calendar, aigenda rules, quickchat-rsr, apologetica); their owning projects
+   should confirm the lanes are still expected to report. AIPC current-UI and
+   hotpath remediation stays with the AIPC manager.
