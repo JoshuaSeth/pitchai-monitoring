@@ -98,3 +98,14 @@ def test_loss_of_execution_proof_on_final_recheck_cancels_without_consuming(tmp_
     summary = run_guardian(tmp_path / "proof.sqlite3", source=source, now=NOW)
     require_equal(summary.redemption_count, 0)
     require_equal(len(source.consume_calls), 0)
+
+
+def test_reported_malformed_secondary_epoch_cannot_be_silently_omitted() -> None:
+    """Every reported non-null current window needs a complete matching epoch."""
+    observation = proved_observation()
+    invalid_windows: tuple[object, ...] = ({}, {"limit_window_seconds": 18000}, {"reset_at": True}, "invalid")
+    for secondary in invalid_windows:
+        malformed = replace(observation, usage_state={**observation.usage_state, "secondary_window": secondary})
+        require_equal(evaluate(malformed).state, "indeterminate")
+    absent = replace(observation, usage_state={**observation.usage_state, "secondary_window": None})
+    require_equal(evaluate(absent).state, "redeem")

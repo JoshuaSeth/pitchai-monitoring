@@ -83,13 +83,17 @@ def _quota_windows(value: object) -> dict[str, dict[str, int]]:
     result: dict[str, dict[str, int]] = {}
     fields = ("limit_window_seconds", "reset_at")
     for name in ("primary_window", "secondary_window"):
-        window = _mapping(windows.get(name))
+        raw = windows.get(name)
+        if raw is None:
+            continue
+        window = _mapping(raw)
         epoch = {
             key: field for key in fields
             if isinstance(field := window.get(key), int) and not isinstance(field, bool) and field > 0
         }
-        if len(epoch) == len(fields):
-            result[name] = epoch
+        if len(epoch) != len(fields):
+            return {}
+        result[name] = epoch
     return result
 
 
