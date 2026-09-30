@@ -1,56 +1,138 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Parse bounded nginx access logs and expose upstream-error metrics."""
+
 from __future__ import annotations
 
-import gzip
-import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
+
+from .nginx_log import build_log_datetime, read_log_tail
+from .nginx_upstream import (
+    NginxUpstreamErrorEvent,
+    NginxUpstreamErrorSummary,
+    parse_recent_upstream_errors,
+    summarize_upstream_errors,
+)
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from .nginx_log import LogDateTimeParts
+
+__all__ = [
+    "NginxAccessWindowStats",
+    "NginxUpstreamErrorEvent",
+    "NginxUpstreamErrorSummary",
+    "compute_access_window_stats",
+    "parse_recent_upstream_errors",
+    "summarize_upstream_errors",
+]
 
 
 _ACCESS_RE = re.compile(
-    r'^\S+\s+\S+\s+\S+\s+\[(?P<ts>[^\]]+)\]\s+"(?P<req>[^"]*)"\s+(?P<status>\d{3})\s+(?P<size>\S+)\s+"(?P<ref>[^"]*)"\s+"(?P<ua>[^"]*)"'
+    r'^\S+\s+\S+\s+\S+\s+\[(?P<ts>[^\]]+)\]\s+"(?P<req>[^"]*)"\s+'
+    r'(?P<status>\d{3})\s+(?P<size>\S+)\s+"(?P<ref>[^"]*)"\s+"(?P<ua>[^"]*)"',
 )
-
-_ERROR_TS_RE = re.compile(r"^(?P<ts>\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\s+\[(?P<level>\w+)\]\s+")
-
-
-def _tail_bytes(path: Path, *, max_bytes: int) -> str:
-    """
-    Best-effort tail read.
-    - Supports .gz (reads entire compressed file, so use small max_bytes for .gz configs).
-    """
-    p = Path(path)
-    if not p.exists():
-        return ""
-    if p.suffix == ".gz":
-        try:
-            with gzip.open(p, "rt", encoding="utf-8", errors="replace") as f:
-                data = f.read()
-            return data[-max(1, int(max_bytes)) :]
-        except Exception:
-            return ""
-
-    try:
-        with open(p, "rb") as f:
-            f.seek(0, os.SEEK_END)
-            size = f.tell()
-            n = max(1, min(int(max_bytes), int(size)))
-            f.seek(size - n, os.SEEK_SET)
-            raw = f.read(n)
-        return raw.decode("utf-8", errors="replace")
-    except Exception:
-        return ""
+_ACCESS_TIMESTAMP_RE = re.compile(
+    r"(?P<day>\d{2})/(?P<month>[A-Z][a-z]{2})/(?P<year>\d{4}):"
+    r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2}) "
+    r"(?P<offset_sign>[+-])(?P<offset_hour>\d{2})(?P<offset_minute>\d{2})",
+)
+_MONTH_NUMBERS = {
+    "Jan": 1,
+    "Feb": 2,
+    "Mar": 3,
+    "Apr": 4,
+    "May": 5,
+    "Jun": 6,
+    "Jul": 7,
+    "Aug": 8,
+    "Sep": 9,
+    "Oct": 10,
+    "Nov": 11,
+    "Dec": 12,
+}
+_CLIENT_ERROR_MIN = 400
+_SERVER_ERROR_MIN = 500
+_SERVER_ERROR_MAX = 600
+_BAD_GATEWAY_STATUSES = frozenset({502, 504})
+_SAMPLED_GATEWAY_STATUSES = frozenset({502, 503, 504})
+_MAX_TIMEZONE_HOUR = 23
+_MAX_TIMEZONE_MINUTE = 59
 
 
 @dataclass(frozen=True)
 class NginxAccessWindowStats:
+    """HTTP status counters and a bounded failed-request sample."""
+
     total: int
     status_5xx: int
     status_502_504: int
     status_4xx: int
     sample_lines: list[str]
+
+
+@dataclass
+class _AccessCounts:
+    """Mutable counters used while traversing an access-log window."""
+
+    total: int = 0
+    status_5xx: int = 0
+    status_502_504: int = 0
+    status_4xx: int = 0
+
+
+def _parse_access_sample(line: str) -> tuple[float, int] | None:
+    """Parse one combined-log line.
+
+    Returns:
+        UTC epoch time and HTTP status, or ``None`` for malformed input.
+    """
+    match = _ACCESS_RE.match(line.strip())
+    if match is None:
+        return None
+    timestamp_match = _ACCESS_TIMESTAMP_RE.fullmatch(match.group("ts"))
+    if timestamp_match is None:
+        return None
+    month = _MONTH_NUMBERS.get(timestamp_match.group("month"))
+    if month is None:
+        return None
+    date_parts: LogDateTimeParts = (
+        int(timestamp_match.group("year")),
+        month,
+        int(timestamp_match.group("day")),
+        int(timestamp_match.group("hour")),
+        int(timestamp_match.group("minute")),
+        int(timestamp_match.group("second")),
+    )
+    offset_hour = int(timestamp_match.group("offset_hour"))
+    offset_minute = int(timestamp_match.group("offset_minute"))
+    valid_offset = (
+        offset_hour <= _MAX_TIMEZONE_HOUR and offset_minute <= _MAX_TIMEZONE_MINUTE
+    )
+    if not valid_offset:
+        return None
+    offset_minutes = (offset_hour * 60) + offset_minute
+    if timestamp_match.group("offset_sign") == "-":
+        offset_minutes *= -1
+    observed_at = build_log_datetime(
+        date_parts,
+        local_tz=timezone(timedelta(minutes=offset_minutes)),
+    )
+    if observed_at is None:
+        return None
+    return observed_at.astimezone(UTC).timestamp(), int(match.group("status"))
+
+
+def _record_access_status(counts: _AccessCounts, status: int) -> None:
+    """Add one parsed HTTP status to the window counters."""
+    counts.total += 1
+    counts.status_5xx += int(_SERVER_ERROR_MIN <= status < _SERVER_ERROR_MAX)
+    counts.status_502_504 += int(status in _BAD_GATEWAY_STATUSES)
+    counts.status_4xx += int(_CLIENT_ERROR_MIN <= status < _SERVER_ERROR_MIN)
 
 
 def compute_access_window_stats(
@@ -61,145 +143,34 @@ def compute_access_window_stats(
     max_bytes: int = 1_000_000,
     sample_limit: int = 8,
 ) -> NginxAccessWindowStats | None:
-    txt = _tail_bytes(Path(access_log_path), max_bytes=int(max_bytes))
-    if not txt.strip():
+    """Compute status counters for the configured access-log window.
+
+    Returns:
+        Window counters, or ``None`` when the log has no readable content.
+    """
+    text = read_log_tail(Path(access_log_path), max_bytes=max_bytes)
+    if not text.strip():
         return None
 
-    cutoff = now.astimezone(timezone.utc).timestamp() - max(1, int(window_seconds))
-    total = 0
-    status_5xx = 0
-    status_502_504 = 0
-    status_4xx = 0
+    cutoff = now.astimezone(UTC).timestamp() - max(1, window_seconds)
+    counts = _AccessCounts()
     samples: list[str] = []
-
-    for line in reversed(txt.splitlines()):
-        m = _ACCESS_RE.match(line.strip())
-        if not m:
+    for line in reversed(text.splitlines()):
+        parsed = _parse_access_sample(line)
+        if parsed is None:
             continue
-        ts_s = m.group("ts")
-        try:
-            dt = datetime.strptime(ts_s, "%d/%b/%Y:%H:%M:%S %z")
-        except Exception:
-            continue
-        ts = dt.astimezone(timezone.utc).timestamp()
-        if ts < cutoff:
+        observed_at, status = parsed
+        if observed_at < cutoff:
             break
-
-        try:
-            status = int(m.group("status"))
-        except Exception:
-            status = 0
-
-        total += 1
-        if 500 <= status < 600:
-            status_5xx += 1
-        if status in {502, 504}:
-            status_502_504 += 1
-        if 400 <= status < 500:
-            status_4xx += 1
-        if (status in {502, 503, 504}) and len(samples) < int(sample_limit):
+        _record_access_status(counts, status)
+        if status in _SAMPLED_GATEWAY_STATUSES and len(samples) < sample_limit:
             samples.append(line.strip()[:800])
 
     samples.reverse()
     return NginxAccessWindowStats(
-        total=total,
-        status_5xx=status_5xx,
-        status_502_504=status_502_504,
-        status_4xx=status_4xx,
-        sample_lines=samples,
+        counts.total,
+        counts.status_5xx,
+        counts.status_502_504,
+        counts.status_4xx,
+        samples,
     )
-
-
-@dataclass(frozen=True)
-class NginxUpstreamErrorEvent:
-    ts: str
-    level: str
-    server: str | None
-    upstream: str | None
-    message: str
-
-
-def _extract_kv(line: str, key: str) -> str | None:
-    marker = f"{key}: "
-    if marker not in line:
-        return None
-    rest = line.split(marker, 1)[1]
-    if "," in rest:
-        rest = rest.split(",", 1)[0]
-    return rest.strip().strip('"') or None
-
-
-def parse_recent_upstream_errors(
-    *,
-    error_log_path: str,
-    now: datetime,
-    window_seconds: int,
-    local_tz,
-    max_bytes: int = 1_000_000,
-    max_events: int = 200,
-) -> list[NginxUpstreamErrorEvent]:
-    txt = _tail_bytes(Path(error_log_path), max_bytes=int(max_bytes))
-    if not txt.strip():
-        return []
-
-    # error.log timestamps do not include TZ; interpret using configured tz (host local).
-    cutoff = now.astimezone(local_tz).timestamp() - max(1, int(window_seconds))
-    events: list[NginxUpstreamErrorEvent] = []
-
-    for line in reversed(txt.splitlines()):
-        s = line.strip()
-        if not s:
-            continue
-        m = _ERROR_TS_RE.match(s)
-        if not m:
-            continue
-        ts_s = m.group("ts")
-        level = m.group("level")
-        try:
-            dt = datetime.strptime(ts_s, "%Y/%m/%d %H:%M:%S").replace(tzinfo=local_tz)
-        except Exception:
-            continue
-        ts = dt.timestamp()
-        if ts < cutoff:
-            break
-
-        # Focus on upstream failures (timeouts/connect errors/502/504 surfaces).
-        low = s.lower()
-        if "upstream" not in low and "connect()" not in low:
-            continue
-        if not any(x in low for x in ("timed out", "failed", "refused", "no live upstreams", "upstream prematurely closed")):
-            # Keep some upstream warnings, but avoid noise like buffering warnings.
-            if "upstream response is buffered" in low:
-                continue
-
-        server = _extract_kv(s, "server")
-        upstream = _extract_kv(s, "upstream")
-        msg = s
-        events.append(
-            NginxUpstreamErrorEvent(
-                ts=ts_s,
-                level=level,
-                server=server,
-                upstream=upstream,
-                message=msg[:1000],
-            )
-        )
-        if len(events) >= int(max_events):
-            break
-
-    events.reverse()
-    return events
-
-
-def summarize_upstream_errors(events: list[NginxUpstreamErrorEvent]) -> dict[str, Any]:
-    by_server: dict[str, int] = {}
-    samples: dict[str, list[str]] = {}
-    for e in events:
-        server = e.server or "(unknown)"
-        by_server[server] = int(by_server.get(server, 0)) + 1
-        if server not in samples:
-            samples[server] = []
-        if len(samples[server]) < 3:
-            samples[server].append(e.message)
-    return {"counts_by_server": by_server, "samples_by_server": samples}
-
