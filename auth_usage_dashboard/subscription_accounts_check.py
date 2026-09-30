@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from .subscription_accounts import ACCESS_STATES, SCHEMA_VERSION
+from .subscription_expiry import subscription_end, subscription_timezone
 from .timeseries_types import require_object
 
 if TYPE_CHECKING:
@@ -30,6 +31,8 @@ _ACCOUNT_KEYS = {
     "cancellation_scheduled",
     "cancellation_requested_at",
     "access_ends_on",
+    "access_ends_at",
+    "access_end_precision",
     "renews_on",
     "verified_at",
     "verified_source",
@@ -50,9 +53,21 @@ def validate_subscription_payload(payload: JsonObject) -> None:
         description="timezone",
     )
     accounts = _require_array(payload.get("accounts"), description="accounts")
+    zone = subscription_timezone(payload.get("timezone"))
     for row in accounts:
         account = require_object(row, description="subscription account")
         _require(condition=set(account) == _ACCOUNT_KEYS, description="account fields")
+        precision = account.get("access_end_precision")
+        _require(condition=precision in {"date", "exact", "unknown", "invalid"}, description="expiry precision")
+        if precision == "exact":
+            _require(condition=zone is not None, description="exact expiry timezone")
+            if zone is not None:
+                _require(condition=subscription_end(account, zone=zone).precision == "exact",
+                         description="exact expiry date agreement")
+        else:
+            _require(condition=account.get("access_ends_at") is None, description="date-only expiry instant")
+        if precision == "invalid":
+            _require(condition=account.get("access_state") == "unknown", description="invalid expiry state")
         _require(
             condition=account.get("access_state") in ACCESS_STATES,
             description="access state",

@@ -880,7 +880,7 @@
   function subscriptionDay(value) {
     const date = parseDate(value);
     if (!date) return null;
-    // Billing-portal dates are calendar dates without a published time zone.
+    // Preserve the calendar label; do not turn date-only evidence into an instant.
     return new Intl.DateTimeFormat(undefined, {
       year: "numeric",
       month: "short",
@@ -899,17 +899,24 @@
     }
   }
 
-  function subscriptionDetail(account) {
-    const endDay = subscriptionDay(account.access_ends_on);
+  function subscriptionDetail(account, timeZone) {
+    if (account.access_end_precision === "invalid") return "Access-end evidence is invalid · verification needed";
+    const exactEnd = parseDate(account.access_ends_at);
+    const endDay = exactEnd ? new Intl.DateTimeFormat(undefined, {
+      year: "numeric", month: "short", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      timeZone: timeZone || "Europe/Berlin", timeZoneName: "shortOffset",
+    }).format(exactEnd) : subscriptionDay(account.access_ends_on);
+    const precision = endDay && !exactEnd ? " (date only)" : "";
     const renewDay = subscriptionDay(account.renews_on);
     if (account.access_state === "renewing") {
       return renewDay ? `Auto-renew on · next charge ${renewDay}` : "Auto-renew on · next charge not verified";
     }
     if (account.access_state === "active_until_end") {
-      return endDay ? `Auto-renew off · paid access until ${endDay}` : "Auto-renew off · access-end date unknown";
+      return endDay ? `Auto-renew off · paid access until ${endDay}${precision}` : "Auto-renew off · access-end date unknown";
     }
     if (account.access_state === "access_ended") {
-      return endDay ? `Auto-renew off · scheduled access ended ${endDay}` : "Auto-renew off · access ended";
+      return endDay ? `Scheduled access ended ${endDay}${precision}` : "Access ended";
     }
     if (account.access_state === "inactive") return "Subscription inactive";
     return "Subscription state unknown";
@@ -958,7 +965,7 @@
         account.plan || "Plan not recorded",
         account.protected ? "Protected — auto-renew kept" : "Company account",
       ].join(" · ")));
-      card.append(element("strong", "subscription-state", subscriptionDetail(account)));
+      card.append(element("strong", "subscription-state", subscriptionDetail(account, snapshot.timezone)));
       const requested = account.cancellation_requested_at;
       if (requested) {
         card.append(element("p", "subscription-account-meta", `Cancellation requested ${formatTime(requested, false)}`));
