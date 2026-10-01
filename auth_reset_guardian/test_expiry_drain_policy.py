@@ -7,8 +7,6 @@ from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-import pytest
-
 from .models import ConsumeResult
 from .test_organization_expiry import with_end
 from .test_organization_reset_policy import evaluate
@@ -28,7 +26,7 @@ if TYPE_CHECKING:
 
 
 def ending_account(
-    label: str, *, expiry_hours: int, reset_hours: int = 24, used: int = 100,
+    label: str, *, expiry_hours: int, reset_hours: int = 49, used: int = 100,
 ) -> AccountObservation:
     """Create exact-cutoff evidence with one banked reset and no funded ambiguity.
 
@@ -55,28 +53,26 @@ def ending_account(
     )
 
 
-@pytest.mark.parametrize(
-    ("expiry_hours", "reset_hours", "expected"),
-    [
+def test_four_day_two_day_boundaries() -> None:
+    """Expiry is strictly below four days and weekly reset strictly above two."""
+    cases = (
         (96, 48, "no_eligible_credit"),
         (97, 24, "no_eligible_credit"),
-        (96, 49, "redeem"),
-        (95, 24, "redeem"),
-        (72, 48, "redeem"),
-        (24, 48, "redeem"),
+        (96, 49, "no_eligible_credit"),
+        (97, 49, "no_eligible_credit"),
+        (95, 49, "redeem"),
+        (95, 24, "no_eligible_credit"),
+        (72, 48, "no_eligible_credit"),
+        (24, 48, "no_eligible_credit"),
         (0, 48, "no_eligible_credit"),
-    ],
-)
-def test_four_day_two_day_boundaries(
-    expiry_hours: int, reset_hours: int, expected: str,
-) -> None:
-    """Both thresholds are inclusive and confirmed expiry never gets extended."""
-    require_equal(
-        evaluate(
-            ending_account("target", expiry_hours=expiry_hours, reset_hours=reset_hours),
-        ).state,
-        expected,
     )
+    for expiry_hours, reset_hours, expected in cases:
+        require_equal(
+            evaluate(
+                ending_account("target", expiry_hours=expiry_hours, reset_hours=reset_hours),
+            ).state,
+            expected,
+        )
 
 
 def test_use_target_allowance_and_credits_before_spending_its_bank() -> None:
@@ -91,10 +87,49 @@ def test_use_target_allowance_and_credits_before_spending_its_bank() -> None:
     require_equal(evaluate(later, funded).state, "not_exhausted")
 
 
+def test_date_only_threshold_uses_whole_day_bound() -> None:
+    """A date-only start inside four days does not prove its end is inside."""
+    cases = (("2026-09-11", "no_eligible_credit"), ("2026-09-10", "redeem"))
+    for end_date, expected in cases:
+        observation = with_end(
+            account_observation(
+                "date-only", weekly_reset_at=NOW + timedelta(hours=72),
+                credit_bank=(reset_credit("bank", expires_at=NOW + timedelta(days=30)),),
+            ),
+            end_date,
+        )
+        require_equal(evaluate(observation).state, expected)
+
+
+def test_unknown_capacity_with_confirmed_empty_bank_does_not_block_next() -> None:
+    """No mutation can target an empty bank; later targets still need exhaustion."""
+    first = ending_account("first", expiry_hours=72)
+    first = replace(first, credits=(), available_count=0, usage_state={})
+    later = ending_account("later", expiry_hours=95)
+    selected = evaluate(first, later).selection
+    require_equal(selected.observation.descriptor.label if selected else None, "later")
+
+
+def test_unknown_capacity_with_a_bank_still_blocks_redemption() -> None:
+    """Unknown target capacity cannot authorize consumption of its bank."""
+    first = ending_account("first", expiry_hours=72)
+    first = replace(first, usage_state={})
+    later = ending_account("later", expiry_hours=95)
+    require_equal(evaluate(first, later).state, "indeterminate")
+
+
+def test_positive_capacity_with_empty_bank_still_drains_first() -> None:
+    """Skipping an empty unknown bank never skips proven useful earlier capacity."""
+    first = ending_account("first", expiry_hours=72, used=0)
+    first = replace(first, credits=(), available_count=0)
+    later = ending_account("later", expiry_hours=95)
+    require_equal(evaluate(first, later).state, "not_exhausted")
+
+
 def test_near_weekly_reset_parks_target_and_allows_next_expiry() -> None:
-    """An exhausted account with four days left waits while the next is replenished."""
-    waiting = ending_account("first", expiry_hours=96, reset_hours=24)
-    later = ending_account("later", expiry_hours=144, reset_hours=72)
+    """A nearby free reset waits while another expiring account is replenished."""
+    waiting = ending_account("first", expiry_hours=72, reset_hours=24)
+    later = ending_account("later", expiry_hours=95, reset_hours=72)
     selected = evaluate(later, waiting).selection
     require_equal(selected.observation.descriptor.label if selected else None, "later")
 

@@ -121,6 +121,8 @@ def _decision_outcome(
     for observation in expiry_drain_accounts(observations, now=now):
         item = by_ref[observation.descriptor.account_ref]
         if item.state == "indeterminate":
+            if observation.available_count == 0 and not observation.credits:
+                continue
             return DecisionOutcome(
                 "indeterminate",
                 "expiry-priority account lacks fresh effective-capacity evidence",

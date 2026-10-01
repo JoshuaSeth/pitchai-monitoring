@@ -34,7 +34,7 @@ def test_exact_entitlement_end_allows_use_after_cancel_before_natural_reset() ->
     """Cancellation time is distinct from the reviewed access cutoff."""
     credit = reset_credit("banked", expires_at=NOW + timedelta(days=30))
     observation = with_end(
-        account_observation("ending@example.test", weekly_reset_at=NOW + timedelta(hours=12), credit_bank=(credit,)),
+        account_observation("ending@example.test", weekly_reset_at=NOW + timedelta(hours=49), credit_bank=(credit,)),
         NOW.date().isoformat(),
     )
     exact = replace(observation, broker_state={
@@ -51,8 +51,8 @@ def test_exact_entitlement_end_allows_use_after_cancel_before_natural_reset() ->
     require_equal(evaluate(exact).decision_key == evaluate(changed).decision_key, expected=False)
 
 
-def test_date_only_under_four_days_does_not_wait_for_natural_reset() -> None:
-    """Only a natural reset after the entire end day loses subscription benefit."""
+def test_date_only_under_four_days_still_waits_for_nearby_natural_reset() -> None:
+    """Subscription urgency alone never waives the strict weekly-distance gate."""
     credit = reset_credit("banked", expires_at=NOW + timedelta(days=30))
     early_reset = with_end(
         account_observation("ending@example.test", weekly_reset_at=NOW + timedelta(hours=24), credit_bank=(credit,)),
@@ -62,8 +62,8 @@ def test_date_only_under_four_days_does_not_wait_for_natural_reset() -> None:
         account_observation("ending@example.test", weekly_reset_at=NOW + timedelta(hours=40), credit_bank=(credit,)),
         "2026-09-08",
     )
-    require_equal(evaluate(early_reset).state, "redeem")
-    require_equal(evaluate(late_reset).state, "redeem")
+    require_equal(evaluate(early_reset).state, "no_eligible_credit")
+    require_equal(evaluate(late_reset).state, "no_eligible_credit")
 
 
 def test_exact_cutoff_parser_rejects_conflicts_and_ignores_other_expiries() -> None:

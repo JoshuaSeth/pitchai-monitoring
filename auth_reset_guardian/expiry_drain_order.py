@@ -3,9 +3,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
-from typing import TYPE_CHECKING, cast
-from zoneinfo import ZoneInfo
+from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from .subscription_expiry import (
     confirmed_end_date,
@@ -16,6 +15,7 @@ from .subscription_expiry import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from datetime import datetime
 
     from .models import AccountObservation, ResetCredit
 
@@ -61,27 +61,21 @@ def should_preserve_reset(
     weekly_reset_at: datetime,
     now: datetime,
 ) -> bool:
-    """Wait for a nearby natural reset when at least four safe days remain.
+    """Require confirmed expiry within four days and a weekly reset beyond two.
 
-    Unknown subscription dates retain the conservative two-day waiting rule.
+    Date-only evidence uses the whole end-day upper bound for this comparison.
     A reset credit expiring before the natural reset must not be left to expire.
 
     Returns:
         Whether this exhausted account should wait instead of consuming its bank.
     """
-    if weekly_reset_at - now > NATURAL_RESET_WAIT:
-        return False
     if credit.expires_at is not None and credit.expires_at <= weekly_reset_at:
         return False
     latest_end = subscription_end_upper_bound(observation)
-    if latest_end is not None and latest_end <= weekly_reset_at:
-        return False
-    cutoff = confirmed_end_time(observation)
-    end_date = confirmed_end_date(observation)
-    if cutoff is None and end_date is not None:
-        # Date-only evidence supplies a conservative lower bound, not an invented cutoff.
-        zone = ZoneInfo(cast("str", observation.broker_state["subscription_timezone"]))
-        cutoff = datetime.combine(
-            datetime.fromisoformat(end_date).date(), time.min, zone,
-        )
-    return cutoff is None or cutoff - now >= MINIMUM_EXPIRY_DISTANCE
+    if latest_end is None:
+        # Unknown dates can only reach the separate whole-fleet exhaustion fallback.
+        return weekly_reset_at - now <= NATURAL_RESET_WAIT
+    return (
+        latest_end - now >= MINIMUM_EXPIRY_DISTANCE
+        or weekly_reset_at - now <= NATURAL_RESET_WAIT
+    )
