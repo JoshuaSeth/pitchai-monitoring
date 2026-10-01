@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -20,11 +21,14 @@ def consume_proof_wake() -> None:
     if not configured:
         return
     path = Path(configured)
-    try:
-        path.unlink()
-    except FileNotFoundError:
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="guardian-wake-io") as executor:
+        deletion = executor.submit(path.unlink)
+    error = deletion.exception()
+    if isinstance(error, FileNotFoundError):
         logging.getLogger(__name__).info("No execution-proof wake hint to consume")
         return
+    if error is not None:
+        raise error
     directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
     try:
         os.fsync(directory)
