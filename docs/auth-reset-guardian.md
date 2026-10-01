@@ -172,3 +172,12 @@ Remove `--dry-run --no-notify` only after reviewing the fresh-recheck event. The
 ## Live-event interpretation
 
 Simulation and dry-run evidence must never be described as a live redemption. A real event requires one `redemption_attempts` row, a targeted provider outcome, exact-credit post-state, full-organization post-state, and the corresponding systemd run result. If no pass meets the policy, the correct live result is “no qualifying event”: no account is preselected and no quota is manufactured for proof. The next quarter-hour evaluates all current accounts again.
+
+
+Credit eligibility correction (2026-10-01): a denied included weekly window does
+not block funded admission when all explicitly reported model records confirm
+`available=true` and `credits_would_enable=false`, a positive/unlimited credit
+balance exists, and both overage and spend-control blocks are explicitly false.
+Missing or mixed model permission retains the generic quota denial. An unavailable
+model with `credits_would_enable=true` describes hypothetical purchased capacity,
+not existing funding; zero actual credits can therefore establish exhaustion.

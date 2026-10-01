@@ -105,7 +105,7 @@ def _model_state(payload: FundedUsageDocument) -> FundingState:
         credits_enable = model.get("credits_would_enable")
         if not isinstance(available, bool) or not isinstance(credits_enable, bool):
             return "unknown"
-        if available or credits_enable:
+        if available:
             result = "possible"
         elif result != "possible":
             result = "none"

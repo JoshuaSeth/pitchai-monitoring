@@ -57,7 +57,6 @@ def test_positive_unlimited_or_model_capacity_each_veto_quota_denial() -> None:
         {"credits": {"has_credits": False, "unlimited": True, "balance": "0"}},
         {"credits": {"has_credits": True, "unlimited": False, "balance": "0", "overage_limit_reached": True}},
         {"model_usage": {"gpt-6-astra": {"available": True, "credits_would_enable": False}}},
-        {"model_usage": {"gpt-6-astra": {"available": False, "credits_would_enable": True}}},
     )
     for payload in payloads:
         require_equal(evaluate(funded_observation(payload)).state, "indeterminate")
@@ -71,6 +70,7 @@ def test_plain_no_credit_and_absent_legacy_optional_fields_preserve_denial() -> 
         {"credits": {"has_credits": False, "unlimited": False, "balance": 0},
          "model_usage": {"gpt-6-astra": {"available": False, "credits_would_enable": False}},
          "spend_control": {"reached": False, "individual_limit": None}},
+        {"model_usage": {"gpt-6-astra": {"available": False, "credits_would_enable": True}}},
         {"model_usage": None, "spend_control": None},
     )
     for payload in payloads:
