@@ -1,0 +1,13 @@
+[Unit]
+Description=Wake the existing reset guardian after committed execution proof
+Documentation=file:///opt/pitchai-auth-reset-guardian/current/docs/auth-reset-guardian.md
+After=docker.service
+
+[Path]
+PathExists=/var/lib/pitchai-auth-reset-guardian/proof-wake/pending.json
+Unit=pitchai-auth-reset-guardian.service
+TriggerLimitIntervalSec=60s
+TriggerLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target

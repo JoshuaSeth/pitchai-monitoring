@@ -174,3 +174,31 @@ Remove `--dry-run --no-notify` only after reviewing the fresh-recheck event. The
 ## Live-event interpretation
 
 Simulation and dry-run evidence must never be described as a live redemption. A real event requires one `redemption_attempts` row, a targeted provider outcome, exact-credit post-state, full-organization post-state, and the corresponding systemd run result. If no pass meets the policy, the correct live result is “no qualifying event”: no account is preselected and no quota is manufactured for proof. The next quarter-hour evaluates all current accounts again.
+
+## Execution-proof wake deployment
+
+The optional `pitchai-auth-reset-guardian.path` watches
+`/var/lib/pitchai-auth-reset-guardian/proof-wake/pending.json` and starts the
+existing guardian service. It introduces no periodic schedule. Deployment
+installs and validates this unit but does not enable it: the broker producer
+must be reviewed and deployed with the same private directory mounted writable
+into its container, and `AUTH_TOKEN_SERVER_GUARDIAN_WAKE_PATH` must name that
+mount's `pending.json`. Do not expose the rest of the guardian audit directory
+to the broker. The deployment owner must verify the container mount and producer
+configuration before enabling the path unit.
+
+Only committed definitive execution proof publishes a marker. Its timestamps
+are never renewed by a probe or wake. The marker contains no account identifiers
+or credentials and grants no redemption permission. The guardian consumes it
+under the existing audit lock, after source/notifier setup and before fresh
+inventory. Dry runs, simulations, status reads and manual redemption do not
+consume it. A replacement published during evaluation remains for another
+activation when the service becomes inactive. Complete fresh evidence, final
+recheck, proof freshness and unresolved-claim reconciliation remain mandatory.
+
+The path unit limits repeated activations to three per minute. A missing or
+unwritable consumer directory can therefore fail visibly instead of looping
+forever. Inspect path/service status and correct the cause before resetting a
+failed unit; do not clear durable redemption claims or fabricate a proof. The
+existing timer remains the periodic fallback. Installing this source does not
+prove that the producer, path activation or real redemption has been verified.
