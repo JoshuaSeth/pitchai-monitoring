@@ -1,0 +1,69 @@
+{
+  "extraction": {
+    "baseline_commit": "47d8dde3656704848e475b3e5b5bda5bceb48f07",
+    "broker": {
+      "python": "3.12.12",
+      "records": 56596,
+      "counts": {
+        "manifest": 1,
+        "quota_sample": 40936,
+        "guardian_snapshot": 15635,
+        "redemption": 6,
+        "guardian_event_summary": 10,
+        "current_plan_observation": 8
+      },
+      "mismatches": 0,
+      "method": "Compare complete broker output at the original cutoff; exclude only the manifest extraction timestamp. Cache current plan files once for both runs."
+    },
+    "recovery": {
+      "records": 5722,
+      "counts": {
+        "recovery_manifest": 1,
+        "recovery_source": 911,
+        "recovery_quota": 3504,
+        "lease_observation": 1305,
+        "recovery_complete": 1
+      },
+      "mismatches": 0,
+      "source_size_changes": 0,
+      "method": "Complete parsed-record comparison over all existing local Jeff recovery sources at the original cutoff, including completion counts. Current source size is compared separately because live logs can grow after the research cutoff."
+    },
+    "rollouts": {
+      "sources": 22,
+      "bytes_checked": 155592993,
+      "records": 16009,
+      "counts": {
+        "rollout_source": 22,
+        "token_event": 15987
+      },
+      "mismatches": 0,
+      "method": "Byte-for-byte scan output comparison for the smallest 8 stable files below 1MB, 8 at 1-10MB, 4 at 10-50MB and 2 above 50MB in the frozen Jeff source map; mtime at least one hour old. This bounded original-file comparison does not claim a full re-extraction of 134 GB."
+    },
+    "helper_sha256": {
+      "extract_broker.py": "3359f796adc6ab051dc5feb9b5b5df5bf925b8d98a744abc8cc626725e01ab54",
+      "extract_recovery.py": "7026a45dd06fe59d76aee67e2cf83f884beb4d8bb7c26cd3371999285a85d377",
+      "extract_rollouts.py": "88bb42ba0476eca0d6d37b27e1896e1ad2e72e39fa65507ee2146e4302162446",
+      "rollout_events.py": "51b253d1b38be8e384c865e782b2f14487df39a08beb35e0b5559d9d8fb7cb03",
+      "input_boundary.py": "0d92f6f59c4ec0adf3d6d7083931508089eb8f8e473b2dde46d846bbac388a8c"
+    }
+  },
+  "failure_cases": {
+    "baseline_commit": "47d8dde3656704848e475b3e5b5bda5bceb48f07",
+    "cases": 14,
+    "mismatches": 0,
+    "unexpected_exception_propagates": true,
+    "coverage": [
+      "complete and prefixed JSON",
+      "malformed JSON",
+      "missing and partial source headers",
+      "failed mailbox search",
+      "unexpected exception propagation"
+    ],
+    "helper_sha256": {
+      "source_headers.py": "7943ed5b07d3ac0cddc00cc303ec31803fb778af7e10ac73ca100a55eabea3b1",
+      "input_boundary.py": "0d92f6f59c4ec0adf3d6d7083931508089eb8f8e473b2dde46d846bbac388a8c",
+      "extract_billing_notices.py": "0f60f8659e51b700ca9f893d77eb82eef4183bcae8ee090d7ab7cf55236e9fe9",
+      "extract_manual_resets.py": "65903e00f552387d69adbf37930162ef4fb46413e502964486c4310f74a161c7"
+    }
+  }
+}

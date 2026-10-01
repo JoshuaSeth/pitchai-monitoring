@@ -1,0 +1,20 @@
+[
+  {
+    "account": "A02",
+    "segment": "8",
+    "previous_grade": "ordinary_expiry_compatible",
+    "revised_grade": "manual_response_and_deadline_corroborated"
+  },
+  {
+    "account": "A07",
+    "segment": "8",
+    "previous_grade": "ordinary_expiry_compatible",
+    "revised_grade": "post_manual_reset_origin_ambiguous"
+  },
+  {
+    "account": "A08",
+    "segment": "8",
+    "previous_grade": "ordinary_expiry_compatible",
+    "revised_grade": "post_manual_reset_origin_ambiguous"
+  }
+]

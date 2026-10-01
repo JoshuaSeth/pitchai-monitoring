@@ -4,6 +4,8 @@
   const state = {
     snapshot: null,
     lunaReserveSnapshot: null,
+    claudeSnapshot: null,
+    subscriptionSnapshot: null,
     zone: "utc",
     historySeries: "combined",
     bankExpanded: false,
@@ -776,8 +778,10 @@
     state.snapshot = snapshot;
     if (lunaReserveSnapshot !== undefined) state.lunaReserveSnapshot = lunaReserveSnapshot;
     renderLiveState(snapshot);
+    renderClaudeAccounts(state.claudeSnapshot);
     renderDecision(snapshot);
     renderLunaReserve((state.lunaReserveSnapshot || {}).luna_reserve || {});
+    renderSubscriptionAccounts(state.subscriptionSnapshot);
     renderRunout(snapshot.runout_forecast || {});
     renderForecasts(snapshot.forecasts || []);
     renderHistory(snapshot.usage_history || {});
@@ -794,12 +798,16 @@
 
   async function loadSnapshot(options) {
     const opts = options || {};
-    const [response, lunaReserveSnapshot] = await Promise.all([
+    const [response, lunaReserveSnapshot, claudeSnapshot, subscriptionSnapshot] = await Promise.all([
       fetch("/api/v1/capacity", { credentials: "same-origin", cache: "no-store" }),
       loadLunaReserve(),
+      loadClaudeAccounts(),
+      loadSubscriptionAccounts(),
     ]);
     if (!response.ok) throw new Error(`capacity_http_${response.status}`);
     const snapshot = await response.json();
+    state.claudeSnapshot = claudeSnapshot;
+    state.subscriptionSnapshot = subscriptionSnapshot;
     render(snapshot, lunaReserveSnapshot);
     if (opts.toast) showToast("Broker snapshot updated");
   }
@@ -819,6 +827,162 @@
     }
   }
 
+  async function loadClaudeAccounts() {
+    try {
+      const response = await fetch("/api/v1/claude-accounts", { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error(`claude_http_${response.status}`);
+      return await response.json();
+    } catch (error) {
+      return { accounts: [], stale: true, error: "Claude account status is unavailable" };
+    }
+  }
+
+  function renderClaudeAccounts(snapshot) {
+    if (!snapshot) return;
+    const accounts = snapshot.accounts || [];
+    const labels = { ready: "Ready", cooldown: "Cooling down", sign_in_required: "Sign-in needed", unavailable: "Status unavailable" };
+    const classes = { ready: "available", cooldown: "weekly_limited", sign_in_required: "auth_invalid", unavailable: "unknown" };
+    const windows = { five_hour: "5-hour window", seven_day: "Weekly window", seven_day_opus: "Opus weekly window", seven_day_sonnet: "Sonnet weekly window" };
+    byId("claude-freshness").textContent = snapshot.generated_at
+      ? `${accounts.length} accounts · ${snapshot.stale ? "Status is stale · " : ""}Checked ${ageFromIso(snapshot.generated_at)}`
+      : "Status unavailable";
+    const cards = accounts.map((account) => {
+      const card = element("article", "claude-account");
+      const heading = element("div", "claude-account-heading");
+      heading.append(element("h3", "", account.email || `${account.role} account`),
+        element("span", `status-badge ${classes[account.status] || "unknown"}`, labels[account.status] || "Unknown"));
+      card.append(heading);
+      card.append(element("p", "claude-account-meta", [
+        account.plan ? `Claude ${account.plan.charAt(0).toUpperCase() + account.plan.slice(1)}` : "Plan not reported",
+        account.role,
+        account.rotation_enabled ? "Automatic rotation enabled" : "Single account",
+      ].join(" · ")));
+      const used = finiteNumber(account.used_percent);
+      if (used !== null) {
+        card.append(element("strong", "claude-usage", `${number(100 - used, 0)}% remaining${account.usage_stale ? " · Last reported" : ""}`));
+        card.append(meter(100 - used));
+        card.append(element("p", "claude-account-meta", `${windows[account.window] || "Reported usage window"} · ${ageFromIso(account.usage_observed_at)}`));
+      } else {
+        card.append(element("strong", "claude-usage", "No usage reported yet"));
+        card.append(element("p", "claude-account-meta", "Quota readings appear after the account runs a lane."));
+      }
+      if (account.status === "cooldown" && account.cooldown_until) {
+        card.append(element("p", "claude-reset", `Eligible again ${formatTime(account.cooldown_until, false)}`));
+      }
+      return card;
+    });
+    if (!cards.length) cards.push(element("p", "claude-note", snapshot.error || "No Claude accounts are configured."));
+    setChildren(byId("claude-accounts"), cards);
+    byId("claude-note").textContent = snapshot.error || (snapshot.stale
+      ? "Account status has stopped updating. Last reported usage is retained until a fresh reading arrives."
+      : "Ready means signed in and eligible for rotation. Usage updates when lanes report it; old readings are marked. Claude quotas are shown separately from Codex capacity.");
+  }
+  function subscriptionDay(value) {
+    const date = parseDate(value);
+    if (!date) return null;
+    // Preserve the calendar label; do not turn date-only evidence into an instant.
+    return new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      timeZone: "UTC",
+    }).format(date);
+  }
+
+  async function loadSubscriptionAccounts() {
+    try {
+      const response = await fetch("/api/v1/subscription-accounts", { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error(`subscription_http_${response.status}`);
+      return await response.json();
+    } catch (error) {
+      return { accounts: [], error: "Subscription status is unavailable" };
+    }
+  }
+
+  function subscriptionDetail(account, timeZone) {
+    if (account.access_end_precision === "invalid") return "Access-end evidence is invalid · verification needed";
+    const exactEnd = parseDate(account.access_ends_at);
+    const endDay = exactEnd ? new Intl.DateTimeFormat(undefined, {
+      year: "numeric", month: "short", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      timeZone: timeZone || "Europe/Berlin", timeZoneName: "shortOffset",
+    }).format(exactEnd) : subscriptionDay(account.access_ends_on);
+    const precision = endDay && !exactEnd ? " (date only)" : "";
+    const renewDay = subscriptionDay(account.renews_on);
+    if (account.access_state === "renewing") {
+      return renewDay ? `Auto-renew on · next charge ${renewDay}` : "Auto-renew on · next charge not verified";
+    }
+    if (account.access_state === "active_until_end") {
+      return endDay ? `Auto-renew off · paid access until ${endDay}${precision}` : "Auto-renew off · access-end date unknown";
+    }
+    if (account.access_state === "access_ended") {
+      return endDay ? `Scheduled access ended ${endDay}${precision}` : "Access ended";
+    }
+    if (account.access_state === "inactive") return "Subscription inactive";
+    return "Subscription state unknown";
+  }
+
+  function renderSubscriptionAccounts(snapshot) {
+    if (!snapshot) return;
+    const accounts = snapshot.accounts || [];
+    const stateLabels = {
+      renewing: "Renewing",
+      active_until_end: "Active · auto-renew off",
+      access_ended: "Access ended",
+      inactive: "Inactive",
+      unknown: "Unknown",
+    };
+    const stateClasses = {
+      renewing: "available",
+      active_until_end: "weekly_limited",
+      access_ended: "disabled",
+      inactive: "disabled",
+      unknown: "unknown",
+    };
+    let verificationSeen = false;
+    const oldest = accounts.reduce((age, account) => {
+      const value = finiteNumber(account.verified_age_days);
+      if (value === null) return age;
+      verificationSeen = true;
+      return Math.max(age, value);
+    }, 0);
+    const verificationAge = verificationSeen
+      ? (oldest === 0 ? "today" : `${oldest}d ago`)
+      : "unknown";
+    const zone = snapshot.timezone ? ` · ${snapshot.timezone}` : "";
+    byId("subscription-freshness").textContent = accounts.length
+      ? `${accounts.length} accounts · last verification ${verificationAge}${zone}`
+      : "Status unavailable";
+    const cards = accounts.map((account) => {
+      const card = element("article", "subscription-account");
+      const heading = element("div", "subscription-account-heading");
+      heading.append(
+        element("h3", "", account.email || "Account"),
+        element("span", `status-badge ${stateClasses[account.access_state] || "unknown"}`, stateLabels[account.access_state] || "Unknown"),
+      );
+      card.append(heading);
+      card.append(element("p", "subscription-account-meta", [
+        account.plan || "Plan not recorded",
+        account.protected ? "Protected — auto-renew kept" : "Company account",
+      ].join(" · ")));
+      card.append(element("strong", "subscription-state", subscriptionDetail(account, snapshot.timezone)));
+      const requested = account.cancellation_requested_at;
+      if (requested) {
+        card.append(element("p", "subscription-account-meta", `Cancellation requested ${formatTime(requested, false)}`));
+      }
+      const verified = account.verified_at
+        ? `Verified ${formatTime(account.verified_at, false)}${account.verified_stale ? " · older than 30 days" : ""}`
+        : "Verification date unknown";
+      card.append(element("p", "subscription-account-meta", verified));
+      if (account.verified_source) card.append(element("p", "subscription-account-meta", account.verified_source));
+      if (account.notes) card.append(element("p", "subscription-verification", account.notes));
+      return card;
+    });
+    if (!cards.length) cards.push(element("p", "subscription-note", snapshot.error || "No subscription records are configured."));
+    setChildren(byId("subscription-accounts"), cards);
+    byId("subscription-note").textContent = snapshot.error || "Subscription state comes from signed-in billing-portal checks, not from usage windows. A used-up 5-hour or weekly window is not a subscription problem, and a cancelled auto-renewal is not a loss of paid access. Unknown values stay unknown.";
+  }
+
   async function requestRefresh() {
     const button = byId("refresh-button");
     button.disabled = true;
@@ -833,6 +997,8 @@
       if (!response.ok) throw new Error(`refresh_http_${response.status}`);
       const payload = await response.json();
       const lunaReserveSnapshot = await loadLunaReserve();
+      state.claudeSnapshot = await loadClaudeAccounts();
+      state.subscriptionSnapshot = await loadSubscriptionAccounts();
       render(payload.snapshot, lunaReserveSnapshot);
       if (payload.probe_started) showToast("Safe usage probe completed");
       else if (payload.reason === "probe_throttled") showToast(`Probe is fresh; retry in ${payload.retry_after_seconds}s`);

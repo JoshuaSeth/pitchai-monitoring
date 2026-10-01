@@ -1,0 +1,107 @@
+{
+  "observed_date": "2026-10-01",
+  "status": "commissioning_gap_implementation_owner_acknowledgment_pending",
+  "lane_id": "deplanbook-play-hotpath-monitor",
+  "worker": "11f2c996-f394-5b06-a945-e82039540672",
+  "manager": "73835996-8b06-529a-8286-77be805d74bf",
+  "monitoring_owner": "528d80c8-0e72-50fc-b0c6-5c5eade9af5c",
+  "events_owner": "45e7dcde-866b-5032-b68d-7d89c4463bb8",
+  "stopped_telegram_owner": "491ae85a-b18a-587d-b94c-b6a15275d46b",
+  "reminder_id": "reminder-central-2f625a89-3dc5-407d-8bb3-98cc2057ccda",
+  "cadence_seconds": 172800,
+  "authorization": {
+    "source": "Current manager73835996 instruction confirming Seth authorization",
+    "scope": "Establish recurring real failure/recovery notifications privately to Seth through the existing monitor route",
+    "preserve": ["lane identity", "workers", "reminders", "cadences", "human stops", "unrelated audiences"],
+    "prohibited": ["live synthetic events", "test Telegram sends", "extra direct status sends", "client or group sends", "spending", "general Engine edits by monitoring owner", "resume stopped Telegram owner"]
+  },
+  "source_and_config_validation": {
+    "implemented": false,
+    "deployed": false,
+    "monitoring_reviewed_ref": "f054954d541544d49acebc32e4f0ecd63c254f73",
+    "producer": "e2e_registry/hotpath_store_write.py:_incident_transition",
+    "event_details": "e2e_registry/hotpath_store_records.py:_event_details",
+    "current_internal_rules": "/code/pitchai-cli-new/event-bus-drainer/rules/monitoring-critical-incidents.yaml",
+    "current_internal_rules_behavior": "Internal repair-agent dispatch; no outgoing-message authority",
+    "supported_private_resolver": "telegram_agent_server.routing.resolve_telegram_route",
+    "existing_send_boundary": "telegram_agent_server.cli:_send_message_command",
+    "existing_receipt_writer": "telegram_agent_server.db:persist_sent_message",
+    "protected_registry_key": "TELEGRAM_AGENT_ROUTE_REGISTRY_JSON",
+    "implementation_seam": "Pending Events-owner acceptance. Existing resolver/send boundary can enforce private routing; central transition events alone cannot establish verified recovery after a warning.",
+    "required_delivery_rules": [
+      "Exact canonical lane/project/worker and real production report only",
+      "Resolve requester seth-ori through existing private resolver; reject route mismatch or broad fallback",
+      "Durable unique notification intent per accepted report/transition and destination",
+      "Retain unresolved notification incident identity across setup and coverage warnings",
+      "Observe subsequent verified reports so critical-warning-PASS does not lose recovery",
+      "Do not label warning-only or untested failed stages as repaired product behavior",
+      "Do not blindly retry an ambiguous Telegram send or failed post-send receipt persistence",
+      "Link sanitized natural delivery receipts to source report and incident identity"
+    ]
+  },
+  "route_validation": {
+    "method": "Read-only existing helper configuration resolution; no send",
+    "policy": "personal-first",
+    "requester_key": "seth-ori",
+    "route_kind": "private",
+    "destination_ref": "seth-ori",
+    "proves_transition_wiring": false,
+    "proves_current_live_delivery": false
+  },
+  "isolated_source_proof": {
+    "method": "In-memory calls to existing transition functions; no database or network",
+    "critical_warning_pass_actions": ["queued_failure", "queued_recovery_to_warning", "recovered_without_incident"],
+    "warning_clears_central_incident_identity": true,
+    "later_pass_emits_event": false,
+    "implication": "Filtering warning recovery alone loses the later verified recovery",
+    "required_adapter_tests": ["duplicate report and delivery", "out-of-order report", "critical-warning-PASS", "warning without critical", "synthetic exclusion", "wrong lane exclusion", "private route mismatch", "ambiguous send outcome", "restart with pending notification"]
+  },
+  "natural_delivery_evidence": {
+    "registry_host": "pitchai-main",
+    "registry_db": "/var/lib/docker/volumes/e2e-registry-data/_data/e2e-registry.db",
+    "report_count": 14,
+    "informational_report_count": 13,
+    "warning_report_count": 1,
+    "failure_recovery_outbox_count": 0,
+    "events_db": "/var/lib/pitchai-events-bus/events.db",
+    "lane_failure_recovery_event_count": 0,
+    "current_report_id": "hotpath-v1-34352e177720abd7608d810ac7ae87c5f438fef28d7afbcfda89c1ee75847b95",
+    "current_event_action": "warning_only",
+    "actual_failure_recovery_telegram_receipts": [],
+    "historical_status_receipt": {
+      "table": "pitchai_dispatch.telegram_inbound_updates",
+      "sanitized_fields": ["raw_json.routing", "raw_json.telegram_receipt"],
+      "lookup_expression": "md5(update_id::text)",
+      "lookup_hash": "4ff5a54015d3ffa1be0fc8c333a03cee",
+      "date": "2026-09-29",
+      "route_kind": "private",
+      "destination_ref": "seth-ori",
+      "accepted": true,
+      "classification": "Historical GREEN status, not failure/recovery evidence"
+    }
+  },
+  "owner_coordination": {
+    "original_events_query": "334446cb-b5f5-49c0-b2f5-bff5b5c6638e",
+    "authorization_supplement": "d61eee70-1e98-43b3-868d-fd7e3c8754eb",
+    "supplement_work_id": "e556982c-b822-4249-b480-dca90af90283",
+    "supplement_state": "queued behind existing owner work; not implementation acceptance",
+    "existing_draining_owner": "6e38d24b-f874-56de-8ee4-5b8ae67649f6",
+    "delivery_reconciliation_query": "e731a0d0-2094-4469-bb9f-937c66707359",
+    "draining_owner_acknowledgment": "2026-10-01T19:38:05Z: gap is within existing queue-draining scope; inspect both preserved inputs and prior running work without replay",
+    "replay_or_replacement_requested": false
+  },
+  "inventory_dependency": {
+    "source_pr": "https://github.com/JoshuaSeth/deplanbook_play/pull/48",
+    "base": "staging",
+    "last_observed_state": "MERGED",
+    "merged_at": "2026-10-01T19:36:05Z",
+    "last_observed_head": "f0063ae2af2ce4ff2b3af7a9a0dadea2baeaf5e2",
+    "integration_owner": "11f2c996-f394-5b06-a945-e82039540672",
+    "inventory_file": "e2e_registry/hotpath_inventory.json",
+    "edit_after_integration": "Update only the existing lane expected_behavior to normal Google auth/logout, NL/PT/EN desktop/mobile and isolated retained records across at least 48 actual elapsed hours",
+    "inventory_changed": true,
+    "inventory_runtime_verified": false,
+    "fixture_written": false,
+    "actual_48h_started": false
+  }
+}

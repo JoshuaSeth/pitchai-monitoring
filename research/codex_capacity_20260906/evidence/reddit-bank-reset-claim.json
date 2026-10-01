@@ -1,0 +1,52 @@
+{
+  "source": "https://www.reddit.com/r/codex/comments/1w8zbz9/i_analyzed_the_allowance_a_banked_reset_gives_vs/",
+  "discovered_via": "https://www.reddit.com/r/codex/s/oxwWQsd2u8",
+  "retrieved_on": "2026-09-07",
+  "evidence_grade": "author-reported aggregate table; underlying response ledger and account history not supplied",
+  "reported_before": {
+    "start_utc": "2026-09-05T19:16:00Z",
+    "end_utc": "2026-09-06T00:21:00Z",
+    "used_percent_start": 85,
+    "used_percent_end": 99,
+    "responses": 738,
+    "input_tokens_millions": 114.41,
+    "cached_input_tokens_millions": 108.09,
+    "uncached_input_tokens_millions": 6.32,
+    "output_tokens_thousands": 465.5,
+    "reasoning_output_tokens_thousands": 226.3,
+    "astra_calls": 592,
+    "astra_effort_counts": {"xhigh": 276, "max": 202, "medium": 87, "high": 27},
+    "other_calls": {"terra": 51, "sol": 9, "auto_review": 86},
+    "compactions": 10,
+    "transport_retry_incidents": 10
+  },
+  "reported_after": {
+    "start_utc": "2026-09-06T01:10:00Z",
+    "end_utc": "2026-09-06T03:14:00Z",
+    "used_percent_start": 0,
+    "used_percent_end": 14,
+    "responses": 489,
+    "input_tokens_millions": 63.60,
+    "cached_input_tokens_millions": 61.39,
+    "uncached_input_tokens_millions": 2.21,
+    "output_tokens_thousands": 284.7,
+    "reasoning_output_tokens_thousands": 124.9,
+    "astra_calls": 381,
+    "astra_effort_counts": {"xhigh": 366, "high": 15},
+    "other_calls": {"terra": 38, "sol": 42, "auto_review": 28},
+    "compactions": 1,
+    "transport_retry_incidents": 3
+  },
+  "interpretation": {
+    "claim_to_test": "Banked resets provide approximately half the ordinary usable allowance and move the weekly deadline seven days out.",
+    "author_qualifications": "The author also allows a general quota change, changed Astra metering or a task-specific premium as alternatives.",
+    "identified_controls_missing": [
+      "Per-response cached/uncached/output breakdown by model and reasoning level",
+      "Actual service tier, context length distribution and cache-write counts",
+      "Timestamped reset action and both actual quota deadlines",
+      "All concurrent account usage and raw counter/replay reconciliation",
+      "Same-account repeated ordinary/banked epochs and a contemporaneous comparison account"
+    ],
+    "status": "A useful quantitative allegation with substantial workload differences; the table alone does not identify a reset-specific capacity multiplier."
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "database": "cohort-ledger-v2.sqlite3",
+  "query": "price_boundary_sensitivity.sql after analysis_views.sql",
+  "assumptions": "Strict survivors, standard service, all 21 August Sol calls at either old or new rates. Exact intraday cutover is unknown. No missing-work correction.",
+  "unsupported_boundary_calls": 0,
+  "totals": {
+    "calls": 5803,
+    "dated_usd": 449.3094712,
+    "old_rate_usd": 573.286974,
+    "new_rate_usd": 449.3094712,
+    "extra_old_rate_usd": 123.9775028
+  },
+  "primary_hours": [],
+  "epochs": [
+    {
+      "account": "A02",
+      "segment": 12,
+      "start_utc": "2026-08-20 12:15:41",
+      "boundary_calls": 5803,
+      "extra_old_rate_usd": 123.9775028
+    }
+  ],
+  "interpretation": "Primary hourly comparisons and all fixed-price comparisons are unchanged. A02's ordinary-compatible August 20-22 dated epoch value is between 1917.2071788 and 2041.1846816 USD under this price-timing sensitivity."
+}

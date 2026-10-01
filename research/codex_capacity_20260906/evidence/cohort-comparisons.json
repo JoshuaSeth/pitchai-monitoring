@@ -1,0 +1,5171 @@
+{
+  "schema": 1,
+  "scope": "descriptive_recovered_workload_comparisons",
+  "historical_transition_annotations": [
+    {
+      "account": "A02",
+      "segment": "8",
+      "previous_grade": "ordinary_expiry_compatible",
+      "revised_grade": "manual_response_and_deadline_corroborated"
+    },
+    {
+      "account": "A07",
+      "segment": "8",
+      "previous_grade": "ordinary_expiry_compatible",
+      "revised_grade": "post_manual_reset_origin_ambiguous"
+    },
+    {
+      "account": "A08",
+      "segment": "8",
+      "previous_grade": "ordinary_expiry_compatible",
+      "revised_grade": "post_manual_reset_origin_ambiguous"
+    }
+  ],
+  "primary_control": "95% dominant value; 95% strict value; >=5pp; dated price and matching reset",
+  "epoch_control": "same controls; >=80pp; maximum consumption observation gap <=1830 seconds",
+  "epoch_gap_tolerance": "30 minutes plus 30 seconds for observed provider-probe jitter",
+  "uncertainty": "Sensitivity bounds include +/-120 seconds and +/-1 or +/-2 pp per interval; they are not confidence intervals and cannot bound missing workload or unknown service tiers.",
+  "hourly_periods": [
+    {
+      "group": {
+        "model": "gpt-5.5",
+        "effort": "medium",
+        "period": "before_aug21"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A08"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-12",
+      "sums": {
+        "delta_pp": 24.0,
+        "strict_calls": 51.0,
+        "strict_usd": 6.504127,
+        "fixed_usd": 6.504127,
+        "uncached": 251603.0,
+        "cached": 9619584.0,
+        "output": 14544.0,
+        "reasoning": 2241.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 5.495944,
+        "enclosing_usd": 7.092718
+      },
+      "dated_usd_per_pp": 0.2710052916666667,
+      "fixed_usd_per_pp": 0.2710052916666667,
+      "quota_pp_per_million_total_tokens": 2.4277415600323335,
+      "cache_hit_fraction": 0.9745113733535795,
+      "reasoning_fraction_of_output": 0.15408415841584158,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 0.21138246153846152,
+        "usd_per_pp_high": 0.3223962727272727
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 0.19628371428571428,
+        "usd_per_pp_high": 0.3546359
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31"
+      },
+      "intervals": 102,
+      "accounts": [
+        "A01",
+        "A02",
+        "A03",
+        "A05",
+        "A07",
+        "A08"
+      ],
+      "account_epochs": 17,
+      "first_day": "2026-08-22",
+      "last_start_day": "2026-08-31",
+      "sums": {
+        "delta_pp": 803.0,
+        "strict_calls": 207537.0,
+        "strict_usd": 15366.88852212,
+        "fixed_usd": 15366.88852212,
+        "uncached": 701523812.0,
+        "cached": 27167137536.0,
+        "output": 85379764.0,
+        "reasoning": 27539197.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 14198.725643920001,
+        "enclosing_usd": 16573.70982252
+      },
+      "dated_usd_per_pp": 19.136847474620176,
+      "fixed_usd_per_pp": 19.136847474620176,
+      "quota_pp_per_million_total_tokens": 0.028725721507767667,
+      "cache_hit_fraction": 0.9748275023604481,
+      "reasoning_fraction_of_output": 0.322549462657217,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.689199606541438,
+        "usd_per_pp_high": 23.64295267121255
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.100025465660378,
+        "usd_per_pp_high": 27.66896464527546
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21"
+      },
+      "intervals": 42,
+      "accounts": [
+        "A01",
+        "A02",
+        "A03",
+        "A05",
+        "A07",
+        "A08"
+      ],
+      "account_epochs": 12,
+      "first_day": "2026-08-03",
+      "last_start_day": "2026-08-18",
+      "sums": {
+        "delta_pp": 281.0,
+        "strict_calls": 62002.0,
+        "strict_usd": 6328.390647,
+        "fixed_usd": 4944.008047,
+        "uncached": 264970243.0,
+        "cached": 8213707904.0,
+        "output": 29889516.0,
+        "reasoning": 9238615.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 5864.232713,
+        "enclosing_usd": 6756.75798
+      },
+      "dated_usd_per_pp": 22.52096315658363,
+      "fixed_usd_per_pp": 17.59433468683274,
+      "quota_pp_per_million_total_tokens": 0.0330255350993969,
+      "cache_hit_fraction": 0.9687486376524678,
+      "reasoning_fraction_of_output": 0.3090921579325674,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.15551923529412,
+        "usd_per_pp_high": 28.27095389121339
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 16.06639099452055,
+        "usd_per_pp_high": 34.29826385786802
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial"
+      },
+      "intervals": 35,
+      "accounts": [
+        "A01",
+        "A02",
+        "A03",
+        "A05",
+        "A06",
+        "A07",
+        "A08"
+      ],
+      "account_epochs": 11,
+      "first_day": "2026-09-01",
+      "last_start_day": "2026-09-05",
+      "sums": {
+        "delta_pp": 277.0,
+        "strict_calls": 68833.0,
+        "strict_usd": 4888.79782772,
+        "fixed_usd": 4888.79782772,
+        "uncached": 185286500.0,
+        "cached": 9059078656.0,
+        "output": 27152115.0,
+        "reasoning": 9682999.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 4553.72326712,
+        "enclosing_usd": 5213.5529548
+      },
+      "dated_usd_per_pp": 17.649089630758123,
+      "fixed_usd_per_pp": 17.649089630758123,
+      "quota_pp_per_million_total_tokens": 0.02987644760867965,
+      "cache_hit_fraction": 0.9799568172748194,
+      "reasoning_fraction_of_output": 0.3566204326992575,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.595266881794872,
+        "usd_per_pp_high": 21.54360725123967
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 13.123121807262248,
+        "usd_per_pp_high": 25.186246158454107
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "period": "sep01_sep06_partial"
+      },
+      "intervals": 11,
+      "accounts": [
+        "A02",
+        "A04",
+        "A05"
+      ],
+      "account_epochs": 4,
+      "first_day": "2026-09-05",
+      "last_start_day": "2026-09-06",
+      "sums": {
+        "delta_pp": 226.0,
+        "strict_calls": 12104.0,
+        "strict_usd": 2111.82693616,
+        "fixed_usd": 2111.82693616,
+        "uncached": 40982895.0,
+        "cached": 1613037440.0,
+        "output": 2856752.0,
+        "reasoning": 568880.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1976.3039696,
+        "enclosing_usd": 2253.94864824
+      },
+      "dated_usd_per_pp": 9.344366974159293,
+      "fixed_usd_per_pp": 9.344366974159293,
+      "quota_pp_per_million_total_tokens": 0.1364011861671668,
+      "cache_hit_fraction": 0.9752222544470712,
+      "reasoning_fraction_of_output": 0.1991352417010647,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 8.338835314767932,
+        "usd_per_pp_high": 10.483482084837208
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 7.968967619354839,
+        "usd_per_pp_high": 11.048767883529411
+      }
+    }
+  ],
+  "hourly_accounts": [
+    {
+      "group": {
+        "model": "gpt-5.5",
+        "effort": "medium",
+        "period": "before_aug21",
+        "account": "A08"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A08"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-12",
+      "sums": {
+        "delta_pp": 24.0,
+        "strict_calls": 51.0,
+        "strict_usd": 6.504127,
+        "fixed_usd": 6.504127,
+        "uncached": 251603.0,
+        "cached": 9619584.0,
+        "output": 14544.0,
+        "reasoning": 2241.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 5.495944,
+        "enclosing_usd": 7.092718
+      },
+      "dated_usd_per_pp": 0.2710052916666667,
+      "fixed_usd_per_pp": 0.2710052916666667,
+      "quota_pp_per_million_total_tokens": 2.4277415600323335,
+      "cache_hit_fraction": 0.9745113733535795,
+      "reasoning_fraction_of_output": 0.15408415841584158,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 0.21138246153846152,
+        "usd_per_pp_high": 0.3223962727272727
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 0.19628371428571428,
+        "usd_per_pp_high": 0.3546359
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "account": "A01"
+      },
+      "intervals": 12,
+      "accounts": [
+        "A01"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-08-23",
+      "last_start_day": "2026-08-28",
+      "sums": {
+        "delta_pp": 112.0,
+        "strict_calls": 29757.0,
+        "strict_usd": 2138.7250116,
+        "fixed_usd": 2138.7250116,
+        "uncached": 98181613.0,
+        "cached": 3784507776.0,
+        "output": 11639997.0,
+        "reasoning": 4000821.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1965.9048492000002,
+        "enclosing_usd": 2318.511406
+      },
+      "dated_usd_per_pp": 19.09575903214286,
+      "fixed_usd_per_pp": 19.09575903214286,
+      "quota_pp_per_million_total_tokens": 0.028759765520255352,
+      "cache_hit_fraction": 0.9747129880442774,
+      "reasoning_fraction_of_output": 0.34371323291578165,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.85407136451613,
+        "usd_per_pp_high": 23.18511406
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.455182714705884,
+        "usd_per_pp_high": 26.346720522727274
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "account": "A02"
+      },
+      "intervals": 19,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 3,
+      "first_day": "2026-08-22",
+      "last_start_day": "2026-08-30",
+      "sums": {
+        "delta_pp": 130.0,
+        "strict_calls": 35097.0,
+        "strict_usd": 2620.77185,
+        "fixed_usd": 2620.77185,
+        "uncached": 122231278.0,
+        "cached": 4596419840.0,
+        "output": 14927564.0,
+        "reasoning": 4629039.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2430.8618912,
+        "enclosing_usd": 2828.4193572
+      },
+      "dated_usd_per_pp": 20.159783461538463,
+      "fixed_usd_per_pp": 20.159783461538463,
+      "quota_pp_per_million_total_tokens": 0.027463365190134172,
+      "cache_hit_fraction": 0.9740961399893011,
+      "reasoning_fraction_of_output": 0.3101000940273979,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 16.314509336912753,
+        "usd_per_pp_high": 25.48125547027027
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.46941601904762,
+        "usd_per_pp_high": 30.74368866521739
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "account": "A03"
+      },
+      "intervals": 4,
+      "accounts": [
+        "A03"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-28",
+      "last_start_day": "2026-08-28",
+      "sums": {
+        "delta_pp": 66.0,
+        "strict_calls": 16988.0,
+        "strict_usd": 1226.42625,
+        "fixed_usd": 1226.42625,
+        "uncached": 58919122.0,
+        "cached": 2144751232.0,
+        "output": 6494648.0,
+        "reasoning": 2059244.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1141.804123,
+        "enclosing_usd": 1321.4992504000002
+      },
+      "dated_usd_per_pp": 18.58221590909091,
+      "fixed_usd_per_pp": 18.58221590909091,
+      "quota_pp_per_million_total_tokens": 0.029862023849023017,
+      "cache_hit_fraction": 0.9732631870764823,
+      "reasoning_fraction_of_output": 0.31706783801062044,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 16.31148747142857,
+        "usd_per_pp_high": 21.31450403870968
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.429785445945944,
+        "usd_per_pp_high": 22.78446983448276
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "account": "A05"
+      },
+      "intervals": 29,
+      "accounts": [
+        "A05"
+      ],
+      "account_epochs": 5,
+      "first_day": "2026-08-23",
+      "last_start_day": "2026-08-31",
+      "sums": {
+        "delta_pp": 209.0,
+        "strict_calls": 53336.0,
+        "strict_usd": 4066.59031252,
+        "fixed_usd": 4066.59031252,
+        "uncached": 187537039.0,
+        "cached": 7170104448.0,
+        "output": 22668937.0,
+        "reasoning": 7220788.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 3769.65274532,
+        "enclosing_usd": 4360.79841972
+      },
+      "dated_usd_per_pp": 19.45736991636364,
+      "fixed_usd_per_pp": 19.45736991636364,
+      "quota_pp_per_million_total_tokens": 0.02831859203650212,
+      "cache_hit_fraction": 0.974511256177492,
+      "reasoning_fraction_of_output": 0.31853227171613735,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.838877081176472,
+        "usd_per_pp_high": 24.226657887333335
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.118549607940075,
+        "usd_per_pp_high": 28.879459733245035
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "account": "A07"
+      },
+      "intervals": 8,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-29",
+      "last_start_day": "2026-08-29",
+      "sums": {
+        "delta_pp": 53.0,
+        "strict_calls": 11738.0,
+        "strict_usd": 849.3093776000001,
+        "fixed_usd": 849.3093776000001,
+        "uncached": 35340369.0,
+        "cached": 1538565504.0,
+        "output": 4626085.0,
+        "reasoning": 1549729.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 781.2482584,
+        "enclosing_usd": 920.3124888
+      },
+      "dated_usd_per_pp": 16.02470523773585,
+      "fixed_usd_per_pp": 16.02470523773585,
+      "quota_pp_per_million_total_tokens": 0.03357550015468233,
+      "cache_hit_fraction": 0.9775460720960154,
+      "reasoning_fraction_of_output": 0.33499795183184056,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 12.807348498360657,
+        "usd_per_pp_high": 20.45138864
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 11.322438527536233,
+        "usd_per_pp_high": 24.87331050810811
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "account": "A08"
+      },
+      "intervals": 30,
+      "accounts": [
+        "A08"
+      ],
+      "account_epochs": 5,
+      "first_day": "2026-08-22",
+      "last_start_day": "2026-08-31",
+      "sums": {
+        "delta_pp": 233.0,
+        "strict_calls": 60621.0,
+        "strict_usd": 4465.0657204,
+        "fixed_usd": 4465.0657204,
+        "uncached": 199314391.0,
+        "cached": 7932788736.0,
+        "output": 25022533.0,
+        "reasoning": 8079576.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 4109.2537768,
+        "enclosing_usd": 4824.1689004
+      },
+      "dated_usd_per_pp": 19.16337219055794,
+      "fixed_usd_per_pp": 19.16337219055794,
+      "quota_pp_per_million_total_tokens": 0.02856398316168639,
+      "cache_hit_fraction": 0.9754904250613545,
+      "reasoning_fraction_of_output": 0.3228920109726701,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.624539075285172,
+        "usd_per_pp_high": 23.764378819704433
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.024756917406144,
+        "usd_per_pp_high": 27.885369366473988
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "account": "A01"
+      },
+      "intervals": 5,
+      "accounts": [
+        "A01"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-15",
+      "sums": {
+        "delta_pp": 41.0,
+        "strict_calls": 2386.0,
+        "strict_usd": 252.795447,
+        "fixed_usd": 198.1704856,
+        "uncached": 12843155.0,
+        "cached": 316171264.0,
+        "output": 1016468.0,
+        "reasoning": 295276.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 232.732792,
+        "enclosing_usd": 276.580047
+      },
+      "dated_usd_per_pp": 6.165742609756098,
+      "fixed_usd_per_pp": 4.83342647804878,
+      "quota_pp_per_million_total_tokens": 0.12423079661631792,
+      "cache_hit_fraction": 0.9609647654986209,
+      "reasoning_fraction_of_output": 0.29049217486433415,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 5.0594085217391305,
+        "usd_per_pp_high": 7.682779083333333
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 4.563388078431372,
+        "usd_per_pp_high": 8.921937
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "account": "A02"
+      },
+      "intervals": 11,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 4,
+      "first_day": "2026-08-10",
+      "last_start_day": "2026-08-13",
+      "sums": {
+        "delta_pp": 71.0,
+        "strict_calls": 18360.0,
+        "strict_usd": 1854.972757,
+        "fixed_usd": 1446.6354536000001,
+        "uncached": 84376417.0,
+        "cached": 2306040064.0,
+        "output": 9335688.0,
+        "reasoning": 3136447.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1730.372091,
+        "enclosing_usd": 1956.666281
+      },
+      "dated_usd_per_pp": 26.12637685915493,
+      "fixed_usd_per_pp": 20.375147233802817,
+      "quota_pp_per_million_total_tokens": 0.02958638851010452,
+      "cache_hit_fraction": 0.964702210819471,
+      "reasoning_fraction_of_output": 0.33596313415786816,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 21.102098670731706,
+        "usd_per_pp_high": 32.61110468333333
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.60615151612903,
+        "usd_per_pp_high": 39.93196491836735
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "account": "A03"
+      },
+      "intervals": 10,
+      "accounts": [
+        "A03"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-03",
+      "last_start_day": "2026-08-05",
+      "sums": {
+        "delta_pp": 70.0,
+        "strict_calls": 17501.0,
+        "strict_usd": 1750.951743,
+        "fixed_usd": 1369.7845958,
+        "uncached": 66784767.0,
+        "cached": 2356599936.0,
+        "output": 7957598.0,
+        "reasoning": 2307877.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1630.79019,
+        "enclosing_usd": 1859.897869
+      },
+      "dated_usd_per_pp": 25.01359632857143,
+      "fixed_usd_per_pp": 19.568351368571427,
+      "quota_pp_per_million_total_tokens": 0.028790680757378062,
+      "cache_hit_fraction": 0.9724415331509997,
+      "reasoning_fraction_of_output": 0.29002181311496256,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 20.384877375,
+        "usd_per_pp_high": 30.998297816666664
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.119891,
+        "usd_per_pp_high": 37.19795738
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "account": "A05"
+      },
+      "intervals": 7,
+      "accounts": [
+        "A05"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-08-11",
+      "last_start_day": "2026-08-18",
+      "sums": {
+        "delta_pp": 48.0,
+        "strict_calls": 11835.0,
+        "strict_usd": 1181.125365,
+        "fixed_usd": 922.88856,
+        "uncached": 42471411.0,
+        "cached": 1607360640.0,
+        "output": 5502933.0,
+        "reasoning": 1627182.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1077.748456,
+        "enclosing_usd": 1283.911834
+      },
+      "dated_usd_per_pp": 24.6067784375,
+      "fixed_usd_per_pp": 19.226845,
+      "quota_pp_per_million_total_tokens": 0.02899715191423756,
+      "cache_hit_fraction": 0.9742571306126238,
+      "reasoning_fraction_of_output": 0.2956935874014821,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.595426472727272,
+        "usd_per_pp_high": 31.314922780487805
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.383039612903225,
+        "usd_per_pp_high": 37.76211276470588
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "account": "A07"
+      },
+      "intervals": 7,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-15",
+      "sums": {
+        "delta_pp": 41.0,
+        "strict_calls": 9790.0,
+        "strict_usd": 1063.56575,
+        "fixed_usd": 830.903136,
+        "uncached": 48414746.0,
+        "cached": 1343742080.0,
+        "output": 4987366.0,
+        "reasoning": 1579692.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 982.643214,
+        "enclosing_usd": 1139.005392
+      },
+      "dated_usd_per_pp": 25.940628048780486,
+      "fixed_usd_per_pp": 20.265930146341464,
+      "quota_pp_per_million_total_tokens": 0.029345575234656952,
+      "cache_hit_fraction": 0.965223209701807,
+      "reasoning_fraction_of_output": 0.31673873543670145,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 20.471733625,
+        "usd_per_pp_high": 33.500158588235294
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.866240254545453,
+        "usd_per_pp_high": 42.18538488888889
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "account": "A08"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A08"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-03",
+      "last_start_day": "2026-08-03",
+      "sums": {
+        "delta_pp": 10.0,
+        "strict_calls": 2130.0,
+        "strict_usd": 224.97958500000001,
+        "fixed_usd": 175.625816,
+        "uncached": 10079747.0,
+        "cached": 283793920.0,
+        "output": 1089463.0,
+        "reasoning": 292141.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 209.94597,
+        "enclosing_usd": 240.696557
+      },
+      "dated_usd_per_pp": 22.497958500000003,
+      "fixed_usd_per_pp": 17.562581599999998,
+      "quota_pp_per_million_total_tokens": 0.03390254232791739,
+      "cache_hit_fraction": 0.9657004075836437,
+      "reasoning_fraction_of_output": 0.2681513736583987,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.4954975,
+        "usd_per_pp_high": 30.087069625
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.996140714285714,
+        "usd_per_pp_high": 40.11609283333333
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "account": "A01"
+      },
+      "intervals": 11,
+      "accounts": [
+        "A01"
+      ],
+      "account_epochs": 3,
+      "first_day": "2026-09-01",
+      "last_start_day": "2026-09-04",
+      "sums": {
+        "delta_pp": 117.0,
+        "strict_calls": 32082.0,
+        "strict_usd": 2233.1616852,
+        "fixed_usd": 2233.1616852,
+        "uncached": 89005824.0,
+        "cached": 4105815168.0,
+        "output": 12531343.0,
+        "reasoning": 4428344.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2077.5274050000003,
+        "enclosing_usd": 2375.89479448
+      },
+      "dated_usd_per_pp": 19.08685201025641,
+      "fixed_usd_per_pp": 19.08685201025641,
+      "quota_pp_per_million_total_tokens": 0.02780846258743386,
+      "cache_hit_fraction": 0.9787819732547004,
+      "reasoning_fraction_of_output": 0.3533814372489844,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 16.230682851562502,
+        "usd_per_pp_high": 22.414101834716984
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.946240323741009,
+        "usd_per_pp_high": 25.00941888926316
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "account": "A02"
+      },
+      "intervals": 5,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-02",
+      "last_start_day": "2026-09-03",
+      "sums": {
+        "delta_pp": 30.0,
+        "strict_calls": 7066.0,
+        "strict_usd": 500.05399040000003,
+        "fixed_usd": 500.05399040000003,
+        "uncached": 19730315.0,
+        "cached": 904021376.0,
+        "output": 2976209.0,
+        "reasoning": 1169390.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 464.86904400000003,
+        "enclosing_usd": 533.3769824000001
+      },
+      "dated_usd_per_pp": 16.66846634666667,
+      "fixed_usd_per_pp": 16.66846634666667,
+      "quota_pp_per_million_total_tokens": 0.03237196160814841,
+      "cache_hit_fraction": 0.9786411054050238,
+      "reasoning_fraction_of_output": 0.39291259451201177,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 13.281972685714287,
+        "usd_per_pp_high": 21.335079296000004
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 11.6217261,
+        "usd_per_pp_high": 26.668849120000004
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "account": "A03"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A03"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-01",
+      "last_start_day": "2026-09-01",
+      "sums": {
+        "delta_pp": 12.0,
+        "strict_calls": 3024.0,
+        "strict_usd": 236.2292228,
+        "fixed_usd": 236.2292228,
+        "uncached": 9936631.0,
+        "cached": 431657472.0,
+        "output": 1152471.0,
+        "reasoning": 342894.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 217.0165858,
+        "enclosing_usd": 251.42611180000003
+      },
+      "dated_usd_per_pp": 19.685768566666667,
+      "fixed_usd_per_pp": 19.685768566666667,
+      "quota_pp_per_million_total_tokens": 0.027103541178389784,
+      "cache_hit_fraction": 0.9774982706234191,
+      "reasoning_fraction_of_output": 0.2975293955335969,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.5011847,
+        "usd_per_pp_high": 25.142611180000003
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 13.5635366125,
+        "usd_per_pp_high": 31.428263975000004
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "account": "A05"
+      },
+      "intervals": 8,
+      "accounts": [
+        "A05"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-09-03",
+      "last_start_day": "2026-09-05",
+      "sums": {
+        "delta_pp": 57.0,
+        "strict_calls": 11313.0,
+        "strict_usd": 796.3696394,
+        "fixed_usd": 796.3696394,
+        "uncached": 26300770.0,
+        "cached": 1524494208.0,
+        "output": 4062115.0,
+        "reasoning": 1502982.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 748.9150088,
+        "enclosing_usd": 843.7156938
+      },
+      "dated_usd_per_pp": 13.97139718245614,
+      "fixed_usd_per_pp": 13.97139718245614,
+      "quota_pp_per_million_total_tokens": 0.036659317603280214,
+      "cache_hit_fraction": 0.9830404596525589,
+      "reasoning_fraction_of_output": 0.36999986460255313,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 11.521769366153846,
+        "usd_per_pp_high": 17.21868762857143
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 10.25910970958904,
+        "usd_per_pp_high": 20.578431556097563
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "account": "A06"
+      },
+      "intervals": 7,
+      "accounts": [
+        "A06"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-09-04",
+      "last_start_day": "2026-09-05",
+      "sums": {
+        "delta_pp": 48.0,
+        "strict_calls": 11966.0,
+        "strict_usd": 873.81571832,
+        "fixed_usd": 873.81571832,
+        "uncached": 30981110.0,
+        "cached": 1634858112.0,
+        "output": 4949425.0,
+        "reasoning": 1788057.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 815.91921792,
+        "enclosing_usd": 936.90582952
+      },
+      "dated_usd_per_pp": 18.204494131666667,
+      "fixed_usd_per_pp": 18.204494131666667,
+      "quota_pp_per_million_total_tokens": 0.028728947905042834,
+      "cache_hit_fraction": 0.9814021007604778,
+      "reasoning_fraction_of_output": 0.36126560155977716,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.834894871272729,
+        "usd_per_pp_high": 22.851361695609757
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 13.159987385806453,
+        "usd_per_pp_high": 27.556053809411765
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "account": "A07"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-01",
+      "last_start_day": "2026-09-01",
+      "sums": {
+        "delta_pp": 8.0,
+        "strict_calls": 1964.0,
+        "strict_usd": 145.6442932,
+        "fixed_usd": 145.6442932,
+        "uncached": 6240801.0,
+        "cached": 257249664.0,
+        "output": 942251.0,
+        "reasoning": 298182.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 134.35413440000002,
+        "enclosing_usd": 158.4494732
+      },
+      "dated_usd_per_pp": 18.20553665,
+      "fixed_usd_per_pp": 18.20553665,
+      "quota_pp_per_million_total_tokens": 0.03025344261865086,
+      "cache_hit_fraction": 0.9763148886621001,
+      "reasoning_fraction_of_output": 0.31645707990758304,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.928237155555557,
+        "usd_per_pp_high": 22.63563902857143
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 13.435413440000001,
+        "usd_per_pp_high": 26.408245533333332
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "account": "A08"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A08"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-01",
+      "last_start_day": "2026-09-01",
+      "sums": {
+        "delta_pp": 5.0,
+        "strict_calls": 1418.0,
+        "strict_usd": 103.52327840000001,
+        "fixed_usd": 103.52327840000001,
+        "uncached": 3091049.0,
+        "cached": 200982656.0,
+        "output": 538301.0,
+        "reasoning": 153150.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 95.1218712,
+        "enclosing_usd": 113.78406960000001
+      },
+      "dated_usd_per_pp": 20.704655680000002,
+      "fixed_usd_per_pp": 20.704655680000002,
+      "quota_pp_per_million_total_tokens": 0.024436493721683175,
+      "cache_hit_fraction": 0.9848532715177587,
+      "reasoning_fraction_of_output": 0.2845062520782982,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.8536452,
+        "usd_per_pp_high": 28.446017400000002
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 13.588838742857144,
+        "usd_per_pp_high": 37.928023200000005
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "period": "sep01_sep06_partial",
+        "account": "A02"
+      },
+      "intervals": 4,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-09-05",
+      "last_start_day": "2026-09-06",
+      "sums": {
+        "delta_pp": 73.0,
+        "strict_calls": 3513.0,
+        "strict_usd": 646.4686679600001,
+        "fixed_usd": 646.4686679600001,
+        "uncached": 12554931.0,
+        "cached": 477382144.0,
+        "output": 1083953.0,
+        "reasoning": 226960.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 603.22265236,
+        "enclosing_usd": 681.37753164
+      },
+      "dated_usd_per_pp": 8.855735177534248,
+      "fixed_usd_per_pp": 8.855735177534248,
+      "quota_pp_per_million_total_tokens": 0.14866980401499222,
+      "cache_hit_fraction": 0.9743744010391538,
+      "reasoning_fraction_of_output": 0.20938177208790418,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 7.83406042025974,
+        "usd_per_pp_high": 9.875036690434783
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 7.447193239012345,
+        "usd_per_pp_high": 10.482731256000001
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "period": "sep01_sep06_partial",
+        "account": "A04"
+      },
+      "intervals": 4,
+      "accounts": [
+        "A04"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-05",
+      "last_start_day": "2026-09-05",
+      "sums": {
+        "delta_pp": 95.0,
+        "strict_calls": 5253.0,
+        "strict_usd": 898.03586788,
+        "fixed_usd": 898.03586788,
+        "uncached": 17567568.0,
+        "cached": 694848512.0,
+        "output": 952082.0,
+        "reasoning": 187458.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 832.70588292,
+        "enclosing_usd": 975.76269948
+      },
+      "dated_usd_per_pp": 9.453009135578947,
+      "fixed_usd_per_pp": 9.453009135578947,
+      "quota_pp_per_million_total_tokens": 0.13317106798494885,
+      "cache_hit_fraction": 0.9753408597964268,
+      "reasoning_fraction_of_output": 0.1968927046199802,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 8.411170534545455,
+        "usd_per_pp_high": 10.722667027252747
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 8.08452313514563,
+        "usd_per_pp_high": 11.215663212413794
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "period": "sep01_sep06_partial",
+        "account": "A05"
+      },
+      "intervals": 3,
+      "accounts": [
+        "A05"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-05",
+      "last_start_day": "2026-09-06",
+      "sums": {
+        "delta_pp": 58.0,
+        "strict_calls": 3338.0,
+        "strict_usd": 567.32240032,
+        "fixed_usd": 567.32240032,
+        "uncached": 10860396.0,
+        "cached": 440806784.0,
+        "output": 820717.0,
+        "reasoning": 154462.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 540.37543432,
+        "enclosing_usd": 596.80841712
+      },
+      "dated_usd_per_pp": 9.781420695172415,
+      "fixed_usd_per_pp": 9.781420695172415,
+      "quota_pp_per_million_total_tokens": 0.1281802240116049,
+      "cache_hit_fraction": 0.9759548701324723,
+      "reasoning_fraction_of_output": 0.1882037291782673,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 8.858613677377049,
+        "usd_per_pp_high": 10.851062129454544
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 8.44336616125,
+        "usd_per_pp_high": 11.477084944615383
+      }
+    }
+  ],
+  "hourly_bank_grades": [
+    {
+      "group": {
+        "model": "gpt-5.5",
+        "effort": "medium",
+        "period": "before_aug21",
+        "transition_grade": "post_manual_reset_origin_ambiguous"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A08"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-12",
+      "sums": {
+        "delta_pp": 24.0,
+        "strict_calls": 51.0,
+        "strict_usd": 6.504127,
+        "fixed_usd": 6.504127,
+        "uncached": 251603.0,
+        "cached": 9619584.0,
+        "output": 14544.0,
+        "reasoning": 2241.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 5.495944,
+        "enclosing_usd": 7.092718
+      },
+      "dated_usd_per_pp": 0.2710052916666667,
+      "fixed_usd_per_pp": 0.2710052916666667,
+      "quota_pp_per_million_total_tokens": 2.4277415600323335,
+      "cache_hit_fraction": 0.9745113733535795,
+      "reasoning_fraction_of_output": 0.15408415841584158,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 0.21138246153846152,
+        "usd_per_pp_high": 0.3223962727272727
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 0.19628371428571428,
+        "usd_per_pp_high": 0.3546359
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "ordinary_expiry_compatible"
+      },
+      "intervals": 20,
+      "accounts": [
+        "A01",
+        "A02",
+        "A05",
+        "A08"
+      ],
+      "account_epochs": 4,
+      "first_day": "2026-08-22",
+      "last_start_day": "2026-08-23",
+      "sums": {
+        "delta_pp": 140.0,
+        "strict_calls": 36838.0,
+        "strict_usd": 2767.6015512000004,
+        "fixed_usd": 2767.6015512000004,
+        "uncached": 121996436.0,
+        "cached": 4889981568.0,
+        "output": 16181159.0,
+        "reasoning": 5461886.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2545.0953696,
+        "enclosing_usd": 2986.4013904000003
+      },
+      "dated_usd_per_pp": 19.76858250857143,
+      "fixed_usd_per_pp": 19.76858250857143,
+      "quota_pp_per_million_total_tokens": 0.027843191804706204,
+      "cache_hit_fraction": 0.9756590240614312,
+      "reasoning_fraction_of_output": 0.3375460311588311,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.906846060000001,
+        "usd_per_pp_high": 24.886678253333336
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.13941872,
+        "usd_per_pp_high": 29.864013904000004
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "unexplained_early_replacement"
+      },
+      "intervals": 82,
+      "accounts": [
+        "A01",
+        "A02",
+        "A03",
+        "A05",
+        "A07",
+        "A08"
+      ],
+      "account_epochs": 13,
+      "first_day": "2026-08-24",
+      "last_start_day": "2026-08-31",
+      "sums": {
+        "delta_pp": 663.0,
+        "strict_calls": 170699.0,
+        "strict_usd": 12599.28697092,
+        "fixed_usd": 12599.28697092,
+        "uncached": 579527376.0,
+        "cached": 22277155968.0,
+        "output": 69198605.0,
+        "reasoning": 22077311.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 11653.63027432,
+        "enclosing_usd": 13587.30843212
+      },
+      "dated_usd_per_pp": 19.003449428235296,
+      "fixed_usd_per_pp": 19.003449428235296,
+      "quota_pp_per_million_total_tokens": 0.028919280029221266,
+      "cache_hit_fraction": 0.9746451675740554,
+      "reasoning_fraction_of_output": 0.3190427176964044,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.64245674405369,
+        "usd_per_pp_high": 23.38607303290878
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.091451359516324,
+        "usd_per_pp_high": 27.22907501426854
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "direct_guardian_redemption"
+      },
+      "intervals": 9,
+      "accounts": [
+        "A01",
+        "A02",
+        "A05"
+      ],
+      "account_epochs": 4,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-18",
+      "sums": {
+        "delta_pp": 74.0,
+        "strict_calls": 10484.0,
+        "strict_usd": 1035.415114,
+        "fixed_usd": 810.6458592,
+        "uncached": 38940094.0,
+        "cached": 1416135808.0,
+        "output": 4421558.0,
+        "reasoning": 1300070.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 945.641395,
+        "enclosing_usd": 1130.695683
+      },
+      "dated_usd_per_pp": 13.992096135135133,
+      "fixed_usd_per_pp": 10.954673772972972,
+      "quota_pp_per_million_total_tokens": 0.05070238354508681,
+      "cache_hit_fraction": 0.9732384448491814,
+      "reasoning_fraction_of_output": 0.29402984196973103,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 11.393269819277108,
+        "usd_per_pp_high": 17.3953182
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 10.27871081521739,
+        "usd_per_pp_high": 20.190994339285712
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "manual_response_and_deadline_corroborated"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-10",
+      "last_start_day": "2026-08-10",
+      "sums": {
+        "delta_pp": 11.0,
+        "strict_calls": 2884.0,
+        "strict_usd": 297.514955,
+        "fixed_usd": 232.160652,
+        "uncached": 13616903.0,
+        "cached": 371091200.0,
+        "output": 1462828.0,
+        "reasoning": 520082.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 275.225764,
+        "enclosing_usd": 313.916541
+      },
+      "dated_usd_per_pp": 27.04681409090909,
+      "fixed_usd_per_pp": 21.10551381818182,
+      "quota_pp_per_million_total_tokens": 0.028484795506267663,
+      "cache_hit_fraction": 0.9646045848948495,
+      "reasoning_fraction_of_output": 0.35553188754932225,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 21.17121261538462,
+        "usd_per_pp_high": 34.879615666666666
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.348384266666667,
+        "usd_per_pp_high": 44.845220142857144
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "post_manual_reset_origin_ambiguous"
+      },
+      "intervals": 5,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-12",
+      "sums": {
+        "delta_pp": 31.0,
+        "strict_calls": 7498.0,
+        "strict_usd": 805.680392,
+        "fixed_usd": 629.3417216,
+        "uncached": 35012984.0,
+        "cached": 1033192064.0,
+        "output": 3800648.0,
+        "reasoning": 1233683.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 743.1781129999999,
+        "enclosing_usd": 862.668709
+      },
+      "dated_usd_per_pp": 25.98969006451613,
+      "fixed_usd_per_pp": 20.30134585806452,
+      "quota_pp_per_million_total_tokens": 0.0289177567952027,
+      "cache_hit_fraction": 0.9672226001313561,
+      "reasoning_fraction_of_output": 0.3245980685398911,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 20.64383647222222,
+        "usd_per_pp_high": 33.179565730769234
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.12629543902439,
+        "usd_per_pp_high": 41.07946233333333
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "unexplained_early_replacement"
+      },
+      "intervals": 26,
+      "accounts": [
+        "A02",
+        "A03",
+        "A05",
+        "A07",
+        "A08"
+      ],
+      "account_epochs": 6,
+      "first_day": "2026-08-03",
+      "last_start_day": "2026-08-15",
+      "sums": {
+        "delta_pp": 165.0,
+        "strict_calls": 41136.0,
+        "strict_usd": 4189.780186,
+        "fixed_usd": 3271.8598142,
+        "uncached": 177400262.0,
+        "cached": 5393288832.0,
+        "output": 20204482.0,
+        "reasoning": 6184780.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 3900.187441,
+        "enclosing_usd": 4449.477047
+      },
+      "dated_usd_per_pp": 25.392607187878788,
+      "fixed_usd_per_pp": 19.82945341939394,
+      "quota_pp_per_million_total_tokens": 0.02951227701923976,
+      "cache_hit_fraction": 0.9681547006112634,
+      "reasoning_fraction_of_output": 0.30610930782585766,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 20.419829534031415,
+        "usd_per_pp_high": 32.01062623741007
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.973214013824887,
+        "usd_per_pp_high": 39.37590307079646
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "credit_loss_and_new_window"
+      },
+      "intervals": 20,
+      "accounts": [
+        "A01",
+        "A05",
+        "A06"
+      ],
+      "account_epochs": 5,
+      "first_day": "2026-09-02",
+      "last_start_day": "2026-09-05",
+      "sums": {
+        "delta_pp": 189.0,
+        "strict_calls": 47272.0,
+        "strict_usd": 3326.88426912,
+        "fixed_usd": 3326.88426912,
+        "uncached": 123141978.0,
+        "cached": 6218443008.0,
+        "output": 18220180.0,
+        "reasoning": 6441530.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 3106.7647723200002,
+        "enclosing_usd": 3537.2575592000003
+      },
+      "dated_usd_per_pp": 17.60256227047619,
+      "fixed_usd_per_pp": 17.60256227047619,
+      "quota_pp_per_million_total_tokens": 0.029717891518188058,
+      "cache_hit_fraction": 0.9805818295785904,
+      "reasoning_fraction_of_output": 0.35353821971023336,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.864903216842107,
+        "usd_per_pp_high": 20.93051810177515
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 13.566658394410481,
+        "usd_per_pp_high": 23.73998361879195
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "ordinary_expiry_compatible"
+      },
+      "intervals": 3,
+      "accounts": [
+        "A06"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-04",
+      "last_start_day": "2026-09-04",
+      "sums": {
+        "delta_pp": 16.0,
+        "strict_calls": 3346.0,
+        "strict_usd": 234.5909648,
+        "fixed_usd": 234.5909648,
+        "uncached": 7839996.0,
+        "cached": 436308352.0,
+        "output": 1435382.0,
+        "reasoning": 598001.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 215.9570912,
+        "enclosing_usd": 254.156024
+      },
+      "dated_usd_per_pp": 14.6619353,
+      "fixed_usd_per_pp": 14.6619353,
+      "quota_pp_per_million_total_tokens": 0.03590795382048622,
+      "cache_hit_fraction": 0.982348249103473,
+      "reasoning_fraction_of_output": 0.4166145318807119,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 11.366162694736843,
+        "usd_per_pp_high": 19.550463384615384
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 9.816231418181818,
+        "usd_per_pp_high": 25.4156024
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "unexplained_early_replacement"
+      },
+      "intervals": 12,
+      "accounts": [
+        "A01",
+        "A02",
+        "A03",
+        "A07",
+        "A08"
+      ],
+      "account_epochs": 5,
+      "first_day": "2026-09-01",
+      "last_start_day": "2026-09-03",
+      "sums": {
+        "delta_pp": 72.0,
+        "strict_calls": 18215.0,
+        "strict_usd": 1327.3225938,
+        "fixed_usd": 1327.3225938,
+        "uncached": 54304526.0,
+        "cached": 2404327296.0,
+        "output": 7496553.0,
+        "reasoning": 2643468.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1231.0014036,
+        "enclosing_usd": 1422.1393716
+      },
+      "dated_usd_per_pp": 18.435036025000002,
+      "fixed_usd_per_pp": 18.435036025000002,
+      "quota_pp_per_million_total_tokens": 0.029195560429817448,
+      "cache_hit_fraction": 0.9779127051419088,
+      "reasoning_fraction_of_output": 0.35262446620466764,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.654778614285714,
+        "usd_per_pp_high": 23.70232286
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 12.8229312875,
+        "usd_per_pp_high": 29.627903575
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "credit_loss_and_new_window"
+      },
+      "intervals": 11,
+      "accounts": [
+        "A02",
+        "A04",
+        "A05"
+      ],
+      "account_epochs": 4,
+      "first_day": "2026-09-05",
+      "last_start_day": "2026-09-06",
+      "sums": {
+        "delta_pp": 226.0,
+        "strict_calls": 12104.0,
+        "strict_usd": 2111.82693616,
+        "fixed_usd": 2111.82693616,
+        "uncached": 40982895.0,
+        "cached": 1613037440.0,
+        "output": 2856752.0,
+        "reasoning": 568880.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1976.3039696,
+        "enclosing_usd": 2253.94864824
+      },
+      "dated_usd_per_pp": 9.344366974159293,
+      "fixed_usd_per_pp": 9.344366974159293,
+      "quota_pp_per_million_total_tokens": 0.1364011861671668,
+      "cache_hit_fraction": 0.9752222544470712,
+      "reasoning_fraction_of_output": 0.1991352417010647,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 8.338835314767932,
+        "usd_per_pp_high": 10.483482084837208
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 7.968967619354839,
+        "usd_per_pp_high": 11.048767883529411
+      }
+    }
+  ],
+  "epoch_periods": [
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "ordinary_expiry_compatible"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A01",
+        "A08"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-08-22",
+      "last_start_day": "2026-08-23",
+      "sums": {
+        "delta_pp": 198.0,
+        "strict_calls": 53144.0,
+        "strict_usd": 3986.3295616000005,
+        "fixed_usd": 3986.3295616000005,
+        "uncached": 175028942.0,
+        "cached": 7082861184.0,
+        "output": 22653466.0,
+        "reasoning": 7487625.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 3977.830572,
+        "enclosing_usd": 3993.6278784
+      },
+      "dated_usd_per_pp": 20.132977583838386,
+      "fixed_usd_per_pp": 20.132977583838386,
+      "quota_pp_per_million_total_tokens": 0.027195771510463335,
+      "cache_hit_fraction": 0.9758843218950102,
+      "reasoning_fraction_of_output": 0.33052889125222606,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.88915286,
+        "usd_per_pp_high": 20.375652440816328
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.692230554455445,
+        "usd_per_pp_high": 20.58571071340206
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "unexplained_early_replacement"
+      },
+      "intervals": 11,
+      "accounts": [
+        "A01",
+        "A02",
+        "A03",
+        "A05",
+        "A07",
+        "A08"
+      ],
+      "account_epochs": 11,
+      "first_day": "2026-08-24",
+      "last_start_day": "2026-08-31",
+      "sums": {
+        "delta_pp": 1089.0,
+        "strict_calls": 271636.0,
+        "strict_usd": 20083.45994492,
+        "fixed_usd": 20083.45994492,
+        "uncached": 912652061.0,
+        "cached": 35593258240.0,
+        "output": 110275127.0,
+        "reasoning": 36181825.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 19965.13703212,
+        "enclosing_usd": 20165.60025932
+      },
+      "dated_usd_per_pp": 18.442111978806246,
+      "fixed_usd_per_pp": 18.442111978806246,
+      "quota_pp_per_million_total_tokens": 0.029740946176421028,
+      "cache_hit_fraction": 0.9749998821156639,
+      "reasoning_fraction_of_output": 0.32810504040498634,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.150124574654548,
+        "usd_per_pp_high": 18.706493747050093
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.970420370945096,
+        "usd_per_pp_high": 18.89934419805061
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "direct_guardian_redemption"
+      },
+      "intervals": 3,
+      "accounts": [
+        "A01",
+        "A05",
+        "A08"
+      ],
+      "account_epochs": 3,
+      "first_day": "2026-08-13",
+      "last_start_day": "2026-08-16",
+      "sums": {
+        "delta_pp": 297.0,
+        "strict_calls": 71669.0,
+        "strict_usd": 7454.319611,
+        "fixed_usd": 5829.2650408,
+        "uncached": 315552811.0,
+        "cached": 9740251392.0,
+        "output": 33547662.0,
+        "reasoning": 9643073.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 7439.755306,
+        "enclosing_usd": 7469.38166
+      },
+      "dated_usd_per_pp": 25.098719228956227,
+      "fixed_usd_per_pp": 19.62715501952862,
+      "quota_pp_per_million_total_tokens": 0.029436975137153668,
+      "cache_hit_fraction": 0.9686198334186081,
+      "reasoning_fraction_of_output": 0.2874439655437091,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.799184353333334,
+        "usd_per_pp_high": 25.406060068027212
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.55364787458746,
+        "usd_per_pp_high": 25.66797821305842
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "ordinary_expiry_compatible"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-20",
+      "last_start_day": "2026-08-20",
+      "sums": {
+        "delta_pp": 94.0,
+        "strict_calls": 24036.0,
+        "strict_usd": 1917.2071788,
+        "fixed_usd": 1841.2553142000002,
+        "uncached": 85493301.0,
+        "cached": 3247289856.0,
+        "output": 9852347.0,
+        "reasoning": 2989792.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1902.5221194,
+        "enclosing_usd": 1933.162394
+      },
+      "dated_usd_per_pp": 20.39582105106383,
+      "fixed_usd_per_pp": 19.587822491489362,
+      "quota_pp_per_million_total_tokens": 0.028121522639101365,
+      "cache_hit_fraction": 0.9743477757259921,
+      "reasoning_fraction_of_output": 0.3034598761087079,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 20.026548625263157,
+        "usd_per_pp_high": 20.78669240860215
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.817938743750002,
+        "usd_per_pp_high": 21.012634717391304
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "post_manual_reset_origin_ambiguous"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-12",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 24150.0,
+        "strict_usd": 2497.525823,
+        "fixed_usd": 1951.9224304000002,
+        "uncached": 109416357.0,
+        "cached": 3209414656.0,
+        "output": 11524557.0,
+        "reasoning": 3577145.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2483.610454,
+        "enclosing_usd": 2505.902401
+      },
+      "dated_usd_per_pp": 25.227533565656564,
+      "fixed_usd_per_pp": 19.716388185858587,
+      "quota_pp_per_million_total_tokens": 0.029726555594182396,
+      "cache_hit_fraction": 0.9670316576615647,
+      "reasoning_fraction_of_output": 0.31039327585433435,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.83610454,
+        "usd_per_pp_high": 25.570432663265304
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.590202514851487,
+        "usd_per_pp_high": 25.834045371134017
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "unexplained_early_replacement"
+      },
+      "intervals": 3,
+      "accounts": [
+        "A02",
+        "A05"
+      ],
+      "account_epochs": 3,
+      "first_day": "2026-08-11",
+      "last_start_day": "2026-08-13",
+      "sums": {
+        "delta_pp": 296.0,
+        "strict_calls": 68745.0,
+        "strict_usd": 7464.731522,
+        "fixed_usd": 5828.3781096,
+        "uncached": 348882068.0,
+        "cached": 9289535744.0,
+        "output": 35851777.0,
+        "reasoning": 10451176.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 7414.498822,
+        "enclosing_usd": 7507.615153999999
+      },
+      "dated_usd_per_pp": 25.218687574324324,
+      "fixed_usd_per_pp": 19.690466586486487,
+      "quota_pp_per_million_total_tokens": 0.03059662512780943,
+      "cache_hit_fraction": 0.9638029731844955,
+      "reasoning_fraction_of_output": 0.29151068299906024,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.797654923076923,
+        "usd_per_pp_high": 25.623259911262796
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.551320602649007,
+        "usd_per_pp_high": 25.888328117241375
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "credit_loss_and_new_window"
+      },
+      "intervals": 3,
+      "accounts": [
+        "A01",
+        "A05"
+      ],
+      "account_epochs": 3,
+      "first_day": "2026-09-02",
+      "last_start_day": "2026-09-04",
+      "sums": {
+        "delta_pp": 297.0,
+        "strict_calls": 72170.0,
+        "strict_usd": 5077.29179148,
+        "fixed_usd": 5077.29179148,
+        "uncached": 192458096.0,
+        "cached": 9381555072.0,
+        "output": 28023509.0,
+        "reasoning": 9963665.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 5042.39477644,
+        "enclosing_usd": 5111.213411000001
+      },
+      "dated_usd_per_pp": 17.095258557171718,
+      "fixed_usd_per_pp": 17.095258557171718,
+      "quota_pp_per_million_total_tokens": 0.03093093788231528,
+      "cache_hit_fraction": 0.9798978659604033,
+      "reasoning_fraction_of_output": 0.35554665905686544,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 16.807982588133335,
+        "usd_per_pp_high": 17.385079629251702
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 16.641566918943894,
+        "usd_per_pp_high": 17.564307254295535
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "unexplained_early_replacement"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-01",
+      "last_start_day": "2026-09-01",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 24786.0,
+        "strict_usd": 1803.4074176000001,
+        "fixed_usd": 1803.4074176000001,
+        "uncached": 74329539.0,
+        "cached": 3236152320.0,
+        "output": 10842066.0,
+        "reasoning": 3652301.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1793.6499840000001,
+        "enclosing_usd": 1810.4728704000001
+      },
+      "dated_usd_per_pp": 18.216236541414144,
+      "fixed_usd_per_pp": 18.216236541414144,
+      "quota_pp_per_million_total_tokens": 0.02980739073801722,
+      "cache_hit_fraction": 0.9775472145246998,
+      "reasoning_fraction_of_output": 0.33686393349754556,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.93649984,
+        "usd_per_pp_high": 18.47421296326531
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.758910732673268,
+        "usd_per_pp_high": 18.664668767010312
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "credit_loss_and_new_window"
+      },
+      "intervals": 3,
+      "accounts": [
+        "A02",
+        "A04",
+        "A05"
+      ],
+      "account_epochs": 3,
+      "first_day": "2026-09-05",
+      "last_start_day": "2026-09-05",
+      "sums": {
+        "delta_pp": 297.0,
+        "strict_calls": 16009.0,
+        "strict_usd": 2740.0677052,
+        "fixed_usd": 2740.0677052,
+        "uncached": 53321863.0,
+        "cached": 2108664320.0,
+        "output": 3846393.0,
+        "reasoning": 781413.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2701.44651956,
+        "enclosing_usd": 2757.31707316
+      },
+      "dated_usd_per_pp": 9.22581718922559,
+      "fixed_usd_per_pp": 9.22581718922559,
+      "quota_pp_per_million_total_tokens": 0.13712971320641915,
+      "cache_hit_fraction": 0.9753366310019568,
+      "reasoning_fraction_of_output": 0.20315474783777945,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 9.004821731866667,
+        "usd_per_pp_high": 9.378629500544218
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 8.915665081056106,
+        "usd_per_pp_high": 9.475316402611684
+      }
+    }
+  ],
+  "epoch_accounts": [
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "ordinary_expiry_compatible",
+        "account": "A01"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A01"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-23",
+      "last_start_day": "2026-08-23",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 27691.0,
+        "strict_usd": 2002.5272976,
+        "fixed_usd": 2002.5272976,
+        "uncached": 88857477.0,
+        "cached": 3507537024.0,
+        "output": 12204129.0,
+        "reasoning": 4526832.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1995.9459048,
+        "enclosing_usd": 2008.3591408
+      },
+      "dated_usd_per_pp": 20.227548460606062,
+      "fixed_usd_per_pp": 20.227548460606062,
+      "quota_pp_per_million_total_tokens": 0.027434472533732577,
+      "cache_hit_fraction": 0.9752926223818625,
+      "reasoning_fraction_of_output": 0.37092626602029527,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.959459048,
+        "usd_per_pp_high": 20.493460620408165
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.76184064158416,
+        "usd_per_pp_high": 20.704733410309277
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "ordinary_expiry_compatible",
+        "account": "A08"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A08"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-22",
+      "last_start_day": "2026-08-22",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 25453.0,
+        "strict_usd": 1983.8022640000002,
+        "fixed_usd": 1983.8022640000002,
+        "uncached": 86171465.0,
+        "cached": 3575324160.0,
+        "output": 10449337.0,
+        "reasoning": 2960793.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1981.8846672,
+        "enclosing_usd": 1985.2687376000001
+      },
+      "dated_usd_per_pp": 20.03840670707071,
+      "fixed_usd_per_pp": 20.03840670707071,
+      "quota_pp_per_million_total_tokens": 0.02696118842317223,
+      "cache_hit_fraction": 0.9764655010341573,
+      "reasoning_fraction_of_output": 0.2833474506564388,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.818846672,
+        "usd_per_pp_high": 20.25784426122449
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.622620467326733,
+        "usd_per_pp_high": 20.466688016494846
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "unexplained_early_replacement",
+        "account": "A01"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A01"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-28",
+      "last_start_day": "2026-08-28",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 24717.0,
+        "strict_usd": 1759.9555028,
+        "fixed_usd": 1759.9555028,
+        "uncached": 86460811.0,
+        "cached": 3132083328.0,
+        "output": 8147944.0,
+        "reasoning": 2210864.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1749.0841036000002,
+        "enclosing_usd": 1765.2856372
+      },
+      "dated_usd_per_pp": 17.77732831111111,
+      "fixed_usd_per_pp": 17.77732831111111,
+      "quota_pp_per_million_total_tokens": 0.03068157650418111,
+      "cache_hit_fraction": 0.9731366707225387,
+      "reasoning_fraction_of_output": 0.2713401073939634,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.490841036000003,
+        "usd_per_pp_high": 18.013118746938776
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.31766439207921,
+        "usd_per_pp_high": 18.198821002061855
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "unexplained_early_replacement",
+        "account": "A02"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-08-29",
+      "last_start_day": "2026-08-31",
+      "sums": {
+        "delta_pp": 198.0,
+        "strict_calls": 47993.0,
+        "strict_usd": 3474.9969734,
+        "fixed_usd": 3474.9969734,
+        "uncached": 148736669.0,
+        "cached": 6216031232.0,
+        "output": 20070623.0,
+        "reasoning": 7173221.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 3437.8227966000004,
+        "enclosing_usd": 3501.0257142
+      },
+      "dated_usd_per_pp": 17.550489764646464,
+      "fixed_usd_per_pp": 17.550489764646464,
+      "quota_pp_per_million_total_tokens": 0.03101096437376401,
+      "cache_hit_fraction": 0.9766312501392814,
+      "reasoning_fraction_of_output": 0.35739902044894173,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.189113983000002,
+        "usd_per_pp_high": 17.862376092857144
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.018924735643566,
+        "usd_per_pp_high": 18.0465243
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "unexplained_early_replacement",
+        "account": "A03"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A03"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-27",
+      "last_start_day": "2026-08-27",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 25088.0,
+        "strict_usd": 1821.7138636,
+        "fixed_usd": 1821.7138636,
+        "uncached": 85825090.0,
+        "cached": 3185396224.0,
+        "output": 9785196.0,
+        "reasoning": 3142475.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1814.6541756000001,
+        "enclosing_usd": 1821.7138636
+      },
+      "dated_usd_per_pp": 18.401150137373737,
+      "fixed_usd_per_pp": 18.401150137373737,
+      "quota_pp_per_million_total_tokens": 0.030173667652978842,
+      "cache_hit_fraction": 0.9737635941558921,
+      "reasoning_fraction_of_output": 0.32114584112571687,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.146541756,
+        "usd_per_pp_high": 18.588916975510205
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.966873025742576,
+        "usd_per_pp_high": 18.78055529484536
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "unexplained_early_replacement",
+        "account": "A05"
+      },
+      "intervals": 3,
+      "accounts": [
+        "A05"
+      ],
+      "account_epochs": 3,
+      "first_day": "2026-08-24",
+      "last_start_day": "2026-08-31",
+      "sums": {
+        "delta_pp": 297.0,
+        "strict_calls": 74910.0,
+        "strict_usd": 5726.58408932,
+        "fixed_usd": 5726.58408932,
+        "uncached": 269523937.0,
+        "cached": 10055271808.0,
+        "output": 31432888.0,
+        "reasoning": 10236369.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 5700.13353332,
+        "enclosing_usd": 5746.59558932
+      },
+      "dated_usd_per_pp": 19.28142791016835,
+      "fixed_usd_per_pp": 19.28142791016835,
+      "quota_pp_per_million_total_tokens": 0.028678393508387117,
+      "cache_hit_fraction": 0.9738954703166383,
+      "reasoning_fraction_of_output": 0.3256579223646265,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.000445111066668,
+        "usd_per_pp_high": 19.546243501088433
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.812321892145217,
+        "usd_per_pp_high": 19.747751166048108
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "unexplained_early_replacement",
+        "account": "A07"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-27",
+      "last_start_day": "2026-08-27",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 21202.0,
+        "strict_usd": 1566.9839562,
+        "fixed_usd": 1566.9839562,
+        "uncached": 69354879.0,
+        "cached": 2781306368.0,
+        "output": 8672651.0,
+        "reasoning": 2840683.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1563.3488578000001,
+        "enclosing_usd": 1570.5402034
+      },
+      "dated_usd_per_pp": 15.82812076969697,
+      "fixed_usd_per_pp": 15.82812076969697,
+      "quota_pp_per_million_total_tokens": 0.03462344851339219,
+      "cache_hit_fraction": 0.9756705995589661,
+      "reasoning_fraction_of_output": 0.3275449455996788,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.633488578000001,
+        "usd_per_pp_high": 16.025920442857142
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 15.478701562376239,
+        "usd_per_pp_high": 16.191136117525776
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "aug21_aug31",
+        "transition_grade": "unexplained_early_replacement",
+        "account": "A08"
+      },
+      "intervals": 3,
+      "accounts": [
+        "A08"
+      ],
+      "account_epochs": 3,
+      "first_day": "2026-08-24",
+      "last_start_day": "2026-08-31",
+      "sums": {
+        "delta_pp": 297.0,
+        "strict_calls": 77726.0,
+        "strict_usd": 5733.2255595999995,
+        "fixed_usd": 5733.2255595999995,
+        "uncached": 252750675.0,
+        "cached": 10223169280.0,
+        "output": 32165825.0,
+        "reasoning": 10578213.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 5700.0935652,
+        "enclosing_usd": 5760.439251600001
+      },
+      "dated_usd_per_pp": 19.30378976296296,
+      "fixed_usd_per_pp": 19.30378976296296,
+      "quota_pp_per_million_total_tokens": 0.028263948945418678,
+      "cache_hit_fraction": 0.975873176190186,
+      "reasoning_fraction_of_output": 0.328864967710295,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.000311884,
+        "usd_per_pp_high": 19.593330787755104
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.812189984158415,
+        "usd_per_pp_high": 19.795323888659798
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "direct_guardian_redemption",
+        "account": "A01"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A01"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-14",
+      "last_start_day": "2026-08-14",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 23657.0,
+        "strict_usd": 2527.811459,
+        "fixed_usd": 1979.4088352,
+        "uncached": 117013781.0,
+        "cached": 3242880128.0,
+        "output": 10710083.0,
+        "reasoning": 3000517.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2525.7894,
+        "enclosing_usd": 2531.464576
+      },
+      "dated_usd_per_pp": 25.53344908080808,
+      "fixed_usd_per_pp": 19.99402863838384,
+      "quota_pp_per_million_total_tokens": 0.029371590443425785,
+      "cache_hit_fraction": 0.9651733703000085,
+      "reasoning_fraction_of_output": 0.28015814630008,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 25.257894,
+        "usd_per_pp_high": 25.83127118367347
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 25.007815841584158,
+        "usd_per_pp_high": 26.097572948453607
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "direct_guardian_redemption",
+        "account": "A05"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A05"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-16",
+      "last_start_day": "2026-08-16",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 25649.0,
+        "strict_usd": 2473.916373,
+        "fixed_usd": 1935.3247904,
+        "uncached": 88459267.0,
+        "cached": 3406115456.0,
+        "output": 10952077.0,
+        "reasoning": 3354912.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2468.501019,
+        "enclosing_usd": 2479.701251
+      },
+      "dated_usd_per_pp": 24.989054272727273,
+      "fixed_usd_per_pp": 19.548735256565656,
+      "quota_pp_per_million_total_tokens": 0.028241119137928143,
+      "cache_hit_fraction": 0.974686686074333,
+      "reasoning_fraction_of_output": 0.30632655340169723,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.68501019,
+        "usd_per_pp_high": 25.30307398979592
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.44060414851485,
+        "usd_per_pp_high": 25.56393042268041
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "direct_guardian_redemption",
+        "account": "A08"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A08"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-13",
+      "last_start_day": "2026-08-13",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 22363.0,
+        "strict_usd": 2452.591779,
+        "fixed_usd": 1914.5314152,
+        "uncached": 110079763.0,
+        "cached": 3091255808.0,
+        "output": 11885502.0,
+        "reasoning": 3287644.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2445.464887,
+        "enclosing_usd": 2458.215833
+      },
+      "dated_usd_per_pp": 24.773654333333333,
+      "fixed_usd_per_pp": 19.338701163636365,
+      "quota_pp_per_million_total_tokens": 0.030810205009507603,
+      "cache_hit_fraction": 0.9656144254300668,
+      "reasoning_fraction_of_output": 0.276609603868646,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.45464887,
+        "usd_per_pp_high": 25.083835030612246
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.212523633663366,
+        "usd_per_pp_high": 25.34243126804124
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "ordinary_expiry_compatible",
+        "account": "A02"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-20",
+      "last_start_day": "2026-08-20",
+      "sums": {
+        "delta_pp": 94.0,
+        "strict_calls": 24036.0,
+        "strict_usd": 1917.2071788,
+        "fixed_usd": 1841.2553142000002,
+        "uncached": 85493301.0,
+        "cached": 3247289856.0,
+        "output": 9852347.0,
+        "reasoning": 2989792.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1902.5221194,
+        "enclosing_usd": 1933.162394
+      },
+      "dated_usd_per_pp": 20.39582105106383,
+      "fixed_usd_per_pp": 19.587822491489362,
+      "quota_pp_per_million_total_tokens": 0.028121522639101365,
+      "cache_hit_fraction": 0.9743477757259921,
+      "reasoning_fraction_of_output": 0.3034598761087079,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 20.026548625263157,
+        "usd_per_pp_high": 20.78669240860215
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 19.817938743750002,
+        "usd_per_pp_high": 21.012634717391304
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "post_manual_reset_origin_ambiguous",
+        "account": "A07"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-12",
+      "last_start_day": "2026-08-12",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 24150.0,
+        "strict_usd": 2497.525823,
+        "fixed_usd": 1951.9224304000002,
+        "uncached": 109416357.0,
+        "cached": 3209414656.0,
+        "output": 11524557.0,
+        "reasoning": 3577145.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2483.610454,
+        "enclosing_usd": 2505.902401
+      },
+      "dated_usd_per_pp": 25.227533565656564,
+      "fixed_usd_per_pp": 19.716388185858587,
+      "quota_pp_per_million_total_tokens": 0.029726555594182396,
+      "cache_hit_fraction": 0.9670316576615647,
+      "reasoning_fraction_of_output": 0.31039327585433435,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.83610454,
+        "usd_per_pp_high": 25.570432663265304
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.590202514851487,
+        "usd_per_pp_high": 25.834045371134017
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "unexplained_early_replacement",
+        "account": "A02"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-08-11",
+      "last_start_day": "2026-08-13",
+      "sums": {
+        "delta_pp": 197.0,
+        "strict_calls": 47048.0,
+        "strict_usd": 5018.08289,
+        "fixed_usd": 3918.855644,
+        "uncached": 232186496.0,
+        "cached": 6280140800.0,
+        "output": 23902667.0,
+        "reasoning": 6956219.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 4975.798619,
+        "enclosing_usd": 5054.034159
+      },
+      "dated_usd_per_pp": 25.47250197969543,
+      "fixed_usd_per_pp": 19.892668243654825,
+      "quota_pp_per_million_total_tokens": 0.030139698437045337,
+      "cache_hit_fraction": 0.9643466175075976,
+      "reasoning_fraction_of_output": 0.2910227130721438,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 25.00401316080402,
+        "usd_per_pp_high": 25.91812389230769
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.75521700995025,
+        "usd_per_pp_high": 26.18670548704663
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "before_aug21",
+        "transition_grade": "unexplained_early_replacement",
+        "account": "A05"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A05"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-08-11",
+      "last_start_day": "2026-08-11",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 21697.0,
+        "strict_usd": 2446.648632,
+        "fixed_usd": 1909.5224656,
+        "uncached": 116695572.0,
+        "cached": 3009394944.0,
+        "output": 11949110.0,
+        "reasoning": 3494957.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 2438.700203,
+        "enclosing_usd": 2453.580995
+      },
+      "dated_usd_per_pp": 24.713622545454545,
+      "fixed_usd_per_pp": 19.288105713131312,
+      "quota_pp_per_million_total_tokens": 0.03154835878417298,
+      "cache_hit_fraction": 0.9626704436731032,
+      "reasoning_fraction_of_output": 0.2924868044565662,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.387002029999998,
+        "usd_per_pp_high": 25.03654076530612
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 24.145546564356433,
+        "usd_per_pp_high": 25.29464943298969
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "credit_loss_and_new_window",
+        "account": "A01"
+      },
+      "intervals": 2,
+      "accounts": [
+        "A01"
+      ],
+      "account_epochs": 2,
+      "first_day": "2026-09-02",
+      "last_start_day": "2026-09-04",
+      "sums": {
+        "delta_pp": 198.0,
+        "strict_calls": 52508.0,
+        "strict_usd": 3667.96203468,
+        "fixed_usd": 3667.96203468,
+        "uncached": 144672274.0,
+        "cached": 6726477312.0,
+        "output": 20614880.0,
+        "reasoning": 7268933.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 3638.7158996400003,
+        "enclosing_usd": 3697.6360816
+      },
+      "dated_usd_per_pp": 18.525060781212122,
+      "fixed_usd_per_pp": 18.525060781212122,
+      "quota_pp_per_million_total_tokens": 0.02872994295971925,
+      "cache_hit_fraction": 0.9789449680596722,
+      "reasoning_fraction_of_output": 0.3526061272246067,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.193579498200002,
+        "usd_per_pp_high": 18.8654902122449
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 18.013445047722772,
+        "usd_per_pp_high": 19.059979802061857
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "credit_loss_and_new_window",
+        "account": "A05"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A05"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-03",
+      "last_start_day": "2026-09-03",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 19662.0,
+        "strict_usd": 1409.3297568,
+        "fixed_usd": 1409.3297568,
+        "uncached": 47785822.0,
+        "cached": 2655077760.0,
+        "output": 7408629.0,
+        "reasoning": 2694732.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1403.6788768000001,
+        "enclosing_usd": 1413.5773294
+      },
+      "dated_usd_per_pp": 14.235654109090909,
+      "fixed_usd_per_pp": 14.235654109090909,
+      "quota_pp_per_million_total_tokens": 0.03652769622113799,
+      "cache_hit_fraction": 0.9823202982502578,
+      "reasoning_fraction_of_output": 0.3637288356590673,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 14.036788768000001,
+        "usd_per_pp_high": 14.424258463265307
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 13.89781066138614,
+        "usd_per_pp_high": 14.572962158762888
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-5.6-sol",
+        "effort": "max",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "unexplained_early_replacement",
+        "account": "A07"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A07"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-01",
+      "last_start_day": "2026-09-01",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 24786.0,
+        "strict_usd": 1803.4074176000001,
+        "fixed_usd": 1803.4074176000001,
+        "uncached": 74329539.0,
+        "cached": 3236152320.0,
+        "output": 10842066.0,
+        "reasoning": 3652301.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1793.6499840000001,
+        "enclosing_usd": 1810.4728704000001
+      },
+      "dated_usd_per_pp": 18.216236541414144,
+      "fixed_usd_per_pp": 18.216236541414144,
+      "quota_pp_per_million_total_tokens": 0.02980739073801722,
+      "cache_hit_fraction": 0.9775472145246998,
+      "reasoning_fraction_of_output": 0.33686393349754556,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.93649984,
+        "usd_per_pp_high": 18.47421296326531
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 17.758910732673268,
+        "usd_per_pp_high": 18.664668767010312
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "credit_loss_and_new_window",
+        "account": "A02"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A02"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-05",
+      "last_start_day": "2026-09-05",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 4273.0,
+        "strict_usd": 764.511791,
+        "fixed_usd": 764.511791,
+        "uncached": 15274200.0,
+        "cached": 585656960.0,
+        "output": 1463698.0,
+        "reasoning": 295737.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 755.06192496,
+        "enclosing_usd": 768.36756896
+      },
+      "dated_usd_per_pp": 7.722341323232324,
+      "fixed_usd_per_pp": 7.722341323232324,
+      "quota_pp_per_million_total_tokens": 0.16434403229916017,
+      "cache_hit_fraction": 0.9745824463487631,
+      "reasoning_fraction_of_output": 0.20204782680580283,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 7.5506192496,
+        "usd_per_pp_high": 7.84048539755102
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 7.475860643168318,
+        "usd_per_pp_high": 7.921315143917526
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "credit_loss_and_new_window",
+        "account": "A04"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A04"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-05",
+      "last_start_day": "2026-09-05",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 5557.0,
+        "strict_usd": 952.38227348,
+        "fixed_usd": 952.38227348,
+        "uncached": 19107266.0,
+        "cached": 732951296.0,
+        "output": 1003640.0,
+        "reasoning": 193277.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 933.10819348,
+        "enclosing_usd": 963.79078148
+      },
+      "dated_usd_per_pp": 9.620022964444445,
+      "fixed_usd_per_pp": 9.620022964444445,
+      "quota_pp_per_million_total_tokens": 0.1314632439884428,
+      "cache_hit_fraction": 0.9745933801362666,
+      "reasoning_fraction_of_output": 0.19257602327527798,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 9.3310819348,
+        "usd_per_pp_high": 9.834599811020407
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 9.238694984950495,
+        "usd_per_pp_high": 9.935987437938143
+      }
+    },
+    {
+      "group": {
+        "model": "gpt-6-astra",
+        "effort": "high",
+        "period": "sep01_sep06_partial",
+        "transition_grade": "credit_loss_and_new_window",
+        "account": "A05"
+      },
+      "intervals": 1,
+      "accounts": [
+        "A05"
+      ],
+      "account_epochs": 1,
+      "first_day": "2026-09-05",
+      "last_start_day": "2026-09-05",
+      "sums": {
+        "delta_pp": 99.0,
+        "strict_calls": 6179.0,
+        "strict_usd": 1023.17364072,
+        "fixed_usd": 1023.17364072,
+        "uncached": 18940397.0,
+        "cached": 790056064.0,
+        "output": 1379055.0,
+        "reasoning": 292399.0,
+        "long_context_calls": 0.0,
+        "interior_usd": 1013.27640112,
+        "enclosing_usd": 1025.15872272
+      },
+      "dated_usd_per_pp": 10.33508728,
+      "fixed_usd_per_pp": 10.33508728,
+      "quota_pp_per_million_total_tokens": 0.12216558625643374,
+      "cache_hit_fraction": 0.976587787570062,
+      "reasoning_fraction_of_output": 0.21202852678102033,
+      "long_context_call_fraction": 0.0,
+      "timing_and_1pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 10.132764011199999,
+        "usd_per_pp_high": 10.460803293061225
+      },
+      "timing_and_2pp_endpoint_sensitivity": {
+        "usd_per_pp_low": 10.032439615049505,
+        "usd_per_pp_high": 10.568646625979381
+      }
+    }
+  ],
+  "threshold_sensitivity": [
+    {
+      "dominance": 0.8,
+      "minimum_pp": 2,
+      "cohorts": [
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "aug21_aug31"
+          },
+          "intervals": 1,
+          "accounts": [
+            "A03"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-24",
+          "last_start_day": "2026-08-24",
+          "sums": {
+            "delta_pp": 3.0,
+            "strict_calls": 97.0,
+            "strict_usd": 12.213377,
+            "fixed_usd": 12.213377,
+            "uncached": 551059.0,
+            "cached": 17418624.0,
+            "output": 24959.0,
+            "reasoning": 3527.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 11.25083,
+            "enclosing_usd": 13.706673
+          },
+          "dated_usd_per_pp": 4.071125666666666,
+          "fixed_usd_per_pp": 4.071125666666666,
+          "quota_pp_per_million_total_tokens": 0.16671629254974898,
+          "cache_hit_fraction": 0.9693339609830625,
+          "reasoning_fraction_of_output": 0.14131175127208623,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 2.8127075,
+            "usd_per_pp_high": 6.8533365
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 2.250166,
+            "usd_per_pp_high": 13.706673
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "before_aug21"
+          },
+          "intervals": 2,
+          "accounts": [
+            "A08"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-12",
+          "last_start_day": "2026-08-12",
+          "sums": {
+            "delta_pp": 24.0,
+            "strict_calls": 51.0,
+            "strict_usd": 6.504127,
+            "fixed_usd": 6.504127,
+            "uncached": 251603.0,
+            "cached": 9619584.0,
+            "output": 14544.0,
+            "reasoning": 2241.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5.495944,
+            "enclosing_usd": 7.092718
+          },
+          "dated_usd_per_pp": 0.2710052916666667,
+          "fixed_usd_per_pp": 0.2710052916666667,
+          "quota_pp_per_million_total_tokens": 2.4277415600323335,
+          "cache_hit_fraction": 0.9745113733535795,
+          "reasoning_fraction_of_output": 0.15408415841584158,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.21138246153846152,
+            "usd_per_pp_high": 0.3223962727272727
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.19628371428571428,
+            "usd_per_pp_high": 0.3546359
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "aug21_aug31"
+          },
+          "intervals": 119,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 17,
+          "first_day": "2026-08-21",
+          "last_start_day": "2026-08-31",
+          "sums": {
+            "delta_pp": 864.0,
+            "strict_calls": 224141.0,
+            "strict_usd": 16631.13419352,
+            "fixed_usd": 16631.13419352,
+            "uncached": 759077315.0,
+            "cached": 29401544704.0,
+            "output": 92338797.0,
+            "reasoning": 29659918.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 15341.04342052,
+            "enclosing_usd": 17966.33058532
+          },
+          "dated_usd_per_pp": 19.248997909166665,
+          "fixed_usd_per_pp": 19.248997909166665,
+          "quota_pp_per_million_total_tokens": 0.028559188148720074,
+          "cache_hit_fraction": 0.9748321730724979,
+          "reasoning_fraction_of_output": 0.3212075418309814,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.60635139422177,
+            "usd_per_pp_high": 24.1158799802953
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 13.921092033139745,
+            "usd_per_pp_high": 28.700208602747605
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "before_aug21"
+          },
+          "intervals": 113,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 14,
+          "first_day": "2026-08-02",
+          "last_start_day": "2026-08-18",
+          "sums": {
+            "delta_pp": 538.0,
+            "strict_calls": 123027.0,
+            "strict_usd": 13050.345266,
+            "fixed_usd": 10198.041336600001,
+            "uncached": 582519798.0,
+            "cached": 16597109632.0,
+            "output": 61306382.0,
+            "reasoning": 17849498.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 12099.849313,
+            "enclosing_usd": 13946.341475
+          },
+          "dated_usd_per_pp": 24.25714733457249,
+          "fixed_usd_per_pp": 18.95546716840149,
+          "quota_pp_per_million_total_tokens": 0.03120480267814363,
+          "cache_hit_fraction": 0.9660924119246267,
+          "reasoning_fraction_of_output": 0.29115236322378313,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 18.586558084485407,
+            "usd_per_pp_high": 32.81492111764706
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.83749910078534,
+            "usd_per_pp_high": 44.69981241987179
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 61,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A06",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 11,
+          "first_day": "2026-09-01",
+          "last_start_day": "2026-09-05",
+          "sums": {
+            "delta_pp": 391.0,
+            "strict_calls": 93170.0,
+            "strict_usd": 6653.55236552,
+            "fixed_usd": 6653.55236552,
+            "uncached": 257306711.0,
+            "cached": 12265591808.0,
+            "output": 36659597.0,
+            "reasoning": 13048453.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 6201.64662432,
+            "enclosing_usd": 7103.6127624
+          },
+          "dated_usd_per_pp": 17.016757968081844,
+          "fixed_usd_per_pp": 17.016757968081844,
+          "quota_pp_per_million_total_tokens": 0.031131668518010462,
+          "cache_hit_fraction": 0.9794531026016374,
+          "reasoning_fraction_of_output": 0.35593552760549985,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 13.720457133451328,
+            "usd_per_pp_high": 21.52609928
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 12.088979774502924,
+            "usd_per_pp_high": 26.40748238810409
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 17,
+          "accounts": [
+            "A02",
+            "A04",
+            "A05",
+            "A06"
+          ],
+          "account_epochs": 5,
+          "first_day": "2026-09-05",
+          "last_start_day": "2026-09-06",
+          "sums": {
+            "delta_pp": 310.0,
+            "strict_calls": 17431.0,
+            "strict_usd": 3004.30498336,
+            "fixed_usd": 3004.30498336,
+            "uncached": 59673446.0,
+            "cached": 2280012928.0,
+            "output": 3959747.0,
+            "reasoning": 810683.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 2807.84589132,
+            "enclosing_usd": 3201.95793824
+          },
+          "dated_usd_per_pp": 9.691306397935483,
+          "fixed_usd_per_pp": 9.691306397935483,
+          "quota_pp_per_million_total_tokens": 0.1322725292109064,
+          "cache_hit_fraction": 0.9744951089756614,
+          "reasoning_fraction_of_output": 0.20473100932963648,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.58668468293578,
+            "usd_per_pp_high": 10.928184089556314
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.162342707325582,
+            "usd_per_pp_high": 11.60129687768116
+          }
+        }
+      ]
+    },
+    {
+      "dominance": 0.8,
+      "minimum_pp": 5,
+      "cohorts": [
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "before_aug21"
+          },
+          "intervals": 2,
+          "accounts": [
+            "A08"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-12",
+          "last_start_day": "2026-08-12",
+          "sums": {
+            "delta_pp": 24.0,
+            "strict_calls": 51.0,
+            "strict_usd": 6.504127,
+            "fixed_usd": 6.504127,
+            "uncached": 251603.0,
+            "cached": 9619584.0,
+            "output": 14544.0,
+            "reasoning": 2241.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5.495944,
+            "enclosing_usd": 7.092718
+          },
+          "dated_usd_per_pp": 0.2710052916666667,
+          "fixed_usd_per_pp": 0.2710052916666667,
+          "quota_pp_per_million_total_tokens": 2.4277415600323335,
+          "cache_hit_fraction": 0.9745113733535795,
+          "reasoning_fraction_of_output": 0.15408415841584158,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.21138246153846152,
+            "usd_per_pp_high": 0.3223962727272727
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.19628371428571428,
+            "usd_per_pp_high": 0.3546359
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "aug21_aug31"
+          },
+          "intervals": 102,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 17,
+          "first_day": "2026-08-22",
+          "last_start_day": "2026-08-31",
+          "sums": {
+            "delta_pp": 803.0,
+            "strict_calls": 207537.0,
+            "strict_usd": 15366.88852212,
+            "fixed_usd": 15366.88852212,
+            "uncached": 701523812.0,
+            "cached": 27167137536.0,
+            "output": 85379764.0,
+            "reasoning": 27539197.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 14198.725643920001,
+            "enclosing_usd": 16573.70982252
+          },
+          "dated_usd_per_pp": 19.136847474620176,
+          "fixed_usd_per_pp": 19.136847474620176,
+          "quota_pp_per_million_total_tokens": 0.028725721507767667,
+          "cache_hit_fraction": 0.9748275023604481,
+          "reasoning_fraction_of_output": 0.322549462657217,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.689199606541438,
+            "usd_per_pp_high": 23.64295267121255
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.100025465660378,
+            "usd_per_pp_high": 27.66896464527546
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "before_aug21"
+          },
+          "intervals": 43,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 13,
+          "first_day": "2026-08-03",
+          "last_start_day": "2026-08-18",
+          "sums": {
+            "delta_pp": 287.0,
+            "strict_calls": 63085.0,
+            "strict_usd": 6444.259782,
+            "fixed_usd": 5036.7317534,
+            "uncached": 270551576.0,
+            "cached": 8358002944.0,
+            "output": 30416681.0,
+            "reasoning": 9385286.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5976.940082,
+            "enclosing_usd": 6876.7103910000005
+          },
+          "dated_usd_per_pp": 22.453866836236934,
+          "fixed_usd_per_pp": 17.54958799094077,
+          "quota_pp_per_million_total_tokens": 0.03314481516774824,
+          "cache_hit_fraction": 0.9686446234565833,
+          "reasoning_fraction_of_output": 0.3085572025429073,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 18.111939642424243,
+            "usd_per_pp_high": 28.18323930737705
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 16.023968048257373,
+            "usd_per_pp_high": 34.21248950746269
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 41,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A06",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 11,
+          "first_day": "2026-09-01",
+          "last_start_day": "2026-09-05",
+          "sums": {
+            "delta_pp": 325.0,
+            "strict_calls": 79665.0,
+            "strict_usd": 5693.45905072,
+            "fixed_usd": 5693.45905072,
+            "uncached": 221862971.0,
+            "cached": 10487473920.0,
+            "output": 31320780.0,
+            "reasoning": 11158723.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5308.87683612,
+            "enclosing_usd": 6069.4912386000005
+          },
+          "dated_usd_per_pp": 17.518335540676922,
+          "fixed_usd_per_pp": 17.518335540676922,
+          "quota_pp_per_million_total_tokens": 0.030258854714037373,
+          "cache_hit_fraction": 0.9792832204964576,
+          "reasoning_fraction_of_output": 0.3562721937320846,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.505127967540984,
+            "usd_per_pp_high": 21.371448023239438
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 13.04392343027027,
+            "usd_per_pp_high": 24.9773302
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 16,
+          "accounts": [
+            "A02",
+            "A04",
+            "A05",
+            "A06"
+          ],
+          "account_epochs": 5,
+          "first_day": "2026-09-05",
+          "last_start_day": "2026-09-06",
+          "sums": {
+            "delta_pp": 306.0,
+            "strict_calls": 17212.0,
+            "strict_usd": 2971.6256285199997,
+            "fixed_usd": 2971.6256285199997,
+            "uncached": 58606550.0,
+            "cached": 2250412800.0,
+            "output": 3860779.0,
+            "reasoning": 779483.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 2781.20724036,
+            "enclosing_usd": 3167.3667874000002
+          },
+          "dated_usd_per_pp": 9.711194864444444,
+          "fixed_usd_per_pp": 9.711194864444444,
+          "quota_pp_per_million_total_tokens": 0.13230257641251064,
+          "cache_hit_fraction": 0.9746184240508855,
+          "reasoning_fraction_of_output": 0.20189785532919652,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.637289566335404,
+            "usd_per_pp_high": 10.921954439310346
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.228423788047337,
+            "usd_per_pp_high": 11.559732800729927
+          }
+        }
+      ]
+    },
+    {
+      "dominance": 0.8,
+      "minimum_pp": 10,
+      "cohorts": [
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "before_aug21"
+          },
+          "intervals": 2,
+          "accounts": [
+            "A08"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-12",
+          "last_start_day": "2026-08-12",
+          "sums": {
+            "delta_pp": 24.0,
+            "strict_calls": 51.0,
+            "strict_usd": 6.504127,
+            "fixed_usd": 6.504127,
+            "uncached": 251603.0,
+            "cached": 9619584.0,
+            "output": 14544.0,
+            "reasoning": 2241.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5.495944,
+            "enclosing_usd": 7.092718
+          },
+          "dated_usd_per_pp": 0.2710052916666667,
+          "fixed_usd_per_pp": 0.2710052916666667,
+          "quota_pp_per_million_total_tokens": 2.4277415600323335,
+          "cache_hit_fraction": 0.9745113733535795,
+          "reasoning_fraction_of_output": 0.15408415841584158,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.21138246153846152,
+            "usd_per_pp_high": 0.3223962727272727
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.19628371428571428,
+            "usd_per_pp_high": 0.3546359
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "aug21_aug31"
+          },
+          "intervals": 23,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A08"
+          ],
+          "account_epochs": 9,
+          "first_day": "2026-08-23",
+          "last_start_day": "2026-08-31",
+          "sums": {
+            "delta_pp": 286.0,
+            "strict_calls": 73993.0,
+            "strict_usd": 5287.4817824,
+            "fixed_usd": 5287.4817824,
+            "uncached": 238455277.0,
+            "cached": 9366993408.0,
+            "output": 29270998.0,
+            "reasoning": 9921139.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 4886.086021,
+            "enclosing_usd": 5696.5274316
+          },
+          "dated_usd_per_pp": 18.48769853986014,
+          "fixed_usd_per_pp": 18.48769853986014,
+          "quota_pp_per_million_total_tokens": 0.029684309394556987,
+          "cache_hit_fraction": 0.975174998605492,
+          "reasoning_fraction_of_output": 0.3389409202925025,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.8125761197411,
+            "usd_per_pp_high": 21.65980012015209
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.71712656927711,
+            "usd_per_pp_high": 23.735530965000002
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "before_aug21"
+          },
+          "intervals": 3,
+          "accounts": [
+            "A01",
+            "A02",
+            "A05"
+          ],
+          "account_epochs": 3,
+          "first_day": "2026-08-11",
+          "last_start_day": "2026-08-17",
+          "sums": {
+            "delta_pp": 50.0,
+            "strict_calls": 10171.0,
+            "strict_usd": 949.879173,
+            "fixed_usd": 740.3505944,
+            "uncached": 39694309.0,
+            "cached": 1209524096.0,
+            "output": 4888186.0,
+            "reasoning": 1774982.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 881.7304809999999,
+            "enclosing_usd": 1017.255607
+          },
+          "dated_usd_per_pp": 18.99758346,
+          "fixed_usd_per_pp": 14.807011888,
+          "quota_pp_per_million_total_tokens": 0.03986901939501887,
+          "cache_hit_fraction": 0.9682246844577991,
+          "reasoning_fraction_of_output": 0.36311670627918,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 16.63642416981132,
+            "usd_per_pp_high": 21.64373631914894
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.745187160714284,
+            "usd_per_pp_high": 23.119445613636366
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 10,
+          "accounts": [
+            "A01",
+            "A03",
+            "A05"
+          ],
+          "account_epochs": 4,
+          "first_day": "2026-09-01",
+          "last_start_day": "2026-09-05",
+          "sums": {
+            "delta_pp": 127.0,
+            "strict_calls": 33250.0,
+            "strict_usd": 2334.85732516,
+            "fixed_usd": 2334.85732516,
+            "uncached": 96905047.0,
+            "cached": 4257210624.0,
+            "output": 12888169.0,
+            "reasoning": 4587534.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 2182.65872228,
+            "enclosing_usd": 2484.28178152
+          },
+          "dated_usd_per_pp": 18.384703347716535,
+          "fixed_usd_per_pp": 18.384703347716535,
+          "quota_pp_per_million_total_tokens": 0.02908172391256702,
+          "cache_hit_fraction": 0.9777440347656763,
+          "reasoning_fraction_of_output": 0.3559492430616017,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.93181549109489,
+            "usd_per_pp_high": 21.23317761982906
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.848018518911564,
+            "usd_per_pp_high": 23.21758674317757
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 15,
+          "accounts": [
+            "A02",
+            "A04",
+            "A05",
+            "A06"
+          ],
+          "account_epochs": 5,
+          "first_day": "2026-09-05",
+          "last_start_day": "2026-09-06",
+          "sums": {
+            "delta_pp": 297.0,
+            "strict_calls": 16619.0,
+            "strict_usd": 2873.51569452,
+            "fixed_usd": 2873.51569452,
+            "uncached": 56704906.0,
+            "cached": 2179235456.0,
+            "output": 3702456.0,
+            "reasoning": 740918.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 2688.38712036,
+            "enclosing_usd": 3061.4630434
+          },
+          "dated_usd_per_pp": 9.67513701858586,
+          "fixed_usd_per_pp": 9.67513701858586,
+          "quota_pp_per_million_total_tokens": 0.13261043127636793,
+          "cache_hit_fraction": 0.9746393477376657,
+          "reasoning_fraction_of_output": 0.200115274833786,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.61662538576923,
+            "usd_per_pp_high": 10.856251926950355
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.22136734055046,
+            "usd_per_pp_high": 11.466153720599252
+          }
+        }
+      ]
+    },
+    {
+      "dominance": 0.9,
+      "minimum_pp": 2,
+      "cohorts": [
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "aug21_aug31"
+          },
+          "intervals": 1,
+          "accounts": [
+            "A03"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-24",
+          "last_start_day": "2026-08-24",
+          "sums": {
+            "delta_pp": 3.0,
+            "strict_calls": 97.0,
+            "strict_usd": 12.213377,
+            "fixed_usd": 12.213377,
+            "uncached": 551059.0,
+            "cached": 17418624.0,
+            "output": 24959.0,
+            "reasoning": 3527.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 11.25083,
+            "enclosing_usd": 13.706673
+          },
+          "dated_usd_per_pp": 4.071125666666666,
+          "fixed_usd_per_pp": 4.071125666666666,
+          "quota_pp_per_million_total_tokens": 0.16671629254974898,
+          "cache_hit_fraction": 0.9693339609830625,
+          "reasoning_fraction_of_output": 0.14131175127208623,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 2.8127075,
+            "usd_per_pp_high": 6.8533365
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 2.250166,
+            "usd_per_pp_high": 13.706673
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "before_aug21"
+          },
+          "intervals": 2,
+          "accounts": [
+            "A08"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-12",
+          "last_start_day": "2026-08-12",
+          "sums": {
+            "delta_pp": 24.0,
+            "strict_calls": 51.0,
+            "strict_usd": 6.504127,
+            "fixed_usd": 6.504127,
+            "uncached": 251603.0,
+            "cached": 9619584.0,
+            "output": 14544.0,
+            "reasoning": 2241.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5.495944,
+            "enclosing_usd": 7.092718
+          },
+          "dated_usd_per_pp": 0.2710052916666667,
+          "fixed_usd_per_pp": 0.2710052916666667,
+          "quota_pp_per_million_total_tokens": 2.4277415600323335,
+          "cache_hit_fraction": 0.9745113733535795,
+          "reasoning_fraction_of_output": 0.15408415841584158,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.21138246153846152,
+            "usd_per_pp_high": 0.3223962727272727
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.19628371428571428,
+            "usd_per_pp_high": 0.3546359
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "aug21_aug31"
+          },
+          "intervals": 119,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 17,
+          "first_day": "2026-08-21",
+          "last_start_day": "2026-08-31",
+          "sums": {
+            "delta_pp": 864.0,
+            "strict_calls": 224141.0,
+            "strict_usd": 16631.13419352,
+            "fixed_usd": 16631.13419352,
+            "uncached": 759077315.0,
+            "cached": 29401544704.0,
+            "output": 92338797.0,
+            "reasoning": 29659918.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 15341.04342052,
+            "enclosing_usd": 17966.33058532
+          },
+          "dated_usd_per_pp": 19.248997909166665,
+          "fixed_usd_per_pp": 19.248997909166665,
+          "quota_pp_per_million_total_tokens": 0.028559188148720074,
+          "cache_hit_fraction": 0.9748321730724979,
+          "reasoning_fraction_of_output": 0.3212075418309814,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.60635139422177,
+            "usd_per_pp_high": 24.1158799802953
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 13.921092033139745,
+            "usd_per_pp_high": 28.700208602747605
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "before_aug21"
+          },
+          "intervals": 113,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 14,
+          "first_day": "2026-08-02",
+          "last_start_day": "2026-08-18",
+          "sums": {
+            "delta_pp": 538.0,
+            "strict_calls": 123027.0,
+            "strict_usd": 13050.345266,
+            "fixed_usd": 10198.041336600001,
+            "uncached": 582519798.0,
+            "cached": 16597109632.0,
+            "output": 61306382.0,
+            "reasoning": 17849498.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 12099.849313,
+            "enclosing_usd": 13946.341475
+          },
+          "dated_usd_per_pp": 24.25714733457249,
+          "fixed_usd_per_pp": 18.95546716840149,
+          "quota_pp_per_million_total_tokens": 0.03120480267814363,
+          "cache_hit_fraction": 0.9660924119246267,
+          "reasoning_fraction_of_output": 0.29115236322378313,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 18.586558084485407,
+            "usd_per_pp_high": 32.81492111764706
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.83749910078534,
+            "usd_per_pp_high": 44.69981241987179
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 60,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A06",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 11,
+          "first_day": "2026-09-01",
+          "last_start_day": "2026-09-05",
+          "sums": {
+            "delta_pp": 386.0,
+            "strict_calls": 91900.0,
+            "strict_usd": 6564.3972919200005,
+            "fixed_usd": 6564.3972919200005,
+            "uncached": 253447729.0,
+            "cached": 12104489344.0,
+            "output": 36195689.0,
+            "reasoning": 12855143.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 6117.69593232,
+            "enclosing_usd": 7009.6837184000005
+          },
+          "dated_usd_per_pp": 17.006210600829018,
+          "fixed_usd_per_pp": 17.006210600829018,
+          "quota_pp_per_million_total_tokens": 0.031143768379136877,
+          "cache_hit_fraction": 0.979491097300233,
+          "reasoning_fraction_of_output": 0.35515674256124813,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 13.716807023139014,
+            "usd_per_pp_high": 21.50209729570552
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 12.090308166640316,
+            "usd_per_pp_high": 26.35219443007519
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 16,
+          "accounts": [
+            "A02",
+            "A04",
+            "A05",
+            "A06"
+          ],
+          "account_epochs": 5,
+          "first_day": "2026-09-05",
+          "last_start_day": "2026-09-06",
+          "sums": {
+            "delta_pp": 301.0,
+            "strict_calls": 16838.0,
+            "strict_usd": 2906.1950493599998,
+            "fixed_usd": 2906.1950493599998,
+            "uncached": 57771802.0,
+            "cached": 2208835584.0,
+            "output": 3801424.0,
+            "reasoning": 772118.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 2715.02577132,
+            "enclosing_usd": 3096.05419424
+          },
+          "dated_usd_per_pp": 9.65513305435216,
+          "fixed_usd_per_pp": 9.65513305435216,
+          "quota_pp_per_million_total_tokens": 0.13257524313429703,
+          "cache_hit_fraction": 0.9745117736945379,
+          "reasoning_fraction_of_output": 0.20311283350660173,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.56475006725552,
+            "usd_per_pp_high": 10.863348049964912
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.153230544504504,
+            "usd_per_pp_high": 11.509495145873606
+          }
+        }
+      ]
+    },
+    {
+      "dominance": 0.9,
+      "minimum_pp": 5,
+      "cohorts": [
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "before_aug21"
+          },
+          "intervals": 2,
+          "accounts": [
+            "A08"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-12",
+          "last_start_day": "2026-08-12",
+          "sums": {
+            "delta_pp": 24.0,
+            "strict_calls": 51.0,
+            "strict_usd": 6.504127,
+            "fixed_usd": 6.504127,
+            "uncached": 251603.0,
+            "cached": 9619584.0,
+            "output": 14544.0,
+            "reasoning": 2241.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5.495944,
+            "enclosing_usd": 7.092718
+          },
+          "dated_usd_per_pp": 0.2710052916666667,
+          "fixed_usd_per_pp": 0.2710052916666667,
+          "quota_pp_per_million_total_tokens": 2.4277415600323335,
+          "cache_hit_fraction": 0.9745113733535795,
+          "reasoning_fraction_of_output": 0.15408415841584158,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.21138246153846152,
+            "usd_per_pp_high": 0.3223962727272727
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.19628371428571428,
+            "usd_per_pp_high": 0.3546359
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "aug21_aug31"
+          },
+          "intervals": 102,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 17,
+          "first_day": "2026-08-22",
+          "last_start_day": "2026-08-31",
+          "sums": {
+            "delta_pp": 803.0,
+            "strict_calls": 207537.0,
+            "strict_usd": 15366.88852212,
+            "fixed_usd": 15366.88852212,
+            "uncached": 701523812.0,
+            "cached": 27167137536.0,
+            "output": 85379764.0,
+            "reasoning": 27539197.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 14198.725643920001,
+            "enclosing_usd": 16573.70982252
+          },
+          "dated_usd_per_pp": 19.136847474620176,
+          "fixed_usd_per_pp": 19.136847474620176,
+          "quota_pp_per_million_total_tokens": 0.028725721507767667,
+          "cache_hit_fraction": 0.9748275023604481,
+          "reasoning_fraction_of_output": 0.322549462657217,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.689199606541438,
+            "usd_per_pp_high": 23.64295267121255
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.100025465660378,
+            "usd_per_pp_high": 27.66896464527546
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "before_aug21"
+          },
+          "intervals": 43,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 13,
+          "first_day": "2026-08-03",
+          "last_start_day": "2026-08-18",
+          "sums": {
+            "delta_pp": 287.0,
+            "strict_calls": 63085.0,
+            "strict_usd": 6444.259782,
+            "fixed_usd": 5036.7317534,
+            "uncached": 270551576.0,
+            "cached": 8358002944.0,
+            "output": 30416681.0,
+            "reasoning": 9385286.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5976.940082,
+            "enclosing_usd": 6876.7103910000005
+          },
+          "dated_usd_per_pp": 22.453866836236934,
+          "fixed_usd_per_pp": 17.54958799094077,
+          "quota_pp_per_million_total_tokens": 0.03314481516774824,
+          "cache_hit_fraction": 0.9686446234565833,
+          "reasoning_fraction_of_output": 0.3085572025429073,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 18.111939642424243,
+            "usd_per_pp_high": 28.18323930737705
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 16.023968048257373,
+            "usd_per_pp_high": 34.21248950746269
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 40,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A06",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 11,
+          "first_day": "2026-09-01",
+          "last_start_day": "2026-09-05",
+          "sums": {
+            "delta_pp": 320.0,
+            "strict_calls": 78395.0,
+            "strict_usd": 5604.30397712,
+            "fixed_usd": 5604.30397712,
+            "uncached": 218003989.0,
+            "cached": 10326371456.0,
+            "output": 30856872.0,
+            "reasoning": 10965413.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5224.926144120001,
+            "enclosing_usd": 5975.5621946
+          },
+          "dated_usd_per_pp": 17.513449928500002,
+          "fixed_usd_per_pp": 17.513449928500002,
+          "quota_pp_per_million_total_tokens": 0.03025938252775691,
+          "cache_hit_fraction": 0.9793250923075416,
+          "reasoning_fraction_of_output": 0.35536372578529674,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.513683733666669,
+            "usd_per_pp_high": 21.341293552142858
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 13.062315360300001,
+            "usd_per_pp_high": 24.898175810833333
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 15,
+          "accounts": [
+            "A02",
+            "A04",
+            "A05",
+            "A06"
+          ],
+          "account_epochs": 5,
+          "first_day": "2026-09-05",
+          "last_start_day": "2026-09-06",
+          "sums": {
+            "delta_pp": 297.0,
+            "strict_calls": 16619.0,
+            "strict_usd": 2873.51569452,
+            "fixed_usd": 2873.51569452,
+            "uncached": 56704906.0,
+            "cached": 2179235456.0,
+            "output": 3702456.0,
+            "reasoning": 740918.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 2688.38712036,
+            "enclosing_usd": 3061.4630434
+          },
+          "dated_usd_per_pp": 9.67513701858586,
+          "fixed_usd_per_pp": 9.67513701858586,
+          "quota_pp_per_million_total_tokens": 0.13261043127636793,
+          "cache_hit_fraction": 0.9746393477376657,
+          "reasoning_fraction_of_output": 0.200115274833786,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.61662538576923,
+            "usd_per_pp_high": 10.856251926950355
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.22136734055046,
+            "usd_per_pp_high": 11.466153720599252
+          }
+        }
+      ]
+    },
+    {
+      "dominance": 0.9,
+      "minimum_pp": 10,
+      "cohorts": [
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "before_aug21"
+          },
+          "intervals": 2,
+          "accounts": [
+            "A08"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-12",
+          "last_start_day": "2026-08-12",
+          "sums": {
+            "delta_pp": 24.0,
+            "strict_calls": 51.0,
+            "strict_usd": 6.504127,
+            "fixed_usd": 6.504127,
+            "uncached": 251603.0,
+            "cached": 9619584.0,
+            "output": 14544.0,
+            "reasoning": 2241.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5.495944,
+            "enclosing_usd": 7.092718
+          },
+          "dated_usd_per_pp": 0.2710052916666667,
+          "fixed_usd_per_pp": 0.2710052916666667,
+          "quota_pp_per_million_total_tokens": 2.4277415600323335,
+          "cache_hit_fraction": 0.9745113733535795,
+          "reasoning_fraction_of_output": 0.15408415841584158,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.21138246153846152,
+            "usd_per_pp_high": 0.3223962727272727
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.19628371428571428,
+            "usd_per_pp_high": 0.3546359
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "aug21_aug31"
+          },
+          "intervals": 23,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A08"
+          ],
+          "account_epochs": 9,
+          "first_day": "2026-08-23",
+          "last_start_day": "2026-08-31",
+          "sums": {
+            "delta_pp": 286.0,
+            "strict_calls": 73993.0,
+            "strict_usd": 5287.4817824,
+            "fixed_usd": 5287.4817824,
+            "uncached": 238455277.0,
+            "cached": 9366993408.0,
+            "output": 29270998.0,
+            "reasoning": 9921139.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 4886.086021,
+            "enclosing_usd": 5696.5274316
+          },
+          "dated_usd_per_pp": 18.48769853986014,
+          "fixed_usd_per_pp": 18.48769853986014,
+          "quota_pp_per_million_total_tokens": 0.029684309394556987,
+          "cache_hit_fraction": 0.975174998605492,
+          "reasoning_fraction_of_output": 0.3389409202925025,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.8125761197411,
+            "usd_per_pp_high": 21.65980012015209
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.71712656927711,
+            "usd_per_pp_high": 23.735530965000002
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "before_aug21"
+          },
+          "intervals": 3,
+          "accounts": [
+            "A01",
+            "A02",
+            "A05"
+          ],
+          "account_epochs": 3,
+          "first_day": "2026-08-11",
+          "last_start_day": "2026-08-17",
+          "sums": {
+            "delta_pp": 50.0,
+            "strict_calls": 10171.0,
+            "strict_usd": 949.879173,
+            "fixed_usd": 740.3505944,
+            "uncached": 39694309.0,
+            "cached": 1209524096.0,
+            "output": 4888186.0,
+            "reasoning": 1774982.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 881.7304809999999,
+            "enclosing_usd": 1017.255607
+          },
+          "dated_usd_per_pp": 18.99758346,
+          "fixed_usd_per_pp": 14.807011888,
+          "quota_pp_per_million_total_tokens": 0.03986901939501887,
+          "cache_hit_fraction": 0.9682246844577991,
+          "reasoning_fraction_of_output": 0.36311670627918,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 16.63642416981132,
+            "usd_per_pp_high": 21.64373631914894
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.745187160714284,
+            "usd_per_pp_high": 23.119445613636366
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 10,
+          "accounts": [
+            "A01",
+            "A03",
+            "A05"
+          ],
+          "account_epochs": 4,
+          "first_day": "2026-09-01",
+          "last_start_day": "2026-09-05",
+          "sums": {
+            "delta_pp": 127.0,
+            "strict_calls": 33250.0,
+            "strict_usd": 2334.85732516,
+            "fixed_usd": 2334.85732516,
+            "uncached": 96905047.0,
+            "cached": 4257210624.0,
+            "output": 12888169.0,
+            "reasoning": 4587534.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 2182.65872228,
+            "enclosing_usd": 2484.28178152
+          },
+          "dated_usd_per_pp": 18.384703347716535,
+          "fixed_usd_per_pp": 18.384703347716535,
+          "quota_pp_per_million_total_tokens": 0.02908172391256702,
+          "cache_hit_fraction": 0.9777440347656763,
+          "reasoning_fraction_of_output": 0.3559492430616017,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.93181549109489,
+            "usd_per_pp_high": 21.23317761982906
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.848018518911564,
+            "usd_per_pp_high": 23.21758674317757
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 15,
+          "accounts": [
+            "A02",
+            "A04",
+            "A05",
+            "A06"
+          ],
+          "account_epochs": 5,
+          "first_day": "2026-09-05",
+          "last_start_day": "2026-09-06",
+          "sums": {
+            "delta_pp": 297.0,
+            "strict_calls": 16619.0,
+            "strict_usd": 2873.51569452,
+            "fixed_usd": 2873.51569452,
+            "uncached": 56704906.0,
+            "cached": 2179235456.0,
+            "output": 3702456.0,
+            "reasoning": 740918.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 2688.38712036,
+            "enclosing_usd": 3061.4630434
+          },
+          "dated_usd_per_pp": 9.67513701858586,
+          "fixed_usd_per_pp": 9.67513701858586,
+          "quota_pp_per_million_total_tokens": 0.13261043127636793,
+          "cache_hit_fraction": 0.9746393477376657,
+          "reasoning_fraction_of_output": 0.200115274833786,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.61662538576923,
+            "usd_per_pp_high": 10.856251926950355
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.22136734055046,
+            "usd_per_pp_high": 11.466153720599252
+          }
+        }
+      ]
+    },
+    {
+      "dominance": 0.95,
+      "minimum_pp": 2,
+      "cohorts": [
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "aug21_aug31"
+          },
+          "intervals": 1,
+          "accounts": [
+            "A03"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-24",
+          "last_start_day": "2026-08-24",
+          "sums": {
+            "delta_pp": 3.0,
+            "strict_calls": 97.0,
+            "strict_usd": 12.213377,
+            "fixed_usd": 12.213377,
+            "uncached": 551059.0,
+            "cached": 17418624.0,
+            "output": 24959.0,
+            "reasoning": 3527.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 11.25083,
+            "enclosing_usd": 13.706673
+          },
+          "dated_usd_per_pp": 4.071125666666666,
+          "fixed_usd_per_pp": 4.071125666666666,
+          "quota_pp_per_million_total_tokens": 0.16671629254974898,
+          "cache_hit_fraction": 0.9693339609830625,
+          "reasoning_fraction_of_output": 0.14131175127208623,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 2.8127075,
+            "usd_per_pp_high": 6.8533365
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 2.250166,
+            "usd_per_pp_high": 13.706673
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "before_aug21"
+          },
+          "intervals": 2,
+          "accounts": [
+            "A08"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-12",
+          "last_start_day": "2026-08-12",
+          "sums": {
+            "delta_pp": 24.0,
+            "strict_calls": 51.0,
+            "strict_usd": 6.504127,
+            "fixed_usd": 6.504127,
+            "uncached": 251603.0,
+            "cached": 9619584.0,
+            "output": 14544.0,
+            "reasoning": 2241.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5.495944,
+            "enclosing_usd": 7.092718
+          },
+          "dated_usd_per_pp": 0.2710052916666667,
+          "fixed_usd_per_pp": 0.2710052916666667,
+          "quota_pp_per_million_total_tokens": 2.4277415600323335,
+          "cache_hit_fraction": 0.9745113733535795,
+          "reasoning_fraction_of_output": 0.15408415841584158,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.21138246153846152,
+            "usd_per_pp_high": 0.3223962727272727
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.19628371428571428,
+            "usd_per_pp_high": 0.3546359
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "aug21_aug31"
+          },
+          "intervals": 118,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 17,
+          "first_day": "2026-08-21",
+          "last_start_day": "2026-08-31",
+          "sums": {
+            "delta_pp": 860.0,
+            "strict_calls": 223183.0,
+            "strict_usd": 16551.548819120002,
+            "fixed_usd": 16551.548819120002,
+            "uncached": 755128319.0,
+            "cached": 29267029888.0,
+            "output": 91886551.0,
+            "reasoning": 29519633.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 15268.29502652,
+            "enclosing_usd": 17880.11539012
+          },
+          "dated_usd_per_pp": 19.245986998976747,
+          "fixed_usd_per_pp": 19.245986998976747,
+          "quota_pp_per_million_total_tokens": 0.0285581032674641,
+          "cache_hit_fraction": 0.9748476337446009,
+          "reasoning_fraction_of_output": 0.32126173720461004,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.611753605848671,
+            "usd_per_pp_high": 24.097190552722374
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 13.93092611908759,
+            "usd_per_pp_high": 28.654031073910257
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "before_aug21"
+          },
+          "intervals": 111,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 14,
+          "first_day": "2026-08-02",
+          "last_start_day": "2026-08-18",
+          "sums": {
+            "delta_pp": 528.0,
+            "strict_calls": 120912.0,
+            "strict_usd": 12821.120183,
+            "fixed_usd": 10016.4411998,
+            "uncached": 571821265.0,
+            "cached": 16304399616.0,
+            "output": 60327135.0,
+            "reasoning": 17590846.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 11879.050419,
+            "enclosing_usd": 13706.849198
+          },
+          "dated_usd_per_pp": 24.282424589015154,
+          "fixed_usd_per_pp": 18.970532575378787,
+          "quota_pp_per_million_total_tokens": 0.031175183957273766,
+          "cache_hit_fraction": 0.9661167468100763,
+          "reasoning_fraction_of_output": 0.2915909399642466,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 18.590063253521127,
+            "usd_per_pp_high": 32.870141961630694
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.838733891999999,
+            "usd_per_pp_high": 44.79362483006536
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 54,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A06",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 11,
+          "first_day": "2026-09-01",
+          "last_start_day": "2026-09-05",
+          "sums": {
+            "delta_pp": 339.0,
+            "strict_calls": 81602.0,
+            "strict_usd": 5787.823200520001,
+            "fixed_usd": 5787.823200520001,
+            "uncached": 217712824.0,
+            "cached": 10734721536.0,
+            "output": 32143906.0,
+            "reasoning": 11458208.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5391.40596232,
+            "enclosing_usd": 6180.474601
+          },
+          "dated_usd_per_pp": 17.073224780294986,
+          "fixed_usd_per_pp": 17.073224780294986,
+          "quota_pp_per_million_total_tokens": 0.030861448823145926,
+          "cache_hit_fraction": 0.9801219695234951,
+          "reasoning_fraction_of_output": 0.35646595034218925,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 13.718590234910941,
+            "usd_per_pp_high": 21.685875792982454
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 12.061310877673378,
+            "usd_per_pp_high": 26.755301303030304
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 12,
+          "accounts": [
+            "A02",
+            "A04",
+            "A05"
+          ],
+          "account_epochs": 4,
+          "first_day": "2026-09-05",
+          "last_start_day": "2026-09-06",
+          "sums": {
+            "delta_pp": 230.0,
+            "strict_calls": 12323.0,
+            "strict_usd": 2144.506291,
+            "fixed_usd": 2144.506291,
+            "uncached": 42049791.0,
+            "cached": 1642637568.0,
+            "output": 2955720.0,
+            "reasoning": 600080.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 2002.94262056,
+            "enclosing_usd": 2288.53979908
+          },
+          "dated_usd_per_pp": 9.323940395652174,
+          "fixed_usd_per_pp": 9.323940395652174,
+          "quota_pp_per_million_total_tokens": 0.13628474104624347,
+          "cache_hit_fraction": 0.9750400032532089,
+          "reasoning_fraction_of_output": 0.2030232904334646,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.276622399008264,
+            "usd_per_pp_high": 10.497888986605506
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 7.885600868346457,
+            "usd_per_pp_high": 11.10941650038835
+          }
+        }
+      ]
+    },
+    {
+      "dominance": 0.95,
+      "minimum_pp": 5,
+      "cohorts": [
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "before_aug21"
+          },
+          "intervals": 2,
+          "accounts": [
+            "A08"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-12",
+          "last_start_day": "2026-08-12",
+          "sums": {
+            "delta_pp": 24.0,
+            "strict_calls": 51.0,
+            "strict_usd": 6.504127,
+            "fixed_usd": 6.504127,
+            "uncached": 251603.0,
+            "cached": 9619584.0,
+            "output": 14544.0,
+            "reasoning": 2241.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5.495944,
+            "enclosing_usd": 7.092718
+          },
+          "dated_usd_per_pp": 0.2710052916666667,
+          "fixed_usd_per_pp": 0.2710052916666667,
+          "quota_pp_per_million_total_tokens": 2.4277415600323335,
+          "cache_hit_fraction": 0.9745113733535795,
+          "reasoning_fraction_of_output": 0.15408415841584158,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.21138246153846152,
+            "usd_per_pp_high": 0.3223962727272727
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.19628371428571428,
+            "usd_per_pp_high": 0.3546359
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "aug21_aug31"
+          },
+          "intervals": 102,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 17,
+          "first_day": "2026-08-22",
+          "last_start_day": "2026-08-31",
+          "sums": {
+            "delta_pp": 803.0,
+            "strict_calls": 207537.0,
+            "strict_usd": 15366.88852212,
+            "fixed_usd": 15366.88852212,
+            "uncached": 701523812.0,
+            "cached": 27167137536.0,
+            "output": 85379764.0,
+            "reasoning": 27539197.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 14198.725643920001,
+            "enclosing_usd": 16573.70982252
+          },
+          "dated_usd_per_pp": 19.136847474620176,
+          "fixed_usd_per_pp": 19.136847474620176,
+          "quota_pp_per_million_total_tokens": 0.028725721507767667,
+          "cache_hit_fraction": 0.9748275023604481,
+          "reasoning_fraction_of_output": 0.322549462657217,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.689199606541438,
+            "usd_per_pp_high": 23.64295267121255
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.100025465660378,
+            "usd_per_pp_high": 27.66896464527546
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "before_aug21"
+          },
+          "intervals": 42,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 12,
+          "first_day": "2026-08-03",
+          "last_start_day": "2026-08-18",
+          "sums": {
+            "delta_pp": 281.0,
+            "strict_calls": 62002.0,
+            "strict_usd": 6328.390647,
+            "fixed_usd": 4944.008047,
+            "uncached": 264970243.0,
+            "cached": 8213707904.0,
+            "output": 29889516.0,
+            "reasoning": 9238615.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5864.232713,
+            "enclosing_usd": 6756.75798
+          },
+          "dated_usd_per_pp": 22.52096315658363,
+          "fixed_usd_per_pp": 17.59433468683274,
+          "quota_pp_per_million_total_tokens": 0.0330255350993969,
+          "cache_hit_fraction": 0.9687486376524678,
+          "reasoning_fraction_of_output": 0.3090921579325674,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 18.15551923529412,
+            "usd_per_pp_high": 28.27095389121339
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 16.06639099452055,
+            "usd_per_pp_high": 34.29826385786802
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 35,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A06",
+            "A07",
+            "A08"
+          ],
+          "account_epochs": 11,
+          "first_day": "2026-09-01",
+          "last_start_day": "2026-09-05",
+          "sums": {
+            "delta_pp": 277.0,
+            "strict_calls": 68833.0,
+            "strict_usd": 4888.79782772,
+            "fixed_usd": 4888.79782772,
+            "uncached": 185286500.0,
+            "cached": 9059078656.0,
+            "output": 27152115.0,
+            "reasoning": 9682999.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 4553.72326712,
+            "enclosing_usd": 5213.5529548
+          },
+          "dated_usd_per_pp": 17.649089630758123,
+          "fixed_usd_per_pp": 17.649089630758123,
+          "quota_pp_per_million_total_tokens": 0.02987644760867965,
+          "cache_hit_fraction": 0.9799568172748194,
+          "reasoning_fraction_of_output": 0.3566204326992575,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.595266881794872,
+            "usd_per_pp_high": 21.54360725123967
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 13.123121807262248,
+            "usd_per_pp_high": 25.186246158454107
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 11,
+          "accounts": [
+            "A02",
+            "A04",
+            "A05"
+          ],
+          "account_epochs": 4,
+          "first_day": "2026-09-05",
+          "last_start_day": "2026-09-06",
+          "sums": {
+            "delta_pp": 226.0,
+            "strict_calls": 12104.0,
+            "strict_usd": 2111.82693616,
+            "fixed_usd": 2111.82693616,
+            "uncached": 40982895.0,
+            "cached": 1613037440.0,
+            "output": 2856752.0,
+            "reasoning": 568880.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 1976.3039696,
+            "enclosing_usd": 2253.94864824
+          },
+          "dated_usd_per_pp": 9.344366974159293,
+          "fixed_usd_per_pp": 9.344366974159293,
+          "quota_pp_per_million_total_tokens": 0.1364011861671668,
+          "cache_hit_fraction": 0.9752222544470712,
+          "reasoning_fraction_of_output": 0.1991352417010647,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.338835314767932,
+            "usd_per_pp_high": 10.483482084837208
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 7.968967619354839,
+            "usd_per_pp_high": 11.048767883529411
+          }
+        }
+      ]
+    },
+    {
+      "dominance": 0.95,
+      "minimum_pp": 10,
+      "cohorts": [
+        {
+          "group": {
+            "model": "gpt-5.5",
+            "effort": "medium",
+            "period": "before_aug21"
+          },
+          "intervals": 2,
+          "accounts": [
+            "A08"
+          ],
+          "account_epochs": 1,
+          "first_day": "2026-08-12",
+          "last_start_day": "2026-08-12",
+          "sums": {
+            "delta_pp": 24.0,
+            "strict_calls": 51.0,
+            "strict_usd": 6.504127,
+            "fixed_usd": 6.504127,
+            "uncached": 251603.0,
+            "cached": 9619584.0,
+            "output": 14544.0,
+            "reasoning": 2241.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 5.495944,
+            "enclosing_usd": 7.092718
+          },
+          "dated_usd_per_pp": 0.2710052916666667,
+          "fixed_usd_per_pp": 0.2710052916666667,
+          "quota_pp_per_million_total_tokens": 2.4277415600323335,
+          "cache_hit_fraction": 0.9745113733535795,
+          "reasoning_fraction_of_output": 0.15408415841584158,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.21138246153846152,
+            "usd_per_pp_high": 0.3223962727272727
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 0.19628371428571428,
+            "usd_per_pp_high": 0.3546359
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "aug21_aug31"
+          },
+          "intervals": 23,
+          "accounts": [
+            "A01",
+            "A02",
+            "A03",
+            "A05",
+            "A08"
+          ],
+          "account_epochs": 9,
+          "first_day": "2026-08-23",
+          "last_start_day": "2026-08-31",
+          "sums": {
+            "delta_pp": 286.0,
+            "strict_calls": 73993.0,
+            "strict_usd": 5287.4817824,
+            "fixed_usd": 5287.4817824,
+            "uncached": 238455277.0,
+            "cached": 9366993408.0,
+            "output": 29270998.0,
+            "reasoning": 9921139.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 4886.086021,
+            "enclosing_usd": 5696.5274316
+          },
+          "dated_usd_per_pp": 18.48769853986014,
+          "fixed_usd_per_pp": 18.48769853986014,
+          "quota_pp_per_million_total_tokens": 0.029684309394556987,
+          "cache_hit_fraction": 0.975174998605492,
+          "reasoning_fraction_of_output": 0.3389409202925025,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.8125761197411,
+            "usd_per_pp_high": 21.65980012015209
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 14.71712656927711,
+            "usd_per_pp_high": 23.735530965000002
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "before_aug21"
+          },
+          "intervals": 3,
+          "accounts": [
+            "A01",
+            "A02",
+            "A05"
+          ],
+          "account_epochs": 3,
+          "first_day": "2026-08-11",
+          "last_start_day": "2026-08-17",
+          "sums": {
+            "delta_pp": 50.0,
+            "strict_calls": 10171.0,
+            "strict_usd": 949.879173,
+            "fixed_usd": 740.3505944,
+            "uncached": 39694309.0,
+            "cached": 1209524096.0,
+            "output": 4888186.0,
+            "reasoning": 1774982.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 881.7304809999999,
+            "enclosing_usd": 1017.255607
+          },
+          "dated_usd_per_pp": 18.99758346,
+          "fixed_usd_per_pp": 14.807011888,
+          "quota_pp_per_million_total_tokens": 0.03986901939501887,
+          "cache_hit_fraction": 0.9682246844577991,
+          "reasoning_fraction_of_output": 0.36311670627918,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 16.63642416981132,
+            "usd_per_pp_high": 21.64373631914894
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.745187160714284,
+            "usd_per_pp_high": 23.119445613636366
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-5.6-sol",
+            "effort": "max",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 8,
+          "accounts": [
+            "A01",
+            "A05"
+          ],
+          "account_epochs": 3,
+          "first_day": "2026-09-02",
+          "last_start_day": "2026-09-05",
+          "sums": {
+            "delta_pp": 102.0,
+            "strict_calls": 27617.0,
+            "strict_usd": 1918.0204525600002,
+            "fixed_usd": 1918.0204525600002,
+            "uncached": 76198388.0,
+            "cached": 3531065984.0,
+            "output": 10723042.0,
+            "reasoning": 3834312.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 1792.69763848,
+            "enclosing_usd": 2038.34031312
+          },
+          "dated_usd_per_pp": 18.80412208392157,
+          "fixed_usd_per_pp": 18.80412208392157,
+          "quota_pp_per_million_total_tokens": 0.02819246954959142,
+          "cache_hit_fraction": 0.9788764060124174,
+          "reasoning_fraction_of_output": 0.35757688909546376,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 16.297251258909093,
+            "usd_per_pp_high": 21.68447141617021
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 15.192352868474577,
+            "usd_per_pp_high": 23.701631547906977
+          }
+        },
+        {
+          "group": {
+            "model": "gpt-6-astra",
+            "effort": "high",
+            "period": "sep01_sep06_partial"
+          },
+          "intervals": 11,
+          "accounts": [
+            "A02",
+            "A04",
+            "A05"
+          ],
+          "account_epochs": 4,
+          "first_day": "2026-09-05",
+          "last_start_day": "2026-09-06",
+          "sums": {
+            "delta_pp": 226.0,
+            "strict_calls": 12104.0,
+            "strict_usd": 2111.82693616,
+            "fixed_usd": 2111.82693616,
+            "uncached": 40982895.0,
+            "cached": 1613037440.0,
+            "output": 2856752.0,
+            "reasoning": 568880.0,
+            "long_context_calls": 0.0,
+            "interior_usd": 1976.3039696,
+            "enclosing_usd": 2253.94864824
+          },
+          "dated_usd_per_pp": 9.344366974159293,
+          "fixed_usd_per_pp": 9.344366974159293,
+          "quota_pp_per_million_total_tokens": 0.1364011861671668,
+          "cache_hit_fraction": 0.9752222544470712,
+          "reasoning_fraction_of_output": 0.1991352417010647,
+          "long_context_call_fraction": 0.0,
+          "timing_and_1pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 8.338835314767932,
+            "usd_per_pp_high": 10.483482084837208
+          },
+          "timing_and_2pp_endpoint_sensitivity": {
+            "usd_per_pp_low": 7.968967619354839,
+            "usd_per_pp_high": 11.048767883529411
+          }
+        }
+      ]
+    }
+  ]
+}

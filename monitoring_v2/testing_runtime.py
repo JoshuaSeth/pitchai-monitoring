@@ -79,6 +79,8 @@ class RaisesFactory(Protocol):
     def __call__[ExceptionValue: BaseException](
         self,
         expected_exception: type[ExceptionValue],
+        *,
+        match: str | None = None,
     ) -> RaisesContext[ExceptionValue]:
         """Return a context that captures the expected exception."""
         raise NotImplementedError

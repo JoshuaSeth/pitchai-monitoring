@@ -1,0 +1,14 @@
+{
+  "baseline_commit": "47d8dde3656704848e475b3e5b5bda5bceb48f07",
+  "refactored_helper_sha256": "a982303788b83657005a63dffcc64f53daee13d1b62b5a5ef0b770aa6184cf12",
+  "method": "Read the frozen quota and candidate databases in read-only mode. Compare both implementations' full anchor mappings, then every complete flatten(record, metadata, anchors) tuple across the full candidate population. This verifies every account assignment and exported field without creating another joined database.",
+  "anchor_groups": 280,
+  "calls_checked": 6066658,
+  "mismatches": 0,
+  "join_statuses": {
+    "no_historical_epoch_anchor": 3518429,
+    "different_limit_id": 550179,
+    "exact_epoch": 1950968,
+    "epoch_with_one_second_tolerance": 47082
+  }
+}

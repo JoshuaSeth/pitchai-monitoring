@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# pitchai-dev logind session reaper.
+#
+# sshd sessions on pitchai-dev can get stuck in logind's "closing" state after
+# their scope unit and leader process are already gone. The phantoms are never
+# garbage collected, so they accumulate until the session ceiling
+# (Login.SessionsMax) is reached and every further login is refused with
+# "Maximum number of sessions reached" -- which silently strips logind
+# session management from every lane on the host.
+#
+# This guard is the automated version of the by-hand repair recorded in PM
+# DISK-PITCHAI-DEV-20260919: when the session table is both large and
+# overwhelmingly stale, drop the dead state files and restart logind so it
+# rebuilds its table from what is actually live. Restarting logind does not
+# touch running processes while KillUserProcesses=no (the host default), and
+# live sessions are re-adopted from their own state files.
+set -euo pipefail
+
+SESSION_DIR=${SESSION_DIR:-/run/systemd/sessions}
+MIN_SESSIONS=${MIN_SESSIONS:-1024}
+STALE_RATIO_PERCENT=${STALE_RATIO_PERCENT:-90}
+DRY_RUN=${DRY_RUN:-0}
+
+log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+
+total=$(loginctl list-sessions --no-legend 2>/dev/null | wc -l)
+if [ "$total" -lt "$MIN_SESSIONS" ]; then
+  exit 0
+fi
+
+# Word splitting is intentional: loginctl wants the ids as separate arguments.
+# shellcheck disable=SC2046
+mapfile -t rows < <(
+  loginctl show-session $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' | tr '\n' ' ') \
+    -p Id -p State -p Leader 2>/dev/null |
+    awk -F= '/^Id=/{id=$2} /^Leader=/{l=$2} /^State=/{st=$2; printf "%s %s %s\n", id, l, st}'
+)
+
+stale=()
+for row in "${rows[@]}"; do
+  read -r id leader state <<<"$row"
+  [ -z "$id" ] && continue
+  if [ "$state" = "closing" ] && { [ -z "$leader" ] || [ "$leader" = "0" ] || ! kill -0 "$leader" 2>/dev/null; }; then
+    stale+=("$id")
+  fi
+done
+
+stale_count=${#stale[@]}
+ratio=0
+[ "$total" -gt 0 ] && ratio=$(( stale_count * 100 / total ))
+
+if [ "$ratio" -lt "$STALE_RATIO_PERCENT" ]; then
+  log "sessions high but not stale-dominated: total=${total} stale=${stale_count} (${ratio}%); leaving logind alone"
+  exit 0
+fi
+
+removed=0
+if [ "$DRY_RUN" = 1 ]; then
+  log "dry-run: total=${total} stale=${stale_count} (${ratio}%); would drop ${stale_count} state files and restart systemd-logind"
+  exit 0
+fi
+
+for id in "${stale[@]}"; do
+  file="$SESSION_DIR/$id"
+  if [ -f "$file" ]; then
+    rm -f -- "$file" && removed=$((removed + 1))
+  fi
+done
+
+log "reaping stale logind sessions: total=${total} stale=${stale_count} (${ratio}%) state_files_removed=${removed}; restarting systemd-logind"
+systemctl restart systemd-logind
+
+after=$(loginctl list-sessions --no-legend 2>/dev/null | wc -l)
+log "reaped: sessions ${total} -> ${after}"

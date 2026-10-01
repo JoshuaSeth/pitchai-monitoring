@@ -1,0 +1,1064 @@
+{
+  "schema": 1,
+  "prior_sha256": "df521827aabab3bc202ec63dfc77545c36aa09e95b7e25f7b383dc27bb3e5bb7",
+  "prior_cutoff_exclusive": "2026-09-04T12:03:50+00:00",
+  "import": {
+    "rows": 244113,
+    "imported": 119835,
+    "missing_or_invalid_tokens": 105094,
+    "no_modern_turn_id": 19184
+  },
+  "scopes": {
+    "canonical_source": [
+      {
+        "outcome": "current_componentwise_higher",
+        "prior_integrity_anomaly": false,
+        "turns": 73,
+        "prior": {
+          "input_tokens": 468528623,
+          "cached_input_tokens": 452134272,
+          "output_tokens": 1555401,
+          "reasoning_output_tokens": 551630
+        },
+        "current": {
+          "input_tokens": 1394788027,
+          "cached_input_tokens": 1361601152,
+          "output_tokens": 4278506,
+          "reasoning_output_tokens": 1439502
+        }
+      },
+      {
+        "outcome": "current_componentwise_higher",
+        "prior_integrity_anomaly": true,
+        "turns": 2,
+        "prior": {
+          "input_tokens": 449499301,
+          "cached_input_tokens": 442366592,
+          "output_tokens": 1000224,
+          "reasoning_output_tokens": 443795
+        },
+        "current": {
+          "input_tokens": 483103544,
+          "cached_input_tokens": 475414912,
+          "output_tokens": 1078017,
+          "reasoning_output_tokens": 474143
+        }
+      },
+      {
+        "outcome": "current_componentwise_lower",
+        "prior_integrity_anomaly": false,
+        "turns": 33,
+        "prior": {
+          "input_tokens": 701807316,
+          "cached_input_tokens": 682831488,
+          "output_tokens": 1923174,
+          "reasoning_output_tokens": 638720
+        },
+        "current": {
+          "input_tokens": 529284718,
+          "cached_input_tokens": 514673408,
+          "output_tokens": 1626459,
+          "reasoning_output_tokens": 565497
+        }
+      },
+      {
+        "outcome": "current_componentwise_lower",
+        "prior_integrity_anomaly": true,
+        "turns": 17,
+        "prior": {
+          "input_tokens": 11514872867,
+          "cached_input_tokens": 11002322688,
+          "output_tokens": 22764712,
+          "reasoning_output_tokens": 4794419
+        },
+        "current": {
+          "input_tokens": 1572601646,
+          "cached_input_tokens": 1534195584,
+          "output_tokens": 3704414,
+          "reasoning_output_tokens": 1055251
+        }
+      },
+      {
+        "outcome": "exact_four_counter_match",
+        "prior_integrity_anomaly": false,
+        "turns": 103845,
+        "prior": {
+          "input_tokens": 345045055398,
+          "cached_input_tokens": 333968955959,
+          "output_tokens": 1116714662,
+          "reasoning_output_tokens": 352729395
+        },
+        "current": {
+          "input_tokens": 345045055398,
+          "cached_input_tokens": 333968955959,
+          "output_tokens": 1116714662,
+          "reasoning_output_tokens": 352729395
+        }
+      },
+      {
+        "outcome": "exact_four_counter_match",
+        "prior_integrity_anomaly": true,
+        "turns": 691,
+        "prior": {
+          "input_tokens": 113945746999,
+          "cached_input_tokens": 111633873536,
+          "output_tokens": 301385870,
+          "reasoning_output_tokens": 92568864
+        },
+        "current": {
+          "input_tokens": 113945746999,
+          "cached_input_tokens": 111633873536,
+          "output_tokens": 301385870,
+          "reasoning_output_tokens": 92568864
+        }
+      },
+      {
+        "outcome": "no_current_calls_before_cutoff",
+        "prior_integrity_anomaly": false,
+        "turns": 102,
+        "prior": {
+          "input_tokens": 337470747,
+          "cached_input_tokens": 318385792,
+          "output_tokens": 1337993,
+          "reasoning_output_tokens": 165345
+        },
+        "current": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        }
+      },
+      {
+        "outcome": "zero_prior_no_current_calls",
+        "prior_integrity_anomaly": false,
+        "turns": 15071,
+        "prior": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        },
+        "current": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        }
+      },
+      {
+        "outcome": "zero_prior_no_current_calls",
+        "prior_integrity_anomaly": true,
+        "turns": 1,
+        "prior": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        },
+        "current": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        }
+      }
+    ],
+    "all_candidates": [
+      {
+        "outcome": "current_componentwise_higher",
+        "prior_integrity_anomaly": false,
+        "turns": 12586,
+        "prior": {
+          "input_tokens": 23807833568,
+          "cached_input_tokens": 22968327260,
+          "output_tokens": 61388172,
+          "reasoning_output_tokens": 18063457
+        },
+        "current": {
+          "input_tokens": 306348428563,
+          "cached_input_tokens": 294068777272,
+          "output_tokens": 631262264,
+          "reasoning_output_tokens": 140520002
+        }
+      },
+      {
+        "outcome": "current_componentwise_higher",
+        "prior_integrity_anomaly": true,
+        "turns": 39,
+        "prior": {
+          "input_tokens": 10918484350,
+          "cached_input_tokens": 10726177280,
+          "output_tokens": 24771402,
+          "reasoning_output_tokens": 7212001
+        },
+        "current": {
+          "input_tokens": 67029748569,
+          "cached_input_tokens": 65873525504,
+          "output_tokens": 139510605,
+          "reasoning_output_tokens": 37648276
+        }
+      },
+      {
+        "outcome": "current_componentwise_lower",
+        "prior_integrity_anomaly": false,
+        "turns": 25,
+        "prior": {
+          "input_tokens": 617455180,
+          "cached_input_tokens": 600148608,
+          "output_tokens": 1799006,
+          "reasoning_output_tokens": 623077
+        },
+        "current": {
+          "input_tokens": 522343105,
+          "cached_input_tokens": 508286464,
+          "output_tokens": 1597270,
+          "reasoning_output_tokens": 557827
+        }
+      },
+      {
+        "outcome": "current_componentwise_lower",
+        "prior_integrity_anomaly": true,
+        "turns": 16,
+        "prior": {
+          "input_tokens": 11141133462,
+          "cached_input_tokens": 10634094336,
+          "output_tokens": 22127824,
+          "reasoning_output_tokens": 4671659
+        },
+        "current": {
+          "input_tokens": 1349947654,
+          "cached_input_tokens": 1308689792,
+          "output_tokens": 3302431,
+          "reasoning_output_tokens": 1001021
+        }
+      },
+      {
+        "outcome": "exact_four_counter_match",
+        "prior_integrity_anomaly": false,
+        "turns": 91339,
+        "prior": {
+          "input_tokens": 321855616301,
+          "cached_input_tokens": 311599748315,
+          "output_tokens": 1057168731,
+          "reasoning_output_tokens": 335279799
+        },
+        "current": {
+          "input_tokens": 321855616301,
+          "cached_input_tokens": 311599748315,
+          "output_tokens": 1057168731,
+          "reasoning_output_tokens": 335279799
+        }
+      },
+      {
+        "outcome": "exact_four_counter_match",
+        "prior_integrity_anomaly": true,
+        "turns": 655,
+        "prior": {
+          "input_tokens": 103850501355,
+          "cached_input_tokens": 101718291200,
+          "output_tokens": 278251580,
+          "reasoning_output_tokens": 85923418
+        },
+        "current": {
+          "input_tokens": 103850501355,
+          "cached_input_tokens": 101718291200,
+          "output_tokens": 278251580,
+          "reasoning_output_tokens": 85923418
+        }
+      },
+      {
+        "outcome": "mixed_component_differences",
+        "prior_integrity_anomaly": false,
+        "turns": 4,
+        "prior": {
+          "input_tokens": 34830071,
+          "cached_input_tokens": 34150656,
+          "output_tokens": 46164,
+          "reasoning_output_tokens": 4766
+        },
+        "current": {
+          "input_tokens": 64199854,
+          "cached_input_tokens": 60334336,
+          "output_tokens": 131514,
+          "reasoning_output_tokens": 0
+        }
+      },
+      {
+        "outcome": "no_current_calls_before_cutoff",
+        "prior_integrity_anomaly": false,
+        "turns": 99,
+        "prior": {
+          "input_tokens": 237126964,
+          "cached_input_tokens": 219932672,
+          "output_tokens": 1129157,
+          "reasoning_output_tokens": 113991
+        },
+        "current": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        }
+      },
+      {
+        "outcome": "zero_prior_no_current_calls",
+        "prior_integrity_anomaly": false,
+        "turns": 15071,
+        "prior": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        },
+        "current": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        }
+      },
+      {
+        "outcome": "zero_prior_no_current_calls",
+        "prior_integrity_anomaly": true,
+        "turns": 1,
+        "prior": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        },
+        "current": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        }
+      }
+    ],
+    "replay_corrected": [
+      {
+        "outcome": "current_componentwise_higher",
+        "prior_integrity_anomaly": false,
+        "turns": 104,
+        "prior": {
+          "input_tokens": 717861776,
+          "cached_input_tokens": 693938176,
+          "output_tokens": 2321383,
+          "reasoning_output_tokens": 811432
+        },
+        "current": {
+          "input_tokens": 2434403776,
+          "cached_input_tokens": 2377490816,
+          "output_tokens": 7205326,
+          "reasoning_output_tokens": 2484457
+        }
+      },
+      {
+        "outcome": "current_componentwise_higher",
+        "prior_integrity_anomaly": true,
+        "turns": 4,
+        "prior": {
+          "input_tokens": 2028946572,
+          "cached_input_tokens": 1982496128,
+          "output_tokens": 6164111,
+          "reasoning_output_tokens": 2013785
+        },
+        "current": {
+          "input_tokens": 2275598704,
+          "cached_input_tokens": 2222621568,
+          "output_tokens": 7004523,
+          "reasoning_output_tokens": 2332459
+        }
+      },
+      {
+        "outcome": "current_componentwise_lower",
+        "prior_integrity_anomaly": false,
+        "turns": 34,
+        "prior": {
+          "input_tokens": 710326261,
+          "cached_input_tokens": 691275648,
+          "output_tokens": 1935099,
+          "reasoning_output_tokens": 639905
+        },
+        "current": {
+          "input_tokens": 529559077,
+          "cached_input_tokens": 514947072,
+          "output_tokens": 1626666,
+          "reasoning_output_tokens": 565497
+        }
+      },
+      {
+        "outcome": "current_componentwise_lower",
+        "prior_integrity_anomaly": true,
+        "turns": 17,
+        "prior": {
+          "input_tokens": 11514872867,
+          "cached_input_tokens": 11002322688,
+          "output_tokens": 22764712,
+          "reasoning_output_tokens": 4794419
+        },
+        "current": {
+          "input_tokens": 1572835099,
+          "cached_input_tokens": 1534428416,
+          "output_tokens": 3704753,
+          "reasoning_output_tokens": 1055475
+        }
+      },
+      {
+        "outcome": "exact_four_counter_match",
+        "prior_integrity_anomaly": false,
+        "turns": 103816,
+        "prior": {
+          "input_tokens": 344887547083,
+          "cached_input_tokens": 333817161015,
+          "output_tokens": 1116145591,
+          "reasoning_output_tokens": 352519762
+        },
+        "current": {
+          "input_tokens": 344887547083,
+          "cached_input_tokens": 333817161015,
+          "output_tokens": 1116145591,
+          "reasoning_output_tokens": 352519762
+        }
+      },
+      {
+        "outcome": "exact_four_counter_match",
+        "prior_integrity_anomaly": true,
+        "turns": 689,
+        "prior": {
+          "input_tokens": 112366299728,
+          "cached_input_tokens": 110093744000,
+          "output_tokens": 296221983,
+          "reasoning_output_tokens": 90998874
+        },
+        "current": {
+          "input_tokens": 112366299728,
+          "cached_input_tokens": 110093744000,
+          "output_tokens": 296221983,
+          "reasoning_output_tokens": 90998874
+        }
+      },
+      {
+        "outcome": "no_current_calls_before_cutoff",
+        "prior_integrity_anomaly": false,
+        "turns": 99,
+        "prior": {
+          "input_tokens": 237126964,
+          "cached_input_tokens": 219932672,
+          "output_tokens": 1129157,
+          "reasoning_output_tokens": 113991
+        },
+        "current": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        }
+      },
+      {
+        "outcome": "zero_prior_no_current_calls",
+        "prior_integrity_anomaly": false,
+        "turns": 15071,
+        "prior": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        },
+        "current": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        }
+      },
+      {
+        "outcome": "zero_prior_no_current_calls",
+        "prior_integrity_anomaly": true,
+        "turns": 1,
+        "prior": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        },
+        "current": {
+          "input_tokens": 0,
+          "cached_input_tokens": 0,
+          "output_tokens": 0,
+          "reasoning_output_tokens": 0
+        }
+      }
+    ]
+  },
+  "discrepancy_provenance": [
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "exact_conflict",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 1,
+      "prior_input_tokens": 66765004,
+      "current_input_tokens": 69548119
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "completed",
+      "turns": 165,
+      "prior_input_tokens": 3521238363,
+      "current_input_tokens": 19096175302
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 63,
+      "prior_input_tokens": 2549133806,
+      "current_input_tokens": 9292348564
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "crashed",
+      "turns": 3,
+      "prior_input_tokens": 33127383,
+      "current_input_tokens": 282133771
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 11974,
+      "prior_input_tokens": 21924079184,
+      "current_input_tokens": 284437406009
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 205,
+      "prior_input_tokens": 2385209499,
+      "current_input_tokens": 22053249458
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "crashed",
+      "turns": 207,
+      "prior_input_tokens": 4211381637,
+      "current_input_tokens": 37996726042
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_token_observation",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 6,
+      "prior_input_tokens": 35322928,
+      "current_input_tokens": 150347100
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_higher",
+      "source_class": "project_test_trace",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 1,
+      "prior_input_tokens": 60114,
+      "current_input_tokens": 242767
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "exact_conflict",
+      "turn_status": "completed",
+      "turns": 3,
+      "prior_input_tokens": 54711225,
+      "current_input_tokens": 54352763
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "completed",
+      "turns": 12,
+      "prior_input_tokens": 693547029,
+      "current_input_tokens": 691731783
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 13,
+      "prior_input_tokens": 9113381582,
+      "current_input_tokens": 762984440
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 6,
+      "prior_input_tokens": 1824986566,
+      "current_input_tokens": 291929929
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "crashed",
+      "turns": 6,
+      "prior_input_tokens": 71523448,
+      "current_input_tokens": 71029077
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "current_componentwise_lower",
+      "source_class": "project_embedded_trace",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 1,
+      "prior_input_tokens": 438792,
+      "current_input_tokens": 262767
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "mixed_component_differences",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 4,
+      "prior_input_tokens": 34830071,
+      "current_input_tokens": 64199854
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "no_current_calls_before_cutoff",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 96,
+      "prior_input_tokens": 226916320,
+      "current_input_tokens": 0
+    },
+    {
+      "scope": "all_candidates",
+      "outcome": "no_current_calls_before_cutoff",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 3,
+      "prior_input_tokens": 10210644,
+      "current_input_tokens": 0
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "exact_conflict",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 1,
+      "prior_input_tokens": 66765004,
+      "current_input_tokens": 69548119
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "completed",
+      "turns": 1,
+      "prior_input_tokens": 39023985,
+      "current_input_tokens": 80214907
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 39,
+      "prior_input_tokens": 742077097,
+      "current_input_tokens": 1430843244
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 16,
+      "prior_input_tokens": 10386683,
+      "current_input_tokens": 20419338
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 8,
+      "prior_input_tokens": 23743051,
+      "current_input_tokens": 109790044
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "crashed",
+      "turns": 3,
+      "prior_input_tokens": 649062,
+      "current_input_tokens": 16486052
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_token_observation",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 6,
+      "prior_input_tokens": 35322928,
+      "current_input_tokens": 150347100
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_higher",
+      "source_class": "project_test_trace",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 1,
+      "prior_input_tokens": 60114,
+      "current_input_tokens": 242767
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "exact_conflict",
+      "turn_status": "completed",
+      "turns": 3,
+      "prior_input_tokens": 54711225,
+      "current_input_tokens": 54352763
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "completed",
+      "turns": 12,
+      "prior_input_tokens": 693547029,
+      "current_input_tokens": 691731783
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 20,
+      "prior_input_tokens": 9182913810,
+      "current_input_tokens": 694775136
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 8,
+      "prior_input_tokens": 2213545879,
+      "current_input_tokens": 589734838
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "crashed",
+      "turns": 6,
+      "prior_input_tokens": 71523448,
+      "current_input_tokens": 71029077
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "current_componentwise_lower",
+      "source_class": "project_embedded_trace",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 1,
+      "prior_input_tokens": 438792,
+      "current_input_tokens": 262767
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "no_current_calls_before_cutoff",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 98,
+      "prior_input_tokens": 236782051,
+      "current_input_tokens": 0
+    },
+    {
+      "scope": "canonical_source",
+      "outcome": "no_current_calls_before_cutoff",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 4,
+      "prior_input_tokens": 100688696,
+      "current_input_tokens": 0
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "exact_conflict",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 1,
+      "prior_input_tokens": 66765004,
+      "current_input_tokens": 69548119
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "completed",
+      "turns": 1,
+      "prior_input_tokens": 39023985,
+      "current_input_tokens": 80214907
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 58,
+      "prior_input_tokens": 2390816862,
+      "current_input_tokens": 3640907949
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "crashed",
+      "turns": 2,
+      "prior_input_tokens": 21481728,
+      "current_input_tokens": 215879005
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 17,
+      "prior_input_tokens": 14389121,
+      "current_input_tokens": 24609898
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 19,
+      "prior_input_tokens": 178299544,
+      "current_input_tokens": 511766683
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "crashed",
+      "turns": 3,
+      "prior_input_tokens": 649062,
+      "current_input_tokens": 16486052
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_higher",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_token_observation",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 6,
+      "prior_input_tokens": 35322928,
+      "current_input_tokens": 150347100
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_higher",
+      "source_class": "project_test_trace",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 1,
+      "prior_input_tokens": 60114,
+      "current_input_tokens": 242767
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "exact_conflict",
+      "turn_status": "completed",
+      "turns": 3,
+      "prior_input_tokens": 54711225,
+      "current_input_tokens": 54352763
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_control_summary",
+      "turn_status": "completed",
+      "turns": 12,
+      "prior_input_tokens": 693547029,
+      "current_input_tokens": 691731783
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 21,
+      "prior_input_tokens": 9191432755,
+      "current_input_tokens": 694940234
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 8,
+      "prior_input_tokens": 2213545879,
+      "current_input_tokens": 590077552
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_lower",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "crashed",
+      "turns": 6,
+      "prior_input_tokens": 71523448,
+      "current_input_tokens": 71029077
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "current_componentwise_lower",
+      "source_class": "project_embedded_trace",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 1,
+      "prior_input_tokens": 438792,
+      "current_input_tokens": 262767
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "no_current_calls_before_cutoff",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completed",
+      "turns": 96,
+      "prior_input_tokens": 226916320,
+      "current_input_tokens": 0
+    },
+    {
+      "scope": "replay_corrected",
+      "outcome": "no_current_calls_before_cutoff",
+      "source_class": "live_agent_session",
+      "token_confidence": "exact_counter_delta",
+      "control_status": "no_selected_work",
+      "turn_status": "completion_pending_or_missing",
+      "turns": 3,
+      "prior_input_tokens": 10210644,
+      "current_input_tokens": 0
+    }
+  ],
+  "qualifications": [
+    "Only prior modern turns with numeric counters are compared. Legacy and unobserved turns remain gaps.",
+    "The earlier ledger selected one source candidate per turn. Canonical-source and replay-corrected scopes answer different questions and must not be added together.",
+    "Current calls are cut by event time; earlier turns can include retrospective or incomplete records. Agreement is corroboration of counters, not proof of live execution or payment.",
+    "Input includes cached input; output includes reasoning output. Do not sum all four fields."
+  ]
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=Export redacted Claude account status for the usage dashboard
+ConditionPathIsDirectory=/var/lib/pitchai-cli-new/claude-owners
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/pitchai-codex-usage/claude_accounts.py
+User=root
+UMask=0077
+TimeoutStartSec=60
+NoNewPrivileges=true

@@ -1,5 +1,5 @@
 [Unit]
-Description=Protect expiring broker-managed Codex reset credits
+Description=Coordinate broker-managed Codex reset-credit redemption
 Documentation=file:///opt/pitchai-auth-reset-guardian/current/docs/auth-reset-guardian.md
 After=network-online.target docker.service
 Wants=network-online.target

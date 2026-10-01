@@ -177,6 +177,25 @@ The JSON ledger continues as an eight-day compatibility input for the dashboard'
 
 Runout probability uses deterministic burn-rate scenarios around the trailing two-hour sample rate. Until enough native samples exist, the UI labels a current-window average estimate and lowers confidence. Capacity is consumed earliest-reset-first and automatic resets for the declared basis are modeled. If no five-hour window is reported but weekly data is authoritative, the forecast explicitly uses weekly percentage points; if neither window is available, the forecast is unavailable rather than inferred as 0% or 100%. Banked resets never enter forecast capacity because they require a forbidden manual redemption action.
 
+## Verified subscription state
+
+The dashboard's subscription section is the only place that reports ChatGPT plan billing state, and it keeps that state separate from usage-window exhaustion. Weekly and five-hour usage resets are rolling provider limits; they say nothing about whether a subscription renews. Subscription rows therefore carry their own renewal flag, cancellation-request moment, and effective access-end date, each with the verification time and source that produced it.
+
+Derived display states are intentionally conservative:
+
+- `renewing` requires a verified `renewal_enabled: true` on the account.
+- `active_until_end` means auto-renewal is cancelled while verified paid access still runs to its natural period end. A cancelled auto-renewal is not lost access, and an ended date in the past is reported as `access_ended`, never resurrected.
+- `inactive` is used only when the account's own billing state says so; a broker `disabled`/`last_resort` flag is routing metadata and never cancels or inactivates a subscription.
+- Anything unstated or unverifiable stays `unknown`. Missing dates, unreadable files, oversized sources, and unparseable rows produce an explicit unavailable state instead of invented accounts, dates, or amounts.
+
+The curated snapshot lives outside this public repository at `/srv/codex-usage-dashboard-src/codex-subscriptions.json` (root-owned, mode `600`) because it names account identities, billing days, and amounts. Deployments install the reviewed file to `/srv/codex-usage-dashboard/codex-subscriptions.json`, mount it read-only at `/dashboard-data/codex-subscriptions.json`, and validate the shape before installing. The canary and production checks then require `/api/v1/subscription-accounts` to serve a payload whose account count matches the installed source; validation runs inside the candidate container via `python -m auth_usage_dashboard.subscription_accounts_check`. If the source file is absent, the section says subscription status is unavailable rather than showing stale or guessed rows. The endpoint follows the same protected-operator rule as the other account-bearing routes and returns no credentials, tokens, or payment-card data.
+
+Schema 1 also accepts an optional offset-aware `access_ends_at` representing the reviewed entitlement expiry. Its calendar date in the snapshot's declared IANA timezone must match `access_ends_on`. Valid exact evidence is returned explicitly and access becomes `access_ended` at that instant, including equality. The UI shows seconds and the local UTC offset. `access_end_precision` distinguishes `exact`, `date`, `unknown`, and `invalid`; absent or null exact evidence leaves a date-only record unchanged and never manufactures a timestamp. A date-only record remains active throughout its stated local end day and becomes ended on the following local day, using the actual timezone's DST rules. Missing legacy timezone declarations default to Europe/Berlin; an explicitly unsupported timezone makes the snapshot unavailable instead of silently using UTC.
+
+Malformed, naive, or local-date-mismatching exact evidence is projected as `access_ends_at: null`, `access_end_precision: invalid`, and `access_state: unknown`, with a verification-needed message in the UI. It does not silently fall back to the date. Existing verification time, source, age, and stale indicators remain separate from expiry precision; future verification timestamps are flagged stale as well. Cancellation request time, cancellation-scheduled flags, and provider cancellation timestamps do not replace entitlement expiry or define an eligibility cutoff. Assigned-credit expiry remains separate.
+
+The endpoint's additive exact-expiry fields require the matching updated `subscription_accounts_check` allowlist to ship with the parser and UI. The old checker rejects the new response shape even though the snapshot schema remains version 1. This consumer change does not edit the reviewed source or installed inventory.
+
 ## Operations
 
 Build and deploy the container from the repository root:
@@ -267,3 +286,32 @@ For an Nginx rollback, restore the timestamped backup beside `/etc/nginx/sites-a
 - The dashboard-owned history mount is the only writable persistent path in the read-only container.
 - Active requester/session counts are informational telemetry only. They never reduce account availability.
 - Only actual auth validity, provider rate/quota state, disabled state, freshness, and the broker safety floor affect displayed selectability.
+
+## Claude accounts
+
+The browser also reads the SSO-protected `/api/v1/claude-accounts` endpoint.
+Claude accounts appear in their own section and never enter Codex pool totals,
+capacity forecasts, usage history, or the native mobile API.
+
+`claude-usage-export.timer` runs once per minute on the owner host. Its Python
+collector reads only `owner.json`, `accounts.json`, and `health.json`, and asks
+the pinned official Claude binary for `auth status` with each profile's private
+HOME. It never opens login files or calls a generation/usage endpoint. Only
+allowlisted identity, plan, availability, and usage-event fields are written
+atomically to `/srv/codex-usage-dashboard/claude-accounts.json` (0600). The
+dashboard reads that snapshot through its existing data mount; no Claude home,
+credential, bearer token, or owner SQLite database is mounted in the container.
+
+“Ready” means signed in and eligible under the engine's cooldown state, not a
+guarantee of unused quota. Usage is the most recent official lane rate-limit
+event. Missing utilization remains unknown, readings older than ten minutes
+are labeled last reported, and status becomes unavailable if the exporter or
+owner heartbeat is stale. A profile without a reported usage window never
+appears as zero usage or unlimited capacity. Cooldowns show the engine's next
+eligible time, which can be a conservative retry time if no provider reset was
+reported. The dashboard does not switch accounts or alter cooldowns.
+
+Deployment installs the exporter and timer, then checks the same read-only
+status file in the loopback canary. Run `systemctl start claude-usage-export`
+to refresh identity/status immediately; normal refresh never submits a model
+prompt.

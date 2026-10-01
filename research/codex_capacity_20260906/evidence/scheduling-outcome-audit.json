@@ -1,0 +1,965 @@
+{
+  "status": "reconciled_without_adding_usage",
+  "summary": {
+    "cutoff": "2026-09-06T20:20:00Z",
+    "manifests": [
+      {
+        "capacity_point_rows": 0,
+        "cutoff": "2026-09-06T20:20:00Z",
+        "first_at": "2026-08-29T05:19:51.718455Z",
+        "kind": "scheduling_manifest",
+        "last_at": "2026-09-06T20:19:58.946959Z",
+        "numeric_rows": 13753,
+        "rows": 3403118,
+        "service_tier_key_rows": 0,
+        "source": "dev-main",
+        "statuses": [
+          {
+            "cost_status": "observed",
+            "detail_code": "turn_tokens_observed",
+            "rows": 13753
+          },
+          {
+            "cost_status": "pending",
+            "detail_code": "awaiting_turn_completion",
+            "rows": 18922
+          },
+          {
+            "cost_status": "pending",
+            "detail_code": "awaiting_turn_start",
+            "rows": 3370369
+          },
+          {
+            "cost_status": "pending",
+            "detail_code": "work_finished_awaiting_turn_cost",
+            "rows": 4
+          },
+          {
+            "cost_status": "unavailable",
+            "detail_code": "work_cancelled_without_turn_id",
+            "rows": 70
+          }
+        ]
+      },
+      {
+        "capacity_point_rows": 0,
+        "cutoff": "2026-09-06T20:20:00Z",
+        "first_at": "2026-08-29T08:06:12.266782Z",
+        "kind": "scheduling_manifest",
+        "last_at": "2026-09-06T20:19:52.055967Z",
+        "numeric_rows": 608,
+        "rows": 202076,
+        "service_tier_key_rows": 0,
+        "source": "dev-jeff",
+        "statuses": [
+          {
+            "cost_status": "observed",
+            "detail_code": "turn_tokens_observed",
+            "rows": 608
+          },
+          {
+            "cost_status": "pending",
+            "detail_code": "awaiting_turn_completion",
+            "rows": 2233
+          },
+          {
+            "cost_status": "pending",
+            "detail_code": "awaiting_turn_start",
+            "rows": 197743
+          },
+          {
+            "cost_status": "pending",
+            "detail_code": "work_finished_awaiting_turn_cost",
+            "rows": 9
+          },
+          {
+            "cost_status": "unavailable",
+            "detail_code": "work_cancelled_without_turn_id",
+            "rows": 1483
+          }
+        ]
+      },
+      {
+        "capacity_point_rows": 0,
+        "cutoff": "2026-09-06T20:20:00Z",
+        "first_at": "2026-09-03T10:05:32.545789Z",
+        "kind": "scheduling_manifest",
+        "last_at": "2026-09-04T21:23:05.301594Z",
+        "numeric_rows": 4,
+        "rows": 173,
+        "service_tier_key_rows": 0,
+        "source": "dev-monitoring",
+        "statuses": [
+          {
+            "cost_status": "observed",
+            "detail_code": "turn_tokens_observed",
+            "rows": 4
+          },
+          {
+            "cost_status": "pending",
+            "detail_code": "awaiting_turn_completion",
+            "rows": 5
+          },
+          {
+            "cost_status": "pending",
+            "detail_code": "awaiting_turn_start",
+            "rows": 149
+          },
+          {
+            "cost_status": "unavailable",
+            "detail_code": "work_cancelled_without_turn_id",
+            "rows": 15
+          }
+        ]
+      }
+    ],
+    "numeric_rows": 14365,
+    "distinct_outcomes": 14365,
+    "distinct_turns": 622,
+    "repeated_turn_rows": 13743,
+    "counts": [
+      {
+        "scope": "all_candidates",
+        "status": "current_componentwise_higher",
+        "turns": 280
+      },
+      {
+        "scope": "all_candidates",
+        "status": "exact_four_counter_match",
+        "turns": 339
+      },
+      {
+        "scope": "all_candidates",
+        "status": "no_current_calls",
+        "turns": 3
+      },
+      {
+        "scope": "replay_corrected",
+        "status": "current_componentwise_higher",
+        "turns": 280
+      },
+      {
+        "scope": "replay_corrected",
+        "status": "exact_four_counter_match",
+        "turns": 339
+      },
+      {
+        "scope": "replay_corrected",
+        "status": "no_current_calls",
+        "turns": 3
+      }
+    ],
+    "comparison_sql": "SELECT COUNT(*),COALESCE(SUM(c.uncached+c.cached),0),COALESCE(SUM(c.cached),0),COALESCE(SUM(c.output),0),COALESCE(SUM(c.reasoning),0),COUNT(DISTINCT c.account) FROM usage.calls c WHERE c.turn=? AND (?='all_candidates' OR EXISTS(SELECT 1 FROM replay.decisions d WHERE d.call_key=c.call_key AND d.keep_primary=1))",
+    "input_sha256": {
+      "scheduling-main.jsonl": "218e788b368a5dcc697f444512b41ddb5a0909e2b4beef58b44549ab25bcbdf0",
+      "scheduling-jeff.jsonl": "d051070b1a066210fb7b904b8e3fa690ad10fc17335e344869c9bdbdeb8cb041",
+      "scheduling-monitoring.jsonl": "942d49619208b029b69ad17af94fa18feb51e1bea3a47553b0f9e01f0148ce24"
+    }
+  },
+  "terminal_interval": {
+    "sql": "SELECT COUNT(*),COALESCE(SUM(uncached+cached),0),COALESCE(SUM(cached),0),COALESCE(SUM(output),0),COALESCE(SUM(reasoning),0) FROM calls WHERE turn=? AND timestamp>=? AND timestamp<=?",
+    "counts": {
+      "exact": 615,
+      "different": 7
+    },
+    "differences": [
+      {
+        "turn": "0e0d9658bc4892d73db8f99cfdd53fec8f5654af0650fdc0774d17ca49567f43",
+        "source": "dev-main",
+        "current": [
+          14770088,
+          14403072,
+          27618,
+          7817
+        ],
+        "observed": [
+          14963288,
+          14432512,
+          28257,
+          7984
+        ],
+        "calls": 107,
+        "start": "2026-08-29T10:00:22.029Z",
+        "end": "2026-08-29T10:19:02.115Z",
+        "missing_interval_delta": [
+          193200,
+          29440,
+          639,
+          167
+        ],
+        "delta_identical_call_outside_interval": []
+      },
+      {
+        "turn": "462e3b6065a3f8521a1740bef39db506f5f97b6ca386d3e86c6ac432593e006c",
+        "source": "dev-main",
+        "current": [
+          3972646,
+          3861760,
+          13382,
+          5223
+        ],
+        "observed": [
+          4056795,
+          3943424,
+          13531,
+          5239
+        ],
+        "calls": 39,
+        "start": "2026-09-01T07:39:09.045Z",
+        "end": "2026-09-01T07:45:51.571Z",
+        "missing_interval_delta": [
+          84149,
+          81664,
+          149,
+          16
+        ],
+        "delta_identical_call_outside_interval": []
+      },
+      {
+        "turn": "18dea23eb838e4843a533276c14b13e2f5eeeae7acbbc764280a5279682c5fda",
+        "source": "dev-main",
+        "current": [
+          4707139,
+          4574208,
+          17131,
+          7624
+        ],
+        "observed": [
+          4810703,
+          4677376,
+          17269,
+          7649
+        ],
+        "calls": 44,
+        "start": "2026-09-01T08:12:56.691Z",
+        "end": "2026-09-01T08:21:55.757Z",
+        "missing_interval_delta": [
+          103564,
+          103168,
+          138,
+          25
+        ],
+        "delta_identical_call_outside_interval": []
+      },
+      {
+        "turn": "3b0cb3a04407868a4c61dcd9415b8c88bf8bf2733dc3d3cba2a217abc6f95ab2",
+        "source": "dev-main",
+        "current": [
+          4557570,
+          4333952,
+          14644,
+          4500
+        ],
+        "observed": [
+          4693893,
+          4469376,
+          15326,
+          5037
+        ],
+        "calls": 49,
+        "start": "2026-09-02T05:45:31.908Z",
+        "end": "2026-09-02T06:04:34.252Z",
+        "missing_interval_delta": [
+          136323,
+          135424,
+          682,
+          537
+        ],
+        "delta_identical_call_outside_interval": []
+      },
+      {
+        "turn": "b25b16d86afb1cb62b1d6db8d568e72ddc2dc83e392b305dedb1148747927575",
+        "source": "dev-main",
+        "current": [
+          2960249,
+          2854528,
+          13552,
+          5544
+        ],
+        "observed": [
+          3096068,
+          2986752,
+          14145,
+          5702
+        ],
+        "calls": 31,
+        "start": "2026-09-05T08:18:58.392Z",
+        "end": "2026-09-05T08:29:49.215Z",
+        "missing_interval_delta": [
+          135819,
+          132224,
+          593,
+          158
+        ],
+        "delta_identical_call_outside_interval": []
+      },
+      {
+        "turn": "b251529ee1cb5f8138bfc6e810b309097644339313ebe9fda9b1a5cfeb00e88e",
+        "source": "dev-main",
+        "current": [
+          7037641,
+          6871808,
+          18418,
+          9953
+        ],
+        "observed": [
+          7228945,
+          7060992,
+          18872,
+          10150
+        ],
+        "calls": 46,
+        "start": "2026-09-05T08:16:18.770Z",
+        "end": "2026-09-05T08:28:06.370Z",
+        "missing_interval_delta": [
+          191304,
+          189184,
+          454,
+          197
+        ],
+        "delta_identical_call_outside_interval": []
+      },
+      {
+        "turn": "273cb97d29a09983eb8bc304a73de9a514c114e61dd42ac0043e86f562cbb626",
+        "source": "dev-jeff",
+        "current": [
+          1026163,
+          1010304,
+          1263,
+          270
+        ],
+        "observed": [
+          1214712,
+          1135616,
+          1656,
+          487
+        ],
+        "calls": 18,
+        "start": "2026-09-05T04:49:33.074Z",
+        "end": "2026-09-05T04:56:05.003Z",
+        "missing_interval_delta": [
+          188549,
+          125312,
+          393,
+          217
+        ],
+        "delta_identical_call_outside_interval": []
+      }
+    ]
+  },
+  "original_source_review": [
+    {
+      "turn": "0e0d9658bc4892d73db8f99cfdd53fec8f5654af0650fdc0774d17ca49567f43",
+      "source_hash": "5c002b04082e680c7358cc294221e8f1fcfcc9172e4e523562e23716bb942c12",
+      "context_times_in_interval": [
+        "2026-08-29T10:00:22.029Z",
+        "2026-08-29T10:18:32.132Z"
+      ],
+      "delta_matches": [
+        {
+          "at": "2026-08-29T10:18:48.076Z",
+          "active_turn_hash": "d1df57d4a68ff7b7219e2e27cba09d24dd8571ad3db0cce4bc18759562d8de1b"
+        }
+      ],
+      "invalid_candidate_json": 0,
+      "task_start_count": 1,
+      "last_task_starts": [
+        "2026-08-29T09:16:23.759Z"
+      ],
+      "baseline_by_timestamp": {
+        "at": "2026-08-29T09:58:52.964Z",
+        "total": [
+          1788060394,
+          1751803648,
+          4111499,
+          1262860
+        ]
+      },
+      "final_by_timestamp": {
+        "at": "2026-08-29T10:18:48.076Z",
+        "total": [
+          1803023682,
+          1766236160,
+          4139756,
+          1270844
+        ]
+      },
+      "first_in_interval": {
+        "at": "2026-08-29T10:00:22.030Z",
+        "total": [
+          1788060394,
+          1751803648,
+          4111499,
+          1262860
+        ],
+        "last": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_at": "2026-08-29T09:58:52.964Z",
+        "previous_total": [
+          1788060394,
+          1751803648,
+          4111499,
+          1262860
+        ]
+      },
+      "sum_last_in_interval": [
+        14963288,
+        14432512,
+        28257,
+        7984
+      ],
+      "nonreconciling": [],
+      "unchanged_source": true,
+      "other_turn_calls_in_same_source_interval": [
+        {
+          "turn": "d1df57d4a68ff7b7219e2e27cba09d24dd8571ad3db0cce4bc18759562d8de1b",
+          "calls": 1,
+          "tokens": [
+            193200,
+            29440,
+            639,
+            167
+          ],
+          "counter_statuses": "last_call_reconciles"
+        }
+      ]
+    },
+    {
+      "turn": "462e3b6065a3f8521a1740bef39db506f5f97b6ca386d3e86c6ac432593e006c",
+      "source_hash": "92000e1feee185088d1332306452813fb41878ed88fac6c9a2df419a001dd397",
+      "context_times_in_interval": [
+        "2026-09-01T07:39:09.045Z"
+      ],
+      "delta_matches": [],
+      "invalid_candidate_json": 3,
+      "task_start_count": 1,
+      "last_task_starts": [
+        "2026-09-01T07:27:43.684Z"
+      ],
+      "baseline_by_timestamp": {
+        "at": "2026-09-01T07:37:50.851Z",
+        "total": [
+          116167617,
+          111850240,
+          394801,
+          134168
+        ]
+      },
+      "final_by_timestamp": {
+        "at": "2026-09-01T07:45:51.564Z",
+        "total": [
+          120224412,
+          115793664,
+          408332,
+          139407
+        ]
+      },
+      "first_in_interval": {
+        "at": "2026-09-01T07:39:09.046Z",
+        "total": [
+          116167617,
+          111850240,
+          394801,
+          134168
+        ],
+        "last": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_at": "2026-09-01T07:37:50.851Z",
+        "previous_total": [
+          116167617,
+          111850240,
+          394801,
+          134168
+        ]
+      },
+      "sum_last_in_interval": [
+        3972646,
+        3861760,
+        13382,
+        5223
+      ],
+      "nonreconciling": [
+        {
+          "at": "2026-09-01T07:42:09.597Z",
+          "delta": [
+            168502,
+            165376,
+            382,
+            82
+          ],
+          "last": [
+            84353,
+            83712,
+            233,
+            66
+          ]
+        }
+      ],
+      "unchanged_source": true,
+      "other_turn_calls_in_same_source_interval": []
+    },
+    {
+      "turn": "18dea23eb838e4843a533276c14b13e2f5eeeae7acbbc764280a5279682c5fda",
+      "source_hash": "92000e1feee185088d1332306452813fb41878ed88fac6c9a2df419a001dd397",
+      "context_times_in_interval": [
+        "2026-09-01T08:12:56.691Z"
+      ],
+      "delta_matches": [],
+      "invalid_candidate_json": 3,
+      "task_start_count": 1,
+      "last_task_starts": [
+        "2026-09-01T08:10:06.210Z"
+      ],
+      "baseline_by_timestamp": {
+        "at": "2026-09-01T08:11:49.331Z",
+        "total": [
+          122798678,
+          118310912,
+          410927,
+          140217
+        ]
+      },
+      "final_by_timestamp": {
+        "at": "2026-09-01T08:21:55.753Z",
+        "total": [
+          127609381,
+          122988288,
+          428196,
+          147866
+        ]
+      },
+      "first_in_interval": {
+        "at": "2026-09-01T08:12:56.692Z",
+        "total": [
+          122798678,
+          118310912,
+          410927,
+          140217
+        ],
+        "last": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_at": "2026-09-01T08:11:49.331Z",
+        "previous_total": [
+          122798678,
+          118310912,
+          410927,
+          140217
+        ]
+      },
+      "sum_last_in_interval": [
+        4707139,
+        4574208,
+        17131,
+        7624
+      ],
+      "nonreconciling": [
+        {
+          "at": "2026-09-01T08:17:32.510Z",
+          "delta": [
+            207329,
+            206336,
+            674,
+            371
+          ],
+          "last": [
+            103765,
+            103168,
+            536,
+            346
+          ]
+        }
+      ],
+      "unchanged_source": true,
+      "other_turn_calls_in_same_source_interval": []
+    },
+    {
+      "turn": "3b0cb3a04407868a4c61dcd9415b8c88bf8bf2733dc3d3cba2a217abc6f95ab2",
+      "source_hash": "5b323dbc99a5a4119ab30568cffb434aaac9529f625cca483b3ebf809d8df23a",
+      "context_times_in_interval": [
+        "2026-09-02T05:45:31.908Z",
+        "2026-09-02T06:04:34.252Z"
+      ],
+      "delta_matches": [],
+      "invalid_candidate_json": 1,
+      "task_start_count": 1,
+      "last_task_starts": [
+        "2026-09-02T03:15:38.478Z"
+      ],
+      "baseline_by_timestamp": {
+        "at": "2026-09-02T05:44:13.102Z",
+        "total": [
+          259390977,
+          252306944,
+          816482,
+          287056
+        ]
+      },
+      "final_by_timestamp": {
+        "at": "2026-09-02T06:04:34.252Z",
+        "total": [
+          264372010,
+          257056896,
+          832540,
+          292401
+        ]
+      },
+      "first_in_interval": {
+        "at": "2026-09-02T05:45:31.908Z",
+        "total": [
+          259390977,
+          252306944,
+          816482,
+          287056
+        ],
+        "last": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_at": "2026-09-02T05:44:13.102Z",
+        "previous_total": [
+          259390977,
+          252306944,
+          816482,
+          287056
+        ]
+      },
+      "sum_last_in_interval": [
+        4844710,
+        4614528,
+        15376,
+        4808
+      ],
+      "nonreconciling": [
+        {
+          "at": "2026-09-02T06:04:34.252Z",
+          "delta": [
+            273560,
+            271616,
+            808,
+            567
+          ],
+          "last": [
+            137237,
+            136192,
+            126,
+            30
+          ]
+        }
+      ],
+      "unchanged_source": true,
+      "other_turn_calls_in_same_source_interval": [
+        {
+          "turn": "c13a4ab4cd820406d1524c51842531fdede6e528de6c4837bb5cd257fdb0b4a1",
+          "calls": 2,
+          "tokens": [
+            287140,
+            280576,
+            732,
+            308
+          ],
+          "counter_statuses": "last_call_reconciles"
+        }
+      ]
+    },
+    {
+      "turn": "b25b16d86afb1cb62b1d6db8d568e72ddc2dc83e392b305dedb1148747927575",
+      "source_hash": "02ae2e1e134fd4ba035c7fb08c3d72fa2c8531d45fd13f0e24c8456d5b02dfd3",
+      "context_times_in_interval": [
+        "2026-09-05T08:18:58.392Z",
+        "2026-09-05T08:29:19.237Z"
+      ],
+      "delta_matches": [
+        {
+          "at": "2026-09-05T08:29:36.175Z",
+          "active_turn_hash": "c07b85056cd42fabf91e3bdb7c0d3f7ad7bd5e7e855de118716d8fb2dd78abf1"
+        }
+      ],
+      "invalid_candidate_json": 0,
+      "task_start_count": 1,
+      "last_task_starts": [
+        "2026-09-05T08:02:02.786Z"
+      ],
+      "baseline_by_timestamp": {
+        "at": "2026-09-05T08:17:42.562Z",
+        "total": [
+          2711089321,
+          2653021952,
+          9965396,
+          3289882
+        ]
+      },
+      "final_by_timestamp": {
+        "at": "2026-09-05T08:29:36.175Z",
+        "total": [
+          2714185389,
+          2656008704,
+          9979541,
+          3295584
+        ]
+      },
+      "first_in_interval": {
+        "at": "2026-09-05T08:18:58.393Z",
+        "total": [
+          2711089321,
+          2653021952,
+          9965396,
+          3289882
+        ],
+        "last": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_at": "2026-09-05T08:17:42.562Z",
+        "previous_total": [
+          2711089321,
+          2653021952,
+          9965396,
+          3289882
+        ]
+      },
+      "sum_last_in_interval": [
+        3096068,
+        2986752,
+        14145,
+        5702
+      ],
+      "nonreconciling": [],
+      "unchanged_source": true,
+      "other_turn_calls_in_same_source_interval": [
+        {
+          "turn": "c07b85056cd42fabf91e3bdb7c0d3f7ad7bd5e7e855de118716d8fb2dd78abf1",
+          "calls": 1,
+          "tokens": [
+            135819,
+            132224,
+            593,
+            158
+          ],
+          "counter_statuses": "last_call_reconciles"
+        }
+      ]
+    },
+    {
+      "turn": "b251529ee1cb5f8138bfc6e810b309097644339313ebe9fda9b1a5cfeb00e88e",
+      "source_hash": "1b6c7951b850c9713bfd74a790093936605c2372a96d5e34f2eb9244a306eaa2",
+      "context_times_in_interval": [
+        "2026-09-05T08:16:18.770Z",
+        "2026-09-05T08:27:36.394Z"
+      ],
+      "delta_matches": [
+        {
+          "at": "2026-09-05T08:27:48.894Z",
+          "active_turn_hash": "e31986f32fd490fddb41becbd3e3b759fe9fd301ec59f6051575d39c0bfc6396"
+        }
+      ],
+      "invalid_candidate_json": 3,
+      "task_start_count": 1,
+      "last_task_starts": [
+        "2026-09-05T07:54:03.715Z"
+      ],
+      "baseline_by_timestamp": {
+        "at": "2026-09-05T08:14:37.095Z",
+        "total": [
+          5096458864,
+          4959785984,
+          11714276,
+          3794731
+        ]
+      },
+      "final_by_timestamp": {
+        "at": "2026-09-05T08:27:48.894Z",
+        "total": [
+          5103687809,
+          4966846976,
+          11733148,
+          3804881
+        ]
+      },
+      "first_in_interval": {
+        "at": "2026-09-05T08:16:18.817Z",
+        "total": [
+          5096458864,
+          4959785984,
+          11714276,
+          3794731
+        ],
+        "last": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_at": "2026-09-05T08:14:37.095Z",
+        "previous_total": [
+          5096458864,
+          4959785984,
+          11714276,
+          3794731
+        ]
+      },
+      "sum_last_in_interval": [
+        7228945,
+        7060992,
+        18872,
+        10150
+      ],
+      "nonreconciling": [],
+      "unchanged_source": true,
+      "other_turn_calls_in_same_source_interval": [
+        {
+          "turn": "e31986f32fd490fddb41becbd3e3b759fe9fd301ec59f6051575d39c0bfc6396",
+          "calls": 1,
+          "tokens": [
+            191304,
+            189184,
+            454,
+            197
+          ],
+          "counter_statuses": "last_call_reconciles"
+        }
+      ]
+    },
+    {
+      "turn": "273cb97d29a09983eb8bc304a73de9a514c114e61dd42ac0043e86f562cbb626",
+      "source_hash": "1bbf47319ca7d2015318417601059202b7377d7e499fa1a3e0129eb489c85cfb",
+      "context_times_in_interval": [
+        "2026-09-05T04:49:33.074Z",
+        "2026-09-05T04:55:35.019Z"
+      ],
+      "delta_matches": [],
+      "invalid_candidate_json": 0,
+      "task_start_count": 1,
+      "last_task_starts": [
+        "2026-09-04T14:19:18.471Z"
+      ],
+      "baseline_by_timestamp": {
+        "at": "2026-09-05T04:48:24.252Z",
+        "total": [
+          1057758582,
+          1034627072,
+          3820345,
+          1474844
+        ]
+      },
+      "final_by_timestamp": {
+        "at": "2026-09-05T04:55:58.019Z",
+        "total": [
+          1058973294,
+          1035762688,
+          3822001,
+          1475331
+        ]
+      },
+      "first_in_interval": {
+        "at": "2026-09-05T04:49:33.076Z",
+        "total": [
+          1057758582,
+          1034627072,
+          3820345,
+          1474844
+        ],
+        "last": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "previous_at": "2026-09-05T04:48:24.252Z",
+        "previous_total": [
+          1057758582,
+          1034627072,
+          3820345,
+          1474844
+        ]
+      },
+      "sum_last_in_interval": [
+        1214712,
+        1135616,
+        1656,
+        487
+      ],
+      "nonreconciling": [],
+      "unchanged_source": true,
+      "other_turn_calls_in_same_source_interval": [
+        {
+          "turn": "682aa96a01811973df283432ef5b16c2d8711e09b2e6efbf24fe9dd72b81f1b8",
+          "calls": 3,
+          "tokens": [
+            188549,
+            125312,
+            393,
+            217
+          ],
+          "counter_statuses": "last_call_reconciles"
+        }
+      ]
+    }
+  ],
+  "interpretation": {
+    "independent_provider_ledger": false,
+    "whole_turn_comparison": "339 exact; 280 current higher; 3 zero projections with no current calls",
+    "interval_comparison": "615 exact, including the three zero cases; four later-turn crossings and three cumulative/last-response gaps explain seven differences",
+    "counter_gap_components": {
+      "input": 324036,
+      "cached": 320256,
+      "output": 969,
+      "reasoning_included_in_output": 578
+    },
+    "new_synthetic_calls_added": 0,
+    "missing_service_tier_resolved": false,
+    "missing_capacity_points_resolved": false
+  },
+  "reproduction": {
+    "inputs": "Decompress scheduling-main.jsonl.gz, scheduling-jeff.jsonl.gz and scheduling-monitoring.jsonl.gz from this directory. Verify their decompressed SHA-256 values against summary.input_sha256.",
+    "grouping": "Select kind=scheduling_usage. Group by exact hashed turn; require one distinct (input,cached,output,reasoning,total) tuple per group. Count outcome hashes independently. All 622 groups meet this condition.",
+    "whole_turn_query": "Use summary.comparison_sql against attached usage=joined-calls.sqlite3 and replay=replay-audit-v2.sqlite3. Bind (turn,scope), with scope all_candidates or replay_corrected. Compare its four token sums with the observed tuple.",
+    "interval_query": "Use terminal_interval.sql against joined-calls.sqlite3. Bind the hashed turn, UTC started_at converted to Unix seconds, and UTC terminal_at converted to Unix seconds. Compare four sums including zero-result sums.",
+    "interpretation_boundary": "A timestamp interval may straddle a physical turn-context change or contain several events at one millisecond. Original-source review retains context changes, last/cumulative disagreements and the neighboring turn sums. Do not infer missing requests from cumulative residuals."
+  },
+  "implementation_review": {
+    "current_code_not_historical_deployment_attestation": true,
+    "reverse_reader": "burn_observed_usage.py finds final cumulative totals, then the nearest matching event normalized as task_started; rollout_state_scan.py also normalizes turn_context as task_started.",
+    "main_code_sha256": {
+      "burn_observed_usage.py": "a3f1247d70012590bfb68152293d80d3fcb7f74961790aa4335daeba681f8f72",
+      "_app_server/rollout_state_scan.py": "078aae61bbb156328058b608b7d46c08ef8f34fbf13bf271d169db06054ea0ac",
+      "control_plane/scheduling_outcome_storage.py": "1889c217c68fd90d3de226682d267a513e7d2e7a08017a49b2d75623df17eb9b"
+    }
+  },
+  "additional_source_checks": {
+    "monitoring_pre_astra_backup_rows": 173,
+    "backup_all_column_differences_both_directions": [
+      0,
+      0
+    ],
+    "other_local_platform_state_databases_with_outcome_or_usage_tables": 0,
+    "other_main_platform_state_databases_with_outcome_or_usage_tables": 0,
+    "fsn1_search_roots": [
+      "/srv/aipc",
+      "/srv/aipc-cold"
+    ],
+    "historical_main_search_roots": [
+      "/opt/pitchai-cli-thomas",
+      "/opt/pitchai-code",
+      "/root/.codex"
+    ],
+    "additional_control_plane_files_found_in_those_roots": 0,
+    "limitation": "No claim of a filesystem-wide or provider-side ledger search beyond the named accessible runtime roots."
+  },
+  "extractor_sha256": "09078ef25b5a50706bbf465b37a0935c94e6ee3f54c0aaaa0f58a0f16c17407f"
+}

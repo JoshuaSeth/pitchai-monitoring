@@ -1,0 +1,3 @@
+# Capacity section plan
+
+Purpose: show change over time and the limits of model/effort attribution. Cover dated versus fixed prices, controlled hours, account/epoch counts, cache and reasoning shares, token/quota ratios, sensitivities and the GPT-5.5 coverage outlier. Sources: annotated cohort-comparisons.json and hourly_analysis.csv. Component: historical cost ledger sensitivity tables. Use a clear table and slope interpretation. Implicit message: conditional associations survive some controls but cannot isolate every mechanism. Exclude a causal ranking or xhigh/max cost assertion. Open doubts: work and period remain confounded with effort and model.

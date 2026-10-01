@@ -39,7 +39,10 @@ _REQUIRED_NAMES = {
     "DePlanBook CMS",
     "DePlanBook Play",
     "Orthoparse",
-    "QuickChat RSR",
+    "PitchAI public website",
+    "QuickChat Waddinxveen demo",
+    "Orthodontie Ridderkerk",
+    "Orthodontie Walburg",
     "potAIto / Aardappelprijs",
 }
 
@@ -71,7 +74,7 @@ def _report_payload(*, success: bool = True) -> JsonObject:
     return json_object(raw)
 
 
-def test_inventory_is_the_exact_reviewed_fourteen_lane_set() -> None:
+def test_inventory_is_the_exact_reviewed_lane_set() -> None:
     """Keep every discovered lane, tag, reminder, and timing policy canonical."""
     inventory = HOTPATH_TYPES.load_inventory(str(_INVENTORY_PATH))
     names = {lane.name for lane in inventory.lanes}
@@ -82,8 +85,9 @@ def test_inventory_is_the_exact_reviewed_fourteen_lane_set() -> None:
         domain_counts[lane.primary_domain] = domain_counts.get(lane.primary_domain, 0) + 1
     if len(inventory.lanes) != len(_REQUIRED_NAMES) or names != _REQUIRED_NAMES:
         pytest.fail(f"unexpected hotpath inventory: {sorted(names)}")
-    if len(reminder_ids) != len(_REQUIRED_NAMES) or len(agent_ids) != len(_REQUIRED_NAMES):
-        pytest.fail("hotpath reminders and agents must be one-to-one with lanes")
+    # One existing QuickChat worker owns three report identities and two schedules.
+    if len(reminder_ids) != len(_REQUIRED_NAMES) - 1 or len(agent_ids) != len(_REQUIRED_NAMES) - 2:
+        pytest.fail("only the explicit QuickChat report identities may share an owner/schedule")
     duplicate_domains: set[str] = set()
     for domain, count in domain_counts.items():
         if count > 1:

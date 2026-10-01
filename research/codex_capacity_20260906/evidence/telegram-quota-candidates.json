@@ -1,0 +1,2168 @@
+{
+  "schema": 1,
+  "reports_queried": 219,
+  "first_report_at": "2026-06-16T20:27:59.793264",
+  "last_report_at": "2026-09-06T05:12:12.230558",
+  "report_classification": {
+    "without_candidates": 149,
+    "with_candidates": 70
+  },
+  "candidate_lines": 103,
+  "qualification": "Narrative candidates only. Receipt time is not provider observation time. Grammar projection omits all nonallowlisted text and cannot resolve every ambiguity.",
+  "candidates": [
+    {
+      "reported_at": "2026-07-14T18:04:04.945231",
+      "message_sha256": "f2c1b12daebdc7198ea42588058990212da651a7e34cedf726b84a560b49f992",
+      "line_sha256": "e235ef1213f0bfbcc1a7bf7c04f667d1b7fc869efd59cc113647ce6dbb2d297a",
+      "line_number": 20,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        7.0,
+        45.0,
+        154.0,
+        91.0,
+        213.0,
+        321.0,
+        8.0,
+        16.0,
+        23.0
+      ],
+      "explicit_instants": [],
+      "grammar": "7% | 45% | 154% | 91% | 213% | 321% | A05 | 8% | 16% | 23% | Live | not",
+      "preceding_context": "after | 72% | not",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-17T09:42:23.186886",
+      "message_sha256": "fcb819ff5bde009d51eb5cf3f5279f28040d9bc25eef0608fa8ffd7332b79573",
+      "line_sha256": "a31e006500d7c08b023c15e8915b4523f1f8472ecd6cb9d5ec436d3ea2d3561f",
+      "line_number": 4,
+      "current_requester_route": true,
+      "accounts": [
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        100.0,
+        28.0
+      ],
+      "explicit_instants": [],
+      "grammar": "Fresh | A03 | A05 | A06 | A04 | 100% | weekly | left | A08 | 28% | left",
+      "preceding_context": "weekly | 66% | Five-hour | not | reported",
+      "report_windows": [
+        "Five-hour",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-17T09:42:23.186886",
+      "message_sha256": "fcb819ff5bde009d51eb5cf3f5279f28040d9bc25eef0608fa8ffd7332b79573",
+      "line_sha256": "7f0a6884fd6e28f0c341b27a5092b7bdde7c0bb4cc8ea0aec8b5a6b1e0bdc600",
+      "line_number": 6,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "100% | weekly | used | UTC | A01 | weekly | UTC",
+      "preceding_context": "Fresh | A03 | A05 | A06 | A04 | 100% | weekly | left | A08 | 28% | left | A08 | A08 | fresh | quota",
+      "report_windows": [
+        "Five-hour",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-17T09:42:23.186886",
+      "message_sha256": "fcb819ff5bde009d51eb5cf3f5279f28040d9bc25eef0608fa8ffd7332b79573",
+      "line_sha256": "ed8fdad2d328065005ce4301be461eee4246248a6e4fd6857aa1d090a3f1739d",
+      "line_number": 7,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        62.0,
+        72.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A08 | 62% | to | 72% | used | weekly | tokens | no | not",
+      "preceding_context": "A08 | A08 | fresh | quota | 100% | weekly | used | UTC | A01 | weekly | UTC",
+      "report_windows": [
+        "Five-hour",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-17T13:00:26.404962",
+      "message_sha256": "af754faa7477a0246ac08d76f22867ab112c8c063d46d52351bf6451ca79532d",
+      "line_sha256": "fbdec7e79a804393877bb43030ff7640a846844a07cb324291fe0620b0706dd1",
+      "line_number": 10,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        69.0
+      ],
+      "explicit_instants": [],
+      "grammar": "69% | from | A05 | A05",
+      "preceding_context": "to | week | week",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-18T18:09:26.508221",
+      "message_sha256": "9639e3384efbe3564bf2b02c8f73d7d471e9e9a2f6a41e10e766ce78ee3a28f2",
+      "line_sha256": "33d498abe0f329992b2ea26366d7941eedfa7b7fb87728cac0e84f20d1774784",
+      "line_number": 23,
+      "current_requester_route": false,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        98.0
+      ],
+      "explicit_instants": [],
+      "grammar": "98% | used | free | storage | A08",
+      "preceding_context": "before",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-18T21:51:21.806171",
+      "message_sha256": "944e4924422cd1da893e037ef08a32beada28e64eebf6f8acd1b74e53b10c6e0",
+      "line_sha256": "1d073e812b2739b104ad6e3a3f41c32edd81de1b66e4602b86d3b98612667d7c",
+      "line_number": 2,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        48.0,
+        62.0,
+        15.0,
+        20.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A06 | A04 | A08 | A01 | 48% | 62% | weekly | used | 15% | 20% | A05 | weekly",
+      "preceding_context": "live | A06 | other | no",
+      "report_windows": [
+        "5h",
+        "Weekly",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-18T21:51:21.806171",
+      "message_sha256": "944e4924422cd1da893e037ef08a32beada28e64eebf6f8acd1b74e53b10c6e0",
+      "line_sha256": "f71539cb941c95ecb6a32e82173b539a804e97ce03a0008e6ca30fe49ab71a8c",
+      "line_number": 3,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        100.0,
+        38.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        80.0,
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "Weekly | left | reset | UTC | 100% | A01 | 38% | 100% | A06 | 100% | A04 | 100% | A08 | 100% | 80% | A05 | 0% | no | 5h",
+      "preceding_context": "live | A06 | other | no | A06 | A04 | A08 | A01 | 48% | 62% | weekly | used | 15% | 20% | A05 | weekly",
+      "report_windows": [
+        "5h",
+        "Weekly",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-20T04:51:56.244751",
+      "message_sha256": "1f740d546ab50a91da0b867aed83734eef2fb712382ac3de62d4052af1e290fa",
+      "line_sha256": "4295f50da13c6bc4c96461dd344d73d81d0d5a6bbb6352bf32e9aeaf208d2dda",
+      "line_number": 2,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        39.1
+      ],
+      "explicit_instants": [
+        "2026-07-25 03:25 UTC",
+        "2026-07-21 02:30 UTC"
+      ],
+      "grammar": "all | A03 | A04 | A01 | A06 | A05 | A08 | weekly | quota | reset | UTC | 5h | all | no | weekly | 39.1% | UTC",
+      "preceding_context": "Codex",
+      "report_windows": [
+        "5h",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-20T05:17:30.628817",
+      "message_sha256": "273c8785aab6f974d58ca85d1bbe33074bb35856d3bb20e510ae468abbf4fc4d",
+      "line_sha256": "273c8785aab6f974d58ca85d1bbe33074bb35856d3bb20e510ae468abbf4fc4d",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        100.0,
+        99.6,
+        99.2,
+        100.0,
+        94.0
+      ],
+      "explicit_instants": [
+        "2026-07-20 05:18 CEST",
+        "2026-07-19 15:14 UTC"
+      ],
+      "grammar": "CEST | NOT | without | no | 100% | 99.6% | 99.2% | 100% | 94% | used | No | No | TODAY | UTC | CEST | remaining | no | storage | to | disk | no | NOT | before | No | A08 | no | to | to | all | UTC | fresh | no | quota | probe | stale | today | storage | before | disk",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-22T01:15:07.791501",
+      "message_sha256": "67d7322c88244e504c1bc9a91ffc16df3412523c9b35859b80b69c19e676e44c",
+      "line_sha256": "67d7322c88244e504c1bc9a91ffc16df3412523c9b35859b80b69c19e676e44c",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A06"
+      ],
+      "percentages": [
+        97.0
+      ],
+      "explicit_instants": [],
+      "grammar": "no | from | from | storage | No | no | not | from | none | live | Other | not | all | available | memory | free | disk | CPU | 97% | used | free | used | A06 | to | No",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-22T04:56:39.326172",
+      "message_sha256": "6174f25ec05fa0f3c0124bb64a7f9a2ca55fc52321681bd6b1a737bbf3a621cb",
+      "line_sha256": "0fc989cc065343c6ffc1ecaa3319baf11d298a06bcf1ba98a3a44dbeb80f2183",
+      "line_number": 3,
+      "current_requester_route": true,
+      "accounts": [
+        "A03",
+        "A08"
+      ],
+      "percentages": [
+        71.0,
+        16.0,
+        1.0,
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "Weekly | A08 | 71% | 16% | A03 | 1% | all | others | 0% | UTC | Five-hour | all",
+      "preceding_context": "Codex | all | A03 | fresh | All",
+      "report_windows": [
+        "Five-hour",
+        "Weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-25T04:57:34.509086",
+      "message_sha256": "5c55c532d35940026c8c04bec14456aa599a5f957fc7eba0ec5dc91d9ac0fe99",
+      "line_sha256": "5c55c532d35940026c8c04bec14456aa599a5f957fc7eba0ec5dc91d9ac0fe99",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A06"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "invoice | to | unavailable | left | All | other | live | no | invoice | invoice | bank | invoice | invoice | unavailable | from | no | invoice | invoice | Other | 100% | performance | A06 | No | no",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-26T01:24:56.957037",
+      "message_sha256": "a9599e01b9c5ef096ab94b6be413629ff9c7a980191479d6b3ec509b71123785",
+      "line_sha256": "4d81e026e990fc0397c290eee35971c35575c4b8e9aecd6cb8d17a1b0d4e6a23",
+      "line_number": 7,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        88.0,
+        36.0,
+        94.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | memory | available | 88% | free | CPU | 36% | 94% | free | no | No",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-26T04:42:17.552574",
+      "message_sha256": "8fc5febcba3b03fd54b6f604f9bf2d20d67daecc242c89cfdf009163d1cb8273",
+      "line_sha256": "8fc5febcba3b03fd54b6f604f9bf2d20d67daecc242c89cfdf009163d1cb8273",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A06"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "invoice | to | unavailable | left | after | all | live | A06 | invoice | bank | invoice | invoice | to | not | no | invoice | not | Other | 100% | No | no",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-26T15:04:23.109084",
+      "message_sha256": "dacc064c0267dc1262e8a13990324916fd7a8aacd6244e499548aea8a9925fa8",
+      "line_sha256": "fb4c5e6727d9ae0f5c27669662b37e1ab6d8d36aa86ea8450a0df25fe8a4e36d",
+      "line_number": 14,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A01 | weekly | exhausted | 100% | No | reset | redeemed",
+      "preceding_context": "A06",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-26T15:04:23.109084",
+      "message_sha256": "dacc064c0267dc1262e8a13990324916fd7a8aacd6244e499548aea8a9925fa8",
+      "line_sha256": "83d80e3183488c98588d6cce6d24440d907a3e890d1357b9dfaeb7f77237181c",
+      "line_number": 16,
+      "current_requester_route": true,
+      "accounts": [
+        "A06"
+      ],
+      "percentages": [
+        18.0,
+        19.0,
+        39.0,
+        40.0
+      ],
+      "explicit_instants": [],
+      "grammar": "all | used | fresh | A06 | 18% | 19% | weekly | used | 39% | 40%",
+      "preceding_context": "A01 | weekly | exhausted | 100% | No | reset | redeemed",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-07-27T01:25:15.196385",
+      "message_sha256": "8ef6c34d8e993e8bd785dd5ec4bb2b6a5d5a1cb319fbfdcbb2293051dc2dc953",
+      "line_sha256": "bd8b099106b0ddf59e266046c3845c4f80717bc08f3b449e95d3f174df45b518",
+      "line_number": 21,
+      "current_requester_route": true,
+      "accounts": [
+        "A06"
+      ],
+      "percentages": [
+        92.11
+      ],
+      "explicit_instants": [],
+      "grammar": "A06 | no | 92.11% | no",
+      "preceding_context": "codex",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-27T19:24:07.453074",
+      "message_sha256": "73d587372ecd5be70a435018c6fa37322faa7218a0bd8f5b9b1813240623c3da",
+      "line_sha256": "a8eaef5e421297e077e3541e120a1b4cfe8a2f1acc171623ff164c746a8b292c",
+      "line_number": 29,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        38.3,
+        40.3,
+        45.5
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 38.3% | 40.3% | 45.5%",
+      "preceding_context": "61.3% | 71.5% | 59.6% | 81.7% | 83.7% | 79.2%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-28T18:25:45.283962",
+      "message_sha256": "9b5e0f2ae22805f5ab8b6bf76cf722518f2f60180a6f87d01fc3c235ad27c769",
+      "line_sha256": "5d4fbaaff42fd4afbc58105dd8bbe5e8607ec70503f174edf5309acc3179fc58",
+      "line_number": 28,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        67.3,
+        67.8,
+        72.4
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 67.3% | 67.8% | 72.4%",
+      "preceding_context": "94.5% | 95.6% | 93.8% | 85.9% | 86.8% | 84.8%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-30T18:23:58.922175",
+      "message_sha256": "0d110f3dc8c50d0d855f0e742145fa3ea846b74329d282070f9adffc0887187e",
+      "line_sha256": "98426d68a3f6040389501f1e52dc8f02e4b8345be7a9b55111a360784d58533f",
+      "line_number": 28,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        92.9,
+        94.2,
+        95.3
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 92.9% | 94.2% | 95.3%",
+      "preceding_context": "72.4% | 85.3% | 81.4% | 84.6% | 96.7% | 96.0%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-07-31T14:15:59.233051",
+      "message_sha256": "7b2dc269017869b72cdc1eb91f20e0084583cfc20aafa69cc01c668c4b04dad8",
+      "line_sha256": "7b2dc269017869b72cdc1eb91f20e0084583cfc20aafa69cc01c668c4b04dad8",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        80.0,
+        80.0,
+        20.0
+      ],
+      "explicit_instants": [],
+      "grammar": "quota | A01 | used | 80% | 80% | 20% | before | today | to | after | quota | remaining | remaining | to | No",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-01T16:33:11.357973",
+      "message_sha256": "76aa8fa4ff2113300b485e6ca1aa0c13e95a9536b45019d6e5d90c0586a23d21",
+      "line_sha256": "2b5806d41a6faa9fe45f54601da486570a4cf3552b170acf8e0034d8d562d2ac",
+      "line_number": 9,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        96.94
+      ],
+      "explicit_instants": [
+        "2026-08-03 09:04:45Z"
+      ],
+      "grammar": "A08 | reset | to | no | storage | available | 96.94% | used | no | no",
+      "preceding_context": "A08 | No | no | No | observed",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-03T04:32:21.508329",
+      "message_sha256": "cbec67fa8ccc8999fae55891d494c132566975b71bd11ce674fdbf58f77299f2",
+      "line_sha256": "aad6fc53a229f501385852885bb4b19a3dbfae684a318ac90917eaea46aae549",
+      "line_number": 11,
+      "current_requester_route": true,
+      "accounts": [
+        "A03"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "storage | 100% | A03",
+      "preceding_context": "bank | invoice | invoice | invoice | invoice | bank",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-05T14:16:39.634619",
+      "message_sha256": "01e91c57d1d1e2b13f582e9120ea48b370d8a525de2468396232ff558360540d",
+      "line_sha256": "fd72b21c3e391ce789f8e41903d6e749e3a4070e947531c2a6db4e8c6b702cb5",
+      "line_number": 2,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        90.0,
+        68.0,
+        94.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 90% | weekly | left | A01 | 68% | 94% | Weekly | exhausted | reset | UTC | A08 | A06 | A03 | A04",
+      "preceding_context": "",
+      "report_windows": [
+        "5h",
+        "Weekly",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-05T14:16:39.634619",
+      "message_sha256": "01e91c57d1d1e2b13f582e9120ea48b370d8a525de2468396232ff558360540d",
+      "line_sha256": "4ebe5ca88ec917246d09af02ff60e8fd64a25559f7e8b338d7bf1faad1fb0b29",
+      "line_number": 6,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        36.0,
+        0.0,
+        1.0,
+        12.0
+      ],
+      "explicit_instants": [],
+      "grammar": "weekly | 36% | A05 | 0% | 1% | 12% | no | 5h",
+      "preceding_context": "A04 | No | not | A04",
+      "report_windows": [
+        "5h",
+        "Weekly",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-09T18:09:07.991221",
+      "message_sha256": "1160cea7e314859a9b66e1455aa7d0dd2597c8b074992f534bce10239e4c15f2",
+      "line_sha256": "99080076644f62663d5491a21ed916af3fc48f842d848d1c9c0e746f59f08a4e",
+      "line_number": 24,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        62.9,
+        76.2,
+        90.2
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 62.9% | 76.2% | 90.2%",
+      "preceding_context": "600.1% | 197.3% | 45.7% | 45.0% | 69.7% | 94.6%",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-10T18:18:58.427721",
+      "message_sha256": "c08850d10a31afc5de7cafc27dfea90fa1b66da51abf641d19cb08a945618570",
+      "line_sha256": "d22aa80e4997b12861fd9e4ba68bdf398c97221d1d159cc6c64aa490fd177e4b",
+      "line_number": 29,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        5.3,
+        17.9,
+        69.8
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 5.3% | 17.9% | 69.8%",
+      "preceding_context": "69.9% | 78.4% | 95.6% | 94.6% | 96.7% | 99.4%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-10T21:15:01.930433",
+      "message_sha256": "8b0f3237a8a07a86974ab8a9a475a4fa04358c4b687446b11797b7ff90ca7a6a",
+      "line_sha256": "2fc81d8ac6733c256e37b3873715ce29eac4e12abe421193c5b93946c1482371",
+      "line_number": 6,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        5.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A01 | 5% | used | left | Credit | UTC | observed | A01 | UTC | CEST | redeemed | fresh | A01 | Codex | used | tokens | live | No | API | no",
+      "preceding_context": "bank | reset | stale | from | UTC | live | available | redeemed | credit | not",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-10T21:15:01.930433",
+      "message_sha256": "8b0f3237a8a07a86974ab8a9a475a4fa04358c4b687446b11797b7ff90ca7a6a",
+      "line_sha256": "be69350e790938a744186ae5779ae92c74502a5aba0b414f7f8904d60288d8b2",
+      "line_number": 9,
+      "current_requester_route": true,
+      "accounts": [
+        "A03"
+      ],
+      "percentages": [
+        5.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A03 | 5% | used | left | UTC | CEST | observed",
+      "preceding_context": "",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-10T21:15:01.930433",
+      "message_sha256": "8b0f3237a8a07a86974ab8a9a475a4fa04358c4b687446b11797b7ff90ca7a6a",
+      "line_sha256": "aaf496c31fa4cc7a1281b3f09325455126f8bea83602a3d0a5a8da1af25b0209",
+      "line_number": 11,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A08 | 0% | used | left | UTC | CEST | observed",
+      "preceding_context": "A03 | 5% | used | left | UTC | CEST | observed | 8% | used | left | UTC | CEST | observed",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-10T21:15:01.930433",
+      "message_sha256": "8b0f3237a8a07a86974ab8a9a475a4fa04358c4b687446b11797b7ff90ca7a6a",
+      "line_sha256": "47f15a28c7c698bf57ffb3898477ce99992edc6c72e87fea693dd6ae97dc5d96",
+      "line_number": 12,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 0% | used | left | UTC | CEST | observed",
+      "preceding_context": "8% | used | left | UTC | CEST | observed | A08 | 0% | used | left | UTC | CEST | observed",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-11T01:22:46.747653",
+      "message_sha256": "097fb87d0385c4965fffeb4c7840c4a269f66dd3420c3c5d1ccfa35c4e996446",
+      "line_sha256": "c9b8eaae2c62bebb91f2394b3809b5aea93756feb46a6524774aaa698b8419f9",
+      "line_number": 6,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        7.0,
+        6.0,
+        7.0
+      ],
+      "explicit_instants": [
+        "2026-08-11 21:08:33Z"
+      ],
+      "grammar": "A01 | 7% | used | CEST | 6% | 7% | from | to | A01",
+      "preceding_context": "no | from | all | A04 | A06",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-11T02:04:30.464169",
+      "message_sha256": "cfb67a0d618ac6017a65e53b6a3874116d89f35e8aae5ed528f84a0f61fd99d2",
+      "line_sha256": "e17482e903315c82fcaac26e40d4407671238ca7577ab2318bf2768b3f4fbf44",
+      "line_number": 3,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        7.0,
+        0.0,
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A01 | from | 7% | used | to | 0% | reset | available | reset | fresh | quota | 0% | no | API",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-11T03:22:04.183158",
+      "message_sha256": "e659471946f8bf184d314fde6b4dfbab6c2875b9a2cacb95e077ffa668cab966",
+      "line_sha256": "e659471946f8bf184d314fde6b4dfbab6c2875b9a2cacb95e077ffa668cab966",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A04",
+        "A06"
+      ],
+      "percentages": [
+        1.0,
+        7.0,
+        0.0
+      ],
+      "explicit_instants": [
+        "2026-08-11 21:08:33 UTC"
+      ],
+      "grammar": "A01 | reset | credit | UTC | CEST | 1% | used | remaining | observed | reset | not | 7% | to | 0% | not | A01 | reset | all | A04 | A06 | no | A01 | Codex | used | tokens | no | live | API | used",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-11T05:22:10.400153",
+      "message_sha256": "fd04cf4c67f1805aa80b1eecc0ddbc157d7419130e3a7819a40afd22c0fd5c42",
+      "line_sha256": "b0bdfa3b220e8b10df6834f7bf65d4e9c4dd51802981cb6206b084b7a89021d9",
+      "line_number": 4,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        2.0
+      ],
+      "explicit_instants": [
+        "2026-08-11 21:08:33Z"
+      ],
+      "grammar": "A01 | 2% | used | credit | CEST | from",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-11T09:22:15.910244",
+      "message_sha256": "b36ea9cb84cc867700728f227a8f740c11917da7a0547c72d17086ca3a0d2786",
+      "line_sha256": "0e2144ec6b575a93d081fc222cebb3c3c63f7aa3d91339ed11e6c57d62a07906",
+      "line_number": 6,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        3.0,
+        4.0
+      ],
+      "explicit_instants": [
+        "2026-08-11 21:08:33 UTC"
+      ],
+      "grammar": "A01 | Codex | to | free | tokens | A01 | tokens | live | 3% | 4% | No | API",
+      "preceding_context": "credit | UTC | CEST",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-11T11:22:20.458752",
+      "message_sha256": "ee76a1f22689510d0ff64f70521c4f7e50cbc62def6640386014e8b9cc6148c9",
+      "line_sha256": "015e1261880ce647c7ce8187a792119726cd04fb3fb0a1d470ffabe3975f5204",
+      "line_number": 4,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        4.0
+      ],
+      "explicit_instants": [],
+      "grammar": "fresh | A01 | 4% | remaining | available",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-11T14:58:37.648601",
+      "message_sha256": "5f8eeaff95dbb88bd108e4f74d760138c52fbeb5f1cb96bf69bdbe24380b6b94",
+      "line_sha256": "2c23dca3e084b08b7212b920d824b56ef7406d4e0881f58648cc5250bd8ffdfe",
+      "line_number": 9,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        5.0
+      ],
+      "explicit_instants": [],
+      "grammar": "All | Codex | no | not | to | A01 | A01 | snapshot | 5% | used | credit | observed | A01 | tokens",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-11T15:31:01.025907",
+      "message_sha256": "0b14e03ccef56c6fb06cf4e5f05dfd528cebfeda9a2b89db6d8188a081e57877",
+      "line_sha256": "58bb3fe380d6463fab6ee8efb064f08027ecd9c43f7e76bfb84e88201ecf0192",
+      "line_number": 15,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A02"
+      ],
+      "percentages": [
+        5.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A02 | A01 | not | from | snapshot | 5% | used | reset",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-11T15:56:26.595299",
+      "message_sha256": "ebe6b04fa854f32b2217579b53006f9ee4db89a6edc106394a1e4a2676f0f180",
+      "line_sha256": "77377cfe524b125d796d56e4d6303e1ef4d6a9c5c4b1e1498942a8da0417f40b",
+      "line_number": 4,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        5.0,
+        1.0,
+        0.0,
+        1.0,
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "Fresh | A01 | 5% | remaining | snapshot | A03 | 1% | A08 | 0% | A05 | 1% | 100% | credit | Five-hour | A04 | A06",
+      "preceding_context": "",
+      "report_windows": [
+        "Five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-11T16:34:09.896209",
+      "message_sha256": "aab3d9060cbc81cd1686a6695cbdd7306f0302aff49ac64b095496ea49915115",
+      "line_sha256": "0f738e59a5365a25723287ba13e64dfc881b38c6cf8ce6267713144875ba24f1",
+      "line_number": 9,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        98.5
+      ],
+      "explicit_instants": [],
+      "grammar": "from | to | no | No | fresh | before | A01 | disk | 98.5% | not | stale | no",
+      "preceding_context": "A08 | A05 | A01 | without",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-11T18:00:22.573323",
+      "message_sha256": "d5f7c8ca093c2e4dda8757e1b1f10983f71c6460f975d70aad88ef864a3174af",
+      "line_sha256": "1dd5ffe5a1e2fb27e49518412bba89d9f965a641115748378ee0e8801a485f9d",
+      "line_number": 5,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        5.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A01 | 5% | used | left | to | A01 | fresh",
+      "preceding_context": "Fresh | snapshot | five-hour",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-11T18:00:22.573323",
+      "message_sha256": "d5f7c8ca093c2e4dda8757e1b1f10983f71c6460f975d70aad88ef864a3174af",
+      "line_sha256": "3a0a3d1bae55998278fc96913b0af909c3eb0097233006ca8595b25913ceb83f",
+      "line_number": 6,
+      "current_requester_route": true,
+      "accounts": [
+        "A03"
+      ],
+      "percentages": [
+        1.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A03 | 1%",
+      "preceding_context": "Fresh | snapshot | five-hour | A01 | 5% | used | left | to | A01 | fresh",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-11T18:00:22.573323",
+      "message_sha256": "d5f7c8ca093c2e4dda8757e1b1f10983f71c6460f975d70aad88ef864a3174af",
+      "line_sha256": "2daf5f224ac493db6cc1e15546d082e94804109b34845429d279573121de3ace",
+      "line_number": 7,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A08 | 0%",
+      "preceding_context": "A01 | 5% | used | left | to | A01 | fresh | A03 | 1%",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-11T18:00:22.573323",
+      "message_sha256": "d5f7c8ca093c2e4dda8757e1b1f10983f71c6460f975d70aad88ef864a3174af",
+      "line_sha256": "d1f041326ee2cab54bbf13a826c881944e3352861353adc55bf3382090344d69",
+      "line_number": 9,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        15.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 15%",
+      "preceding_context": "A08 | 0% | 100%",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-12T01:48:28.420769",
+      "message_sha256": "9444fe96facd3147d64dc97aabf95ce8a2beef371d455024fbbb1f7f8c776ca6",
+      "line_sha256": "9a80ca06e72258b2cd75f3c09730ca4992f1363c7b5c042bb2d9e0f538982312",
+      "line_number": 5,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A05",
+        "A08"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "Weekly | observed | A03 | A01 | A08 | 100% | used | A05 | Five-hour | unavailable",
+      "preceding_context": "observed | A04 | A06 | free",
+      "report_windows": [
+        "Five-hour",
+        "Weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-12T03:46:37.164113",
+      "message_sha256": "d55db6f1ea271e324606854d37b8fa165bf7e813068be98679229fe332bf7abf",
+      "line_sha256": "d55db6f1ea271e324606854d37b8fa165bf7e813068be98679229fe332bf7abf",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "reset | credit | A04 | A06 | A01 | no | observed | remaining | A03 | A01 | fresh | A01 | no | A08 | no | 100% | reset | A05 | Five-hour | not | A05 | none",
+      "preceding_context": "",
+      "report_windows": [
+        "Five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-12T05:52:18.460785",
+      "message_sha256": "d5f7adb7cc7eb461b59584e265a7d448bcd12297859af49cef3a7b073616601c",
+      "line_sha256": "6ab9ff8ba8b9dcafe0090c46900e7ce9a0192ab67543be51a822eb7aae1decf6",
+      "line_number": 4,
+      "current_requester_route": true,
+      "accounts": [
+        "A03",
+        "A05"
+      ],
+      "percentages": [
+        1.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A03 | snapshot | 1% | used | credit | A05 | A03 | before | no | credit",
+      "preceding_context": "no | no",
+      "report_windows": [
+        "Five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-12T05:52:18.460785",
+      "message_sha256": "d5f7adb7cc7eb461b59584e265a7d448bcd12297859af49cef3a7b073616601c",
+      "line_sha256": "7763476a063554111a628d46d9f1346df6da201b515c9894b02741f58f07525e",
+      "line_number": 10,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A05",
+        "A08"
+      ],
+      "percentages": [
+        1.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A01 | A01 | 1% | remaining | credit | A05 | A01 | A08 | A03",
+      "preceding_context": "fresh | remaining | bank | A01 | redeemed | A03 | A04 | A06 | fresh | available | No",
+      "report_windows": [
+        "Five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-12T07:38:13.887660",
+      "message_sha256": "dcac43b652be67249d72ddaff6a9668d5522b6b3932ac8a2345d5c2ff34b1244",
+      "line_sha256": "dcac43b652be67249d72ddaff6a9668d5522b6b3932ac8a2345d5c2ff34b1244",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        1.0
+      ],
+      "explicit_instants": [],
+      "grammar": "Reset | credit | A03 | A04 | A06 | No | no | from | A01 | observed | A08 | observed | A05 | observed | A03 | observed | fresh | Five-hour | fresh | 1% | credit | A08 | A05 | A03 | no | Fresh | credit | redeemed | stale | A05 | A03 | before | not",
+      "preceding_context": "",
+      "report_windows": [
+        "Five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-12T09:31:57.802799",
+      "message_sha256": "6ab65ffc706296b9f1fd7c400d31a5f76ea4d3e3343345791a4e6d8621e64906",
+      "line_sha256": "6ab65ffc706296b9f1fd7c400d31a5f76ea4d3e3343345791a4e6d8621e64906",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "Reset | credit | fresh | A03 | A04 | A06 | No | from | A01 | observed | A08 | observed | A05 | 100% | observed | A03 | observed | fresh | All | five-hour | no | fresh | A01 | credit | A08 | A03 | no | Fresh | credit | redeemed | stale | A05 | A03 | before",
+      "preceding_context": "",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-12T10:48:36.853018",
+      "message_sha256": "361dd0d8759d535c4cace2e6c270c29727837454e4f50c20083153a71689bb05",
+      "line_sha256": "361dd0d8759d535c4cace2e6c270c29727837454e4f50c20083153a71689bb05",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A05",
+        "A08"
+      ],
+      "percentages": [
+        1.0,
+        1.0,
+        1.0,
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "after | Fresh | A01 | 1% | used | left | bank | A08 | 1% | left | A03 | 1% | left | A05 | 100% | bank | to | A01 | no | API",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-12T12:55:49.250221",
+      "message_sha256": "ced4ea200cdcb652d04979babf61add3d8a7a744e2b49de83c9c47cc9adcdfa6",
+      "line_sha256": "ced4ea200cdcb652d04979babf61add3d8a7a744e2b49de83c9c47cc9adcdfa6",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        27.0,
+        18.0,
+        19.0
+      ],
+      "explicit_instants": [],
+      "grammar": "UTC | reset | Fresh | A01 | 27% | used | remaining | A03 | 18% | remaining | A08 | 19% | remaining | to | A01 | A03 | A08 | A03 | A08 | after | A03 | not | A04 | A06 | No | API",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-12T13:56:54.221880",
+      "message_sha256": "ea2e3c53ffe3754254edc71f46f58a88b600138827343b4f615001a3103d023b",
+      "line_sha256": "ea2e3c53ffe3754254edc71f46f58a88b600138827343b4f615001a3103d023b",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A08"
+      ],
+      "percentages": [
+        58.6,
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "UTC | all | reset | reset | Codex | Codex | CPU | 58.60% | Codex | CPU | 0.00% | Codex | A01 | A03 | A08",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-12T18:21:56.113343",
+      "message_sha256": "223808a55bb3d585ce459863f7efd2be9f07f8b138c1b8be38a713f8e3a64e1e",
+      "line_sha256": "457ff59f4003e4b2a3884603ea430e2345ca3154059a927e886df0ca08c61d89",
+      "line_number": 26,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        27.8,
+        6.1,
+        65.9
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 27.8% | 6.1% | 65.9%",
+      "preceding_context": "66.3% | 57.3% | 88.1% | 79.5% | 87.7% | 98.0%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-12T20:22:05.001215",
+      "message_sha256": "cec70cb38a43d16aa55e3820dbdf8ed778af2c8631f31947c382438974d089a8",
+      "line_sha256": "cec70cb38a43d16aa55e3820dbdf8ed778af2c8631f31947c382438974d089a8",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        1.0,
+        0.0,
+        100.0,
+        0.0,
+        0.0,
+        7.0
+      ],
+      "explicit_instants": [],
+      "grammar": "Reset | Fresh | A04 | A06 | All | all | reset | no | weekly | used | A03 | 1% | A01 | 0% | 100% | A05 | 0% | A08 | 0% | 7% | A03 | reset | No | bank",
+      "preceding_context": "",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-13T20:44:29.783100",
+      "message_sha256": "0499af835ae47bd843f8b40c1369390000998b973877602eab156dd7cbd14a41",
+      "line_sha256": "6b84a2152531d89788bd78f49267758941b4b6434416602f7c0ff1985e8ebac6",
+      "line_number": 8,
+      "current_requester_route": true,
+      "accounts": [
+        "A03"
+      ],
+      "percentages": [
+        1.0,
+        99.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 04:56:31Z"
+      ],
+      "grammar": "A03 | available | 1% | used | 99% | left | reset",
+      "preceding_context": "Codex",
+      "report_windows": [
+        "5-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-13T20:44:29.783100",
+      "message_sha256": "0499af835ae47bd843f8b40c1369390000998b973877602eab156dd7cbd14a41",
+      "line_sha256": "06a97dcb2a95726c19c2ccf39bcae4b983e5ed0cf5235287902039b159bc2cd1",
+      "line_number": 10,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        0.0,
+        100.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 04:56:31Z",
+        "2026-08-20 04:14:09Z",
+        "2026-08-20 18:40:05Z"
+      ],
+      "grammar": "A05 | available | 0% | 100% | reset",
+      "preceding_context": "A03 | available | 1% | used | 99% | left | reset | available | 0% | 100% | reset",
+      "report_windows": [
+        "5-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-13T20:44:29.783100",
+      "message_sha256": "0499af835ae47bd843f8b40c1369390000998b973877602eab156dd7cbd14a41",
+      "line_sha256": "dc7ecb7448d94ffda24dff31c5bdb2b561a9e51d510aa60c4d013a21b08aeb65",
+      "line_number": 11,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        0.0,
+        100.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 04:14:09Z",
+        "2026-08-20 18:40:05Z",
+        "2026-08-20 03:43:20Z"
+      ],
+      "grammar": "A08 | available | 0% | 100% | reset",
+      "preceding_context": "available | 0% | 100% | reset | A05 | available | 0% | 100% | reset",
+      "report_windows": [
+        "5-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-13T20:44:29.783100",
+      "message_sha256": "0499af835ae47bd843f8b40c1369390000998b973877602eab156dd7cbd14a41",
+      "line_sha256": "c16a4acb8fa78f73fffa5edf8eda3cc8f508f8696878940c753d1d62bce8670c",
+      "line_number": 13,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        0.0,
+        100.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 03:43:20Z",
+        "2026-08-20 03:31:23Z",
+        "2026-08-20 04:13:26Z"
+      ],
+      "grammar": "A01 | unavailable | 0% | 100% | reset",
+      "preceding_context": "A08 | available | 0% | 100% | reset | available | 77% | 23% | reset",
+      "report_windows": [
+        "5-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-13T20:44:29.783100",
+      "message_sha256": "0499af835ae47bd843f8b40c1369390000998b973877602eab156dd7cbd14a41",
+      "line_sha256": "b0dd91f64374a4b89d630c837cbcf142f0f962c14d742febce0246dbeed50ce4",
+      "line_number": 18,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        100.0,
+        0.0
+      ],
+      "explicit_instants": [
+        "2026-08-11 19:15Z"
+      ],
+      "grammar": "Yesterday | live | CEST | reset | A03 | A01 | credit | A08 | A05 | All | reset | credit | A01 | credit | all | not | reset | yesterday | no | credit | remaining | live | 100% | 0% | today | no | not | A04 | A06 | not | reset",
+      "preceding_context": "live | Codex | 0% | no | 5-hour",
+      "report_windows": [
+        "5-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-13T20:46:12.816332",
+      "message_sha256": "8e122a65a2ca59aff04eba77c50a11ba67eaac8d820b0791c311dd073f42b726",
+      "line_sha256": "8e122a65a2ca59aff04eba77c50a11ba67eaac8d820b0791c311dd073f42b726",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A04",
+        "A06"
+      ],
+      "percentages": [
+        77.0,
+        78.0,
+        22.0
+      ],
+      "explicit_instants": [],
+      "grammar": "live | A01 | A04 | A06 | from | 77% | to | 78% | used | 22% | left | all | other | reported | reset | no | no",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-13T20:51:08.516400",
+      "message_sha256": "7e7e8465d4e5be45e3904054b78a5b9621cc13bfefbee9ebc58115a72d46b5be",
+      "line_sha256": "7e7e8465d4e5be45e3904054b78a5b9621cc13bfefbee9ebc58115a72d46b5be",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A08"
+      ],
+      "percentages": [
+        0.0,
+        36.0,
+        1.0
+      ],
+      "explicit_instants": [],
+      "grammar": "Reset | all | yesterday | redeemed | reset | credit | A01 | credit | A08 | A05 | to | 0% | reset | A03 | 36% | reset | after | reset | credit | reset | A03 | not | weekly | reset | Not | all | reset | no | credit | A04 | A06 | A03 | 1% | used | after",
+      "preceding_context": "",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-15T18:19:19.781614",
+      "message_sha256": "83db9c37418175549a01fe0b41d70c57fc39bd016012c732a46daaed29a302bd",
+      "line_sha256": "96ce7c8aa03baddb55843ef4d9c6a2e167f5d8a4ef69144bf6535e93b66efe22",
+      "line_number": 25,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        37.3,
+        35.4,
+        76.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 37.3% | 35.4% | 76.0%",
+      "preceding_context": "68.3% | 162.9% | 2.1% | 6.3% | 38.4% | 86.1%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-16T12:17:55.479066",
+      "message_sha256": "393d5b2ab225ab82de671396415a27f7ef8edf81244cf4cdf9b185703bb36a73",
+      "line_sha256": "03d5699259f2fe59dea8a77df91d44d354022a2390632096e41a8ae5ead377b1",
+      "line_number": 4,
+      "current_requester_route": true,
+      "accounts": [
+        "A03"
+      ],
+      "percentages": [
+        8.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 04:56 UTC"
+      ],
+      "grammar": "Available | A03 | weekly | 8% | used | reset | UTC",
+      "preceding_context": "",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-16T12:17:55.479066",
+      "message_sha256": "393d5b2ab225ab82de671396415a27f7ef8edf81244cf4cdf9b185703bb36a73",
+      "line_sha256": "ce49ee8eca5ab707820ec0d9bb6261ca577ccb91e917ae74c2ad6a18f7839fad",
+      "line_number": 5,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A07",
+        "A08"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 04:56 UTC"
+      ],
+      "grammar": "100% | weekly | A01 | A08 | A07 | UTC",
+      "preceding_context": "Available | A03 | weekly | 8% | used | reset | UTC",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-17T11:39:22.280327",
+      "message_sha256": "04daa68cbf594847f433bd8ad639284f1400565ab2b5a3982dfc10370a25ea54",
+      "line_sha256": "04daa68cbf594847f433bd8ad639284f1400565ab2b5a3982dfc10370a25ea54",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        100.0,
+        80.0,
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "fresh | before | free | no | no | invoice | 100% | allowance | 80% | 100% | no | left | No | A08 | other",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-17T19:48:06.347783",
+      "message_sha256": "e2eb46eaee98fb4e5900c6166c3671bb8aef5e0a02d9e04f5b35b5828695604a",
+      "line_sha256": "35bb237e722d35c78dadbfe2a10ecf47e8e1ccdd077e68fbce46cb83c521cf49",
+      "line_number": 4,
+      "current_requester_route": true,
+      "accounts": [
+        "A03"
+      ],
+      "percentages": [
+        17.0,
+        83.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 04:56:31Z"
+      ],
+      "grammar": "A03 | available | 17% | used | 83% | left | CEST | reset",
+      "preceding_context": "",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-17T19:48:06.347783",
+      "message_sha256": "e2eb46eaee98fb4e5900c6166c3671bb8aef5e0a02d9e04f5b35b5828695604a",
+      "line_sha256": "071708932dd83c6ef1b9dc64ebd72991460365d67626aef9d2f8f1f93dfdd7fb",
+      "line_number": 5,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        100.0,
+        0.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 04:56:31Z",
+        "2026-08-20 04:13:26Z"
+      ],
+      "grammar": "A01 | 100% | 0% | CEST | reset",
+      "preceding_context": "A03 | available | 17% | used | 83% | left | CEST | reset",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-17T19:48:06.347783",
+      "message_sha256": "e2eb46eaee98fb4e5900c6166c3671bb8aef5e0a02d9e04f5b35b5828695604a",
+      "line_sha256": "27496b50f0b28c30f292622f870563a2eb7d18123ec592f4a93774251b05032d",
+      "line_number": 7,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        45.0,
+        55.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 04:13:26Z",
+        "2026-08-20 04:14:10Z",
+        "2026-08-22 08:51:04Z"
+      ],
+      "grammar": "A05 | available | 45% | 55% | left | CEST | reset",
+      "preceding_context": "A01 | 100% | 0% | CEST | reset | 100% | 0% | CEST | reset",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-17T19:48:06.347783",
+      "message_sha256": "e2eb46eaee98fb4e5900c6166c3671bb8aef5e0a02d9e04f5b35b5828695604a",
+      "line_sha256": "c8886f6159e9371eb1ef6fdeeb58237532f57f04284f6b6ffde5d17e1d88d3da",
+      "line_number": 8,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        100.0,
+        0.0
+      ],
+      "explicit_instants": [
+        "2026-08-20 04:14:10Z",
+        "2026-08-22 08:51:04Z",
+        "2026-08-20 03:43:20Z"
+      ],
+      "grammar": "A08 | 100% | 0% | CEST | reset",
+      "preceding_context": "100% | 0% | CEST | reset | A05 | available | 45% | 55% | left | CEST | reset",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-17T19:48:06.347783",
+      "message_sha256": "e2eb46eaee98fb4e5900c6166c3671bb8aef5e0a02d9e04f5b35b5828695604a",
+      "line_sha256": "89709bd051384e89ff79587d3ce8c7c1acf337aff97ae9661b2f7e630caf83d9",
+      "line_number": 13,
+      "current_requester_route": true,
+      "accounts": [
+        "A04",
+        "A06"
+      ],
+      "percentages": [
+        0.0,
+        100.0
+      ],
+      "explicit_instants": [
+        "2026-08-24 17:45Z"
+      ],
+      "grammar": "All | Codex | 0% | used | 100% | left | snapshot | reset | no | five-hour | No | reported | A04 | A06 | cancelled | subscription | to | ChatGPT",
+      "preceding_context": "A06 | cancelled | remaining | reset | reset | credit | unavailable | not",
+      "report_windows": [
+        "five-hour"
+      ]
+    },
+    {
+      "reported_at": "2026-08-17T20:39:57.889427",
+      "message_sha256": "55e8802c546d33b42835ee8f22c18c05cc8f1440f715c7d4812e963978a1bae6",
+      "line_sha256": "69f9e07d7bc58efcf6ea314804795478bc00c6c719a7452e8af5fc8f35ae2712",
+      "line_number": 27,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        42.5,
+        39.8,
+        72.4
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 42.5% | 39.8% | 72.4%",
+      "preceding_context": "157.0% | 307.5% | 129.1% | 100.0% | 100.0% | 100.0%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-23T10:26:29.142030",
+      "message_sha256": "989f82da76f4a34bf9100acd16857145f856495d344d5888d03ec1a60c3a36d3",
+      "line_sha256": "7ff663f85b3c73dd142857678f9df1da55ce60e40e99a02f05cb263596fcc24d",
+      "line_number": 8,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        100.0,
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A08 | 100% | 0% | Reset | UTC | CEST | reset | UTC | CEST",
+      "preceding_context": "100% | used | 0% | remaining | Reset | UTC | CEST | reset | UTC | CEST",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-23T10:26:29.142030",
+      "message_sha256": "989f82da76f4a34bf9100acd16857145f856495d344d5888d03ec1a60c3a36d3",
+      "line_sha256": "20c28aa8ee606dbc350e17b6c73f36814ea8f41158e5cace9423d43e7c4523fd",
+      "line_number": 10,
+      "current_requester_route": true,
+      "accounts": [
+        "A03"
+      ],
+      "percentages": [
+        4.0,
+        96.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A03 | available | 4% | 96% | Reset | UTC | CEST | reset | bank | not | UTC | CEST",
+      "preceding_context": "A08 | 100% | 0% | Reset | UTC | CEST | reset | UTC | CEST | available | 0% | 100% | Reset | UTC | CEST | reset | bank | not | UTC | CEST",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-23T10:26:29.142030",
+      "message_sha256": "989f82da76f4a34bf9100acd16857145f856495d344d5888d03ec1a60c3a36d3",
+      "line_sha256": "f3f8ba47ea89aeec74dbe0986fef9667eaeb516a393092d047e16045f1da0262",
+      "line_number": 11,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        7.0,
+        93.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A01 | available | 7% | 93% | Reset | UTC | CEST | reset | bank | not | UTC | CEST",
+      "preceding_context": "available | 0% | 100% | Reset | UTC | CEST | reset | bank | not | UTC | CEST | A03 | available | 4% | 96% | Reset | UTC | CEST | reset | bank | not | UTC | CEST",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-23T10:26:29.142030",
+      "message_sha256": "989f82da76f4a34bf9100acd16857145f856495d344d5888d03ec1a60c3a36d3",
+      "line_sha256": "d677d243d3e050685588272900d9841d157e7b78570d07908706de34dd86db95",
+      "line_number": 12,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        0.0,
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | available | 0% | 100% | Reset | UTC | CEST | reset | bank | not | UTC | CEST",
+      "preceding_context": "A03 | available | 4% | 96% | Reset | UTC | CEST | reset | bank | not | UTC | CEST | A01 | available | 7% | 93% | Reset | UTC | CEST | reset | bank | not | UTC | CEST",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-24T18:19:44.507794",
+      "message_sha256": "01176303df51f5443720597594fd7fd2d6472ea072b232e04c1be2c351db69eb",
+      "line_sha256": "b7d85d0b446b9fcfba6e317e35e7d073693b23abe784a5a543c6fc6899449fac",
+      "line_number": 7,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "none | 100% | no | invoice | to | not | no | A08",
+      "preceding_context": "no | No | no",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-24T18:21:46.488271",
+      "message_sha256": "d2396ce23c14267d2683523c47a0eb63917917706aac8c4755bcd77691c8c48c",
+      "line_sha256": "438ad1aac6823a93a34920d3585cb6e84f614f4d1549bb8c03f75d7f93b29f51",
+      "line_number": 26,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        655.3,
+        471.8,
+        298.3
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 655.3% | 471.8% | 298.3%",
+      "preceding_context": "47.3% | 59.6% | 50.9% | 62.1% | 29.5% | 3.9%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-24T18:59:17.718694",
+      "message_sha256": "ab0c5b00b0164aef0f7350c934e413c11dae01b33e45c79b5a7f1902cf2b7b55",
+      "line_sha256": "ab0c5b00b0164aef0f7350c934e413c11dae01b33e45c79b5a7f1902cf2b7b55",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A01 | A01 | A01 | not | Fresh | Codex | available | Weekly | 0% | UTC | no | 5h | UTC | UTC",
+      "preceding_context": "",
+      "report_windows": [
+        "5h",
+        "Weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-25T18:24:47.998806",
+      "message_sha256": "cfa2669dbd6f72e5c874fd28219afedb06a282b08b448a2c93f356cbfa59c331",
+      "line_sha256": "06721d023786ec9754357d22798f248e3fbf12926d0ec5bbf9e0f9f93d955dc7",
+      "line_number": 26,
+      "current_requester_route": false,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        228.0,
+        319.2,
+        270.2
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 228.0% | 319.2% | 270.2%",
+      "preceding_context": "50.3% | 34.4% | 3.7% | 100.0% | 100.0% | 100.0%",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-26T01:47:27.754220",
+      "message_sha256": "84f34e2e65f683624870e8bff7a7247957c4829180d9f5237b838d077d7a2a4a",
+      "line_sha256": "84f34e2e65f683624870e8bff7a7247957c4829180d9f5237b838d077d7a2a4a",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        80.0,
+        20.0
+      ],
+      "explicit_instants": [],
+      "grammar": "quota | A01 | used | 80% | to | 20% | No | not | reset | remaining | reset | No | no",
+      "preceding_context": "",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-26T10:33:41.925857",
+      "message_sha256": "73c853346abdd2fcfc3ee1c0ff37358dce5e4f99d9df4b4ccd3cd4f7f384730a",
+      "line_sha256": "3636b8eb855e63c47b23630f8176ceb97de1dae9bc8cb903173015927e220b10",
+      "line_number": 10,
+      "current_requester_route": true,
+      "accounts": [
+        "A03"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A03 | 100% | UTC",
+      "preceding_context": "UTC",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-26T10:33:41.925857",
+      "message_sha256": "73c853346abdd2fcfc3ee1c0ff37358dce5e4f99d9df4b4ccd3cd4f7f384730a",
+      "line_sha256": "7bd9b332ff23f42374cfad1b2902440962f181960981d4332f5d51be595fd177",
+      "line_number": 11,
+      "current_requester_route": true,
+      "accounts": [
+        "A02"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A02 | 100%",
+      "preceding_context": "UTC | A03 | 100% | UTC",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-26T10:33:41.925857",
+      "message_sha256": "73c853346abdd2fcfc3ee1c0ff37358dce5e4f99d9df4b4ccd3cd4f7f384730a",
+      "line_sha256": "d7af4853f28fa7975b239cfcd5af031975849e034aa3626baaea0fcb12f32b02",
+      "line_number": 12,
+      "current_requester_route": true,
+      "accounts": [
+        "A08"
+      ],
+      "percentages": [
+        93.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A08 | 93%",
+      "preceding_context": "A03 | 100% | UTC | A02 | 100%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-26T10:33:41.925857",
+      "message_sha256": "73c853346abdd2fcfc3ee1c0ff37358dce5e4f99d9df4b4ccd3cd4f7f384730a",
+      "line_sha256": "394971d2edc30631e9ca0fe5d3174bceae351a51cc56fe82bc5bae60ce76c000",
+      "line_number": 13,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A01 | 0%",
+      "preceding_context": "A02 | 100% | A08 | 93%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-26T10:33:41.925857",
+      "message_sha256": "73c853346abdd2fcfc3ee1c0ff37358dce5e4f99d9df4b4ccd3cd4f7f384730a",
+      "line_sha256": "7421522093e0a686cb6bce9b1e2a911e21b7b4d3f1682b91c7dc09f3f98f4f23",
+      "line_number": 14,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        0.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 0%",
+      "preceding_context": "A08 | 93% | A01 | 0%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-26T12:54:04.815011",
+      "message_sha256": "103eff95fd3d446773e38f3631560e986befda248c646e0014623e080849d27c",
+      "line_sha256": "d14c402be50b27f0fce975d5bc80c3cd54764680767ecf6b1064df1aedd27dc1",
+      "line_number": 5,
+      "current_requester_route": true,
+      "accounts": [
+        "A06"
+      ],
+      "percentages": [
+        6.0,
+        2.0
+      ],
+      "explicit_instants": [],
+      "grammar": "all | storage | 6% | disk | 2% | no | A06 | to | all | no",
+      "preceding_context": "Free",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-08-26T21:50:24.857038",
+      "message_sha256": "088fc6b575e6d62c001731c8250ac1e78e15979a44312d71280c8cd78a1c6994",
+      "line_sha256": "088fc6b575e6d62c001731c8250ac1e78e15979a44312d71280c8cd78a1c6994",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A01",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A07",
+        "A08"
+      ],
+      "percentages": [
+        53.0,
+        98.0,
+        38.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 53% | weekly | left | reset | A07 | 98% | weekly | left | reset | no | A04 | A06 | Remaining | Weekly | A08 | A01 | A03 | available | 38% | weekly | left",
+      "preceding_context": "",
+      "report_windows": [
+        "Weekly",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-08-31T19:03:59.399276",
+      "message_sha256": "cc87bde3c8653018639cb2f40697249218e8d5487f7be8a8cd15ed80434b826a",
+      "line_sha256": "4c6690362c934892144d13536bef4821fbb0c639d6f1b347416531e3f26d5a4f",
+      "line_number": 21,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        62.9,
+        35.1,
+        3.5
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 62.9% | 35.1% | 3.5%",
+      "preceding_context": "98.0% | 96.2% | 92.3% | 53.4% | 81.7% | 68.9%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-09-03T12:48:08.435437",
+      "message_sha256": "3bd53991b8154e3bff1aa430ef045faa0874f88850ab9f711eb902dc10c601ed",
+      "line_sha256": "3bd53991b8154e3bff1aa430ef045faa0874f88850ab9f711eb902dc10c601ed",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        98.0,
+        1.0
+      ],
+      "explicit_instants": [],
+      "grammar": "live | never | after | to | quota | Live | A05 | 98% | weekly | left | 1% | weekly | left | no | quota",
+      "preceding_context": "",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-04T12:21:01.448155",
+      "message_sha256": "651bca399a4c8cdc250a0b6d863c18480fd327c85b72915873e4deb1654f5de8",
+      "line_sha256": "651bca399a4c8cdc250a0b6d863c18480fd327c85b72915873e4deb1654f5de8",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A04"
+      ],
+      "percentages": [
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A04 | Before | from | no | quota | After | available | A04 | Fresh | 100% | weekly | remaining | reset | UTC | no | 5-hour | banked | A04 | A04 | No",
+      "preceding_context": "",
+      "report_windows": [
+        "5-hour",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-04T17:17:43.857802",
+      "message_sha256": "e89dde55657851c3ec4b571c5a3f7c0245a5cb71dbfd1d6c6f4fd50fc5616073",
+      "line_sha256": "010b7530c87d4d858749f4e52ce6ce4894022e6abc38097c450bd5bfb8e1e659",
+      "line_number": 3,
+      "current_requester_route": true,
+      "accounts": [
+        "A06"
+      ],
+      "percentages": [
+        100.0,
+        100.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A06 | weekly | 100% | 100% | reset | after",
+      "preceding_context": "100% | reset",
+      "report_windows": [
+        "5h",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-04T17:17:43.857802",
+      "message_sha256": "e89dde55657851c3ec4b571c5a3f7c0245a5cb71dbfd1d6c6f4fd50fc5616073",
+      "line_sha256": "ec98230607ac50c799ff7869c2f5c6e140b2a889188fa6a9db9bdfb0bb367d7d",
+      "line_number": 4,
+      "current_requester_route": true,
+      "accounts": [
+        "A01"
+      ],
+      "percentages": [
+        47.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A01 | used | 47% | left",
+      "preceding_context": "A06 | weekly | 100% | 100% | reset | after",
+      "report_windows": [
+        "5h",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-04T17:17:43.857802",
+      "message_sha256": "e89dde55657851c3ec4b571c5a3f7c0245a5cb71dbfd1d6c6f4fd50fc5616073",
+      "line_sha256": "6d115045cf789dfc8281fbd40725d5a9333fbf5a30af6455ed38b9bb24cbd992",
+      "line_number": 5,
+      "current_requester_route": true,
+      "accounts": [
+        "A04"
+      ],
+      "percentages": [
+        98.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A04 | used | 98% | left",
+      "preceding_context": "A06 | weekly | 100% | 100% | reset | after | A01 | used | 47% | left",
+      "report_windows": [
+        "5h",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-04T17:17:43.857802",
+      "message_sha256": "e89dde55657851c3ec4b571c5a3f7c0245a5cb71dbfd1d6c6f4fd50fc5616073",
+      "line_sha256": "c8319d2c2ebfb10f6580a49b3e8ec75f86f7eba77f80ec7db21c5b77f60cc773",
+      "line_number": 6,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        78.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | used | 78% | left",
+      "preceding_context": "A01 | used | 47% | left | A04 | used | 98% | left",
+      "report_windows": [
+        "5h",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-04T18:49:19.510638",
+      "message_sha256": "da5b4eae832682580a3f7f0481305382156311e6f08641231a38946ed1994d14",
+      "line_sha256": "0a2b840c950013221b4517794d878c9f796c3286473eaaadce7230b558ab0f1c",
+      "line_number": 27,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        39.1,
+        48.9,
+        12.4
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 39.1% | 48.9% | 12.4%",
+      "preceding_context": "87.2% | 94.7% | 89.4% | 60.4% | 28.4% | 49.7%",
+      "report_windows": []
+    },
+    {
+      "reported_at": "2026-09-05T09:10:25.513790",
+      "message_sha256": "811fb92ce2a0992526dd41d173a7f83bb221f6377adcb857cc6dd9605e519283",
+      "line_sha256": "31c90aff1c34a0809e6bd36312d259976219b3a9e5d59d30ea73d7ddd336ec93",
+      "line_number": 6,
+      "current_requester_route": true,
+      "accounts": [
+        "A04"
+      ],
+      "percentages": [
+        96.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A04 | 96% | weekly | left | reset | live",
+      "preceding_context": "Available",
+      "report_windows": [
+        "Weekly",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-05T09:10:25.513790",
+      "message_sha256": "811fb92ce2a0992526dd41d173a7f83bb221f6377adcb857cc6dd9605e519283",
+      "line_sha256": "d27079d60ef89a0ea8b41f3c5bc75b9db9497603b8a540ce1d4be54b97cd1e42",
+      "line_number": 7,
+      "current_requester_route": true,
+      "accounts": [
+        "A05"
+      ],
+      "percentages": [
+        10.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A05 | 10% | left | reset | live",
+      "preceding_context": "Available | A04 | 96% | weekly | left | reset | live",
+      "report_windows": [
+        "Weekly",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-05T09:10:25.513790",
+      "message_sha256": "811fb92ce2a0992526dd41d173a7f83bb221f6377adcb857cc6dd9605e519283",
+      "line_sha256": "cf973b3de77430e9da325c9f9a6165623cc794151130663717e0a0bca4435f7d",
+      "line_number": 8,
+      "current_requester_route": true,
+      "accounts": [
+        "A06"
+      ],
+      "percentages": [
+        98.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A06 | 98% | left | reset | live",
+      "preceding_context": "A04 | 96% | weekly | left | reset | live | A05 | 10% | left | reset | live",
+      "report_windows": [
+        "Weekly",
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-05T23:19:18.566806",
+      "message_sha256": "d759ab690565e841a286fb4f2d5abbd9e0b1077153632aa88da54c87f0bceadf",
+      "line_sha256": "d759ab690565e841a286fb4f2d5abbd9e0b1077153632aa88da54c87f0bceadf",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A05",
+        "A06"
+      ],
+      "percentages": [
+        97.0,
+        91.0,
+        96.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A06 | from | All | A05 | 97% | 91% | weekly | left | A06 | 96% | cached | Codex | NOT",
+      "preceding_context": "",
+      "report_windows": [
+        "weekly"
+      ]
+    },
+    {
+      "reported_at": "2026-09-05T23:31:29.207384",
+      "message_sha256": "95361d2fb7be054f61c764f182729ae2b86e75386955bb29d5772f3d5b00ca4e",
+      "line_sha256": "95361d2fb7be054f61c764f182729ae2b86e75386955bb29d5772f3d5b00ca4e",
+      "line_number": 1,
+      "current_requester_route": true,
+      "accounts": [
+        "A05",
+        "A06"
+      ],
+      "percentages": [
+        99.0,
+        94.0,
+        87.0
+      ],
+      "explicit_instants": [],
+      "grammar": "A06 | to | 99% | to | no | Other | A05 | 94% | 87% | weekly | left | not",
+      "preceding_context": "",
+      "report_windows": [
+        "weekly"
+      ]
+    }
+  ],
+  "receipt_timestamp_qualification": "reported_at preserves the native timestamp without time zone. Current sender inserts the database default now() in a Europe/Berlin session; do not label these values UTC. Historical per-row session timezone is unavailable.",
+  "selection": {
+    "sender_label": "telegram_agent_server",
+    "created_at_native_before": "2026-09-06 20:20:00",
+    "message_regex_case_insensitive": "weekly|five.hour|5.?h|bank|quota|reset",
+    "percentage_regex": "[0-9]+[ ]*%",
+    "current_requester_reports": 196,
+    "other_historical_routes_reports": 23
+  }
+}

@@ -13,6 +13,7 @@ readonly NOTIFIER_PREFLIGHT="/usr/local/sbin/pitchai-auth-reset-guardian-notific
 readonly ENV_FILE="/etc/pitchai-auth-reset-guardian.env"
 readonly SERVICE_FILE="/etc/systemd/system/pitchai-auth-reset-guardian.service"
 readonly TIMER_FILE="/etc/systemd/system/pitchai-auth-reset-guardian.timer"
+readonly PATH_FILE="/etc/systemd/system/pitchai-auth-reset-guardian.path"
 readonly BROKER_ENV="/etc/auth-token-server/auth-token-server.env"
 readonly TELEGRAM_REPO="/root/code/telegram_agent_server"
 readonly LOCK_WAIT_SECONDS="300"
@@ -55,6 +56,7 @@ mapfile -d '' -t source_files < <(
       ops/deploy_auth_reset_guardian.sh \
       ops/auth-reset-guardian.env \
       ops/systemd/pitchai-auth-reset-guardian.service \
+      ops/systemd/pitchai-auth-reset-guardian.path \
       ops/systemd/pitchai-auth-reset-guardian.timer
   } | LC_ALL=C sort -z
 )
@@ -84,6 +86,7 @@ release_dir="${RELEASES_DIR}/${release_id}"
 
 install -d -m 755 -o root -g root "${RELEASES_DIR}"
 install -d -m 700 -o root -g root "${DATA_DIR}"
+install -d -m 700 -o root -g root "${DATA_DIR}/proof-wake"
 if [[ ! -d "${release_dir}" ]]; then
   staging_dir="$(mktemp -d "${RELEASES_DIR}/.staging-${release_id}.XXXXXX")"
   cleanup_staging() {
@@ -93,7 +96,11 @@ if [[ ! -d "${release_dir}" ]]; then
   }
   trap cleanup_staging EXIT
   install -d -m 755 "${staging_dir}/auth_reset_guardian" "${staging_dir}/fixtures" "${staging_dir}/docs"
-  install -m 644 "${REPO_ROOT}"/auth_reset_guardian/*.py "${staging_dir}/auth_reset_guardian/"
+  mapfile -d '' -t package_files < <(
+    find "${REPO_ROOT}/auth_reset_guardian" -maxdepth 1 -type f -name '*.py' ! -name 'test_*.py' -print0 \
+      | LC_ALL=C sort -z
+  )
+  install -m 644 "${package_files[@]}" "${staging_dir}/auth_reset_guardian/"
   install -m 644 "${REPO_ROOT}/fixtures/auth-reset-guardian-expiring.json" "${staging_dir}/fixtures/"
   install -m 644 "${REPO_ROOT}/docs/auth-reset-guardian.md" "${staging_dir}/docs/"
   printf '{"git_sha":"%s","source_sha256":"%s"}\n' "${git_sha}" "${source_hash}" >"${staging_dir}/release.json"
@@ -127,8 +134,10 @@ install -m 644 -o root -g root \
   "${REPO_ROOT}/ops/systemd/pitchai-auth-reset-guardian.service" "${SERVICE_FILE}"
 install -m 644 -o root -g root \
   "${REPO_ROOT}/ops/systemd/pitchai-auth-reset-guardian.timer" "${TIMER_FILE}"
+install -m 644 -o root -g root \
+  "${REPO_ROOT}/ops/systemd/pitchai-auth-reset-guardian.path" "${PATH_FILE}"
 systemctl daemon-reload
-systemd-analyze verify "${SERVICE_FILE}" "${TIMER_FILE}"
+systemd-analyze verify "${SERVICE_FILE}" "${TIMER_FILE}" "${PATH_FILE}"
 /usr/bin/env -i HOME=/root PATH=/usr/bin:/bin LANG=C.UTF-8 \
   "${NOTIFIER}" --preflight-only >/dev/null
 
@@ -148,6 +157,12 @@ trap cleanup_validation EXIT
 
 rollback() {
   local rollback_status=0
+  # An older consumer may not acknowledge hints. Stop path activation before
+  # restoring any prior release; the owner can re-enable after compatibility review.
+  if ! systemctl disable --now pitchai-auth-reset-guardian.path >/dev/null 2>&1; then
+    printf 'Rollback failed to disable guardian proof-wake activation.\n' >&2
+    rollback_status=1
+  fi
   if ! systemctl disable --now pitchai-auth-reset-guardian.timer >/dev/null 2>&1; then
     printf 'Rollback failed to disable the guardian timer.\n' >&2
     rollback_status=1

@@ -1,0 +1,226 @@
+{
+  "schema": 1,
+  "observed_on": "2026-09-06",
+  "currency": "USD",
+  "unit": "per_million_tokens",
+  "billing_scope": "API token-equivalent reference value, excluding subscription charges, taxes, regional premiums and tool fees",
+  "date_precision": "Published calendar day; intraday change time is not established. Treat calls on change days as boundary-sensitive.",
+  "cache_rule": "Cached input is a subset of input. Reasoning output is a subset of output. New-model cache-write counts are not exposed; price uncached input at its standard rate and report a 0–25% uncached-input premium sensitivity.",
+  "long_context_rule": {
+    "threshold_input_tokens": 272000,
+    "comparison": "strictly_greater",
+    "input_and_cached_multiplier": 2,
+    "output_multiplier": 1.5,
+    "models": [
+      "gpt-5.4",
+      "gpt-5.5",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-6-astra"
+    ]
+  },
+  "sources": {
+    "api_pricing": "https://developers.openai.com/api/docs/pricing",
+    "api_changelog": "https://developers.openai.com/api/docs/changelog",
+    "gpt5_launch": "https://openai.com/index/introducing-gpt-5-for-developers/",
+    "gpt52_launch": "https://openai.com/index/introducing-gpt-5-2/",
+    "gpt54_launch": "https://openai.com/index/introducing-gpt-5-4/",
+    "gpt54mini_launch": "https://openai.com/index/introducing-gpt-5-4-mini-and-nano/",
+    "gpt55_launch": "https://openai.com/index/introducing-gpt-5-5/",
+    "gpt56_preview": "https://openai.com/index/previewing-gpt-5-6-sol/",
+    "gpt56_launch": "https://openai.com/index/gpt-5-6/",
+    "gpt56_july30": "https://openai.com/index/advancing-the-price-performance-frontier-with-gpt-5-6/",
+    "astra_model": "https://developers.openai.com/api/docs/models/gpt-6-astra"
+  },
+  "rates": [
+    {
+      "model": "gpt-5",
+      "from_inclusive": "2025-08-07",
+      "until_exclusive": null,
+      "input": 1.25,
+      "cached": 0.125,
+      "output": 10,
+      "price_source": "gpt5_launch",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5-codex",
+      "from_inclusive": "2025-09-23",
+      "until_exclusive": null,
+      "input": 1.25,
+      "cached": 0.125,
+      "output": 10,
+      "price_source": "api_pricing",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.1",
+      "from_inclusive": "2025-11-13",
+      "until_exclusive": null,
+      "input": 1.25,
+      "cached": 0.125,
+      "output": 10,
+      "price_source": "gpt52_launch",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.1-codex",
+      "from_inclusive": "2025-11-13",
+      "until_exclusive": null,
+      "input": 1.25,
+      "cached": 0.125,
+      "output": 10,
+      "price_source": "api_pricing",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.1-codex-max",
+      "from_inclusive": "2025-12-04",
+      "until_exclusive": null,
+      "input": 1.25,
+      "cached": 0.125,
+      "output": 10,
+      "price_source": "api_pricing",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.2",
+      "from_inclusive": "2025-12-11",
+      "until_exclusive": null,
+      "input": 1.75,
+      "cached": 0.175,
+      "output": 14,
+      "price_source": "gpt52_launch",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.2-codex",
+      "from_inclusive": "2026-01-14",
+      "until_exclusive": null,
+      "input": 1.75,
+      "cached": 0.175,
+      "output": 14,
+      "price_source": "api_pricing",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.3-codex",
+      "from_inclusive": "2026-02-24",
+      "until_exclusive": null,
+      "input": 1.75,
+      "cached": 0.175,
+      "output": 14,
+      "price_source": "api_pricing",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.4",
+      "from_inclusive": "2026-03-05",
+      "until_exclusive": null,
+      "input": 2.5,
+      "cached": 0.25,
+      "output": 15,
+      "price_source": "gpt54_launch",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "from_inclusive": "2026-03-17",
+      "until_exclusive": null,
+      "input": 0.75,
+      "cached": 0.075,
+      "output": 4.5,
+      "price_source": "gpt54mini_launch",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.5",
+      "from_inclusive": "2026-04-24",
+      "until_exclusive": null,
+      "input": 5,
+      "cached": 0.5,
+      "output": 30,
+      "price_source": "gpt55_launch",
+      "cache_write_premium": false
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "from_inclusive": "2026-06-26",
+      "until_exclusive": "2026-08-21",
+      "input": 5,
+      "cached": 0.5,
+      "output": 30,
+      "price_source": "gpt56_preview",
+      "cache_write_premium": true
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "from_inclusive": "2026-08-21",
+      "until_exclusive": null,
+      "input": 4,
+      "cached": 0.4,
+      "output": 20,
+      "price_source": "api_changelog",
+      "cache_write_premium": true
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "from_inclusive": "2026-06-26",
+      "until_exclusive": "2026-07-30",
+      "input": 2.5,
+      "cached": 0.25,
+      "output": 15,
+      "price_source": "gpt56_preview",
+      "cache_write_premium": true
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "from_inclusive": "2026-07-30",
+      "until_exclusive": null,
+      "input": 2,
+      "cached": 0.2,
+      "output": 12,
+      "price_source": "gpt56_july30",
+      "cache_write_premium": true
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "from_inclusive": "2026-06-26",
+      "until_exclusive": "2026-07-30",
+      "input": 1,
+      "cached": 0.1,
+      "output": 6,
+      "price_source": "gpt56_preview",
+      "cache_write_premium": true
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "from_inclusive": "2026-07-30",
+      "until_exclusive": null,
+      "input": 0.2,
+      "cached": 0.02,
+      "output": 1.2,
+      "price_source": "gpt56_july30",
+      "cache_write_premium": true
+    },
+    {
+      "model": "gpt-6-astra",
+      "from_inclusive": "2026-09-03",
+      "until_exclusive": null,
+      "input": 10,
+      "cached": 1,
+      "output": 50,
+      "price_source": "astra_model",
+      "cache_write_premium": true
+    }
+  ],
+  "limitations": [
+    "API availability dates come from the official API changelog, except the explicitly priced June 26 GPT-5.6 limited preview.",
+    "Rates supported only by the current model/rate page are retrospective reference rates; an unchanged historical rate is not independently proved by that page.",
+    "Calls before the first supported pricing date remain unpriced in the dated calculation; a later-price comparison must be labeled separately.",
+    "Standard reference values do not establish an actual service tier. Fast sensitivity requires model/date/context compatibility; unknown tier is not silently labeled standard.",
+    "Fast API mode for Astra is 2x; Codex Fast subscription metering can use a different multiplier.",
+    "API-equivalent sums do not reveal hidden subscription-credit capacity."
+  ]
+}

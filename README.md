@@ -134,6 +134,11 @@ docker run --rm \
   service-monitoring:latest
 ```
 
+Every deployed monitoring container publishes its own service health. The
+per-role commands, thresholds, operator actions and the rollout that is still
+outstanding are in
+[`docs/monitoring-service-health-contract.md`](docs/monitoring-service-health-contract.md).
+
 ## Events Bus Delivery
 
 Debounced service transitions are delivered to the PitchAI Events Bus through a

@@ -1,0 +1,19 @@
+{
+  "baseline_commit": "47d8dde3656704848e475b3e5b5bda5bceb48f07",
+  "baseline_database": "account-quota-v2.sqlite3",
+  "refactored_helper_sha256": "21e3131246c9afbc0626d1da7745556816f39f1b47d86e65bc083a95397995c0",
+  "method": "Regenerate a new quota database from the exact three inputs recorded in the frozen database manifest, then compare every column of both tables using EXCEPT in both directions. The original database is opened read-only.",
+  "observations": {
+    "rows": 52551,
+    "missing_or_changed": 0,
+    "additional_or_changed": 0
+  },
+  "manifests": {
+    "rows": 3,
+    "missing_or_changed": 0,
+    "additional_or_changed": 0
+  },
+  "quality": "Ruff, strict BasedPyright, Pylint 10.00/10 and all five architecture checks pass for normalize_quota.py.",
+  "additional_empty_source": "The later historical-main recovery export contributes zero quota rows. It can be supplied as a fourth input, adding only its source-manifest row. The exact frozen-database comparison uses its original three inputs.",
+  "disposable_output": "normalized-refactor-proof.sqlite3"
+}

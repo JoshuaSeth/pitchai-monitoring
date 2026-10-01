@@ -1,0 +1,131 @@
+{
+  "schema": 1,
+  "cutoff_exclusive": "2026-09-06T20:20:00+00:00",
+  "searches": [
+    "(SINCE \"01-Nov-2025\" BEFORE \"07-Sep-2026\" OR FROM \"openai.com\" SUBJECT \"ChatGPT\")",
+    "(SINCE \"01-Nov-2025\" BEFORE \"07-Sep-2026\" FROM \"apple.com\" TEXT \"ChatGPT\")"
+  ],
+  "read_only": true,
+  "folders": [
+    {
+      "folder_sha256": "8a43453b53ba3fc3efbb3c835bf1d7466088c40fcc498c9c745ebb39880ad55b",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "5183923a757424d69bc936ace0da156fbd6bff2a62f8b3b73d16c70fdff958c6",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "1f0eeaa0db3f3d97e1166849d607f0508dc9eb3b0c99aac23994be9c6c6b8cae",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "9d8f84cce9e5b985cea39d1a7dcd7489606d3d341b564370f707ecaac3caede3",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "614b2fa0fcdf1254c4916e2b26e549ce97e48fae0d40b84959cc152ab81d6fea",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "0d52a7ce1ac0590a1ecc3a71b76f71b41bfee67169c590e1fc65ad9bf3282970",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "c19525e91f26d3c4b5974ccb834c600c6d97135b2875e993b910db6a5201e153",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "b3784bb3d922518a63b9864602602dcc50c3c03926a47b42348ebad60b5c2f05",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "dd6e7149975d4e9b49d32d40a216b311a39862778c41cd2be400da22b8180184",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "2d96acda61f48c824727264e2838cfcef1fd0053e709f844f9c186ea60bd849d",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "0f5bf5c31b4e49bb132e34ce4298cb5e01541feec95af3c2a01a7d4b4586d9f9",
+      "query_counts": [
+        10,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "28a939dccbff00d72d3f023442a9d16f293da56937e299cd36513b64f6760570",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "34f1d25fd5d430534020ca4b2be128c97a4e43819fb4f9f8fc4bdf8e3de605f8",
+      "query_counts": [
+        0,
+        0
+      ]
+    },
+    {
+      "folder_sha256": "ab0122f096856ac638ed46e3790ad2bf8dab90d9b6d2fa9d9a2d11b022fbd08e",
+      "query_counts": [
+        0,
+        0
+      ]
+    }
+  ],
+  "messages_fetched_with_unchanged_flags": 10,
+  "candidates": [
+    {
+      "sent_at": "2025-11-12T16:44:12+00:00",
+      "provider_domain": "tm.openai.com",
+      "source_id_sha256": "698deef4b0ffd10e053cd7b6977ba234c1400ffec8326c0634c4b2ded55e276f",
+      "body_sha256": "1b85b4e93382600c5fbbb14d30921823e89777089bbc27793c0511cd240f6049",
+      "exact_identity_header_matches": [],
+      "exact_identity_body_matches": [],
+      "subject_terms": [],
+      "body_terms": [
+        "billing",
+        "credit"
+      ],
+      "amount_mentions": [
+        "$6.17"
+      ],
+      "plan_mentions": [],
+      "has_attachments": false,
+      "qualification": "Mention detection only; payment and subscription attribution require separate review."
+    }
+  ]
+}

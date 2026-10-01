@@ -198,6 +198,11 @@ jobs:
               --name "$REGISTRY_NAME" \
               --restart unless-stopped \
               --init \
+              --health-cmd "python -m monitoring_v2.service_health --role registry" \
+              --health-interval 30s \
+              --health-timeout 10s \
+              --health-start-period 120s \
+              --health-retries 3 \
               --network "$NET_NAME" \
               -p 127.0.0.1:8111:8111 \
               -v service-monitoring-state:/monitor_state:ro \
@@ -225,6 +230,12 @@ jobs:
               --restart unless-stopped \
               --init \
               --shm-size 1g \
+              --tmpfs /run/pitchai-health:rw,noexec,nosuid,size=1m \
+              --health-cmd "python -m monitoring_v2.service_health --role runner" \
+              --health-interval 30s \
+              --health-timeout 10s \
+              --health-start-period 120s \
+              --health-retries 3 \
               --network "$NET_NAME" \
               -v e2e-artifacts:/artifacts \
               -v e2e-registry-data:/data:ro \
@@ -233,8 +244,9 @@ jobs:
               -e E2E_RUNNER_POLL_SECONDS="5" \
               -e E2E_RUNNER_CONCURRENCY="1" \
               -e E2E_RUNNER_TRACE_ON_FAILURE="0" \
+              -e E2E_RUNNER_HEARTBEAT_PATH="/run/pitchai-health/e2e-runner-heartbeat.json" \
               "$IMAGE_SHA" \
-              python -m e2e_runner.main
+              python -m e2e_runner.health_main
 
             echo "🚀 Starting service-monitoring..."
             docker run -d \
@@ -242,6 +254,11 @@ jobs:
               --restart unless-stopped \
               --init \
               --shm-size 1g \
+              --health-cmd "python -m monitoring_v2.service_health --role monitor" \
+              --health-interval 30s \
+              --health-timeout 10s \
+              --health-start-period 300s \
+              --health-retries 3 \
               --network "$NET_NAME" \
               -v service-monitoring-state:/data \
               -v /var/run/docker.sock:/var/run/docker.sock \
@@ -269,6 +286,11 @@ jobs:
               --network "$NET_NAME" \
               --read-only \
               --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+              --health-cmd "python -m monitoring_v2.service_health --role database-dependency" \
+              --health-interval 30s \
+              --health-timeout 10s \
+              --health-start-period 600s \
+              --health-retries 3 \
               -v service-monitoring-state:/data \
               -v /var/run/docker.sock:/var/run/docker.sock:ro \
               -v /etc/nginx/conf.d:/routing/nginx-conf:ro \
@@ -300,6 +322,36 @@ jobs:
               fi
             }
 
+            assert_health_contract() {
+              local name="$1"
+              local role="$2"
+              local status health_test
+              health_test="$(docker inspect "$name" --format '{{if .Config.Healthcheck}}{{.Config.Healthcheck.Test}}{{end}}')"
+              if [[ "$health_test" != *"--role ${role}"* ]]; then
+                echo "❌ Container $name is missing the ${role} health contract: ${health_test}"
+                docker logs "$name" --tail 200 || true
+                exit 1
+              fi
+              for attempt in $(seq 1 30); do
+                status="$(docker inspect "$name" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}')"
+                if [[ "$status" == "healthy" ]]; then
+                  echo "✅ $name health=$status"
+                  return 0
+                fi
+                if [[ "$status" == "unhealthy" || "$status" == "missing" ]]; then
+                  echo "❌ Container $name health=$status"
+                  docker inspect "$name" --format '{{json .State.Health}}' || true
+                  docker logs "$name" --tail 200 || true
+                  exit 1
+                fi
+                sleep 5
+              done
+              echo "❌ Container $name health contract did not become healthy"
+              docker inspect "$name" --format '{{json .State.Health}}' || true
+              docker logs "$name" --tail 200 || true
+              exit 1
+            }
+
             for stability_check in 1 2; do
               for name in "$REGISTRY_NAME" "$RUNNER_NAME" "$APP_NAME" "$DB_MONITOR_NAME"; do
                 assert_container_stable "$name"
@@ -308,6 +360,11 @@ jobs:
                 sleep 10
               fi
             done
+
+            assert_health_contract "$REGISTRY_NAME" "registry"
+            assert_health_contract "$RUNNER_NAME" "runner"
+            assert_health_contract "$APP_NAME" "monitor"
+            assert_health_contract "$DB_MONITOR_NAME" "database-dependency"
 
             docker exec "$APP_NAME" python -c \
               'from domain_checks.event_bus import load_event_bus_config; assert load_event_bus_config() is not None'
