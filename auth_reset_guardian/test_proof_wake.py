@@ -6,7 +6,7 @@ from __future__ import annotations
 import fcntl
 import os
 import tempfile
-from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
@@ -18,29 +18,7 @@ from .proof_wake import consume_proof_wake
 from .test_organization_assertions import require_equal
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
-
     from .organization_runtime import OrganizationRunContext
-
-
-@contextmanager
-def expect_error(error_type: type[Exception]) -> Generator[None]:
-    """Require a specific failure without an optional test-runner dependency.
-
-    Yields:
-        Control to the operation expected to fail.
-
-    Raises:
-        AssertionError: The operation did not raise the expected exception.
-    """
-    caught: Exception | None = None
-    try:
-        yield
-    except error_type as error:
-        caught = error
-    if caught is None:
-        message = f"expected {error_type.__name__}"
-        raise AssertionError(message)
 
 
 class TestProofWake:
@@ -91,9 +69,12 @@ class TestProofWake:
             with (
                 patch.dict(os.environ, {"AUTH_RESET_GUARDIAN_PROOF_WAKE_PATH": str(path)}),
                 patch("auth_reset_guardian.cli._live_source", side_effect=RuntimeError("source unavailable")),
-                expect_error(RuntimeError),
+                ThreadPoolExecutor(max_workers=1) as executor,
             ):
-                main(["--audit-db", str(database), "run", "--no-notify"])
+                invocation = executor.submit(main, ["--audit-db", str(database), "run", "--no-notify"])
+                failure = invocation.exception()
+                require_equal(isinstance(failure, RuntimeError), expected=True)
+                require_equal(str(failure), "source unavailable")
             require_equal(path.read_text(encoding="utf-8"), "pending")
 
     @staticmethod
@@ -132,9 +113,10 @@ class TestProofWake:
                 require_equal(path.exists(), dry_run)
                 with (
                     database.with_suffix(".sqlite3.lock").open("rb") as stream,
-                    expect_error(BlockingIOError),
+                    ThreadPoolExecutor(max_workers=1) as executor,
                 ):
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    competing_lock = executor.submit(fcntl.flock, stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    require_equal(isinstance(competing_lock.exception(), BlockingIOError), expected=True)
                 path.write_text("next", encoding="utf-8")
                 return OrganizationInventory(descriptors=(), observations={}, failed_account_refs=set())
 
