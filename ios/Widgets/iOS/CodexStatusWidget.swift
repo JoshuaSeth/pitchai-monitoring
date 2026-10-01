@@ -7,7 +7,7 @@ struct CapacityTimelineEntry: TimelineEntry {
 }
 
 struct CapacityTimelineProvider: TimelineProvider {
-    func placeholder(in context: Context) -> CapacityTimelineEntry {
+    func placeholder(in _: Context) -> CapacityTimelineEntry {
         CapacityTimelineEntry(date: Date(), snapshot: .fixture)
     }
 
@@ -20,7 +20,10 @@ struct CapacityTimelineProvider: TimelineProvider {
         )
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<CapacityTimelineEntry>) -> Void) {
+    func getTimeline(
+        in _: Context,
+        completion: @escaping (Timeline<CapacityTimelineEntry>) -> Void
+    ) {
         let entry = CapacityTimelineEntry(date: Date(), snapshot: SnapshotCache.load())
         completion(
             Timeline(
@@ -41,10 +44,15 @@ struct CodexStatusWidgetView: View {
                 switch family {
                 case .accessoryCircular:
                     AccessoryCapacityGauge(snapshot: snapshot)
+
                 case .accessoryInline:
-                    Text("Codex: \(snapshot.summary.usableNow)/\(snapshot.summary.enabledAccounts) ready")
+                    Text(
+                        "Codex: \(snapshot.summary.usableNow)/\(snapshot.summary.enabledAccounts) ready"
+                    )
+
                 case .accessoryRectangular:
                     AccessoryCapacityRectangle(snapshot: snapshot)
+
                 default:
                     SystemCapacityWidget(snapshot: snapshot, compact: family == .systemSmall)
                 }
@@ -56,7 +64,10 @@ struct CodexStatusWidgetView: View {
         }
         .containerBackground(for: .widget) {
             LinearGradient(
-                colors: [Color(red: 0.06, green: 0.2, blue: 0.28), Color(red: 0.02, green: 0.07, blue: 0.11)],
+                colors: [
+                    Color(red: 0.06, green: 0.2, blue: 0.28),
+                    Color(red: 0.02, green: 0.07, blue: 0.11)
+                ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -120,7 +131,7 @@ private struct AccessoryCapacityGauge: View {
     var body: some View {
         Gauge(
             value: min(max(snapshot.selectedAggregate?.remainingPercent ?? 0, 0), 100),
-            in: 0 ... 100
+            in: 0...100
         ) {
             Image(systemName: "bolt.shield.fill")
         } currentValueLabel: {
@@ -137,11 +148,19 @@ private struct AccessoryCapacityRectangle: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Label("Codex capacity", systemImage: snapshot.isStale ? "clock.badge.exclamationmark" : "checkmark.shield.fill")
-                .font(.headline)
-            Text("\(snapshot.summary.usableNow) of \(snapshot.summary.enabledAccounts) ready · \(CapacityFormatting.percent(snapshot.selectedAggregate?.remainingPercent)) left")
-                .font(.caption)
-            ProgressView(value: min(max((snapshot.selectedAggregate?.remainingPercent ?? 0) / 100, 0), 1))
+            Label(
+                "Codex capacity",
+                systemImage: snapshot.isStale
+                    ? "clock.badge.exclamationmark" : "checkmark.shield.fill"
+            )
+            .font(.headline)
+            Text(
+                "\(snapshot.summary.usableNow) of \(snapshot.summary.enabledAccounts) ready · \(CapacityFormatting.percent(snapshot.selectedAggregate?.remainingPercent)) left"
+            )
+            .font(.caption)
+            ProgressView(
+                value: min(max((snapshot.selectedAggregate?.remainingPercent ?? 0) / 100, 0), 1)
+            )
         }
     }
 }

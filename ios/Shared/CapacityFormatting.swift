@@ -3,7 +3,8 @@ import Foundation
 enum CapacityFormatting {
     static func percent(_ value: Double?) -> String {
         guard let value else { return "—" }
-        return value.formatted(.number.precision(.fractionLength(value.rounded() == value ? 0 : 1))) + "%"
+        return value.formatted(.number.precision(.fractionLength(value.rounded() == value ? 0 : 1)))
+            + "%"
     }
 
     static func points(_ value: Double?) -> String {

@@ -7,7 +7,7 @@ struct WatchCapacityEntry: TimelineEntry {
 }
 
 struct WatchCapacityProvider: TimelineProvider {
-    func placeholder(in context: Context) -> WatchCapacityEntry {
+    func placeholder(in _: Context) -> WatchCapacityEntry {
         WatchCapacityEntry(date: Date(), snapshot: .fixture)
     }
 
@@ -20,7 +20,10 @@ struct WatchCapacityProvider: TimelineProvider {
         )
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<WatchCapacityEntry>) -> Void) {
+    func getTimeline(
+        in _: Context,
+        completion: @escaping (Timeline<WatchCapacityEntry>) -> Void
+    ) {
         completion(
             Timeline(
                 entries: [WatchCapacityEntry(date: Date(), snapshot: SnapshotCache.load())],
@@ -59,7 +62,7 @@ struct WatchCapacityWidgetView: View {
             case .accessoryCircular:
                 Gauge(
                     value: min(max(snapshot.selectedAggregate?.remainingPercent ?? 0, 0), 100),
-                    in: 0 ... 100
+                    in: 0...100
                 ) {
                     Image(systemName: "bolt.shield.fill")
                 } currentValueLabel: {
@@ -69,11 +72,13 @@ struct WatchCapacityWidgetView: View {
                 }
                 .gaugeStyle(.accessoryCircularCapacity)
                 .tint(stateTint(for: snapshot))
+
             case .accessoryInline:
                 Label(
                     "Codex \(snapshot.summary.usableNow)/\(snapshot.summary.enabledAccounts) ready",
                     systemImage: stateSymbol(for: snapshot)
                 )
+
             default:
                 VStack(alignment: .leading, spacing: 3) {
                     Label(
@@ -82,11 +87,16 @@ struct WatchCapacityWidgetView: View {
                     )
                     .font(.headline)
                     .foregroundStyle(stateTint(for: snapshot))
-                    Text("\(snapshot.summary.usableNow) of \(snapshot.summary.enabledAccounts) accounts ready")
-                        .font(.caption)
-                    Text(CapacityFormatting.percent(snapshot.selectedAggregate?.remainingPercent) + " capacity left")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "\(snapshot.summary.usableNow) of \(snapshot.summary.enabledAccounts) accounts ready"
+                    )
+                    .font(.caption)
+                    Text(
+                        CapacityFormatting.percent(snapshot.selectedAggregate?.remainingPercent)
+                            + " capacity left"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                     Label(
                         CapacityFormatting.relative(snapshot.summary.nextUsefulCapacityAt),
                         systemImage: "clock.arrow.circlepath"

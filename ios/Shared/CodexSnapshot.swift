@@ -47,9 +47,9 @@ struct CodexSnapshot: Codable, Equatable, Sendable {
         isStale || summary.usableNow == 0 || importantWarningCount > 0
     }
 
-    static var fixture: CodexSnapshot {
+    static var fixture: Self {
         let now = Date()
-        return CodexSnapshot(
+        return Self(
             schemaVersion: 1,
             generatedAt: ServerDateParser.string(now),
             source: SnapshotSource(
@@ -321,8 +321,8 @@ struct CodexAccount: Codable, Equatable, Identifiable, Sendable {
         fiveReset: Date,
         weeklyRemaining: Double,
         weeklyReset: Date
-    ) -> CodexAccount {
-        CodexAccount(
+    ) -> Self {
+        Self(
             label: label,
             enabled: true,
             routingPreferred: preferred,
@@ -333,10 +333,14 @@ struct CodexAccount: Codable, Equatable, Identifiable, Sendable {
             selectableNow: status == "available",
             safetyFloorActive: status == "five_hour_limited" && fiveRemaining > 0,
             fiveHour: UsageWindow.fixture(
-                remaining: fiveRemaining, reset: fiveReset, seconds: 18_000
+                remaining: fiveRemaining,
+                reset: fiveReset,
+                seconds: 18_000
             ),
             weekly: UsageWindow.fixture(
-                remaining: weeklyRemaining, reset: weeklyReset, seconds: 604_800
+                remaining: weeklyRemaining,
+                reset: weeklyReset,
+                seconds: 604_800
             ),
             lastProbeAt: ServerDateParser.string(Date().addingTimeInterval(-32)),
             stale: false,
@@ -367,8 +371,8 @@ struct UsageWindow: Codable, Equatable, Sendable {
         resetAt.flatMap(ServerDateParser.parse)
     }
 
-    static func fixture(remaining: Double, reset: Date, seconds: Int) -> UsageWindow {
-        UsageWindow(
+    static func fixture(remaining: Double, reset: Date, seconds: Int) -> Self {
+        Self(
             reported: true,
             usedPercent: 100 - remaining,
             remainingPercent: remaining,

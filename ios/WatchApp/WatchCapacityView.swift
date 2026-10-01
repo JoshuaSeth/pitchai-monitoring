@@ -26,7 +26,8 @@ struct WatchCapacityView: View {
                             )
                         } else if snapshot.importantWarningCount > 0 {
                             WatchAttentionCard(
-                                text: "\(snapshot.importantWarningCount) broker warning\(snapshot.importantWarningCount == 1 ? "" : "s")",
+                                text:
+                                    "\(snapshot.importantWarningCount) broker warning\(snapshot.importantWarningCount == 1 ? "" : "s")",
                                 tint: .orange
                             )
                         }
@@ -38,7 +39,10 @@ struct WatchCapacityView: View {
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(8)
-                                .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                                .background(
+                                    .orange.opacity(0.1),
+                                    in: RoundedRectangle(cornerRadius: 10)
+                                )
                         }
 
                         ForEach(snapshot.accounts) { account in
@@ -63,7 +67,9 @@ struct WatchCapacityView: View {
                         ContentUnavailableView(
                             "No snapshot",
                             systemImage: "iphone.and.arrow.forward",
-                            description: Text(store.message ?? "Open Codex Status on the paired iPhone first.")
+                            description: Text(
+                                store.message ?? "Open Codex Status on the paired iPhone first."
+                            )
                         )
                     }
                 }
@@ -102,7 +108,7 @@ private struct WatchHero: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Gauge(value: min(max(percentage, 0), 100), in: 0 ... 100) {
+            Gauge(value: min(max(percentage, 0), 100), in: 0...100) {
                 EmptyView()
             } currentValueLabel: {
                 Text(CapacityFormatting.percent(percentage))

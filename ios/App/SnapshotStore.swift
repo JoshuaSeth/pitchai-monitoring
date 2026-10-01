@@ -78,7 +78,7 @@ final class SnapshotStore: ObservableObject {
                 if response.probeStarted {
                     refreshNotice = "Provider state refreshed"
                 } else if response.reason == "probe_throttled",
-                          let retry = response.retryAfterSeconds {
+                    let retry = response.retryAfterSeconds {
                     refreshNotice = "Already fresh · retry in \(retry)s"
                 } else {
                     refreshNotice = "Latest broker state loaded"
@@ -133,8 +133,8 @@ final class SnapshotStore: ObservableObject {
 
     private static func safeMessage(for error: Error) -> String {
         if let localized = error as? LocalizedError,
-           let description = localized.errorDescription,
-           !description.isEmpty {
+            let description = localized.errorDescription,
+            !description.isEmpty {
             return description
         }
         return "Live capacity could not be refreshed. Cached values remain visible."

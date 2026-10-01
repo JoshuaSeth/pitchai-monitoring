@@ -23,11 +23,14 @@ struct CodexStatusApp: App {
             switch phase {
             case .active:
                 store.start()
+
             case .background:
                 store.stopForegroundRefresh()
                 store.scheduleBackgroundRefresh()
+
             case .inactive:
                 break
+
             @unknown default:
                 break
             }

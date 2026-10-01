@@ -8,7 +8,7 @@ final class WatchSnapshotBridge: NSObject, WCSessionDelegate {
     private var pendingSnapshotData: Data?
     private var transferInFlightSnapshotData: Data?
 
-    private override init() {
+    override private init() {
         super.init()
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
@@ -32,7 +32,8 @@ final class WatchSnapshotBridge: NSObject, WCSessionDelegate {
 
     private func publishPendingContext(to session: WCSession) {
         guard session.activationState == .activated,
-              let pendingSnapshotData else { return }
+            let pendingSnapshotData
+        else { return }
         if transferInFlightSnapshotData != pendingSnapshotData {
             session.transferUserInfo(["snapshot_v1": pendingSnapshotData])
             transferInFlightSnapshotData = pendingSnapshotData
@@ -58,7 +59,7 @@ final class WatchSnapshotBridge: NSObject, WCSessionDelegate {
         }
     }
 
-    func sessionDidBecomeInactive(_ session: WCSession) {}
+    func sessionDidBecomeInactive(_: WCSession) {}
 
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
@@ -78,7 +79,7 @@ final class WatchSnapshotBridge: NSObject, WCSessionDelegate {
     }
 
     func session(
-        _ session: WCSession,
+        _: WCSession,
         didFinish userInfoTransfer: WCSessionUserInfoTransfer,
         error: Error?
     ) {
@@ -97,12 +98,13 @@ final class WatchSnapshotBridge: NSObject, WCSessionDelegate {
     }
 
     func session(
-        _ session: WCSession,
+        _: WCSession,
         didReceiveMessage message: [String: Any],
         replyHandler: @escaping ([String: Any]) -> Void
     ) {
         guard let action = message["action"] as? String,
-              action == "snapshot" || action == "refresh" else {
+            action == "snapshot" || action == "refresh"
+        else {
             replyHandler(["accepted": false])
             return
         }
@@ -111,7 +113,7 @@ final class WatchSnapshotBridge: NSObject, WCSessionDelegate {
                 await SnapshotStore.shared.refresh(manual: true)
             }
             if let snapshot = SnapshotStore.shared.snapshot,
-               let data = try? SnapshotCache.encoded(snapshot) {
+                let data = try? SnapshotCache.encoded(snapshot) {
                 replyHandler(["accepted": true, "snapshot_v1": data])
             } else {
                 replyHandler(["accepted": false])

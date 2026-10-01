@@ -12,10 +12,13 @@ enum CapacityClientError: LocalizedError {
         switch self {
         case .appAttestUnavailable:
             "App Attest is unavailable on this device. Live broker data remains locked."
+
         case .invalidServerResponse:
             "The capacity service returned an invalid response."
-        case let .serverRejected(status, message):
+
+        case .serverRejected(let status, let message):
             "\(message) (HTTP \(status))"
+
         case .challengeInvalid:
             "The one-time server challenge was invalid."
         }
@@ -113,7 +116,7 @@ actor SecureCapacityClient {
             throw CapacityClientError.appAttestUnavailable
         }
         if let existing = keyDefaults.string(forKey: keyIdentifierDefaultsKey),
-           !existing.isEmpty {
+            !existing.isEmpty {
             return existing
         }
 
@@ -169,14 +172,15 @@ actor SecureCapacityClient {
         guard let httpResponse = rawResponse as? HTTPURLResponse else {
             throw CapacityClientError.invalidServerResponse
         }
-        guard data.count <= 512 * 1024 else {
+        guard data.count <= 512 * 1_024 else {
             throw CapacityClientError.invalidServerResponse
         }
-        guard (200 ... 299).contains(httpResponse.statusCode) else {
+        guard (200...299).contains(httpResponse.statusCode) else {
             let envelope = try? JSONDecoder().decode(APIErrorEnvelope.self, from: data)
             throw CapacityClientError.serverRejected(
                 status: httpResponse.statusCode,
-                message: envelope?.detail.message ?? "The installed app could not be verified by the capacity service."
+                message: envelope?.detail.message
+                    ?? "The installed app could not be verified by the capacity service."
             )
         }
         do {
@@ -204,7 +208,9 @@ actor SecureCapacityClient {
                 if let attestation {
                     continuation.resume(returning: attestation)
                 } else {
-                    continuation.resume(throwing: error ?? CapacityClientError.invalidServerResponse)
+                    continuation.resume(
+                        throwing: error ?? CapacityClientError.invalidServerResponse
+                    )
                 }
             }
         }
@@ -216,7 +222,9 @@ actor SecureCapacityClient {
                 if let assertion {
                     continuation.resume(returning: assertion)
                 } else {
-                    continuation.resume(throwing: error ?? CapacityClientError.invalidServerResponse)
+                    continuation.resume(
+                        throwing: error ?? CapacityClientError.invalidServerResponse
+                    )
                 }
             }
         }

@@ -10,7 +10,7 @@ struct CapacityDashboardView: View {
                     if let snapshot = store.snapshot {
                         CapacityHero(snapshot: snapshot)
 
-                        if case let .failed(message) = store.state {
+                        if case .failed(let message) = store.state {
                             ServiceMessageCard(
                                 symbol: "wifi.exclamationmark",
                                 title: "Refresh failed",
@@ -21,7 +21,8 @@ struct CapacityDashboardView: View {
                             ServiceMessageCard(
                                 symbol: "clock.badge.exclamationmark",
                                 title: "Data may be stale",
-                                message: "The last verified broker state is still shown with its timestamp.",
+                                message:
+                                    "The last verified broker state is still shown with its timestamp.",
                                 tint: .orange
                             )
                         }
@@ -39,7 +40,8 @@ struct CapacityDashboardView: View {
                             ServiceMessageCard(
                                 symbol: "person.crop.circle.badge.exclamationmark",
                                 title: "No accounts available",
-                                message: "The broker currently has no selectable Codex account. Review warnings or wait for the next reset.",
+                                message:
+                                    "The broker currently has no selectable Codex account. Review warnings or wait for the next reset.",
                                 tint: .red
                             )
                         }
@@ -49,7 +51,8 @@ struct CapacityDashboardView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             SectionHeading(
                                 title: "Accounts",
-                                detail: "\(snapshot.summary.usableNow) of \(snapshot.summary.enabledAccounts) ready"
+                                detail:
+                                    "\(snapshot.summary.usableNow) of \(snapshot.summary.enabledAccounts) ready"
                             )
                             ForEach(snapshot.accounts) { account in
                                 AccountCapacityCard(account: account)
@@ -93,7 +96,7 @@ struct CapacityDashboardView: View {
     }
 
     private var failureMessage: String? {
-        if case let .failed(message) = store.state { return message }
+        if case .failed(let message) = store.state { return message }
         return nil
     }
 }
@@ -133,7 +136,10 @@ private struct CapacityHero: View {
 
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(spacing: 6) {
-                        Image(systemName: snapshot.isStale ? "exclamationmark.triangle.fill" : "checkmark.shield.fill")
+                        Image(
+                            systemName: snapshot.isStale
+                                ? "exclamationmark.triangle.fill" : "checkmark.shield.fill"
+                        )
                         Text(snapshot.isStale ? "STALE" : "LIVE · VERIFIED")
                     }
                     .font(.caption2.weight(.bold))
@@ -169,7 +175,10 @@ private struct CapacityHero: View {
         .padding(20)
         .background(
             LinearGradient(
-                colors: [Color(red: 0.07, green: 0.22, blue: 0.31), Color(red: 0.03, green: 0.08, blue: 0.13)],
+                colors: [
+                    Color(red: 0.07, green: 0.22, blue: 0.31),
+                    Color(red: 0.03, green: 0.08, blue: 0.13)
+                ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
@@ -182,7 +191,7 @@ private struct CapacityHero: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(snapshot.summary.usableNow) of \(snapshot.summary.enabledAccounts) accounts ready. "
-            + "\(CapacityFormatting.percent(aggregate?.remainingPercent)) capacity remaining."
+                + "\(CapacityFormatting.percent(aggregate?.remainingPercent)) capacity remaining."
         )
     }
 }
@@ -226,8 +235,11 @@ private struct WarningStrip: View {
                 )
                 ForEach(important.prefix(3)) { warning in
                     HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: warning.severity == "critical" ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(warning.severity == "critical" ? .red : .orange)
+                        Image(
+                            systemName: warning.severity == "critical"
+                                ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill"
+                        )
+                        .foregroundStyle(warning.severity == "critical" ? .red : .orange)
                         VStack(alignment: .leading, spacing: 2) {
                             if let label = warning.accountLabel {
                                 Text(label)
@@ -241,7 +253,10 @@ private struct WarningStrip: View {
                 }
             }
             .padding(15)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+            .background(
+                Color(uiColor: .secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 16)
+            )
         }
     }
 }
@@ -310,7 +325,10 @@ private struct AccountCapacityCard: View {
             }
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(
+            Color(uiColor: .secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
         .overlay(alignment: .leading) {
             RoundedRectangle(cornerRadius: 2)
                 .fill(tint)
@@ -414,9 +432,11 @@ private struct PrivacyFooter: View {
         VStack(spacing: 6) {
             Label("Read-only · Verified by App Attest", systemImage: "lock.shield.fill")
                 .font(.caption.weight(.semibold))
-            Text("Only redacted capacity and account-state fields are cached for the Watch and widgets.")
-                .font(.caption2)
-                .multilineTextAlignment(.center)
+            Text(
+                "Only redacted capacity and account-state fields are cached for the Watch and widgets."
+            )
+            .font(.caption2)
+            .multilineTextAlignment(.center)
         }
         .foregroundStyle(.secondary)
         .padding(.top, 4)

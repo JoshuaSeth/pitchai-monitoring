@@ -13,22 +13,24 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
 
     override init() {
         fixtureMode = ProcessInfo.processInfo.arguments.contains("-CodexStatusFixture")
-#if DEBUG
-        do {
-            if let diagnosticSnapshot = try SnapshotCache.diagnosticSnapshot(
-                arguments: ProcessInfo.processInfo.arguments
-            ) {
-                try SnapshotCache.save(diagnosticSnapshot)
-                snapshot = diagnosticSnapshot
-            } else {
-                snapshot = fixtureMode ? .fixture : SnapshotCache.load()
+        #if DEBUG
+            do {
+                if let diagnosticSnapshot = try SnapshotCache.diagnosticSnapshot(
+                    arguments: ProcessInfo.processInfo.arguments
+                ) {
+                    try SnapshotCache.save(diagnosticSnapshot)
+                    snapshot = diagnosticSnapshot
+                } else {
+                    snapshot = fixtureMode ? .fixture : SnapshotCache.load()
+                }
+            } catch {
+                preconditionFailure(
+                    "Invalid Watch diagnostic snapshot: \(error.localizedDescription)"
+                )
             }
-        } catch {
-            preconditionFailure("Invalid Watch diagnostic snapshot: \(error.localizedDescription)")
-        }
-#else
-        snapshot = fixtureMode ? .fixture : SnapshotCache.load()
-#endif
+        #else
+            snapshot = fixtureMode ? .fixture : SnapshotCache.load()
+        #endif
         super.init()
         guard !fixtureMode, WCSession.isSupported() else { return }
         WCSession.default.delegate = self
@@ -54,7 +56,8 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
                 Task { @MainActor in
                     self?.isRefreshing = false
                     guard reply["accepted"] as? Bool == true,
-                          let data = reply["snapshot_v1"] as? Data else {
+                        let data = reply["snapshot_v1"] as? Data
+                    else {
                         self?.message = "The iPhone could not complete the refresh."
                         return
                     }
@@ -73,7 +76,7 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
 
     nonisolated func session(
         _ session: WCSession,
-        activationDidCompleteWith activationState: WCSessionActivationState,
+        activationDidCompleteWith _: WCSessionActivationState,
         error: Error?
     ) {
         if error != nil {
@@ -97,7 +100,7 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     nonisolated func session(
-        _ session: WCSession,
+        _: WCSession,
         didReceiveApplicationContext applicationContext: [String: Any]
     ) {
         Task { @MainActor [weak self] in
@@ -106,7 +109,7 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     nonisolated func session(
-        _ session: WCSession,
+        _: WCSession,
         didReceiveUserInfo userInfo: [String: Any] = [:]
     ) {
         Task { @MainActor [weak self] in
@@ -117,7 +120,7 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
     private func requestLatestSnapshot() {
         guard WCSession.default.isReachable else { return }
         if let lastSnapshotRequestAt,
-           Date().timeIntervalSince(lastSnapshotRequestAt) < 30 {
+            Date().timeIntervalSince(lastSnapshotRequestAt) < 30 {
             return
         }
         lastSnapshotRequestAt = Date()
@@ -126,7 +129,8 @@ final class WatchSnapshotStore: NSObject, ObservableObject, WCSessionDelegate {
             replyHandler: { [weak self] reply in
                 Task { @MainActor in
                     guard reply["accepted"] as? Bool == true,
-                          let data = reply["snapshot_v1"] as? Data else {
+                        let data = reply["snapshot_v1"] as? Data
+                    else {
                         if self?.snapshot == nil {
                             self?.message = "The iPhone has not loaded a capacity snapshot yet."
                         }
