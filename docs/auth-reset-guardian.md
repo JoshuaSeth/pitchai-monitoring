@@ -196,9 +196,34 @@ consume it. A replacement published during evaluation remains for another
 activation when the service becomes inactive. Complete fresh evidence, final
 recheck, proof freshness and unresolved-claim reconciliation remain mandatory.
 
-The path unit limits repeated activations to three per minute. A missing or
-unwritable consumer directory can therefore fail visibly instead of looping
-forever. Inspect path/service status and correct the cause before resetting a
-failed unit; do not clear durable redemption claims or fabricate a proof. The
-existing timer remains the periodic fallback. Installing this source does not
-prove that the producer, path activation or real redemption has been verified.
+The guardian environment configures hint consumption even before the broker
+producer is installed. Every live timer run therefore checks for the hint.
+A missing marker or directory is logged at INFO as no hint and evaluation
+continues; directory synchronization occurs only after a marker was removed.
+Permission and synchronization failures still fail visibly.
+
+The path unit limits repeated activations to three per minute. Failures before
+hint consumption can exhaust this limit and leave the path unit failed with
+`trigger-limit-hit`; subsequent hints will not activate it automatically even
+after the original cause is repaired. Inspect both units:
+
+```sh
+systemctl status pitchai-auth-reset-guardian.path pitchai-auth-reset-guardian.service
+systemctl show pitchai-auth-reset-guardian.path -p ActiveState -p SubState -p Result
+journalctl -u pitchai-auth-reset-guardian.path -u pitchai-auth-reset-guardian.service
+```
+
+After correcting the cause, the deployment owner can reset the failed units
+and restart the already-approved path activation:
+
+```sh
+systemctl reset-failed pitchai-auth-reset-guardian.path pitchai-auth-reset-guardian.service
+systemctl restart pitchai-auth-reset-guardian.path
+```
+
+Restarting the path can immediately invoke a live pass if a marker remains.
+Do not clear durable redemption claims, recreate proof or refresh its timestamp.
+If an evaluation fails after consuming the hint, that wake is lost: the existing
+15-minute timer is the fallback, and the two-minute execution proof can expire
+before it runs. A hint is not a durable retry of the provider failure. Installing
+this source does not prove producer activation or a real redemption.

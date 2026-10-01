@@ -25,6 +25,42 @@ class TestProofWake:
     """Check both sides of atomic publication versus hint consumption."""
 
     @staticmethod
+    def test_absent_hint_does_not_open_directory() -> None:
+        """Missing markers and missing layouts leave timer evaluation available."""
+        with tempfile.TemporaryDirectory() as temporary:
+            for path in (Path(temporary) / "pending.json", Path(temporary) / "missing" / "pending.json"):
+                with (
+                    patch.dict(os.environ, {"AUTH_RESET_GUARDIAN_PROOF_WAKE_PATH": str(path)}),
+                    patch("auth_reset_guardian.proof_wake.os.open") as open_directory,
+                ):
+                    consume_proof_wake()
+                    open_directory.assert_not_called()
+
+    @staticmethod
+    def test_existing_directory_errors_remain_visible() -> None:
+        """Permission and durability failures must not be swallowed as absence."""
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "pending.json"
+            with patch.dict(os.environ, {"AUTH_RESET_GUARDIAN_PROOF_WAKE_PATH": str(path)}):
+                path.write_text("pending", encoding="utf-8")
+                with (
+                    patch.object(Path, "unlink", side_effect=PermissionError("unlink denied")),
+                    ThreadPoolExecutor(max_workers=1) as executor,
+                ):
+                    failure = executor.submit(consume_proof_wake).exception()
+                    require_equal(isinstance(failure, PermissionError), expected=True)
+                    require_equal(str(failure), "unlink denied")
+                require_equal(path.exists(), expected=True)
+                with (
+                    patch("auth_reset_guardian.proof_wake.os.fsync", side_effect=OSError("sync failed")),
+                    ThreadPoolExecutor(max_workers=1) as executor,
+                ):
+                    failure = executor.submit(consume_proof_wake).exception()
+                    require_equal(isinstance(failure, OSError), expected=True)
+                    require_equal(str(failure), "sync failed")
+                require_equal(path.exists(), expected=False)
+
+    @staticmethod
     def test_new_signal_after_consumption_survives() -> None:
         """A hint arriving during the subsequent refresh remains pending."""
         with tempfile.TemporaryDirectory() as temporary:
