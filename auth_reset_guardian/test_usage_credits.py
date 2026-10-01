@@ -32,3 +32,30 @@ def test_finite_credit_balance_and_permission() -> None:
     exact = usage_credits({"credits": {"balance": "24956.4051470000"}})
     require_equal(exact["balance"], "24956.4051470000")
     require_equal(exact["usable"], expected=False)
+
+
+def test_model_permission_preserves_existing_credit_admission() -> None:
+    """Model permission can establish usable credits after included quota denial."""
+    permitted: JsonValue = {"available": True, "credits_would_enable": False}
+    cases: tuple[tuple[JsonValue, bool], ...] = (
+        ({"astra": permitted}, True),
+        ({"astra": permitted, "other": permitted}, True),
+        ({}, False), (None, False), ([], False),
+        ({"astra": {"available": True}}, False),
+        ({"astra": {"available": True, "credits_would_enable": True}}, False),
+        ({"astra": {"available": 1, "credits_would_enable": False}}, False),
+        ({"astra": permitted, "other": None}, False),
+    )
+    for models, expected in cases:
+        for balance, spending_allowed in (("10", True), ("0", True), ("10", False)):
+            payload: JsonValue = {
+                "credits": {
+                    "balance": balance, "has_credits": True,
+                    "unlimited": False, "overage_limit_reached": False,
+                },
+                "rate_limit": {"allowed": False, "limit_reached": True},
+                "spend_control": {"reached": not spending_allowed},
+                "model_usage": models,
+            }
+            usable = usage_credits(payload)["usable"]
+            require_equal(usable, expected and balance != "0" and spending_allowed)
