@@ -16,7 +16,7 @@ from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright.async_api import async_playwright
 
-from domain_checks.common_check import _is_browser_infra_error, find_chromium_executable  # noqa: SLF001
+from domain_checks.common_check import _is_browser_infra_error, find_chromium_executable
 
 
 RESULT_PREFIX = "E2E_RESULT_JSON="
@@ -340,4 +340,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

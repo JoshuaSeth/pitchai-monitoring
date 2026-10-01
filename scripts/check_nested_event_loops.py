@@ -48,7 +48,7 @@ class _Visitor(ast.NodeVisitor):
         self.path = path
         self.violations: list[Violation] = []
 
-    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+    def visit_Call(self, node: ast.Call) -> None:
         expression = _call_name(node.func)
         if expression in {
             "asyncio.run",

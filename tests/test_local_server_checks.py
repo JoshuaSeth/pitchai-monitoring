@@ -13,10 +13,10 @@ from domain_checks.common_check import DomainCheckSpec, SelectorCheck, find_chro
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def log_message(self, format: str, *args) -> None:  # noqa: A002
+    def log_message(self, format: str, *args) -> None:
         return
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         routes: dict[str, tuple[int, dict[str, str], str]] = {
             "/ok": (
                 200,

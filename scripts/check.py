@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess  # noqa: S404
+import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -229,7 +229,7 @@ def _run_gate(gate: _Gate, *, env: dict[str, str]) -> int:
     if gate.skip_reason is not None:
         print(f"<== {gate.name}: skipped", flush=True)
         return 0
-    proc = subprocess.run(gate.command, cwd=_REPO_ROOT, env=env, check=False)  # noqa: S603
+    proc = subprocess.run(gate.command, cwd=_REPO_ROOT, env=env, check=False)
     if proc.returncode == 0:
         print(f"<== {gate.name}: ok", flush=True)
     else:

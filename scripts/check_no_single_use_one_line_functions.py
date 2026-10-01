@@ -167,19 +167,19 @@ class _UseVisitor(ast.NodeVisitor):
         self.local_bindings = _import_bindings(parsed.tree, candidates)
         self.uses: dict[str, list[FunctionUse]] = {key: [] for key in candidates}
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._visit_function_body(node)
 
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self._visit_function_body(node)
 
-    def visit_Name(self, node: ast.Name) -> None:  # noqa: N802
+    def visit_Name(self, node: ast.Name) -> None:
         if isinstance(node.ctx, ast.Load):
             qualified_name = self._resolve_name(node.id)
             if qualified_name is not None:
                 self._record_use(qualified_name, node.lineno, node.id)
 
-    def visit_Attribute(self, node: ast.Attribute) -> None:  # noqa: N802
+    def visit_Attribute(self, node: ast.Attribute) -> None:
         if isinstance(node.ctx, ast.Load):
             qualified_name = self._resolve_attribute(node)
             if qualified_name is not None:
