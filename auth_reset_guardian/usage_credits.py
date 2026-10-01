@@ -1,7 +1,8 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
 """Provider-confirmed credit capacity, separate from included quota and resets."""
 
-from decimal import Decimal, InvalidOperation
+import re
+from decimal import Decimal
 from typing import TypedDict, cast
 
 JsonValue = str | int | float | bool | list["JsonValue"] | dict[str, "JsonValue"] | None
@@ -29,12 +30,11 @@ def usage_credits(usage: JsonValue) -> UsageCredits:
     raw = credit_fields.get("balance")
     balance = None
     if isinstance(raw, (str, int, float)) and not isinstance(raw, bool):
-        try:
-            value = Decimal(str(raw))
-        except InvalidOperation:
-            value = Decimal("NaN")
-        if value.is_finite() and value >= 0:
-            balance = str(value)
+        text = str(raw).strip()
+        if re.fullmatch(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1,9})?", text):
+            value = Decimal(text)
+            if value >= 0:
+                balance = str(value)
     unlimited = credit_fields.get("unlimited") is True
     funded = unlimited or (balance is not None and Decimal(balance) > 0)
     if not credit_fields:

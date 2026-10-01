@@ -29,23 +29,19 @@ def expiry_drain_accounts(
     now: datetime,
 ) -> tuple[AccountObservation, ...]:
     """Return enabled, confirmed expiring accounts in cancellation order."""
-    candidates = [
-        observation
-        for observation in observations.values()
-        if observation.descriptor.enabled
-        and confirmed_end_date(observation) is not None
-        and not subscription_may_have_ended(observation, now=now)
-    ]
+    all_observations = observations.values()
+    enabled = (observation for observation in all_observations if observation.descriptor.enabled)
+    confirmed = (observation for observation in enabled if confirmed_end_date(observation) is not None)
+    candidates = (observation for observation in confirmed if not subscription_may_have_ended(observation, now=now))
     return tuple(sorted(candidates, key=_drain_rank))
 
 
 def _drain_rank(observation: AccountObservation) -> tuple[str, float, float, str]:
     exact = confirmed_end_time(observation)
-    credit_expiries = [
-        credit.expires_at.timestamp()
-        for credit in observation.credits
-        if credit.is_redeemable and credit.expires_at is not None
-    ]
+    redeemable = (credit for credit in observation.credits if credit.is_redeemable)
+    expiry_values = (credit.expires_at for credit in redeemable)
+    known_expiries = (expiry for expiry in expiry_values if expiry is not None)
+    credit_expiries = (expiry.timestamp() for expiry in known_expiries)
     return (
         confirmed_end_date(observation) or "9999-12-31",
         exact.timestamp() if exact is not None else float("inf"),
