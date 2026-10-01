@@ -15,6 +15,7 @@ from .organization_reconciliation import reconcile_pending_attempts
 from .organization_refresh import refresh_organization
 from .organization_runtime import OrganizationRunContext
 from .organization_workflow import OrganizationWorkflow
+from .proof_wake import consume_proof_wake
 
 if TYPE_CHECKING:
     from .models import AccountObservation, ResetCredit
@@ -31,6 +32,8 @@ class OrganizationGuardian(Guardian):
         Returns:
             The durable summary for this scheduled fire.
         """
+        if mode == "live" and not dry_run:
+            consume_proof_wake()
         run_id = self.audit.start_run(mode=mode, now=self.clock())
         summary = GuardianRunSummary(run_id=run_id, mode=mode)
         alerts: list[Alert] = []
