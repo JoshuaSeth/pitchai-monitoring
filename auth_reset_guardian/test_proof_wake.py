@@ -33,12 +33,14 @@ def expect_error(error_type: type[Exception]) -> Generator[None]:
     Raises:
         AssertionError: The operation did not raise the expected exception.
     """
+    caught: Exception | None = None
     try:
         yield
-    except error_type:
-        return
-    message = f"expected {error_type.__name__}"
-    raise AssertionError(message)
+    except error_type as error:
+        caught = error
+    if caught is None:
+        message = f"expected {error_type.__name__}"
+        raise AssertionError(message)
 
 
 class TestProofWake:

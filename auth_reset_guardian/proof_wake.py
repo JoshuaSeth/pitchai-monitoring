@@ -18,10 +18,7 @@ def consume_proof_wake() -> None:
     if not configured:
         return
     path = Path(configured)
-    try:
-        path.unlink()
-    except FileNotFoundError:
-        return
+    path.unlink(missing_ok=True)
     directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
     try:
         os.fsync(directory)
