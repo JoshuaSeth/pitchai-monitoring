@@ -125,8 +125,8 @@ class OrganizationResultRecorder:
                 f"SUCCESS {html.escape(observation.descriptor.label)} credit handled: "
                 f"{result.code}, "
                 f"{result.windows_reset} window(s) reset; attempt {attempt.attempt_id[:12]}. "
-                f"Its weekly reset {html.escape(utc_iso(selection.weekly_reset_at))} was furthest "
-                "among strictly >48h eligible accounts."
+                "Selected in confirmed subscription-expiry order, then reset-credit expiry. "
+                f"Its weekly reset was {html.escape(utc_iso(selection.weekly_reset_at))}."
             )
             self._context.alerts.append(
                 Alert(key=f"redemption-success:{attempt.attempt_id}", line=line),

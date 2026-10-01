@@ -8,6 +8,7 @@ from typing import cast, final
 
 from .clients import JsonHttpTransport
 from .funded_capacity import FundedCapacity, FundedUsageDocument, sanitize_funded_capacity
+from .usage_credits import usage_credits
 
 JsonValue = str | int | float | bool | list["JsonValue"] | dict[str, "JsonValue"] | None
 
@@ -20,6 +21,8 @@ class FundedUsageTransport(JsonHttpTransport):
     capacity: FundedCapacity = field(default_factory=lambda: FundedCapacity(
         credits="unknown", models="unknown", spend_control="unknown",
     ), init=False)
+
+    spendable_credits: bool = field(default=False, init=False)
 
     @final
     def request(
@@ -37,6 +40,7 @@ class FundedUsageTransport(JsonHttpTransport):
             ambiguous_on_failure=cast("bool", options.get("ambiguous_on_failure", False)),
         ))
         if endpoint == "provider_usage":
+            self.spendable_credits = usage_credits(response)["usable"]
             fields = FundedUsageDocument(
                 model_usage=response.get("model_usage"), spend_control=response.get("spend_control"),
             )

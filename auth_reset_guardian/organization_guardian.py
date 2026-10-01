@@ -1,5 +1,5 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Production guardian using organization exhaustion instead of expiry redemption."""
+"""Production guardian draining verified expiry-priority accounts."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 class OrganizationGuardian(Guardian):
-    """Schedule at most one reset only after fresh organization exhaustion proof."""
+    """Schedule at most one reset after fresh target-account exhaustion proof."""
 
     @final
     def run(self, *, mode: str, dry_run: bool) -> GuardianRunSummary:
@@ -190,7 +190,7 @@ class OrganizationGuardian(Guardian):
             credit_ref=credit.credit_ref,
             expires_at=credit.expires_at,
             details={
-                "decision": "organization_exhaustion_evaluation",
+                "decision": "expiry_drain_evaluation",
                 "remaining_seconds": int(remaining.total_seconds()),
                 "new_warning_emitted": warning_emitted,
                 "expiry_horizon_is_not_an_automatic_redemption_gate": True,

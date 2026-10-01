@@ -4,15 +4,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import TYPE_CHECKING, Literal
 
-from .organization_capacity import account_capacity_evidence
+from .expiry_drain_order import expiry_drain_accounts, should_preserve_reset
+from .expiry_inventory import capacity_evidence, inventory_is_fresh
 from .organization_fingerprint import organization_decision_key
 from .subscription_expiry import (
     confirmed_end_date,
     confirmed_end_time,
-    subscription_end_upper_bound,
     subscription_may_have_ended,
 )
 
@@ -30,7 +29,6 @@ DecisionState = Literal[
     "no_eligible_credit",
     "redeem",
 ]
-MINIMUM_WEEKLY_RESET_DISTANCE = timedelta(hours=48)
 
 
 @dataclass(frozen=True)
@@ -69,12 +67,12 @@ def evaluate_organization(
     failed_account_refs: set[str],
     now: datetime,
 ) -> OrganizationDecision:
-    """Require fresh proof that every enabled account has zero remaining capacity.
+    """Drain confirmed expiring accounts first; preserve fleet fallback for unknown dates.
 
     Returns:
         One deterministic organization decision and, when eligible, one selection.
     """
-    evidence = _capacity_evidence(
+    evidence = capacity_evidence(
         descriptors=descriptors,
         observations=observations,
         failed_account_refs=failed_account_refs,
@@ -85,7 +83,9 @@ def evaluate_organization(
         observations=observations,
         now=now,
     )
-    outcome = _decision_outcome(evidence=evidence, selections=selections)
+    outcome = _decision_outcome(
+        evidence=evidence, selections=selections, observations=observations, now=now,
+    )
     decision_key = organization_decision_key(
         evidence=evidence,
         selection=outcome.selection,
@@ -99,39 +99,64 @@ def evaluate_organization(
     )
 
 
-def _capacity_evidence(
-    *,
-    descriptors: Sequence[AccountDescriptor],
-    observations: Mapping[str, AccountObservation],
-    failed_account_refs: set[str],
-    now: datetime,
-) -> tuple[AccountCapacityEvidence, ...]:
-    """Build deterministic per-account evidence from one inventory.
-
-    Returns:
-        One capacity conclusion for every broker account.
-    """
-    return tuple(
-        account_capacity_evidence(
-            descriptor=descriptor,
-            observation=observations.get(descriptor.account_ref),
-            refresh_failed=descriptor.account_ref in failed_account_refs,
-            now=now,
-        )
-        for descriptor in sorted(descriptors, key=lambda item: item.account_ref)
-    )
-
-
 def _decision_outcome(
     *,
     evidence: Sequence[AccountCapacityEvidence],
     selections: Sequence[RedemptionSelection],
+    observations: Mapping[str, AccountObservation],
+    now: datetime,
 ) -> DecisionOutcome:
     """Classify complete evidence and choose at most one reset.
 
     Returns:
         The organization state and its optional exact selection.
     """
+    if not inventory_is_fresh(evidence, now=now):
+        return DecisionOutcome(
+            "indeterminate",
+            "complete fresh inventory is required before redemption",
+            None,
+        )
+    by_ref = {item.account_ref: item for item in evidence}
+    for observation in expiry_drain_accounts(observations, now=now):
+        item = by_ref[observation.descriptor.account_ref]
+        if item.state == "indeterminate":
+            if observation.available_count == 0 and not observation.credits:
+                continue
+            return DecisionOutcome(
+                "indeterminate",
+                "expiry-priority account lacks fresh effective-capacity evidence",
+                None,
+            )
+        if item.state == "available":
+            return DecisionOutcome(
+                "not_exhausted",
+                "continue draining the earliest-expiring usable account",
+                None,
+            )
+        selection = next(
+            (
+                entry
+                for entry in selections
+                if entry.observation.descriptor.account_ref == item.account_ref
+            ),
+            None,
+        )
+        if selection is not None:
+            return DecisionOutcome(
+                "redeem",
+                "restore the earliest-expiring exhausted account before moving to later expiry",
+                selection,
+            )
+        # No eligible bank remains, or the four-day / two-day waiting exception applies.
+    return _fleet_outcome(evidence=evidence, selections=selections)
+
+
+def _fleet_outcome(
+    *,
+    evidence: Sequence[AccountCapacityEvidence],
+    selections: Sequence[RedemptionSelection],
+) -> DecisionOutcome:
     usable = tuple(item for item in evidence if item.state != "disabled")
     if not usable or any(item.state == "indeterminate" for item in evidence):
         return DecisionOutcome(
@@ -193,13 +218,13 @@ def _eligible_selections(
         ]
         if not unexpired:
             continue
-        earliest = min(unexpired, key=lambda credit: (_expiry_sort_value(credit), credit.credit_ref))
-        subscription_end = subscription_end_upper_bound(observation)
-        expires_before_reset = (
-            _expiry_sort_value(earliest) <= weekly_reset_at
-            or (subscription_end is not None and subscription_end <= weekly_reset_at)
+        earliest = min(
+            unexpired,
+            key=lambda credit: (_expiry_sort_value(credit), credit.credit_ref),
         )
-        if weekly_reset_at - now <= MINIMUM_WEEKLY_RESET_DISTANCE and not expires_before_reset:
+        if should_preserve_reset(
+            observation, earliest, weekly_reset_at=weekly_reset_at, now=now,
+        ):
             continue
         candidates.append(
             RedemptionSelection(

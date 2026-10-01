@@ -59,6 +59,7 @@ class DecisionKeyAccount(TypedDict):
 class DecisionKeyPayload(TypedDict):
     """Complete stable input to the organization decision hash."""
 
+    policy: str
     accounts: list[DecisionKeyAccount]
     selection: DecisionKeySelection | None
 
@@ -112,4 +113,4 @@ def _decision_key_payload(
                 ),
             },
         )
-    return {"accounts": accounts, "selection": selected}
+    return {"policy": "expiry-drain-v1", "accounts": accounts, "selection": selected}

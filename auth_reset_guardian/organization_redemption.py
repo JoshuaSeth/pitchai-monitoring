@@ -56,7 +56,7 @@ class OrganizationRedemption:
             expires_at=credit.expires_at,
             attempt_id=attempt.attempt_id,
             details={
-                "reason": "automatic_organization_exhaustion",
+                "reason": "automatic_expiry_drain",
                 "resumed": attempt.resumed,
                 "weekly_reset_at": utc_iso(selection.weekly_reset_at),
             },
