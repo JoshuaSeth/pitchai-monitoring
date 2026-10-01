@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from .usage_credits import usage_credits
 from .history import build_hourly_usage_history
 from .runout import build_runout_forecast, select_capacity_basis
 
@@ -65,6 +66,11 @@ def parse_account(
     )
     stale = last_probe is None or stale_seconds > stale_after_seconds
 
+    paid_credits = dict(usage_credits(usage))
+    paid_credits["stale"] = stale
+    paid_credits["updated_at"] = isoformat(last_probe)
+    credit_usable = paid_credits["usable"] and not stale
+
     five_remaining = five_hour.get("remaining_percent")
     weekly_remaining = weekly.get("remaining_percent")
     primary_reset_at = _parse_datetime(five_hour.get("reset_at"))
@@ -73,6 +79,7 @@ def parse_account(
     weekly_reset_due = weekly_reset_at is not None and weekly_reset_at <= now
     at_safety_floor = (
         availability == "available"
+        and not credit_usable
         and five_remaining is not None
         and five_remaining <= min_five_hour_remaining_percent
     )
@@ -86,6 +93,9 @@ def parse_account(
     elif not usage or availability == "unknown":
         status = "unknown"
         reason = "Usage state unavailable"
+    elif credit_usable and availability == "available":
+        status = "available"
+        reason = "Selectable now; credits available beyond included usage"
     elif (
         weekly_remaining is not None and weekly_remaining <= 0 and not weekly_reset_due
     ):
@@ -169,6 +179,7 @@ def parse_account(
         "weekly": weekly,
         "token_usage": token_usage,
         "reset_credits": credits,
+        "usage_credits": paid_credits,
         "active_session_count": active_sessions,
         "latest_session_expires_at": isoformat(
             _parse_datetime(state.get("lease_expires_at"))
@@ -346,11 +357,12 @@ def build_dashboard_snapshot(
         "methodology": {
             "unit": "normalized reported-window capacity point",
             "definition": "100 points equals one full account window for the declared forecast basis. The dashboard prefers measured five-hour windows and otherwise uses measured weekly windows.",
-            "weekly_handling": "Weekly exhaustion blocks selection until its provider-reported reset. When weekly is the forecast basis, its remaining percentage is used directly rather than relabeled as five-hour capacity.",
+            "weekly_handling": "Weekly exhaustion blocks selection unless the provider confirms spendable credits. When weekly is the forecast basis, its remaining percentage is used directly rather than relabeled as five-hour capacity.",
             "missing_windows": "A provider window that is not reported remains unavailable and is never converted to zero usage or zero remaining capacity.",
             "maximum_not_prediction": True,
             "token_history": "Provider daily totals are reconstructed into 168 hourly UTC points and progressively replaced by native sample deltas; the current hour is partial.",
             "runout_forecast": "Probabilities model recent percentage-point burn and automatic resets for the declared provider-window basis. Banked resets are excluded because redemption is manual and forbidden here.",
+            "usage_credits": "Balances are provider credit units, not quota percentages or currency. Spendable credits extend usage but are excluded from percentage-based runout forecasts until credit burn is measured.",
             "reset_bank": "Read-only inventory. The dashboard has no action that can consume a banked reset.",
         },
     }
