@@ -80,7 +80,7 @@ def test_success_requires_exact_identity_then_proves_capacity_restored(
     )
     require_equal(len(attempts), 1)
     attempt = attempts[0]
-    require_equal(row_text(attempt, "reason"), "automatic_organization_exhaustion")
+    require_equal(row_text(attempt, "reason"), "automatic_expiry_drain")
     require_equal(row_text(attempt, "outcome"), "reset")
     require_equal(row_text(attempt, "status"), "succeeded")
     require_equal(row_text(attempt, "verification"), "exact_credit_absent")

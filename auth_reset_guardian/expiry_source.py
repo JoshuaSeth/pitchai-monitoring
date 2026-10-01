@@ -46,6 +46,9 @@ class ExpiryAwareSource(SingleAttemptBrokerProviderSource):
         )
         return replace(
             observation,
-            usage_state={**observation.usage_state, "funded_capacity": funded_http.capacity},
+            usage_state={
+                **observation.usage_state, "funded_capacity": funded_http.capacity,
+                "spendable_credits": funded_http.spendable_credits,
+            },
             broker_state={**observation.broker_state, **expiry, "execution_exhaustion": failure},
         )

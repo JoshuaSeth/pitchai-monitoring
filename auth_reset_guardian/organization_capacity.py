@@ -107,20 +107,54 @@ def _capacity_state(
         if window["used_percent"] < FULLY_USED_PERCENT:
             continue
         reset_value = window.get(
-            "reset_at", int(observation.captured_at.timestamp()) + window.get("reset_after_seconds", 0),
+            "reset_at",
+            int(observation.captured_at.timestamp())
+            + window.get("reset_after_seconds", 0),
         )
         if window.get("limit_window_seconds", 0) <= 0 or reset_value <= now.timestamp():
-            return "indeterminate", "full allowance window is missing an active duration or reset", ()
+            return (
+                "indeterminate",
+                "full allowance window is missing an active duration or reset",
+                (),
+            )
         exhausted_reset_values.append(reset_value)
     exhausted_resets = tuple(sorted(exhausted_reset_values))
+    if observation.usage_state.get(
+        "spendable_credits",
+    ) is True and not proof_is_current(
+        observation,
+        now=now,
+        max_age=MAX_OBSERVATION_AGE,
+    ):
+        return (
+            "available",
+            "provider confirms spendable credits beyond included allowance",
+            exhausted_resets,
+        )
+    return _effective_capacity(
+        observation=observation, exhausted_resets=exhausted_resets, now=now,
+    )
+
+
+def _effective_capacity(
+    *,
+    observation: AccountObservation,
+    exhausted_resets: tuple[int, ...],
+    now: datetime,
+) -> tuple[CapacityState, str, tuple[int, ...]]:
     allowed = observation.usage_state.get("allowed")
     limit_reached = observation.usage_state.get("limit_reached")
-    funded_conflict = funding_requires_execution_proof(FundedCapacityDocument(
-        funded_capacity=cast("object", observation.usage_state.get("funded_capacity")),
-    ))
+    funded_conflict = funding_requires_execution_proof(
+        FundedCapacityDocument(
+            funded_capacity=cast(
+                "object", observation.usage_state.get("funded_capacity"),
+            ),
+        ),
+    )
     coherent_denial = allowed is False and limit_reached is True and not funded_conflict
     if (
-        exhausted_resets and not coherent_denial
+        exhausted_resets
+        and not coherent_denial
         and not proof_is_current(observation, now=now, max_age=MAX_OBSERVATION_AGE)
     ):
         return (
@@ -131,8 +165,8 @@ def _capacity_state(
     if exhausted_resets:
         reason = (
             "included allowance exhausted; provider coherently denies effective capacity"
-            if coherent_denial else
-            "included allowance exhausted; fresh account-bound execution error proves effective exhaustion"
+            if coherent_denial
+            else "included allowance exhausted; fresh account-bound execution error proves effective exhaustion"
         )
         return (
             "exhausted",
