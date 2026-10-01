@@ -84,7 +84,7 @@
       "target_surface": "deplanbook.com",
       "primary_domain": "deplanbook.com",
       "reminder_id": "reminder-central-2f625a89-3dc5-407d-8bb3-98cc2057ccda",
-      "expected_behavior": "An isolated monitor participant uses normal Google login and logout in NL/PT/EN on desktop and mobile, completes diary and challenge/reward journeys, and verifies retained records after navigation, a new login session, and at least 48 actual elapsed hours without acceptance resets."
+      "expected_behavior": "Target behavior: an isolated monitor participant uses normal visible Google login/logout and protected routes in NL/PT/EN on desktop and mobile; verifies diary/planner half-portions, activity, notes, dates, and challenge rewards through save/reopen, navigation, and a new login session; reads isolated retained values before writes and verifies them again at least 48 actual elapsed hours after first verification, without acceptance resets. This target does not establish account isolation, commissioning, retained samples, or elapsed-age proof."
     },
     {
       "lane_id": "cisnl-hotpath-monitor",
