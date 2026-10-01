@@ -6,11 +6,10 @@ from __future__ import annotations
 import fcntl
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
-
-import pytest
 
 from .cli import main
 from .organization_guardian import OrganizationGuardian
@@ -19,7 +18,27 @@ from .proof_wake import consume_proof_wake
 from .test_organization_assertions import require_equal
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from .organization_runtime import OrganizationRunContext
+
+
+@contextmanager
+def expect_error(error_type: type[Exception]) -> Generator[None]:
+    """Require a specific failure without an optional test-runner dependency.
+
+    Yields:
+        Control to the operation expected to fail.
+
+    Raises:
+        AssertionError: The operation did not raise the expected exception.
+    """
+    try:
+        yield
+    except error_type:
+        return
+    message = f"expected {error_type.__name__}"
+    raise AssertionError(message)
 
 
 class TestProofWake:
@@ -70,7 +89,7 @@ class TestProofWake:
             with (
                 patch.dict(os.environ, {"AUTH_RESET_GUARDIAN_PROOF_WAKE_PATH": str(path)}),
                 patch("auth_reset_guardian.cli._live_source", side_effect=RuntimeError("source unavailable")),
-                pytest.raises(RuntimeError, match="source unavailable"),
+                expect_error(RuntimeError),
             ):
                 main(["--audit-db", str(database), "run", "--no-notify"])
             require_equal(path.read_text(encoding="utf-8"), "pending")
@@ -92,8 +111,13 @@ class TestProofWake:
             require_equal(path.read_text(encoding="utf-8"), "pending")
 
     @staticmethod
-    @pytest.mark.parametrize("dry_run", [False, True])
-    def test_live_entry_point_consumes_only_under_lock(*, dry_run: bool) -> None:
+    def test_live_entry_point_consumes_only_under_lock() -> None:
+        """Check both live and dry-run modes through the installed CLI contract."""
+        for dry_run in (False, True):
+            TestProofWake.check_live_entry_point(dry_run=dry_run)
+
+    @staticmethod
+    def check_live_entry_point(*, dry_run: bool) -> None:
         """A mocked evaluation checks lock ownership and publishes the next hint."""
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "pending.json"
@@ -106,7 +130,7 @@ class TestProofWake:
                 require_equal(path.exists(), dry_run)
                 with (
                     database.with_suffix(".sqlite3.lock").open("rb") as stream,
-                    pytest.raises(BlockingIOError),
+                    expect_error(BlockingIOError),
                 ):
                     fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 path.write_text("next", encoding="utf-8")
