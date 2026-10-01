@@ -435,3 +435,19 @@ def test_reset_bank_exposes_dates_but_not_provider_ids_or_private_copy() -> None
     encoded = json.dumps(snapshot)
     assert "must-not-escape-credit-id" not in encoded
     assert "must-not-escape-provider-copy" not in encoded
+
+
+@pytest.mark.parametrize("blocked", [None, "empty", "overage", "spending", "provider", "stale", "disabled"])
+def test_usage_credits_extend_capacity_without_changing_included_usage(blocked: str | None) -> None:
+    raw = _account("credits@example.com", five_used=100, weekly_used=100, enabled=blocked != "disabled")
+    usage = raw["state"]["usage"]
+    usage["rate_limit"].update({"allowed": blocked != "provider", "limit_reached": blocked == "provider"})
+    usage["credits"] = {"has_credits": True, "unlimited": False, "balance": "0" if blocked == "empty" else "62500", "overage_limit_reached": blocked == "overage"}
+    usage["spend_control"] = {"reached": blocked == "spending"}
+    if blocked == "stale":
+        raw["state"]["last_probe_at"] = (NOW - timedelta(hours=1)).isoformat()
+    parsed = _parse(raw)
+    assert parsed["selectable_now"] is (blocked is None)
+    assert parsed["weekly"]["remaining_percent"] == 0
+    assert parsed["usage_credits"]["balance"] == ("0" if blocked == "empty" else "62500")
+    assert parsed["reset_credits"]["available_count"] == 2

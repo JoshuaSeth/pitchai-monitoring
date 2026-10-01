@@ -87,6 +87,8 @@ def _fixture_account(
                 "email": label,
                 "plan_type": "pro",
                 "rate_limit": rate_limit,
+                "credits": {"has_credits": True, "balance": "62500", "unlimited": False, "overage_limit_reached": False},
+                "spend_control": {"reached": False},
                 "rate_limit_reset_credits": {"available_count": banked},
             },
             "analytics": {
@@ -258,7 +260,7 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(
         )
         try:
             desktop = await browser.new_page(viewport={"width": 1440, "height": 1000})
-            await desktop.goto(auth_usage_server, wait_until="networkidle")
+            await desktop.goto(auth_usage_server, wait_until="domcontentloaded")
             await desktop.locator(
                 "[data-testid=account-table] tbody tr"
             ).first.wait_for()
@@ -278,6 +280,7 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(
                 in await onboarding_row.locator("td").nth(3).inner_text()
             )
             assert "68% left" in await onboarding_row.locator("td").nth(4).inner_text()
+            assert "62,500.00 credits" in await onboarding_row.locator("td").nth(6).inner_text()
             relay_row = desktop.locator(
                 "[data-testid=account-table] tbody tr",
                 has_text="svxjvmk78b@privaterelay.appleid.com",
@@ -327,7 +330,7 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(
             await _assert_no_viewport_overflow(desktop)
 
             mobile = await browser.new_page(viewport={"width": 390, "height": 844})
-            await mobile.goto(auth_usage_server, wait_until="networkidle")
+            await mobile.goto(auth_usage_server, wait_until="domcontentloaded")
             await mobile.locator(
                 "#mobile-account-list .mobile-account"
             ).first.wait_for()
@@ -341,6 +344,7 @@ async def test_dashboard_renders_dense_desktop_and_responsive_mobile(
             assert "Provider does not expose 5h" in await onboarding_card.inner_text()
             assert "No 5h reset exposed" in await onboarding_card.inner_text()
             assert "68% left" in await onboarding_card.inner_text()
+            assert "62,500.00 credits" in await onboarding_card.inner_text()
             relay_card = mobile.locator(
                 "#mobile-account-list .mobile-account",
                 has_text="svxjvmk78b@privaterelay.appleid.com",

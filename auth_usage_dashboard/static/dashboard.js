@@ -225,6 +225,16 @@
     return wrapper;
   }
 
+  function usageCreditsCell(account) {
+    const wrapper = document.createElement("div");
+    const credits = account.usage_credits || {};
+    const balance = number(credits.balance, 2);
+    const label = credits.unlimited ? "Unlimited" : balance === null ? "Not reported" : `${balance} credits`;
+    wrapper.appendChild(element("div", "credits-count", label));
+    wrapper.appendChild(element("div", "cell-sub", credits.stale ? "Stale balance — awaiting refresh" : credits.reason || "Credit balance not reported"));
+    return wrapper;
+  }
+
   function freshnessCell(account) {
     const wrapper = document.createElement("div");
     const age = element("div", `freshness${account.stale ? " is-stale" : ""}`, ageFromIso(account.last_probe_at));
@@ -261,6 +271,7 @@
         resetCell(account.five_hour, account, "five_hour"),
         capacityCell(account.weekly, account, "weekly"),
         resetCell(account.weekly, account, "weekly"),
+        usageCreditsCell(account),
         creditsCell(account),
         freshnessCell(account),
       ];
@@ -274,7 +285,7 @@
     if (!rows.length) {
       const row = document.createElement("tr");
       const cell = element("td", "empty-state", "No broker accounts are available in the current snapshot.");
-      cell.colSpan = 8;
+      cell.colSpan = 9;
       row.appendChild(cell);
       rows.push(row);
     }
@@ -299,6 +310,7 @@
         mobileField("5-hour reset", resetCell(account.five_hour, account, "five_hour")),
         mobileField("Weekly capacity", capacityCell(account.weekly, account, "weekly")),
         mobileField("Weekly reset", resetCell(account.weekly, account, "weekly")),
+        mobileField("Usage credits", usageCreditsCell(account)),
         mobileField("Banked resets", creditsCell(account)),
         mobileField("Freshness", freshnessCell(account))
       );
