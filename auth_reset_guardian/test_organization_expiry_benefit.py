@@ -51,7 +51,7 @@ def test_exact_entitlement_end_allows_use_after_cancel_before_natural_reset() ->
     require_equal(evaluate(exact).decision_key == evaluate(changed).decision_key, expected=False)
 
 
-def test_date_only_does_not_invent_cutoff_before_natural_reset() -> None:
+def test_date_only_under_four_days_does_not_wait_for_natural_reset() -> None:
     """Only a natural reset after the entire end day loses subscription benefit."""
     credit = reset_credit("banked", expires_at=NOW + timedelta(days=30))
     early_reset = with_end(
@@ -62,7 +62,7 @@ def test_date_only_does_not_invent_cutoff_before_natural_reset() -> None:
         account_observation("ending@example.test", weekly_reset_at=NOW + timedelta(hours=40), credit_bank=(credit,)),
         "2026-09-08",
     )
-    require_equal(evaluate(early_reset).state, "no_eligible_credit")
+    require_equal(evaluate(early_reset).state, "redeem")
     require_equal(evaluate(late_reset).state, "redeem")
 
 

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 class OrganizationWorkflow:
-    """Apply the exhaustion-only policy to one complete initial inventory."""
+    """Apply expiry-first replenishment to one complete initial inventory."""
 
     _context: OrganizationRunContext
 

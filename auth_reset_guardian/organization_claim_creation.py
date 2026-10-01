@@ -44,14 +44,14 @@ def insert_attempt(
     details: dict[str, object] = {
         "coordination_key": request.decision_key,
         "weekly_reset_at": utc_iso(selection.weekly_reset_at),
-        "policy": "automatic_organization_exhaustion",
+        "policy": "automatic_expiry_drain",
     }
     _ = connection.execute(
         """
         INSERT INTO redemption_attempts(
             attempt_id, idempotency_key, run_id, account_ref, account_label,
             credit_ref, expires_at, reason, started_at, updated_at, status, details_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'automatic_organization_exhaustion', ?, ?, 'started', ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'automatic_expiry_drain', ?, ?, 'started', ?)
         """,
         (
             attempt_id,

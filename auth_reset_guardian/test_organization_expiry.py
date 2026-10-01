@@ -56,12 +56,12 @@ def test_equal_subscription_dates_use_earliest_credit_across_and_within_accounts
     require_equal(selected_label(first, second), second.descriptor.label)
 
 
-def test_expiry_never_overrides_partial_capacity_or_missing_resets() -> None:
+def test_expiry_replenishes_before_later_capacity_but_requires_own_reset() -> None:
     """No subscription deadline authorizes artificial usage or an empty-bank reset."""
     credit = reset_credit("urgent", expires_at=NOW + timedelta(hours=1))
     urgent = with_end(account_observation("urgent@example.test", credit_bank=(credit,)), "2026-09-08")
     partial = account_observation("partial@example.test", used_percent=99)
-    require_equal(evaluate(urgent, partial).state, "not_exhausted")
+    require_equal(evaluate(urgent, partial).state, "redeem")
     empty = replace(urgent, credits=(), available_count=0)
     require_equal(evaluate(empty).state, "no_eligible_credit")
     ended = with_end(urgent, "2026-09-07")
