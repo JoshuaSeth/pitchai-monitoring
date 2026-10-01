@@ -84,7 +84,7 @@
       "target_surface": "deplanbook.com",
       "primary_domain": "deplanbook.com",
       "reminder_id": "reminder-central-2f625a89-3dc5-407d-8bb3-98cc2057ccda",
-      "expected_behavior": "A synthetic participant completes the diary loop and proves fruit, activity, note, challenge, and exactly-one reward persistence after reload."
+      "expected_behavior": "An isolated monitor participant uses normal Google login and logout in NL/PT/EN on desktop and mobile, completes diary and challenge/reward journeys, and verifies retained records after navigation, a new login session, and at least 48 actual elapsed hours without acceptance resets."
     },
     {
       "lane_id": "cisnl-hotpath-monitor",
