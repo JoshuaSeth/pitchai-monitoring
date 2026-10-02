@@ -61,6 +61,15 @@ from domain_checks.telegram import (
     send_telegram_message_chunked,
 )
 
+from .cycle_configuration import cycle_section
+from .alert_transition import update_effective_ok as _update_effective_ok
+from .cycle_values import (
+    bool_field,
+    coerce_float as _coerce_float,
+    coerce_int as _coerce_int,
+    coerce_optional_float as _coerce_optional_float,
+    required_int,
+)
 from .dft_cycle import DftCycle, parse_cycle_config
 
 
@@ -242,81 +251,6 @@ def _parse_hhmm(value: Any) -> dt_time:
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         raise ValueError(f"Invalid time (expected HH:MM): {value!r}")
     return dt_time(hour=hour, minute=minute)
-
-
-def _get_heartbeat_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("heartbeat") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_host_health_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("host_health") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_performance_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("performance") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_history_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("history") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_slo_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("slo") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_tls_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("tls") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_dns_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("dns") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_red_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("red") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_synthetic_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("synthetic") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_web_vitals_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("web_vitals") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_api_contract_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("api_contract") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_container_health_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("container_health") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_proxy_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("proxy") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_meta_monitoring_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("meta_monitoring") or {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _get_external_e2e_config(config: dict[str, Any]) -> dict[str, Any]:
-    raw = config.get("external_e2e") or {}
-    return raw if isinstance(raw, dict) else {}
 
 
 def _load_timezone(name: str):
@@ -877,33 +811,6 @@ def _coerce_signal_history(value: Any, *, max_samples_per_signal: int = 50_000) 
     return out
 
 
-def _coerce_bool(value: Any, *, default: bool) -> bool:
-    return value if isinstance(value, bool) else bool(default)
-
-
-def _coerce_int(value: Any, *, default: int = 0) -> int:
-    try:
-        return int(value)
-    except Exception:
-        return int(default)
-
-
-def _coerce_float(value: Any, *, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except Exception:
-        return float(default)
-
-
-def _coerce_optional_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except Exception:
-        return None
-
-
 def _load_monitor_state(path: Path) -> dict[str, Any]:
     default_state = {
         "version": 6,
@@ -1055,7 +962,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     if isinstance(host_last_snapshot, dict):
         state["host_last_snapshot"] = host_last_snapshot
 
-    state["browser_degraded_active"] = _coerce_bool(raw.get("browser_degraded_active"), default=False)
+    state["browser_degraded_active"] = bool_field(raw, "browser_degraded_active", default=False)
     state["browser_degraded_first_seen_ts"] = _coerce_float(raw.get("browser_degraded_first_seen_ts"), default=0.0)
     ble = raw.get("browser_launch_last_error")
     state["browser_launch_last_error"] = str(ble)[:800] if isinstance(ble, str) and ble.strip() else None
@@ -1063,7 +970,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     host = raw.get("host_health")
     if isinstance(host, dict):
         state["host_health"] = {
-            "last_ok": _coerce_bool(host.get("last_ok"), default=True),
+            "last_ok": bool_field(host, "last_ok", default=True),
             "fail_streak": _coerce_int(host.get("fail_streak"), default=0),
             "success_streak": _coerce_int(host.get("success_streak"), default=0),
             "cpu_prev_total": _coerce_int(host.get("cpu_prev_total"), default=0),
@@ -1073,7 +980,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     perf = raw.get("performance")
     if isinstance(perf, dict):
         state["performance"] = {
-            "last_ok": _coerce_bool(perf.get("last_ok"), default=True),
+            "last_ok": bool_field(perf, "last_ok", default=True),
             "fail_streak": _coerce_int(perf.get("fail_streak"), default=0),
             "success_streak": _coerce_int(perf.get("success_streak"), default=0),
         }
@@ -1081,7 +988,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     slo = raw.get("slo")
     if isinstance(slo, dict):
         state["slo"] = {
-            "last_ok": _coerce_bool(slo.get("last_ok"), default=True),
+            "last_ok": bool_field(slo, "last_ok", default=True),
             "fail_streak": _coerce_int(slo.get("fail_streak"), default=0),
             "success_streak": _coerce_int(slo.get("success_streak"), default=0),
         }
@@ -1089,7 +996,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     tls = raw.get("tls")
     if isinstance(tls, dict):
         state["tls"] = {
-            "last_ok": _coerce_bool(tls.get("last_ok"), default=True),
+            "last_ok": bool_field(tls, "last_ok", default=True),
             "fail_streak": _coerce_int(tls.get("fail_streak"), default=0),
             "success_streak": _coerce_int(tls.get("success_streak"), default=0),
             "last_run_ts": _coerce_float(tls.get("last_run_ts"), default=0.0),
@@ -1098,7 +1005,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     dns = raw.get("dns")
     if isinstance(dns, dict):
         state["dns"] = {
-            "last_ok": _coerce_bool(dns.get("last_ok"), default=True),
+            "last_ok": bool_field(dns, "last_ok", default=True),
             "fail_streak": _coerce_int(dns.get("fail_streak"), default=0),
             "success_streak": _coerce_int(dns.get("success_streak"), default=0),
             "last_run_ts": _coerce_float(dns.get("last_run_ts"), default=0.0),
@@ -1108,7 +1015,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     red = raw.get("red")
     if isinstance(red, dict):
         state["red"] = {
-            "last_ok": _coerce_bool(red.get("last_ok"), default=True),
+            "last_ok": bool_field(red, "last_ok", default=True),
             "fail_streak": _coerce_int(red.get("fail_streak"), default=0),
             "success_streak": _coerce_int(red.get("success_streak"), default=0),
         }
@@ -1143,7 +1050,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     container_health = raw.get("container_health")
     if isinstance(container_health, dict):
         state["container_health"] = {
-            "last_ok": _coerce_bool(container_health.get("last_ok"), default=True),
+            "last_ok": bool_field(container_health, "last_ok", default=True),
             "fail_streak": _coerce_int(container_health.get("fail_streak"), default=0),
             "success_streak": _coerce_int(container_health.get("success_streak"), default=0),
             "last_run_ts": _coerce_float(container_health.get("last_run_ts"), default=0.0),
@@ -1153,7 +1060,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     proxy = raw.get("proxy")
     if isinstance(proxy, dict):
         state["proxy"] = {
-            "last_ok": _coerce_bool(proxy.get("last_ok"), default=True),
+            "last_ok": bool_field(proxy, "last_ok", default=True),
             "fail_streak": _coerce_int(proxy.get("fail_streak"), default=0),
             "success_streak": _coerce_int(proxy.get("success_streak"), default=0),
         }
@@ -1161,7 +1068,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     meta = raw.get("meta")
     if isinstance(meta, dict):
         state["meta"] = {
-            "last_ok": _coerce_bool(meta.get("last_ok"), default=True),
+            "last_ok": bool_field(meta, "last_ok", default=True),
             "fail_streak": _coerce_int(meta.get("fail_streak"), default=0),
             "success_streak": _coerce_int(meta.get("success_streak"), default=0),
             "state_write_fail_streak": _coerce_int(meta.get("state_write_fail_streak"), default=0),
@@ -1172,34 +1079,6 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
 
 def _load_last_ok_state(path: Path) -> dict[str, bool]:
     return dict(_load_monitor_state(path).get("last_ok") or {})
-
-
-def _update_effective_ok(
-    *,
-    prev_effective_ok: bool,
-    observed_ok: bool,
-    fail_streak: int,
-    success_streak: int,
-    down_after_failures: int,
-    up_after_successes: int,
-) -> tuple[bool, int, int, bool]:
-    down_after_failures = max(1, int(down_after_failures))
-    up_after_successes = max(1, int(up_after_successes))
-
-    if observed_ok:
-        success_streak = int(success_streak) + 1
-        fail_streak = 0
-    else:
-        fail_streak = int(fail_streak) + 1
-        success_streak = 0
-
-    if prev_effective_ok:
-        next_effective_ok = not (fail_streak >= down_after_failures)
-    else:
-        next_effective_ok = bool(success_streak >= up_after_successes)
-
-    alerted_down = bool(prev_effective_ok and not next_effective_ok)
-    return next_effective_ok, fail_streak, success_streak, alerted_down
 
 
 def _write_state_atomic(path: Path, payload: dict[str, Any]) -> None:
@@ -2816,8 +2695,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
     alerting_cfg = config.get("alerting") or {}
     if not isinstance(alerting_cfg, dict):
         alerting_cfg = {}
-    down_after_failures = max(1, int(alerting_cfg.get("down_after_failures", 1)))
-    up_after_successes = max(1, int(alerting_cfg.get("up_after_successes", 1)))
+    down_after_failures = max(1, required_int(alerting_cfg.get("down_after_failures", 1)))
+    up_after_successes = max(1, required_int(alerting_cfg.get("up_after_successes", 1)))
 
     domains_cfg = config.get("domains", [])
     if not isinstance(domains_cfg, list) or not domains_cfg:
@@ -2868,7 +2747,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     }
     all_domains = [entry.domain for entry in domain_entries]
 
-    heartbeat_cfg = _get_heartbeat_config(config)
+    heartbeat_cfg = cycle_section(config, "heartbeat")
     heartbeat_enabled = bool(heartbeat_cfg.get("enabled", False))
     heartbeat_timezone = str(heartbeat_cfg.get("timezone") or "UTC")
     heartbeat_times_raw = heartbeat_cfg.get("times") or []
@@ -2881,7 +2760,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     started_at = datetime.now(tz)
     last_heartbeat_sent: dict[str, str] = {}  # HH:MM -> YYYY-MM-DD
 
-    external_e2e_cfg = _get_external_e2e_config(config)
+    external_e2e_cfg = cycle_section(config, "external_e2e")
     external_e2e_enabled = bool(external_e2e_cfg.get("enabled", False))
     external_e2e_base_url = str(
         os.getenv("E2E_REGISTRY_BASE_URL", str(external_e2e_cfg.get("base_url") or ""))
@@ -2896,10 +2775,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
         default=8.0,
     )
 
-    host_health_cfg = _get_host_health_config(config)
+    host_health_cfg = cycle_section(config, "host_health")
     host_health_enabled = bool(host_health_cfg.get("enabled", False))
-    host_health_down_after_failures = max(1, int(host_health_cfg.get("down_after_failures", 1)))
-    host_health_up_after_successes = max(1, int(host_health_cfg.get("up_after_successes", 1)))
+    host_health_down_after_failures = max(1, required_int(host_health_cfg.get("down_after_failures", 1)))
+    host_health_up_after_successes = max(1, required_int(host_health_cfg.get("up_after_successes", 1)))
     host_disk_used_percent_max = _coerce_optional_float(host_health_cfg.get("disk_used_percent_max"))
     host_mem_used_percent_max = _coerce_optional_float(host_health_cfg.get("mem_used_percent_max"))
     host_swap_used_percent_max = _coerce_optional_float(host_health_cfg.get("swap_used_percent_max"))
@@ -2915,10 +2794,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
     if not host_disk_paths:
         host_disk_paths = ["/"]
 
-    perf_cfg = _get_performance_config(config)
+    perf_cfg = cycle_section(config, "performance")
     perf_enabled = bool(perf_cfg.get("enabled", False))
-    perf_down_after_failures = max(1, int(perf_cfg.get("down_after_failures", 1)))
-    perf_up_after_successes = max(1, int(perf_cfg.get("up_after_successes", 1)))
+    perf_down_after_failures = max(1, required_int(perf_cfg.get("down_after_failures", 1)))
+    perf_up_after_successes = max(1, required_int(perf_cfg.get("up_after_successes", 1)))
     perf_http_elapsed_ms_max = _coerce_float(perf_cfg.get("http_elapsed_ms_max", 1500.0), default=1500.0)
     perf_browser_elapsed_ms_max = _coerce_float(perf_cfg.get("browser_elapsed_ms_max", 4000.0), default=4000.0)
     perf_dispatch_on_degraded = bool(perf_cfg.get("dispatch_on_degraded", False))
@@ -2928,19 +2807,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
     if isinstance(overrides_raw, dict):
         perf_overrides = overrides_raw
 
-    history_cfg = _get_history_config(config)
+    history_cfg = cycle_section(config, "history")
     history_retention_days = _coerce_float(history_cfg.get("retention_days", 7.0), default=7.0)
     history_retention_days = max(1.0, float(history_retention_days))
     history_retention_seconds = history_retention_days * 86400.0
 
-    slo_cfg = _get_slo_config(config)
+    slo_cfg = cycle_section(config, "slo")
     slo_enabled = bool(slo_cfg.get("enabled", False))
     slo_target_percent = _coerce_float(slo_cfg.get("target_percent", 99.9), default=99.9)
-    slo_down_after_failures = max(1, int(slo_cfg.get("down_after_failures", 3)))
-    slo_up_after_successes = max(1, int(slo_cfg.get("up_after_successes", 2)))
+    slo_down_after_failures = max(1, required_int(slo_cfg.get("down_after_failures", 3)))
+    slo_up_after_successes = max(1, required_int(slo_cfg.get("up_after_successes", 2)))
     slo_dispatch_on_degraded = bool(slo_cfg.get("dispatch_on_degraded", False))
     slo_notify_on_recovery = bool(slo_cfg.get("notify_on_recovery", False))
-    slo_min_total_samples = max(1, int(slo_cfg.get("min_total_samples", 5)))
+    slo_min_total_samples = max(1, required_int(slo_cfg.get("min_total_samples", 5)))
     slo_rules = slo_cfg.get("burn_rate_rules")
     if not isinstance(slo_rules, list) or not slo_rules:
         slo_rules = [
@@ -2960,19 +2839,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
             },
         ]
 
-    tls_cfg = _get_tls_config(config)
+    tls_cfg = cycle_section(config, "tls")
     tls_enabled = bool(tls_cfg.get("enabled", False))
-    tls_interval_minutes = max(1, int(tls_cfg.get("interval_minutes", 60)))
+    tls_interval_minutes = max(1, required_int(tls_cfg.get("interval_minutes", 60)))
     tls_min_days_valid = _coerce_float(tls_cfg.get("min_days_valid", 14.0), default=14.0)
     tls_timeout_seconds = _coerce_float(tls_cfg.get("timeout_seconds", 8.0), default=8.0)
-    tls_down_after_failures = max(1, int(tls_cfg.get("down_after_failures", 2)))
-    tls_up_after_successes = max(1, int(tls_cfg.get("up_after_successes", 1)))
+    tls_down_after_failures = max(1, required_int(tls_cfg.get("down_after_failures", 2)))
+    tls_up_after_successes = max(1, required_int(tls_cfg.get("up_after_successes", 1)))
     tls_dispatch_on_degraded = bool(tls_cfg.get("dispatch_on_degraded", False))
     tls_notify_on_recovery = bool(tls_cfg.get("notify_on_recovery", False))
 
-    dns_cfg = _get_dns_config(config)
+    dns_cfg = cycle_section(config, "dns")
     dns_enabled = bool(dns_cfg.get("enabled", False))
-    dns_interval_minutes = max(1, int(dns_cfg.get("interval_minutes", 15)))
+    dns_interval_minutes = max(1, required_int(dns_cfg.get("interval_minutes", 15)))
     dns_timeout_seconds = _coerce_float(dns_cfg.get("timeout_seconds", 4.0), default=4.0)
     dns_resolvers_raw = dns_cfg.get("resolvers")
     dns_resolvers = [str(x).strip() for x in dns_resolvers_raw] if isinstance(dns_resolvers_raw, list) else None
@@ -2985,91 +2864,91 @@ async def run_loop(config_path: Path, once: bool) -> int:
     dns_alert_on_drift_default = bool(dns_cfg.get("alert_on_drift", False))
     dns_expected_ips_by_domain = dns_cfg.get("expected_ips_by_domain") if isinstance(dns_cfg.get("expected_ips_by_domain"), dict) else {}
     dns_alert_on_drift_by_domain = dns_cfg.get("alert_on_drift_by_domain") if isinstance(dns_cfg.get("alert_on_drift_by_domain"), dict) else {}
-    dns_down_after_failures = max(1, int(dns_cfg.get("down_after_failures", 2)))
-    dns_up_after_successes = max(1, int(dns_cfg.get("up_after_successes", 1)))
+    dns_down_after_failures = max(1, required_int(dns_cfg.get("down_after_failures", 2)))
+    dns_up_after_successes = max(1, required_int(dns_cfg.get("up_after_successes", 1)))
     dns_dispatch_on_degraded = bool(dns_cfg.get("dispatch_on_degraded", False))
     dns_notify_on_recovery = bool(dns_cfg.get("notify_on_recovery", False))
 
-    red_cfg = _get_red_config(config)
+    red_cfg = cycle_section(config, "red")
     red_enabled = bool(red_cfg.get("enabled", False))
-    red_window_minutes = max(1, int(red_cfg.get("window_minutes", 30)))
-    red_min_samples = max(1, int(red_cfg.get("min_samples", 10)))
+    red_window_minutes = max(1, required_int(red_cfg.get("window_minutes", 30)))
+    red_min_samples = max(1, required_int(red_cfg.get("min_samples", 10)))
     red_error_rate_max_percent = _coerce_optional_float(red_cfg.get("error_rate_max_percent"))
     red_http_p95_ms_max = _coerce_optional_float(red_cfg.get("http_p95_ms_max"))
     red_browser_p95_ms_max = _coerce_optional_float(red_cfg.get("browser_p95_ms_max"))
-    red_down_after_failures = max(1, int(red_cfg.get("down_after_failures", 3)))
-    red_up_after_successes = max(1, int(red_cfg.get("up_after_successes", 2)))
+    red_down_after_failures = max(1, required_int(red_cfg.get("down_after_failures", 3)))
+    red_up_after_successes = max(1, required_int(red_cfg.get("up_after_successes", 2)))
     red_dispatch_on_degraded = bool(red_cfg.get("dispatch_on_degraded", False))
     red_notify_on_recovery = bool(red_cfg.get("notify_on_recovery", False))
 
-    syn_cfg = _get_synthetic_config(config)
+    syn_cfg = cycle_section(config, "synthetic")
     syn_enabled = bool(syn_cfg.get("enabled", False))
-    syn_interval_minutes = max(1, int(syn_cfg.get("interval_minutes", 15)))
-    syn_max_domains_per_cycle = max(1, int(syn_cfg.get("max_domains_per_cycle", 1)))
+    syn_interval_minutes = max(1, required_int(syn_cfg.get("interval_minutes", 15)))
+    syn_max_domains_per_cycle = max(1, required_int(syn_cfg.get("max_domains_per_cycle", 1)))
     syn_timeout_seconds = _coerce_float(syn_cfg.get("timeout_seconds", 35.0), default=35.0)
-    syn_down_after_failures = max(1, int(syn_cfg.get("down_after_failures", 2)))
-    syn_up_after_successes = max(1, int(syn_cfg.get("up_after_successes", 2)))
+    syn_down_after_failures = max(1, required_int(syn_cfg.get("down_after_failures", 2)))
+    syn_up_after_successes = max(1, required_int(syn_cfg.get("up_after_successes", 2)))
     syn_dispatch_on_degraded = bool(syn_cfg.get("dispatch_on_degraded", False))
     syn_notify_on_recovery = bool(syn_cfg.get("notify_on_recovery", False))
 
-    wv_cfg = _get_web_vitals_config(config)
+    wv_cfg = cycle_section(config, "web_vitals")
     wv_enabled = bool(wv_cfg.get("enabled", False))
-    wv_interval_minutes = max(1, int(wv_cfg.get("interval_minutes", 60)))
-    wv_max_domains_per_cycle = max(1, int(wv_cfg.get("max_domains_per_cycle", 1)))
+    wv_interval_minutes = max(1, required_int(wv_cfg.get("interval_minutes", 60)))
+    wv_max_domains_per_cycle = max(1, required_int(wv_cfg.get("max_domains_per_cycle", 1)))
     wv_timeout_seconds = _coerce_float(wv_cfg.get("timeout_seconds", 45.0), default=45.0)
     wv_post_load_wait_ms = _coerce_int(wv_cfg.get("post_load_wait_ms", 4500), default=4500)
     wv_lcp_ms_max = _coerce_optional_float(wv_cfg.get("lcp_ms_max"))
     wv_cls_max = _coerce_optional_float(wv_cfg.get("cls_max"))
     wv_inp_ms_max = _coerce_optional_float(wv_cfg.get("inp_ms_max"))
-    wv_down_after_failures = max(1, int(wv_cfg.get("down_after_failures", 2)))
-    wv_up_after_successes = max(1, int(wv_cfg.get("up_after_successes", 2)))
+    wv_down_after_failures = max(1, required_int(wv_cfg.get("down_after_failures", 2)))
+    wv_up_after_successes = max(1, required_int(wv_cfg.get("up_after_successes", 2)))
     wv_dispatch_on_degraded = bool(wv_cfg.get("dispatch_on_degraded", False))
     wv_notify_on_recovery = bool(wv_cfg.get("notify_on_recovery", False))
 
-    api_cfg = _get_api_contract_config(config)
+    api_cfg = cycle_section(config, "api_contract")
     api_enabled = bool(api_cfg.get("enabled", False))
-    api_interval_minutes = max(1, int(api_cfg.get("interval_minutes", 10)))
+    api_interval_minutes = max(1, required_int(api_cfg.get("interval_minutes", 10)))
     api_timeout_seconds = _coerce_float(api_cfg.get("timeout_seconds", 10.0), default=10.0)
-    api_down_after_failures = max(1, int(api_cfg.get("down_after_failures", 2)))
-    api_up_after_successes = max(1, int(api_cfg.get("up_after_successes", 2)))
+    api_down_after_failures = max(1, required_int(api_cfg.get("down_after_failures", 2)))
+    api_up_after_successes = max(1, required_int(api_cfg.get("up_after_successes", 2)))
     api_dispatch_on_degraded = bool(api_cfg.get("dispatch_on_degraded", False))
     api_notify_on_recovery = bool(api_cfg.get("notify_on_recovery", False))
 
-    container_cfg = _get_container_health_config(config)
+    container_cfg = cycle_section(config, "container_health")
     container_enabled = bool(container_cfg.get("enabled", False))
-    container_interval_minutes = max(1, int(container_cfg.get("interval_minutes", 1)))
+    container_interval_minutes = max(1, required_int(container_cfg.get("interval_minutes", 1)))
     docker_socket_path = str(container_cfg.get("docker_socket_path") or "/var/run/docker.sock").strip()
     container_monitor_all = bool(container_cfg.get("monitor_all", False))
     container_include_patterns = container_cfg.get("include_name_patterns") if isinstance(container_cfg.get("include_name_patterns"), list) else []
     container_exclude_patterns = container_cfg.get("exclude_name_patterns") if isinstance(container_cfg.get("exclude_name_patterns"), list) else []
     container_timeout_seconds = _coerce_float(container_cfg.get("timeout_seconds", 3.0), default=3.0)
-    container_down_after_failures = max(1, int(container_cfg.get("down_after_failures", 2)))
-    container_up_after_successes = max(1, int(container_cfg.get("up_after_successes", 1)))
+    container_down_after_failures = max(1, required_int(container_cfg.get("down_after_failures", 2)))
+    container_up_after_successes = max(1, required_int(container_cfg.get("up_after_successes", 1)))
     container_dispatch_on_degraded = bool(container_cfg.get("dispatch_on_degraded", False))
     container_notify_on_recovery = bool(container_cfg.get("notify_on_recovery", False))
 
-    proxy_cfg = _get_proxy_config(config)
+    proxy_cfg = cycle_section(config, "proxy")
     proxy_enabled = bool(proxy_cfg.get("enabled", False))
     proxy_access_log_path = str(proxy_cfg.get("access_log_path") or "/var/log/nginx/access.log").strip()
     proxy_error_log_path = str(proxy_cfg.get("error_log_path") or "/var/log/nginx/error.log").strip()
     proxy_timezone_name = str(proxy_cfg.get("timezone") or "Europe/Amsterdam").strip() or "Europe/Amsterdam"
-    proxy_window_seconds = max(60, int(proxy_cfg.get("window_seconds", 300)))
-    proxy_access_max_bytes = max(10_000, int(proxy_cfg.get("access_log_max_bytes", 1_000_000)))
-    proxy_error_max_bytes = max(10_000, int(proxy_cfg.get("error_log_max_bytes", 1_000_000)))
-    proxy_min_total_requests = max(0, int(proxy_cfg.get("min_total_requests", 50)))
+    proxy_window_seconds = max(60, required_int(proxy_cfg.get("window_seconds", 300)))
+    proxy_access_max_bytes = max(10_000, required_int(proxy_cfg.get("access_log_max_bytes", 1_000_000)))
+    proxy_error_max_bytes = max(10_000, required_int(proxy_cfg.get("error_log_max_bytes", 1_000_000)))
+    proxy_min_total_requests = max(0, required_int(proxy_cfg.get("min_total_requests", 50)))
     proxy_max_502_504_percent = _coerce_optional_float(proxy_cfg.get("max_502_504_percent"))
-    proxy_max_upstream_errors_per_domain = max(0, int(proxy_cfg.get("max_upstream_errors_per_domain", 5)))
-    proxy_down_after_failures = max(1, int(proxy_cfg.get("down_after_failures", 2)))
-    proxy_up_after_successes = max(1, int(proxy_cfg.get("up_after_successes", 2)))
+    proxy_max_upstream_errors_per_domain = max(0, required_int(proxy_cfg.get("max_upstream_errors_per_domain", 5)))
+    proxy_down_after_failures = max(1, required_int(proxy_cfg.get("down_after_failures", 2)))
+    proxy_up_after_successes = max(1, required_int(proxy_cfg.get("up_after_successes", 2)))
     proxy_dispatch_on_degraded = bool(proxy_cfg.get("dispatch_on_degraded", False))
     proxy_notify_on_recovery = bool(proxy_cfg.get("notify_on_recovery", False))
 
-    meta_cfg = _get_meta_monitoring_config(config)
+    meta_cfg = cycle_section(config, "meta_monitoring")
     meta_enabled = bool(meta_cfg.get("enabled", False))
     meta_cycle_overrun_factor = _coerce_float(meta_cfg.get("cycle_overrun_factor", 1.25), default=1.25)
-    meta_state_write_failures_max = max(1, int(meta_cfg.get("state_write_failures_max", 3)))
-    meta_down_after_failures = max(1, int(meta_cfg.get("down_after_failures", 2)))
-    meta_up_after_successes = max(1, int(meta_cfg.get("up_after_successes", 2)))
+    meta_state_write_failures_max = max(1, required_int(meta_cfg.get("state_write_failures_max", 3)))
+    meta_down_after_failures = max(1, required_int(meta_cfg.get("down_after_failures", 2)))
+    meta_up_after_successes = max(1, required_int(meta_cfg.get("up_after_successes", 2)))
     meta_dispatch_on_degraded = bool(meta_cfg.get("dispatch_on_degraded", False))
     meta_notify_on_recovery = bool(meta_cfg.get("notify_on_recovery", False))
 
@@ -3215,32 +3094,32 @@ async def run_loop(config_path: Path, once: bool) -> int:
                 LOGGER.exception("Failed to migrate history ok mode to effective")
         host_state = disk_state.get("host_health")
         if isinstance(host_state, dict):
-            host_health_last_ok = _coerce_bool(host_state.get("last_ok"), default=True)
+            host_health_last_ok = bool_field(host_state, "last_ok", default=True)
             host_health_fail_streak = _coerce_int(host_state.get("fail_streak"), default=0)
             host_health_success_streak = _coerce_int(host_state.get("success_streak"), default=0)
             host_cpu_prev_total = _coerce_int(host_state.get("cpu_prev_total"), default=0)
             host_cpu_prev_idle = _coerce_int(host_state.get("cpu_prev_idle"), default=0)
         perf_state = disk_state.get("performance")
         if isinstance(perf_state, dict):
-            perf_last_ok = _coerce_bool(perf_state.get("last_ok"), default=True)
+            perf_last_ok = bool_field(perf_state, "last_ok", default=True)
             perf_fail_streak = _coerce_int(perf_state.get("fail_streak"), default=0)
             perf_success_streak = _coerce_int(perf_state.get("success_streak"), default=0)
         slo_state = disk_state.get("slo")
         if isinstance(slo_state, dict):
-            slo_last_ok = _coerce_bool(slo_state.get("last_ok"), default=True)
+            slo_last_ok = bool_field(slo_state, "last_ok", default=True)
             slo_fail_streak = _coerce_int(slo_state.get("fail_streak"), default=0)
             slo_success_streak = _coerce_int(slo_state.get("success_streak"), default=0)
 
         tls_state = disk_state.get("tls")
         if isinstance(tls_state, dict):
-            tls_last_ok = _coerce_bool(tls_state.get("last_ok"), default=True)
+            tls_last_ok = bool_field(tls_state, "last_ok", default=True)
             tls_fail_streak = _coerce_int(tls_state.get("fail_streak"), default=0)
             tls_success_streak = _coerce_int(tls_state.get("success_streak"), default=0)
             tls_last_run_ts = _coerce_float(tls_state.get("last_run_ts"), default=0.0)
 
         dns_state = disk_state.get("dns")
         if isinstance(dns_state, dict):
-            dns_last_ok = _coerce_bool(dns_state.get("last_ok"), default=True)
+            dns_last_ok = bool_field(dns_state, "last_ok", default=True)
             dns_fail_streak = _coerce_int(dns_state.get("fail_streak"), default=0)
             dns_success_streak = _coerce_int(dns_state.get("success_streak"), default=0)
             dns_last_run_ts = _coerce_float(dns_state.get("last_run_ts"), default=0.0)
@@ -3248,7 +3127,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
         red_state = disk_state.get("red")
         if isinstance(red_state, dict):
-            red_last_ok = _coerce_bool(red_state.get("last_ok"), default=True)
+            red_last_ok = bool_field(red_state, "last_ok", default=True)
             red_fail_streak = _coerce_int(red_state.get("fail_streak"), default=0)
             red_success_streak = _coerce_int(red_state.get("success_streak"), default=0)
 
@@ -3275,7 +3154,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
         cont_state = disk_state.get("container_health")
         if isinstance(cont_state, dict):
-            container_last_ok = _coerce_bool(cont_state.get("last_ok"), default=True)
+            container_last_ok = bool_field(cont_state, "last_ok", default=True)
             container_fail_streak = _coerce_int(cont_state.get("fail_streak"), default=0)
             container_success_streak = _coerce_int(cont_state.get("success_streak"), default=0)
             container_last_run_ts = _coerce_float(cont_state.get("last_run_ts"), default=0.0)
@@ -3283,13 +3162,13 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
         proxy_state = disk_state.get("proxy")
         if isinstance(proxy_state, dict):
-            proxy_last_ok = _coerce_bool(proxy_state.get("last_ok"), default=True)
+            proxy_last_ok = bool_field(proxy_state, "last_ok", default=True)
             proxy_fail_streak = _coerce_int(proxy_state.get("fail_streak"), default=0)
             proxy_success_streak = _coerce_int(proxy_state.get("success_streak"), default=0)
 
         meta_state = disk_state.get("meta")
         if isinstance(meta_state, dict):
-            meta_last_ok = _coerce_bool(meta_state.get("last_ok"), default=True)
+            meta_last_ok = bool_field(meta_state, "last_ok", default=True)
             meta_fail_streak = _coerce_int(meta_state.get("fail_streak"), default=0)
             meta_success_streak = _coerce_int(meta_state.get("success_streak"), default=0)
             state_write_fail_streak = _coerce_int(meta_state.get("state_write_fail_streak"), default=0)

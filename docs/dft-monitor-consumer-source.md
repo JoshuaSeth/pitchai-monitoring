@@ -55,6 +55,8 @@ The consumer source currently contains:
   discards output in bounded chunks and has a separate one-second deadline;
   an inherited stdout pipe cannot extend the ten-second observation deadline
   indefinitely. Cleanup failure remains an unhealthy fixed-code observation.
+  Process creation precedes the observation deadline; these separate limits do
+  not establish a universal eleven-second bound for a whole monitor cycle.
 - `domain_checks/dft_retention_consumer.py`: sanitized observations and incident
   identity transitions, persisted by the journal before delivery.
   A warning cannot close it; owner acknowledgement and verified healthy proof
@@ -274,8 +276,60 @@ The activation baseline already records 468 Ruff, 1757 typing, 214 Pylint and 76
 Semgrep findings in that same module, plus architecture findings. The separate
 new/scoped consumer modules pass their targeted static gates; the repository
 anti-bypass check still reports 21 unchanged suppressions outside this change.
-Infrastructure624 holds the scoped integration-custody request. Clean library
-checks do not override the failed cycle-module gate.
+Infrastructure624 has explicitly assigned the necessary behavior-preserving
+cycle decomposition to retained consumer owner528 on this same PR204 branch.
+This clears the earlier source-scope uncertainty; it does not allocate runtime
+paths or authorize deployment. Clean library checks do not override the failed
+cycle-module gate. PR156 removes suppressions elsewhere and cannot repair
+`main.py`'s whole-file requirement.
+
+### First cycle decomposition increment
+
+The initial source increment extracts three boundaries from the actual cycle:
+`cycle_configuration.py` selects the same15 optional configuration sections;
+`cycle_values.py` distinguishes required scalar conversion from existing
+retained-state fallbacks; `alert_transition.py` retains the keyword-based
+effective-health transition and tuple result used by all domain/metric callers.
+Required invalid settings still raise; optional invalid thresholds remain
+absent. Existing scalar conversion, boolean/default and nonfinite policies
+are preserved. No new health policy is introduced by this extraction.
+
+Nine focused tests pass. Differential comparison with
+`4c97c085423ebace7d827cb494aa84b6661f767f` matches1600 health transitions,
+180 section lookups and154 numeric/boolean cases. A separate syntax-tree check
+confirms the rest of `main.py` is unchanged after accounting for the declared
+imports, removed procedures and call substitutions. The DFT reader, checker,
+incident, handoff and outgoing-intent implementations are unchanged.
+
+Four new isolated real-launcher runs exercise these extracted boundaries through
+config loading, consecutive cycles and persisted state. They verify default
+config-path resolution using synthetic input, explicit string thresholds,
+independent domains, one DOWN edge and a two-success recovery. The unaffected
+domain stays healthy. DFT remains disabled without a checker or journal;
+network/subprocess and outgoing-message guards record zero attempts and the
+synthetic browser is closed after each run. This supplements, without repeating,
+the independently accepted eight-run DFT launcher proof at4c97.
+
+Exact raw source/test/gate evidence and reproducible proof tools are under
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261002/cycle-config-extraction-20261002/`:
+`tests-final.log`, `prove_extracted_boundaries.py` and its JSON result,
+`check_integration_ast.py` and its JSON result, `prove_unrelated_launcher.py`
+and its JSON result, `gates-focused-final.log` and `gates-changed-files.log`.
+The six new modules/tests pass architecture, Ruff, BasedPyright, Pylint and
+Semgrep checks. The canonical command still fails its repository-wide
+anti-bypass check on21 existing findings. The remaining main module still
+fails required quality checks; this is an intermediate source increment.
+
+The current overlapping source patches are PR43/staging at
+`8b286115e5c0d228e1cf37545145ccf09ca2adbb` (API-contract scheduling/alert
+coordination) and PR45/main at
+`cf98683cde25b32132170216518f64c0eebaaecd` (per-domain readiness policy and
+persisted delivery receipts). Their owners and branches are preserved. The
+overlap was reported to624 under central command
+`ec924cdf-5074-4325-bfe4-f9bdd03a7d4e`; central acceptance is not substantive
+owner acceptance. Their business behavior is not integrated by this increment.
+Further cycle extraction must reconcile those interfaces before changing the
+overlapping scheduling, alert-builder or event-persistence slices.
 
 The five-file producer acknowledgement delta at `6885e8` is reviewed as source.
 It requires the exact reviewed status digest, bound operations owner, retained
