@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+from .e2e_status_scope_runtime import install_active_status_scope
 from .registry_runtime import legacy_dashboard
 from .summary import build_dashboard_summary
 from .web_runtime import router as evidence_router
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
 
 def install_monitoring_v2(app: Application) -> None:
     """Replace summary composition and register the protected evidence route."""
+    install_active_status_scope()
     legacy_dashboard.build_dashboard_summary = cast(
         "DashboardBuilder",
         cast("object", build_dashboard_summary),

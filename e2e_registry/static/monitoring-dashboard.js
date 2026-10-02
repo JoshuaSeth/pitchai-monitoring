@@ -121,6 +121,7 @@
   function statusClass(status) {
     if (["healthy", "fresh", "up", "pass", "passing", "ok", "delivered", "recovered"].includes(status)) return "is-healthy";
     if (["critical", "stale", "down", "fail", "failed"].includes(status)) return "is-critical";
+    if (["parked", "disabled"].includes(status)) return "is-disabled";
     return "is-attention";
   }
 
@@ -218,9 +219,13 @@
     byId("kpi-e2e").textContent = e2e.total_tests === null || e2e.total_tests === undefined
       ? "Unavailable"
       : `${formatCount(e2e.passing_tests)}/${formatCount(e2e.total_tests)}`;
-    byId("kpi-e2e-detail").textContent = e2e.latest_run_at_ts
-      ? `Latest run ${formatRelative(e2e.latest_run_at_ts, summary.generated_at_ts)} · ${formatCount(e2e.disabled_tests)} disabled`
-      : "No completed E2E run found";
+    byId("kpi-e2e-detail").textContent = [
+      e2e.latest_run_at_ts
+        ? `Latest run ${formatRelative(e2e.latest_run_at_ts, summary.generated_at_ts)}`
+        : "No completed E2E run found",
+      `${formatCount(e2e.parked_tests)} parked`,
+      `${formatCount(e2e.disabled_tests)} disabled`,
+    ].join(" · ");
 
     byId("kpi-availability").textContent = formatPercent(daily.availability_pct, 3);
     byId("kpi-availability-detail").textContent = `${formatCount(daily.successful_observations)} of ${formatCount(daily.observations)} successful`;
@@ -1131,7 +1136,7 @@
   }
 
   function journeyStatusLabel(status) {
-    return ({ healthy: "Healthy", failing: "Failing", stale: "Stale", infra_degraded: "Infra degraded", never_run: "Never run", disabled: "Disabled", unknown: "Unavailable" })[status] || titleCase(status);
+    return ({ healthy: "Healthy", failing: "Failing", stale: "Stale", infra_degraded: "Infra degraded", never_run: "Never run", parked: "Parked", disabled: "Disabled", unknown: "Unavailable" })[status] || titleCase(status);
   }
 
   function shortHash(value) {
@@ -1267,7 +1272,7 @@
     setStatusLabel(byId("journeys-status"), titleCase(journeys.status), journeys.status);
     byId("journey-count").textContent = formatCount(items.length);
     byId("journey-summary").replaceChildren(
-      createMetricCard("Enabled", formatCount(journeys.total), `${formatCount(journeys.disabled)} disabled`, "healthy"),
+      createMetricCard("Active", formatCount(journeys.total), `${formatCount(journeys.parked)} parked · ${formatCount(journeys.disabled)} disabled`, "healthy"),
       createMetricCard("Passing", formatCount(journeys.passing), "Fresh effective journey successes", "healthy"),
       createMetricCard("Attention", formatCount((numberOrNull(journeys.failing) || 0) + (numberOrNull(journeys.stale) || 0) + (numberOrNull(journeys.infra_degraded) || 0) + (numberOrNull(journeys.never_run) || 0) + (numberOrNull(journeys.unknown) || 0)), `${formatCount(journeys.failing)} failing · ${formatCount(journeys.stale)} stale · ${formatCount(journeys.unknown)} unavailable`, journeys.status === "attention" ? "critical" : "healthy"),
       createMetricCard("Latest run", journeys.latest_run_at_ts ? formatRelative(journeys.latest_run_at_ts, summary.generated_at_ts) : "Unavailable", journeys.data_state === "available" ? "Registry-backed schedule" : titleCase(journeys.data_state), journeys.data_state === "available" ? "healthy" : "unknown"),

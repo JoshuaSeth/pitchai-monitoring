@@ -2191,6 +2191,10 @@ body.operator-shell {
   box-shadow: inset 3px 0 0 var(--ops-critical);
 }
 
+.journey-row.is-disabled {
+  box-shadow: inset 3px 0 0 var(--ops-line);
+}
+
 .journey-row:last-child {
   border-bottom: 0;
 }
