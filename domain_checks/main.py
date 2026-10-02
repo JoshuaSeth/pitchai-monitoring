@@ -26,6 +26,7 @@ from domain_checks.common_check import (
     http_get_check,
     load_domain_spec_from_module_dict,
 )
+from domain_checks.dft_cycle import DftCycle, parse_cycle_config
 from domain_checks.history import append_sample, coerce_history, prune_history
 from domain_checks.inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
@@ -34,7 +35,6 @@ from domain_checks.metrics_dns import DnsCheckResult, check_dns
 from domain_checks.metrics_nginx import (
     NginxAccessWindowStats,
     NginxUpstreamErrorEvent,
-    compute_access_window_stats,
     parse_recent_upstream_errors,
     summarize_upstream_errors,
 )
@@ -3088,6 +3088,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
     state_path_raw = str(os.getenv("STATE_PATH", "/data/state.json") or "").strip()
     state_path = Path(state_path_raw) if state_path_raw else None
+    dft_cycle = DftCycle(parse_cycle_config(config.get("dft_web_access")))
 
     # Track state (persisted if STATE_PATH is mounted) to avoid spamming alerts every minute.
     last_ok: dict[str, bool] = {}
@@ -3403,6 +3404,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
             "dispatch_last": dispatch_last,
             "events": events_capped,
             "event_bus_outbox": event_bus_outbox.to_state() if event_bus_outbox else [],
+            "dft_web_access": dft_cycle.summary,
             "host_last_snapshot": host_last_snapshot,
             "browser_degraded_active": bool(monitor_state.get("browser_degraded_active", False)),
             "browser_degraded_first_seen_ts": float(monitor_state.get("browser_degraded_first_seen_ts") or 0.0),
@@ -4785,7 +4787,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         access_stats = None
                         access_violation = False
                         if proxy_max_502_504_percent is not None and proxy_access_log_path:
-                            access_stats = compute_access_window_stats(
+                            access_stats = dft_cycle.read_access(
                                 access_log_path=proxy_access_log_path,
                                 now=datetime.now(timezone.utc),
                                 window_seconds=int(proxy_window_seconds),
@@ -4832,6 +4834,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             (not upstream_issues)
                             and (not access_violation)
                             and (not upstream_violation)
+                            and (dft_cycle.coverage_ok or proxy_last_ok)
                         )
                         prev_effective = bool(proxy_last_ok)
                         proxy_last_ok, proxy_fail_streak, proxy_success_streak, proxy_alerted_down = _update_effective_ok(
@@ -5354,6 +5357,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 )
                                 break
 
+                    await dft_cycle.observe(now=time.time())
+
                     try:
                         _prune_signal_history(before_ts=time.time() - float(history_retention_seconds))
                     except Exception:
@@ -5493,6 +5498,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     )
                     await asyncio.sleep(sleep_for)
             finally:
+                dft_cycle.close()
                 if browser is not None:
                     await browser.close()
 

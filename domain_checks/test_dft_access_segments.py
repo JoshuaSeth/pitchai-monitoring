@@ -36,7 +36,7 @@ class TestSegments(unittest.TestCase):
                     message="window counters or content minimization changed")
             require(condition=read_production_window(root, now=now, window_seconds=300) == result,
                     message="repeated polling changed the window")
-            with require_error(SegmentUnavailableError, "segment_short_or_read_budget_exceeded"):
+            with require_error(SegmentUnavailableError, "segment_catchup_incomplete"):
                 read_production_window(root, now=now, window_seconds=300, max_bytes=5)
             (root / "dft-access-2026-10-02T11+00:00.jsonl").unlink()
             with require_error(SegmentUnavailableError, "missing_window_segments"):

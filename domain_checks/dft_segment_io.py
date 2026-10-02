@@ -25,12 +25,37 @@ class SegmentUnavailableError(ValueError):
 
 
 @dataclass(frozen=True)
+class SegmentCount:
+    """Original-time aggregate counters; no request identifiers or content."""
+
+    timestamp: float
+    total: int
+    server_errors: int
+    gateway_errors: int
+    client_errors: int
+
+
+@dataclass(frozen=True)
 class SegmentSnapshot:
     """Content-free continuity metadata retained between monitor cycles."""
 
     device: int
     inode: int
     size: int
+    offset: int = 0
+    covered_start: float = 0
+    counts: tuple[SegmentCount, ...] = ()
+
+
+@dataclass(frozen=True)
+class SegmentChunk:
+    """Bounded transient bytes at a stable segment position."""
+
+    capture: str
+    hour: float
+    snapshot: SegmentSnapshot
+    data: bytes
+    reached_end: bool
 
 
 @contextmanager
@@ -81,34 +106,40 @@ def _read_segment(
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
             message = "unsafe_segment_type_or_links"
             raise SegmentUnavailableError(message)
-        snapshot = SegmentSnapshot(info.st_dev, info.st_ino, info.st_size)
         if old is not None and (old.device != info.st_dev or old.inode != info.st_ino or old.size > info.st_size):
             message = "segment_replaced_or_truncated"
             raise SegmentUnavailableError(message)
-        data = stream.read(min(info.st_size, remaining + 1))
-        if len(data) != info.st_size or len(data) > remaining:
-            message = "segment_short_or_read_budget_exceeded"
+        offset = old.offset if old else 0
+        stream.seek(offset)
+        expected = min(info.st_size - offset, remaining)
+        data = stream.read(expected)
+        if len(data) != expected:
+            message = "segment_short_read"
             raise SegmentUnavailableError(message)
+        snapshot = SegmentSnapshot(info.st_dev, info.st_ino, info.st_size, offset,
+                                   old.covered_start if old else 0, old.counts if old else ())
     return snapshot, data
 
 
 def load_window(
     root: Path, *, start: float, end: float, max_bytes: int, previous: dict[str, SegmentSnapshot],
-) -> tuple[list[tuple[str, float, bytes]], dict[str, SegmentSnapshot]]:
+) -> list[SegmentChunk]:
     """Read one bounded window and reject replacement or truncation.
 
     Returns:
-        Transient bytes and proposed metadata, committed by the caller only
-        after schema validation. Request bytes must never enter durable state.
+        Transient incremental chunks, committed only after schema validation.
+        The byte budget bounds work per poll rather than total hourly size.
 
     """
-    result: list[tuple[str, float, bytes]] = []
-    snapshots: dict[str, SegmentSnapshot] = {}
+    result: list[SegmentChunk] = []
     remaining = max_bytes
     with _directory(root) as directory:
         for name, hour, capture in _select(directory, start, end):
-            snapshot, data = _read_segment(directory, name, remaining, previous.get(name))
+            old = previous.get(name)
+            if old is not None and start < old.covered_start:
+                old = SegmentSnapshot(old.device, old.inode, old.size)
+            snapshot, data = _read_segment(directory, name, remaining, old)
             remaining -= len(data)
-            snapshots[name] = snapshot
-            result.append((capture, hour, data))
-    return result, snapshots
+            result.append(SegmentChunk(capture, hour, snapshot, data,
+                                       snapshot.offset + len(data) == snapshot.size))
+    return result

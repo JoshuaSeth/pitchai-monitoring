@@ -6,16 +6,17 @@ from __future__ import annotations
 import json
 import math
 from contextlib import suppress
+from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
-from .dft_segment_io import SegmentUnavailableError, load_window
+from .dft_segment_io import SegmentCount, SegmentUnavailableError, load_window
 from .metrics_nginx import NginxAccessWindowStats
 
 if TYPE_CHECKING:
     from datetime import datetime
     from pathlib import Path
 
-    from .dft_segment_io import SegmentSnapshot
+    from .dft_segment_io import SegmentChunk, SegmentSnapshot
     from .event_bus_delivery import JsonValue
 
 _BOT = "PitchAI Service Monitoring Bot"
@@ -55,20 +56,23 @@ def _record(line: bytes, capture: str, hour_start: float) -> tuple[float, int, s
     return float(cast("float", timestamp)), cast("int", status), cast("str", agent)
 
 
-def _count_segments(segments: list[tuple[str, float, bytes]], start: float, end: float) -> NginxAccessWindowStats:
-    counts = [0, 0, 0, 0]
-    for capture, hour_start, data in segments:
-        for line in data.splitlines(keepends=True):
-            if not line.endswith(b"\n"):
-                continue
-            timestamp, status, agent = _record(line, capture, hour_start)
-            if not start <= timestamp <= end or agent == _BOT:
-                continue
-            counts[0] += 1
-            counts[1] += int(status >= _SERVER_ERROR_MIN)
-            counts[2] += int(status in {502, 504})
-            counts[3] += int(_CLIENT_ERROR_MIN <= status < _SERVER_ERROR_MIN)
-    return NginxAccessWindowStats(*counts, sample_lines=[])
+def _consume(chunk: SegmentChunk, start: float) -> SegmentSnapshot:
+    retained_counts = (item for item in chunk.snapshot.counts if item.timestamp >= start)
+    counts = {item.timestamp: item for item in retained_counts}
+    consumed = 0
+    for line in chunk.data.splitlines(keepends=True):
+        if not line.endswith(b"\n"):
+            break
+        timestamp, status, agent = _record(line, chunk.capture, chunk.hour)
+        consumed += len(line)
+        if timestamp < start or agent == _BOT:
+            continue
+        old = counts.get(timestamp, SegmentCount(timestamp, 0, 0, 0, 0))
+        counts[timestamp] = SegmentCount(timestamp, old.total + 1, old.server_errors + int(status >= _SERVER_ERROR_MIN),
+                                        old.gateway_errors + int(status in {502, 504}),
+                                        old.client_errors + int(_CLIENT_ERROR_MIN <= status < _SERVER_ERROR_MIN))
+    return replace(chunk.snapshot, offset=chunk.snapshot.offset + consumed, covered_start=start,
+                   counts=tuple(counts.values()))
 
 
 def read_production_window(
@@ -79,12 +83,14 @@ def read_production_window(
     max_bytes: int = 1_000_000,
     snapshots: dict[str, SegmentSnapshot] | None = None,
 ) -> NginxAccessWindowStats:
-    """Recompute one complete production window without accumulating polls.
+    """Advance bounded byte cursors and count only a completely covered window.
 
     Caller binds the root to production and retains metadata snapshots across
-    cycles. Each physical segment/byte position is visited once per window;
+    cycles. Each complete physical segment/byte position is consumed once;
     identical records at different positions remain distinct requests. A final
-    partial record waits for completion. Staging siblings are never traversed.
+    partial record waits for completion. Cold catch-up persists only validated
+    cursor/counter progress and reports unavailable coverage until caught up.
+    Staging siblings are never traversed.
 
     Returns:
         Aggregate status counters without any raw request samples.
@@ -98,8 +104,19 @@ def read_production_window(
     end = now.timestamp()
     start = end - window_seconds
     retained = {} if snapshots is None else snapshots
-    segments, next_snapshots = load_window(root, start=start, end=end, max_bytes=max_bytes, previous=retained)
-    result = _count_segments(segments, start, end)
+    segments = load_window(root, start=start, end=end, max_bytes=max_bytes, previous=retained)
+    next_snapshots = {f"dft-access-{chunk.capture}.jsonl": _consume(chunk, start) for chunk in segments}
     retained.clear()
     retained.update(next_snapshots)
-    return result
+    if any(not chunk.reached_end for chunk in segments):
+        message = "segment_catchup_incomplete"
+        raise SegmentUnavailableError(message)
+    counts = [0, 0, 0, 0]
+    for snapshot in retained.values():
+        for item in snapshot.counts:
+            if item.timestamp <= end:
+                counts[0] += item.total
+                counts[1] += item.server_errors
+                counts[2] += item.gateway_errors
+                counts[3] += item.client_errors
+    return NginxAccessWindowStats(*counts, sample_lines=[])
