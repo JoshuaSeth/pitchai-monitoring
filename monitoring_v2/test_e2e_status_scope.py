@@ -4,9 +4,7 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import time
-from contextlib import closing
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
@@ -26,7 +24,17 @@ from .e2e_status_scope_runtime import (
 )
 from .journeys import build_journeys
 from .json_types import json_object, object_list, optional_object, text_value
-from .testing_registry import registry_database
+from .testing_registry import (
+    SCOPE_ACTIVE_FAILING,
+    SCOPE_ACTIVE_PASSING,
+    SCOPE_DISABLED_FAILING,
+    SCOPE_EXPIRED_UNTIL_TS,
+    SCOPE_PARKED_FAILING,
+    SCOPE_PARKED_UNTIL_TS,
+    SCOPE_RESUMED_PASSING,
+    registry_database,
+    seed_status_scope_registry,
+)
 from .testing_runtime import pytest
 
 if TYPE_CHECKING:
@@ -38,24 +46,14 @@ if TYPE_CHECKING:
 
 _NOW = time.time()
 _HTTP_OK = 200
-_RUN_AGE_SECONDS = 60.0
-_INTERVAL_SECONDS = 300
-# Production parks a lane for years and expires a pause by leaving it in the past.
-_PARKED_UNTIL_TS = 1_893_456_000.0
-_EXPIRED_UNTIL_TS = 1_600_000_000.0
-_ACTIVE_FAILING = "scope.active_failing"
-_ACTIVE_PASSING = "scope.active_passing"
-_RESUMED_PASSING = "scope.resumed_passing"
-_PARKED_FAILING = "scope.parked_failing"
-_DISABLED_FAILING = "scope.disabled_failing"
-_ACTIVE_IDS = [_ACTIVE_FAILING, _ACTIVE_PASSING, _RESUMED_PASSING]
+_ACTIVE_IDS = [SCOPE_ACTIVE_FAILING, SCOPE_ACTIVE_PASSING, SCOPE_RESUMED_PASSING]
 _LEGACY_FAILING_COUNT = 3
 _EXPECTED_LABELS = {
-    _ACTIVE_FAILING: TEST_STATUS_ACTIVE,
-    _ACTIVE_PASSING: TEST_STATUS_ACTIVE,
-    _RESUMED_PASSING: TEST_STATUS_ACTIVE,
-    _PARKED_FAILING: TEST_STATUS_PARKED,
-    _DISABLED_FAILING: TEST_STATUS_DISABLED,
+    SCOPE_ACTIVE_FAILING: TEST_STATUS_ACTIVE,
+    SCOPE_ACTIVE_PASSING: TEST_STATUS_ACTIVE,
+    SCOPE_RESUMED_PASSING: TEST_STATUS_ACTIVE,
+    SCOPE_PARKED_FAILING: TEST_STATUS_PARKED,
+    SCOPE_DISABLED_FAILING: TEST_STATUS_DISABLED,
 }
 _EXPECTED_STATUS_COUNTS = {
     "total_tests": 3,
@@ -77,63 +75,18 @@ _EXPECTED_JOURNEY_COUNTS = {
     "disabled": 1,
 }
 _EXPECTED_JOURNEY_STATUS = {
-    _ACTIVE_FAILING: "failing",
-    _ACTIVE_PASSING: "passing",
-    _RESUMED_PASSING: "passing",
-    _PARKED_FAILING: "parked",
-    _DISABLED_FAILING: "disabled",
+    SCOPE_ACTIVE_FAILING: "failing",
+    SCOPE_ACTIVE_PASSING: "passing",
+    SCOPE_RESUMED_PASSING: "passing",
+    SCOPE_PARKED_FAILING: "parked",
+    SCOPE_DISABLED_FAILING: "disabled",
 }
-# identifier, enabled, disabled_until_ts, disabled_reason, effective_ok
-_SEEDED_TESTS: tuple[tuple[str, int, float | None, str | None, int], ...] = (
-    (_ACTIVE_FAILING, 1, None, None, 0),
-    (_ACTIVE_PASSING, 1, None, None, 1),
-    (_RESUMED_PASSING, 1, _EXPIRED_UNTIL_TS, "pause expired", 1),
-    (_PARKED_FAILING, 1, _PARKED_UNTIL_TS, "temporary probe cleanup", 0),
-    (_DISABLED_FAILING, 0, None, "retired lane", 0),
-)
-_TENANT_INSERT = (
-    "INSERT INTO tenants (id, name, created_at_ts, updated_at_ts) VALUES ('local', 'Local', 1, 1)"
-)
-_TEST_INSERT = (
-    "INSERT INTO tests (id, tenant_id, name, base_url, enabled, disabled_until_ts, disabled_reason,"
-    " interval_seconds, definition_json, created_at_ts, updated_at_ts)"
-    " VALUES (?, 'local', ?, 'https://example.invalid/', ?, ?, ?, ?, '{}', 1, 1)"
-)
-_STATE_INSERT = (
-    "INSERT INTO test_state (test_id, effective_ok, fail_streak, success_streak) VALUES (?, ?, 0, 0)"
-)
-_RUN_INSERT = (
-    "INSERT INTO runs (id, test_id, scheduled_for_ts, finished_at_ts, status) VALUES (?, ?, ?, ?, ?)"
-)
-
-
-def _seed_registry(path: Path) -> None:
-    """Seed one active failing, active passing, resumed, parked and disabled row."""
-    with closing(sqlite3.connect(str(path), timeout=30)) as connection:
-        _ = connection.execute(_TENANT_INSERT)
-        for identifier, enabled, until_ts, reason, effective_ok in _SEEDED_TESTS:
-            _ = connection.execute(
-                _TEST_INSERT,
-                (identifier, identifier, enabled, until_ts, reason, _INTERVAL_SECONDS),
-            )
-            _ = connection.execute(_STATE_INSERT, (identifier, effective_ok))
-            _ = connection.execute(
-                _RUN_INSERT,
-                (
-                    f"{identifier}.run",
-                    identifier,
-                    _NOW - _RUN_AGE_SECONDS,
-                    _NOW - _RUN_AGE_SECONDS,
-                    "fail" if effective_ok == 0 else "pass",
-                ),
-            )
-        connection.commit()
 
 
 def _registry_settings(root: Path) -> RegistrySettings:
     """Return settings for one fixture database holding the deployed registry schema."""
     path = registry_database(root / "e2e-registry.db")
-    _seed_registry(path)
+    seed_status_scope_registry(path, now=_NOW)
     return RegistrySettings(db_path=str(path))
 
 
@@ -156,10 +109,15 @@ async def _get_json(client: AsyncClient, path: str, token: str) -> JsonObject:
 def test_status_classes_separate_schedulable_parked_and_disabled_rows() -> None:
     """Keep an enabled failure alertable while parked and retired rows stay out."""
     rows: list[JsonObject] = [
-        {"test_id": _ACTIVE_FAILING, "enabled": 1, "effective_ok": 0},
-        {"test_id": _DISABLED_FAILING, "enabled": 0, "effective_ok": 0},
-        {"test_id": _PARKED_FAILING, "enabled": 1, "disabled_until_ts": _PARKED_UNTIL_TS, "effective_ok": 0},
-        {"test_id": _RESUMED_PASSING, "enabled": 1, "disabled_until_ts": _EXPIRED_UNTIL_TS, "effective_ok": 0},
+        {"test_id": SCOPE_ACTIVE_FAILING, "enabled": 1, "effective_ok": 0},
+        {"test_id": SCOPE_DISABLED_FAILING, "enabled": 0, "effective_ok": 0},
+        {"test_id": SCOPE_PARKED_FAILING, "enabled": 1, "disabled_until_ts": SCOPE_PARKED_UNTIL_TS, "effective_ok": 0},
+        {
+            "test_id": SCOPE_RESUMED_PASSING,
+            "enabled": 1,
+            "disabled_until_ts": SCOPE_EXPIRED_UNTIL_TS,
+            "effective_ok": 0,
+        },
     ]
     counts = count_test_statuses(rows, now_ts=_NOW)
     expected = E2EStatusCounts(
@@ -174,10 +132,10 @@ def test_status_classes_separate_schedulable_parked_and_disabled_rows() -> None:
     if counts != expected:
         pytest.fail(f"unexpected E2E status counts: {counts}")
     expected_classes = {
-        _ACTIVE_FAILING: TEST_STATUS_ACTIVE,
-        _DISABLED_FAILING: TEST_STATUS_DISABLED,
-        _PARKED_FAILING: TEST_STATUS_PARKED,
-        _RESUMED_PASSING: TEST_STATUS_ACTIVE,
+        SCOPE_ACTIVE_FAILING: TEST_STATUS_ACTIVE,
+        SCOPE_DISABLED_FAILING: TEST_STATUS_DISABLED,
+        SCOPE_PARKED_FAILING: TEST_STATUS_PARKED,
+        SCOPE_RESUMED_PASSING: TEST_STATUS_ACTIVE,
     }
     if _labels(rows, "status_class") != expected_classes:
         pytest.fail(f"unexpected E2E status classes: {rows}")
@@ -230,7 +188,7 @@ async def test_registry_status_route_publishes_the_scoped_summary(
     dashboard_server: DashboardServer,
 ) -> None:
     """Publish the scoped summary from the status query production installs."""
-    _seed_registry(tmp_path / "e2e-registry.db")
+    seed_status_scope_registry(tmp_path / "e2e-registry.db", now=_NOW)
     client_factory = partial(AsyncClient, base_url=dashboard_server.base_url)
     async with client_factory() as client:
         status = await _get_json(client, "/api/v1/status/summary", dashboard_server.monitor_token)

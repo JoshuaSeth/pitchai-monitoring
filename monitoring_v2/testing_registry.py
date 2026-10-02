@@ -22,6 +22,38 @@ _RUN_INSERT = (
     "INSERT INTO runs (id, test_id, scheduled_for_ts, finished_at_ts, status) "
     "VALUES ('local.run', 'local.one', ?, ?, 'pass')"
 )
+# Fixture identity for the schedulable, parked and disabled status-scope rows.
+SCOPE_ACTIVE_FAILING = "scope.active_failing"
+SCOPE_ACTIVE_PASSING = "scope.active_passing"
+SCOPE_RESUMED_PASSING = "scope.resumed_passing"
+SCOPE_PARKED_FAILING = "scope.parked_failing"
+SCOPE_DISABLED_FAILING = "scope.disabled_failing"
+SCOPE_PARKED_REASON = "temporary probe cleanup"
+SCOPE_DISABLED_REASON = "retired lane"
+# Production parks a lane for years and expires a pause by leaving it in the past.
+SCOPE_PARKED_UNTIL_TS = 1_893_456_000.0
+SCOPE_EXPIRED_UNTIL_TS = 1_600_000_000.0
+_INTERVAL_SECONDS = 300
+_RUN_AGE_SECONDS = 60.0
+_PAUSE_TEST_INSERT = (
+    "INSERT INTO tests (id, tenant_id, name, base_url, enabled, disabled_until_ts, disabled_reason,"
+    " interval_seconds, definition_json, created_at_ts, updated_at_ts)"
+    " VALUES (?, 'local', ?, 'https://example.invalid/', ?, ?, ?, ?, '{}', 1, 1)"
+)
+_STATE_INSERT = (
+    "INSERT INTO test_state (test_id, effective_ok, fail_streak, success_streak) VALUES (?, ?, 0, 0)"
+)
+_SCOPE_RUN_INSERT = (
+    "INSERT INTO runs (id, test_id, scheduled_for_ts, finished_at_ts, status) VALUES (?, ?, ?, ?, ?)"
+)
+# identifier, enabled, disabled_until_ts, disabled_reason, effective_ok
+_SCOPE_ROWS: tuple[tuple[str, int, float | None, str | None, int], ...] = (
+    (SCOPE_ACTIVE_FAILING, 1, None, None, 0),
+    (SCOPE_ACTIVE_PASSING, 1, None, None, 1),
+    (SCOPE_RESUMED_PASSING, 1, SCOPE_EXPIRED_UNTIL_TS, "pause expired", 1),
+    (SCOPE_PARKED_FAILING, 1, SCOPE_PARKED_UNTIL_TS, SCOPE_PARKED_REASON, 0),
+    (SCOPE_DISABLED_FAILING, 0, None, SCOPE_DISABLED_REASON, 0),
+)
 _RETAINED_QUERIES = (
     "SELECT v FROM schema_meta",
     "SELECT COUNT(*) FROM tests",
@@ -59,6 +91,29 @@ def seed_inventory(db_path: Path, *, now: float, run_age_seconds: float) -> None
         for identifier, enabled in (("local.one", 1), ("local.two", 0)):
             _ = connection.execute(_TEST_INSERT + _TEST_VALUES, (identifier, identifier, enabled))
         _ = connection.execute(_RUN_INSERT, (now - run_age_seconds, now - run_age_seconds))
+        connection.commit()
+
+
+def seed_status_scope_registry(db_path: Path, *, now: float) -> None:
+    """Register active, resumed, parked and disabled rows for status-scope tests."""
+    with closing(sqlite3.connect(str(db_path), timeout=30)) as connection:
+        _ = connection.execute(_TENANT_INSERT)
+        for identifier, enabled, until_ts, reason, effective_ok in _SCOPE_ROWS:
+            _ = connection.execute(
+                _PAUSE_TEST_INSERT,
+                (identifier, identifier, enabled, until_ts, reason, _INTERVAL_SECONDS),
+            )
+            _ = connection.execute(_STATE_INSERT, (identifier, effective_ok))
+            _ = connection.execute(
+                _SCOPE_RUN_INSERT,
+                (
+                    f"{identifier}.run",
+                    identifier,
+                    now - _RUN_AGE_SECONDS,
+                    now - _RUN_AGE_SECONDS,
+                    "fail" if effective_ok == 0 else "pass",
+                ),
+            )
         connection.commit()
 
 
