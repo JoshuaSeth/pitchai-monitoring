@@ -51,6 +51,10 @@ The consumer source currently contains:
 - `domain_checks/dft_checker_process.py`: proposed bounded local invocation of
   the producer-owned checker. It neither provides a remote executor nor makes
   private state or host clock services accessible inside a container.
+  Each invocation has its own process group. Cleanup terminates that group,
+  discards output in bounded chunks and has a separate one-second deadline;
+  an inherited stdout pipe cannot extend the ten-second observation deadline
+  indefinitely. Cleanup failure remains an unhealthy fixed-code observation.
 - `domain_checks/dft_retention_consumer.py`: sanitized observations and incident
   identity transitions, persisted by the journal before delivery.
   A warning cannot close it; owner acknowledgement and verified healthy proof
@@ -144,6 +148,18 @@ an actual synthetic local checker, journal restart and matching acknowledgement.
 Malformed output preserves the same incident and immutable failed intent until
 fresh healthy evidence; the eventual recovery cannot overtake that failed intent.
 No real producer checker, retained status or delivery endpoint is used.
+
+Two isolated inherited-pipe regressions reproduced a cleanup hang after an
+observation timeout or oversized-response refusal: killing only the parent
+left a descendant holding stdout open. The process-group cleanup correction
+passed12 affected subprocess, numeric-evidence and cycle cases in41.138 seconds.
+The new cases execute only synthetic children in temporary directories; existing
+incident/restart/acknowledgement tests continue to require verified recovery.
+No deployed checker or host process was invoked or terminated by that proof.
+The final four-case checker suite passed13.552 seconds; after allowing the
+synthetic descendant enough startup time, both inherited-pipe cases passed in
+2.111 seconds. Initial selector, lint and fixture-startup failures remain in
+the separate `checker-cleanup-20261002` evidence directory.
 
 The producer review at `de1f3e3` demonstrated a 1,000,200-byte valid hour with
 only 150 current-window bytes rejected by the former whole-hour reader. The new
@@ -362,6 +378,10 @@ and cannot satisfy incident recovery. No zero-traffic fallback is manufactured.
 
 After a complete candidate window and healthy checker, the journal commits
 selection and the next access read uses segments with shared DFT exclusion.
+The selecting observation can already report `active_access_source=segments`
+while that cycle's counters came from its preceding shared read. Runtime
+acceptance therefore requires the next successful access read/cycle under
+selected segment authority, as6f97's retained eebc761 release addendum specifies.
 That read revalidates the original files and advances the same cursors; it does
 not reuse cached counters as current coverage without reading. Restart restores
 selected authority only for the matching original admission. A later missing

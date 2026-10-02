@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import signal
 from contextlib import suppress
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
 
 _MAX_RESPONSE_BYTES = 32_768
 _TIMEOUT_SECONDS = 10
+_CLEANUP_TIMEOUT_SECONDS = 1
 
 
 async def observe_checker(source_root: Path, allocated_config: Path) -> CheckerObservation:
@@ -35,16 +37,37 @@ async def observe_checker(source_root: Path, allocated_config: Path) -> CheckerO
         process = await asyncio.create_subprocess_exec(
             "/usr/bin/python3", "-m", "scripts.dft_access_log_status", "--config", str(allocated_config),
             cwd=source_root, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
-            limit=_MAX_RESPONSE_BYTES + 1,
+            limit=_MAX_RESPONSE_BYTES + 1, start_new_session=True,
         )
     if process is None:
         return CheckerObservation(errors=("checker_unavailable",))
     try:
-        return await _read_process(process)
+        observation = await _read_process(process)
     finally:
-        if process.returncode is None:
-            process.kill()
-        await process.communicate()
+        cleaned = await _finish_process(process)
+    return observation if cleaned else CheckerObservation(errors=("checker_cleanup_failed",))
+
+
+async def _finish_process(process: asyncio.subprocess.Process) -> bool:
+    """Terminate only this invocation's group and discard output in bounded chunks.
+
+    A descendant can retain stdout after the checker exits. Killing only the
+    parent and then communicating would let that descendant stall the cycle.
+    This deadline also bounds cleanup if a group member cannot be terminated.
+
+    Returns:
+        Whether output reached EOF and the direct child was reaped in time.
+    """
+    with suppress(OSError):
+        with suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+        async with asyncio.timeout(_CLEANUP_TIMEOUT_SECONDS):
+            if process.stdout is not None:
+                while await process.stdout.read(8192):
+                    pass
+            await process.wait()
+        return True
+    return False
 
 
 async def _read_process(process: asyncio.subprocess.Process) -> CheckerObservation:
