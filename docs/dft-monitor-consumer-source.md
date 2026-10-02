@@ -603,3 +603,44 @@ receiver acceptance, off-host coverage, original 300-second adoption/drain
 coverage plus the next segment read, throughput/copy disposition or finite
 Infrastructure624 admission. PR43/45 interfaces and original coordination
 requests retain their separate owners and current status.
+
+# Message-builder decomposition increment
+
+Twenty-one existing pure builders now live in six canonical-scope modules:
+`message_templates`, `message_tls_dns`, `message_slo_red`, `message_browser`,
+`message_container` and `message_proxy`. Main retains their existing imported
+helper names. This removes 512 lines from main, leaving 4,251. The remaining
+main AST matches parent `89bc9b5e9048cbffa0d03346f900da84e4f01f82` after the
+declared removals and imports. API-readiness builders and PR43/45 interfaces
+are untouched. These helpers construct text only; routing, transport,
+thresholds, scheduling and state transitions remain in the cycle.
+
+Evidence is retained at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/messages-extraction-20261003/`:
+
+- Seven focused tests pass. The differential tool matches 1,299 parent
+  outcomes across all 21 builders, including 11 matching numeric exceptions,
+  Unicode/JSON formatting, stable ordering, prefix limits and unchanged input
+  objects. The eight runtime/test files match their pre-test byte snapshot.
+- Four actual isolated launcher/config/restart runs preserve two-failure and
+  two-success transitions for a domain, host health, TLS and DNS. Synthetic
+  HTTP/browser/host/clock/metric inputs and replacement local text captures
+  produce three warning strings, zero outbound attempts and no delivery
+  receipts. DFT stays disabled; existing DFT launcher proof retains its scope.
+- Two fixture failures are retained. The first patched an imported main
+  namespace rather than the launcher's separate namespace; the audit guard
+  blocked the attempted call. The second omitted an alertable metric domain
+  and did not advance the scheduler clock. The final fixture patches source
+  dependencies and uses an explicit synthetic metric domain and clock.
+- All seven new files pass scoped architecture, Ruff, BasedPyright, Pylint 10
+  and Semgrep. Whole-main gates still fail: 394 Ruff findings, 412 typing
+  errors and one warning, Pylint 9.25/10, 53 Semgrep findings and architecture
+  debt. The aggregate retains 21 repository anti-bypass findings. No policy,
+  baseline or suppression changed.
+
+The proxy builders preserve existing sample handling for unrelated feeds.
+The new DFT path supplies content-free aggregates upstream; this extraction
+does not resolve shared/error/Docker/historical copy disposition. Actual
+checker/config/clock/reader/schema2 journal, receiver/off-host, original
+300-second adoption/drain interval plus next selected read, throughput and
+finite Infrastructure624 admission remain separate runtime dependencies.

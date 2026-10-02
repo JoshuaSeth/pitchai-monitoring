@@ -26,6 +26,27 @@ from .common_check import (
     load_domain_spec_from_module_dict,
 )
 from .history import append_sample, prune_history
+from .message_templates import build_dispatch_prompt as _build_dispatch_prompt
+from .message_templates import dispatch_read_only_rules as _dispatch_read_only_rules
+from .message_templates import build_host_health_dispatch_prompt as _build_host_health_dispatch_prompt
+from .message_templates import build_meta_alert_message as _build_meta_alert_message
+from .message_templates import build_meta_dispatch_prompt as _build_meta_dispatch_prompt
+from .message_tls_dns import build_tls_alert_message as _build_tls_alert_message
+from .message_tls_dns import build_tls_dispatch_prompt as _build_tls_dispatch_prompt
+from .message_tls_dns import build_dns_alert_message as _build_dns_alert_message
+from .message_tls_dns import build_dns_dispatch_prompt as _build_dns_dispatch_prompt
+from .message_slo_red import build_slo_alert_message as _build_slo_alert_message
+from .message_slo_red import build_slo_dispatch_prompt as _build_slo_dispatch_prompt
+from .message_slo_red import build_red_alert_message as _build_red_alert_message
+from .message_slo_red import build_red_dispatch_prompt as _build_red_dispatch_prompt
+from .message_browser import build_synthetic_alert_message as _build_synthetic_alert_message
+from .message_browser import build_synthetic_dispatch_prompt as _build_synthetic_dispatch_prompt
+from .message_browser import build_web_vitals_alert_message as _build_web_vitals_alert_message
+from .message_browser import build_web_vitals_dispatch_prompt as _build_web_vitals_dispatch_prompt
+from .message_container import build_container_health_alert_message as _build_container_health_alert_message
+from .message_container import build_container_health_dispatch_prompt as _build_container_health_dispatch_prompt
+from .message_proxy import build_proxy_alert_message as _build_proxy_alert_message
+from .message_proxy import build_proxy_dispatch_prompt as _build_proxy_dispatch_prompt
 from .host_readings import (
     compute_cpu_used_percent as _compute_cpu_used_percent,
     disk_usage_percent as _disk_usage_percent,
@@ -718,59 +739,10 @@ def load_domain_spec(domain_entry: Any) -> DomainCheckSpec:
     )
 
 
-def _build_dispatch_prompt(result: DomainCheckResult) -> str:
-    details = json.dumps(result.details, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "A monitored domain is DOWN or showing a broken/maintenance page.\n\n"
-        f"Domain: {result.domain}\n"
-        f"Monitor reason: {result.reason}\n"
-        "Monitor details (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        f"1) Investigate why {result.domain} is not functioning properly on the production host.\n"
-        "2) Use Docker to identify the relevant service container(s) and reverse proxy (by name/image/labels/ports).\n"
-        "3) Inspect container status, recent restarts, health checks, and logs.\n"
-        "4) Check for common root causes: upstream crash-loop, bad deploy, DNS, cert expiry, proxy config, "
-        "resource exhaustion, and disk space issues.\n"
-        "5) If you believe a restart or configuration change would help, suggest it as a human action but do not execute it.\n\n"
-        "Return a concise final report with:\n"
-        "- Root cause + evidence\n"
-        "- Commands run (read-only diagnostics)\n"
-        "- Current status + what to monitor next\n"
-    )
 
 
-def _dispatch_read_only_rules() -> str:
-    return (
-        "IMPORTANT safety rules:\n"
-        "- Do NOT restart/stop/recreate any containers or services.\n"
-        "- Do NOT deploy, update images, run apt-get, or change configuration files.\n"
-        "- Do NOT prune/remove volumes/images/containers.\n"
-        "- Only run read-only diagnostics (docker ps/inspect/logs/stats, curl, df, free, uptime, etc.).\n"
-        "- If you believe a restart would help, suggest it as a human action but do not execute it.\n"
-    )
 
 
-def _build_host_health_dispatch_prompt(*, violations: list[str], snap: dict[str, Any]) -> str:
-    snap_json = json.dumps(snap, indent=2, ensure_ascii=False, sort_keys=True)
-    violations_txt = "\n".join(f"- {v}" for v in violations[:20]) if violations else "(none)"
-    return (
-        "The production service-monitoring detected host health threshold violations (e.g. high CPU/RAM/disk usage).\n\n"
-        f"Observed violations:\n{violations_txt}\n\n"
-        "Host snapshot (JSON):\n"
-        f"{snap_json}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Confirm whether disk/memory/swap/cpu/load is actually under pressure on the production host.\n"
-        "2) Identify top resource consumers (especially Docker containers).\n"
-        "3) Gather evidence: docker ps, docker stats --no-stream, docker inspect (limits), df -h, df -i, free -m, uptime.\n"
-        "4) Explain the most likely root cause(s) and the safest remediation steps for a human operator.\n\n"
-        "Return a concise final report with:\n"
-        "- Root cause hypothesis + evidence\n"
-        "- What is consuming resources (container names, sizes, cpu/mem)\n"
-        "- Immediate safe actions (non-disruptive) + next steps\n"
-    )
 
 
 def _build_performance_dispatch_prompt(*, slow: list[dict[str, Any]]) -> str:
@@ -802,221 +774,20 @@ def _build_performance_dispatch_prompt(*, slow: list[dict[str, Any]]) -> str:
     )
 
 
-def _build_tls_alert_message(
-    *,
-    results: list[TlsCertCheckResult],
-    min_days_valid: float,
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    bad = [r for r in results if not r.ok]
-    lines = ["Monitor warning: TLS certificate checks are degraded ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append(f"Threshold: min_days_valid={float(min_days_valid):.1f}d")
-    lines.append("")
-    for r in bad[:15]:
-        host = r.host or "?"
-        port = r.port or 443
-        days = "n/a" if r.days_remaining is None else f"{r.days_remaining:.2f}d"
-        err = (r.error or "unknown").strip()
-        lines.append(f"- {r.domain}: {err} host={host}:{port} days_remaining={days} not_after={r.not_after_iso}")
-    return "\n".join(lines).strip()
 
 
-def _build_tls_dispatch_prompt(*, results: list[TlsCertCheckResult], min_days_valid: float) -> str:
-    bad = [r for r in results if not r.ok]
-    payload = [
-        {
-            "domain": r.domain,
-            "host": r.host,
-            "port": r.port,
-            "not_after_iso": r.not_after_iso,
-            "days_remaining": r.days_remaining,
-            "error": r.error,
-            "details": r.details,
-        }
-        for r in bad[:20]
-    ]
-    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected TLS certificate problems (expiry soon / handshake failures).\n\n"
-        f"Threshold: min_days_valid={float(min_days_valid):.1f} days\n\n"
-        "Failing TLS checks (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Confirm certificate status from the production host with openssl s_client / curl -Iv.\n"
-        "2) If expiry is near, check certbot/Let's Encrypt renewal status and Nginx config for the affected domain.\n"
-        "3) Identify whether the issue is DNS/SNI mismatch, expired cert, wrong cert installed, or renewal failure.\n"
-        "4) Provide a clear remediation plan for a human operator (avoid making changes).\n\n"
-        "Return a concise final report with:\n"
-        "- Root cause + evidence\n"
-        "- Affected domains + expiry dates\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
-def _build_dns_alert_message(
-    *,
-    results: list[DnsCheckResult],
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    bad = [r for r in results if not r.ok]
-    lines = ["Monitor warning: DNS checks are degraded ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append("")
-    for r in bad[:15]:
-        a = ",".join(r.a_records[:4]) if r.a_records else "-"
-        aaaa = ",".join(r.aaaa_records[:4]) if r.aaaa_records else "-"
-        drift = " drift" if r.drift_detected else ""
-        exp = ",".join((r.expected_ips or [])[:4]) if r.expected_ips else "-"
-        err = (r.error or "").strip()
-        extra = f" error={err}" if err else ""
-        lines.append(f"- {r.domain}:{drift} A=[{a}] AAAA=[{aaaa}] expected=[{exp}]{extra}")
-    return "\n".join(lines).strip()
 
 
-def _build_dns_dispatch_prompt(*, results: list[DnsCheckResult]) -> str:
-    bad = [r for r in results if not r.ok]
-    payload = [
-        {
-            "domain": r.domain,
-            "a_records": r.a_records,
-            "aaaa_records": r.aaaa_records,
-            "drift_detected": r.drift_detected,
-            "expected_ips": r.expected_ips,
-            "error": r.error,
-        }
-        for r in bad[:25]
-    ]
-    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected DNS resolution problems (NXDOMAIN/timeout/no A/AAAA or drift).\n\n"
-        "Failing DNS checks (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Confirm DNS resolution from the production host using dig/host/nslookup against multiple resolvers.\n"
-        "2) Determine whether the issue is authoritative DNS, resolver, DNSSEC, or transient network.\n"
-        "3) If drift is flagged, assess whether the change is expected (deploy/failover) or suspicious.\n"
-        "4) Provide a human-safe remediation plan (no changes executed).\n\n"
-        "Return a concise final report with:\n"
-        "- Root cause + evidence\n"
-        "- Affected domains + observed records\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
-def _build_slo_alert_message(
-    *,
-    violations: list[SloBurnViolation],
-    slo_target_percent: float,
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: SLO error budget burn rate is high ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append(f"SLO target: {float(slo_target_percent):.3f}%")
-    lines.append("")
-    for v in violations[:15]:
-        s_av = "n/a" if v.short_availability_percent is None else f"{v.short_availability_percent:.3f}%"
-        l_av = "n/a" if v.long_availability_percent is None else f"{v.long_availability_percent:.3f}%"
-        lines.append(
-            f"- {v.domain}: rule={v.rule} burn={v.short_burn_rate:.2f}/{v.long_burn_rate:.2f} "
-            f"avail={s_av}/{l_av} samples={v.short_total}/{v.long_total} "
-            f"windows={v.short_window_minutes}m/{v.long_window_minutes}m"
-        )
-    return "\n".join(lines).strip()
 
 
-def _build_slo_dispatch_prompt(*, violations: list[SloBurnViolation], slo_target_percent: float) -> str:
-    payload = [
-        {
-            "domain": v.domain,
-            "rule": v.rule,
-            "short_window_minutes": v.short_window_minutes,
-            "long_window_minutes": v.long_window_minutes,
-            "short_burn_rate": v.short_burn_rate,
-            "long_burn_rate": v.long_burn_rate,
-            "short_availability_percent": v.short_availability_percent,
-            "long_availability_percent": v.long_availability_percent,
-            "short_total": v.short_total,
-            "long_total": v.long_total,
-        }
-        for v in violations[:30]
-    ]
-    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected high error-budget burn rate (SLO at risk).\n\n"
-        f"SLO target: {float(slo_target_percent):.3f}%\n\n"
-        "Triggered burn-rate violations (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Identify which domains/services are causing burn-rate violations and whether issues are ongoing.\n"
-        "2) Correlate with recent deploys, container restarts/OOMs, Nginx upstream errors, and host resource pressure.\n"
-        "3) Provide a clear summary of likely root cause(s) and recommended next steps for a human operator.\n\n"
-        "Return a concise final report with:\n"
-        "- What is burning budget + since when\n"
-        "- Root cause hypothesis + evidence\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
-def _build_red_alert_message(
-    *,
-    violations: list[RedViolation],
-    window_minutes: int,
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: RED / golden-signal checks are degraded ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append(f"Window: {int(window_minutes)}m")
-    lines.append("")
-    for v in violations[:15]:
-        err = "n/a" if v.error_rate_percent is None else f"{v.error_rate_percent:.2f}%"
-        http_p95 = "n/a" if v.http_p95_ms is None else f"{int(round(v.http_p95_ms))}ms"
-        br_p95 = "n/a" if v.browser_p95_ms is None else f"{int(round(v.browser_p95_ms))}ms"
-        reasons = ",".join(v.reasons[:4]) if v.reasons else "degraded"
-        lines.append(f"- {v.domain}: {reasons} err={err} http_p95={http_p95} browser_p95={br_p95} samples={v.total_samples}")
-    return "\n".join(lines).strip()
 
 
-def _build_red_dispatch_prompt(*, violations: list[RedViolation], window_minutes: int) -> str:
-    payload = [
-        {
-            "domain": v.domain,
-            "reasons": v.reasons,
-            "total_samples": v.total_samples,
-            "error_rate_percent": v.error_rate_percent,
-            "http_p95_ms": v.http_p95_ms,
-            "browser_p95_ms": v.browser_p95_ms,
-        }
-        for v in violations[:30]
-    ]
-    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected degraded RED/golden signals (error-rate and/or latency percentiles).\n\n"
-        f"Window: {int(window_minutes)} minutes\n\n"
-        "Violations (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Reproduce latency and errors from the production host (curl timings; check DNS/TLS/connect/TTFB/total).\n"
-        "2) Determine whether the issue is isolated to one service or systemic (host load, network, DNS).\n"
-        "3) Check container status/restarts and relevant logs for the impacted services.\n"
-        "4) Provide a triage summary and recommended next steps for a human operator.\n\n"
-        "Return a concise final report with:\n"
-        "- Reproduction results\n"
-        "- Root cause hypothesis + evidence\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
 def _build_api_contract_alert_message(
@@ -1068,307 +839,24 @@ def _build_api_contract_dispatch_prompt(*, failures: list[ApiContractCheckResult
     )
 
 
-def _build_synthetic_alert_message(
-    *,
-    failures: list[SyntheticTransactionResult],
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: Synthetic transactions are failing ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append("")
-    for r in failures[:15]:
-        ms = "n/a" if r.elapsed_ms is None else f"{int(round(float(r.elapsed_ms)))}ms"
-        err = (r.error or "transaction_failed").strip()[:260]
-        url = (r.details or {}).get("final_url")
-        lines.append(f"- {r.domain} [{r.name}]: {err} ({ms}) url={url}")
-    return "\n".join(lines).strip()
 
 
-def _build_synthetic_dispatch_prompt(*, failures: list[SyntheticTransactionResult]) -> str:
-    payload = [
-        {
-            "domain": r.domain,
-            "name": r.name,
-            "elapsed_ms": r.elapsed_ms,
-            "error": r.error,
-            "details": r.details,
-            "browser_infra_error": r.browser_infra_error,
-        }
-        for r in failures[:25]
-    ]
-    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected synthetic end-to-end transaction failures (Playwright step flows).\n\n"
-        "Failures (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Reproduce the failing transaction(s) from the production host (Playwright or curl where possible).\n"
-        "2) Determine whether the failure is frontend regression, backend/API failure, reverse proxy issue, or auth flow change.\n"
-        "3) Inspect relevant containers and logs.\n"
-        "4) Provide a remediation plan for a human operator (no changes executed).\n\n"
-        "Return a concise final report with:\n"
-        "- Root cause + evidence\n"
-        "- Impacted domains/transactions\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
-def _build_web_vitals_alert_message(
-    *,
-    failures: list[WebVitalsResult],
-    thresholds: dict[str, float | None],
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: Core Web Vitals are degraded ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    th = ", ".join(f"{k}={v}" for k, v in thresholds.items() if v is not None)
-    if th:
-        lines.append(f"Thresholds: {th}")
-    lines.append("")
-    for r in failures[:15]:
-        m = r.metrics or {}
-        lcp = m.get("lcp_ms")
-        cls = m.get("cls")
-        inp = m.get("inp_ms")
-        err = (r.error or "").strip()[:260]
-        parts = []
-        if lcp is not None:
-            parts.append(f"LCP={int(round(float(lcp)))}ms")
-        if cls is not None:
-            parts.append(f"CLS={float(cls):.3f}")
-        if inp is not None:
-            parts.append(f"INP~={int(round(float(inp)))}ms")
-        vit = " ".join(parts) if parts else "metrics=n/a"
-        extra = f" error={err}" if err else ""
-        lines.append(f"- {r.domain}: {vit}{extra}")
-    return "\n".join(lines).strip()
 
 
-def _build_web_vitals_dispatch_prompt(*, failures: list[WebVitalsResult]) -> str:
-    payload = [
-        {
-            "domain": r.domain,
-            "metrics": r.metrics,
-            "error": r.error,
-            "elapsed_ms": r.elapsed_ms,
-            "browser_infra_error": r.browser_infra_error,
-        }
-        for r in failures[:25]
-    ]
-    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected degraded Core Web Vitals (LCP/CLS/INP approximation).\n\n"
-        "Failures (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Confirm the vitals with Lighthouse / Chrome DevTools (from the production host) for affected domains.\n"
-        "2) Identify likely causes (slow backend/TTFB, oversized assets, render-blocking JS/CSS, layout shifts).\n"
-        "3) Provide a remediation plan for a human operator (no changes executed).\n\n"
-        "Return a concise final report with:\n"
-        "- Most likely cause + evidence\n"
-        "- Impacted domains\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
-def _build_container_health_alert_message(
-    *,
-    issues: list[ContainerHealthIssue],
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: Docker container health is degraded ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append("")
-    for it in issues[:15]:
-        parts = []
-        if it.running is False:
-            parts.append("NOT_RUNNING")
-        if it.health_status and it.health_status != "healthy":
-            parts.append(f"health={it.health_status}")
-        if it.oom_killed:
-            parts.append("OOMKilled")
-        if it.restart_increase is not None and it.restart_increase > 0:
-            parts.append(f"restarted(+{it.restart_increase})")
-        if it.exit_code is not None and it.exit_code != 0:
-            parts.append(f"exit={it.exit_code}")
-        if it.error:
-            parts.append(f"error={it.error}")
-        flags = ",".join(parts) if parts else "issue"
-        lines.append(f"- {it.name} ({it.container_id}): {flags} status={it.status}")
-    return "\n".join(lines).strip()
 
 
-def _build_container_health_dispatch_prompt(*, issues: list[ContainerHealthIssue]) -> str:
-    payload = [
-        {
-            "name": it.name,
-            "container_id": it.container_id,
-            "running": it.running,
-            "status": it.status,
-            "restart_count": it.restart_count,
-            "restart_increase": it.restart_increase,
-            "oom_killed": it.oom_killed,
-            "health_status": it.health_status,
-            "exit_code": it.exit_code,
-            "error": it.error,
-        }
-        for it in issues[:25]
-    ]
-    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected Docker container health issues (unhealthy/not running/restarting/OOM).\n\n"
-        "Issues (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Confirm container states with docker ps/inspect, and check recent restarts/OOMKilled.\n"
-        "2) Gather logs for the affected containers (docker logs --tail 200).\n"
-        "3) Correlate with host resource pressure (df/free/uptime) and recent deploys.\n"
-        "4) Provide a remediation plan for a human operator (no changes executed).\n\n"
-        "Return a concise final report with:\n"
-        "- Root cause + evidence\n"
-        "- Affected containers + status\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
-def _build_proxy_alert_message(
-    *,
-    upstream_issues: list[ProxyIssue],
-    access_stats: NginxAccessWindowStats | None,
-    upstream_errors_summary: dict[str, Any] | None,
-    window_seconds: int,
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: Reverse proxy / upstream signals are degraded ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append(f"Window: {int(window_seconds)}s")
-    lines.append("")
-
-    if upstream_issues:
-        lines.append("Upstream header issues:")
-        for it in upstream_issues[:12]:
-            lines.append(f"- {it.domain}: {it.reason} {it.header}={it.value}")
-        lines.append("")
-
-    if access_stats is not None:
-        total = int(access_stats.total)
-        rate_502 = 0.0
-        if total > 0:
-            rate_502 = (int(access_stats.status_502_504) / float(total)) * 100.0
-        lines.append(
-            f"Nginx access: total={total} 5xx={access_stats.status_5xx} 502/504={access_stats.status_502_504} ({rate_502:.2f}%)"
-        )
-        if access_stats.sample_lines:
-            lines.append("Sample 502/504 lines:")
-            lines.extend(f"- {ln}" for ln in access_stats.sample_lines[:6])
-        lines.append("")
-
-    if upstream_errors_summary and isinstance(upstream_errors_summary.get("counts_by_server"), dict):
-        lines.append("Nginx upstream errors (error.log):")
-        counts = upstream_errors_summary.get("counts_by_server") or {}
-        for server, count in sorted(counts.items(), key=lambda kv: int(kv[1]), reverse=True)[:10]:
-            lines.append(f"- {server}: {int(count)}")
-        lines.append("")
-
-    return "\n".join(lines).strip()
 
 
-def _build_proxy_dispatch_prompt(
-    *,
-    upstream_issues: list[ProxyIssue],
-    access_stats: NginxAccessWindowStats | None,
-    upstream_error_events: list[NginxUpstreamErrorEvent],
-    window_seconds: int,
-) -> str:
-    payload = {
-        "window_seconds": int(window_seconds),
-        "upstream_header_issues": [
-            {
-                "domain": it.domain,
-                "reason": it.reason,
-                "header": it.header,
-                "value": it.value,
-                "details": it.details,
-            }
-            for it in upstream_issues[:25]
-        ],
-        "nginx_access": (
-            {
-                "total": access_stats.total,
-                "status_5xx": access_stats.status_5xx,
-                "status_502_504": access_stats.status_502_504,
-                "status_4xx": access_stats.status_4xx,
-                "sample_lines": access_stats.sample_lines[:8],
-            }
-            if access_stats is not None
-            else None
-        ),
-        "nginx_upstream_errors": [
-            {"ts": e.ts, "level": e.level, "server": e.server, "upstream": e.upstream, "message": e.message}
-            for e in upstream_error_events[:60]
-        ],
-    }
-    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected reverse proxy upstream/failover issues (backup upstream, 502/504 spike, or upstream errors).\n\n"
-        "Details (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Confirm Nginx upstream status on the production host (curl -i to affected domains; inspect upstream headers).\n"
-        "2) Check Nginx error.log for upstream failures and correlate to service containers/ports.\n"
-        "3) Identify which upstream (primary/backup) is serving and why failover occurred.\n"
-        "4) Provide a remediation plan for a human operator (no changes executed).\n\n"
-        "Return a concise final report with:\n"
-        "- Root cause + evidence\n"
-        "- Impacted domains/upstreams\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
-def _build_meta_alert_message(
-    *,
-    reasons: list[str],
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: monitoring pipeline is degraded ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append("")
-    for r in reasons[:12]:
-        lines.append(f"- {r}")
-    return "\n".join(lines).strip()
 
 
-def _build_meta_dispatch_prompt(*, reasons: list[str], context: dict[str, Any]) -> str:
-    details = json.dumps({"reasons": reasons[:25], "context": context}, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected that the monitoring pipeline itself is degraded (cycle overruns/state write failures/etc.).\n\n"
-        "Details (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Confirm whether the service-monitoring container is overloaded (CPU/mem), or stuck (slow cycles).\n"
-        "2) Check host resource pressure and docker stats.\n"
-        "3) Check monitor container logs for repeated errors (state write, Telegram, Playwright launch).\n"
-        "4) Provide a safe remediation plan for a human operator (no changes executed).\n\n"
-        "Return a concise final report with:\n"
-        "- Root cause hypothesis + evidence\n"
-        "- Impact (are we missing checks/alerts?)\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
 async def _dispatch_prompt_and_forward(
