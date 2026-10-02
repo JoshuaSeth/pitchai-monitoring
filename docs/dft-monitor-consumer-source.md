@@ -140,6 +140,29 @@ describes same-host worker health/watchdog behavior, which does not survive a
 Main outage. Existing Infrastructure624 is resolving the exact retained route
 and off-host receiver; no new receiver or repair lane is commissioned here.
 
+The October2 shared-monitoring records review reported no exact independent
+off-host Main/service-monitoring checker plus receiver binding in its bounded
+set: `monitoring/topology.yaml`, the daily runbook, PM7da76f88's October2
+review, PM21dd29b5's six-role healthchecks, and
+`docs/production-reverse-proxy-events-bus-watchdog-20261001.md`. That review was
+recorded under PMf8aa and supplied to this existing746/4e2c5d80 work. This note
+consumes that records-only finding without repeating host or log-body probes.
+
+Those records establish Main's service-monitoring revision `a3dc66e`, a
+same-host600-second completed-cycle watchdog and role healthchecks. The
+`pitchai-events-bus.service` receiver is also on Main, at `127.0.0.1:8088` and
+path `/events-bus/webhooks/pitchai-monitoring`; the retained October1 pressure
+event disrupted that receiver itself. Natural proxy failure/recovery events
+therefore do not prove delivery during a Main outage.
+
+Still unbound are the off-host execution host, service, schedule and current
+owner; an independent receiver and internal recipient; acceptance of the DFT
+content-free stale/failure envelope; and natural host-failure/recovery receipts.
+Daily-review private Telegram and82 delivered E2E publisher entries establish
+neither this route nor its outage independence. This is absence of proof in
+the reviewed records, not a claim that no checker exists elsewhere. It grants
+no new receiver, event rule, schedule or external communication authority.
+
 No natural qualifying DFT failure/recovery delivery receipt has been established
 by this work. Source callbacks, accepted commands and isolated tests are not
 such receipts. Events and stopped Telegram ownership remain unchanged.
