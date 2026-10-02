@@ -18,7 +18,7 @@ import yaml
 from playwright.async_api import Browser, async_playwright
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from domain_checks.common_check import (
+from .common_check import (
     DomainCheckResult,
     DomainCheckSpec,
     browser_check,
@@ -26,24 +26,24 @@ from domain_checks.common_check import (
     http_get_check,
     load_domain_spec_from_module_dict,
 )
-from domain_checks.history import append_sample, coerce_history, prune_history
-from domain_checks.inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
-from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
-from domain_checks.metrics_container_health import ContainerHealthIssue, check_container_health
-from domain_checks.metrics_dns import DnsCheckResult, check_dns
-from domain_checks.metrics_nginx import (
+from .history import append_sample, prune_history
+from .inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
+from .metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
+from .metrics_container_health import ContainerHealthIssue, check_container_health
+from .metrics_dns import DnsCheckResult, check_dns
+from .metrics_nginx import (
     NginxAccessWindowStats,
     NginxUpstreamErrorEvent,
     parse_recent_upstream_errors,
     summarize_upstream_errors,
 )
-from domain_checks.metrics_proxy import ProxyIssue, check_upstream_header_expectations
-from domain_checks.metrics_red import RedViolation, compute_red_violations
-from domain_checks.metrics_slo import SloBurnViolation, compute_slo_burn_violations
-from domain_checks.metrics_synthetic import SyntheticTransactionResult, run_synthetic_transactions
-from domain_checks.metrics_tls import TlsCertCheckResult, check_tls_certs
-from domain_checks.metrics_web_vitals import WebVitalsResult, measure_web_vitals
-from domain_checks.dispatch_client import (
+from .metrics_proxy import ProxyIssue, check_upstream_header_expectations
+from .metrics_red import RedViolation, compute_red_violations
+from .metrics_slo import SloBurnViolation, compute_slo_burn_violations
+from .metrics_synthetic import SyntheticTransactionResult, run_synthetic_transactions
+from .metrics_tls import TlsCertCheckResult, check_tls_certs
+from .metrics_web_vitals import WebVitalsResult, measure_web_vitals
+from .dispatch_client import (
     DispatchConfig,
     dispatch_job,
     extract_last_agent_message_from_exec_log,
@@ -53,8 +53,8 @@ from domain_checks.dispatch_client import (
     run_ui_url,
     wait_for_terminal_status,
 )
-from domain_checks.event_bus import EventBusOutbox, load_event_bus_config
-from domain_checks.telegram import (
+from .event_bus import EventBusOutbox, load_event_bus_config
+from .telegram import (
     TelegramConfig,
     redact_telegram_response,
     send_telegram_message,
@@ -71,14 +71,13 @@ from .cycle_values import (
     required_int,
 )
 from .dft_cycle import DftCycle, parse_cycle_config
-from .state_sections import decode_health_sections, default_monitor_state
+from .monitor_state import load_monitor_state as _load_monitor_state, load_last_ok_state as _load_last_ok_state
+from .state_storage import write_state_atomic as _write_state_atomic
 from .state_values import (
     coerce_bool_dict as _coerce_bool_dict,
     coerce_int_dict as _coerce_int_dict,
     coerce_float_dict as _coerce_float_dict,
     coerce_str_list_dict as _coerce_str_list_dict,
-    coerce_list_of_dicts as _coerce_list_of_dicts,
-    coerce_signal_history as _coerce_signal_history,
 )
 
 
@@ -725,85 +724,6 @@ def _build_heartbeat_message(
         lines.extend(disabled_lines)
 
     return "\n".join(lines).strip() + "\n"
-
-
-def _load_monitor_state(path: Path) -> dict[str, Any]:
-    default_state = default_monitor_state()
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return default_state
-    except Exception as exc:
-        LOGGER.warning("Failed to read state file path=%s error=%s", path, exc)
-        return default_state
-
-    if not isinstance(raw, dict):
-        return default_state
-
-    raw_version = _coerce_int(raw.get("version"), default=_coerce_int(default_state.get("version"), default=0))
-    history_ok_mode_raw = str(raw.get("history_ok_mode") or "").strip().lower()
-    history_ok_mode = history_ok_mode_raw if history_ok_mode_raw in {"observed", "effective"} else str(default_state.get("history_ok_mode") or "observed")
-
-    # Back-compat: previously stored only {"last_ok": {...}} or raw mapping.
-    if isinstance(raw.get("last_ok"), dict) and not any(k in raw for k in ("fail_streak", "success_streak")):
-        state = dict(default_state)
-        state["version"] = raw_version
-        state["history_ok_mode"] = history_ok_mode
-        state["last_ok"] = _coerce_bool_dict(raw.get("last_ok"))
-        return state
-
-    if all(isinstance(v, bool) for v in raw.values()):
-        state = dict(default_state)
-        state["version"] = raw_version
-        state["history_ok_mode"] = history_ok_mode
-        state["last_ok"] = _coerce_bool_dict(raw)
-        return state
-
-    last_notice_ts = 0.0
-    try:
-        last_notice_ts = float(raw.get("browser_degraded_last_notice_ts") or 0.0)
-    except Exception:
-        last_notice_ts = 0.0
-
-    state = dict(default_state)
-    state["version"] = raw_version
-    state["history_ok_mode"] = history_ok_mode
-    state["last_ok"] = _coerce_bool_dict(raw.get("last_ok"))
-    state["fail_streak"] = _coerce_int_dict(raw.get("fail_streak"))
-    state["success_streak"] = _coerce_int_dict(raw.get("success_streak"))
-    state["history"] = coerce_history(raw.get("history"))
-    state["browser_degraded_last_notice_ts"] = last_notice_ts
-    state["signal_history"] = _coerce_signal_history(raw.get("signal_history"))
-    state["dispatch_history"] = _coerce_list_of_dicts(raw.get("dispatch_history"), max_items=1000)
-    dispatch_last = raw.get("dispatch_last")
-    if isinstance(dispatch_last, dict):
-        state["dispatch_last"] = dispatch_last
-    state["events"] = _coerce_list_of_dicts(raw.get("events"), max_items=5000)
-    state["event_bus_outbox"] = raw.get("event_bus_outbox", [])
-
-    host_last_snapshot = raw.get("host_last_snapshot")
-    if isinstance(host_last_snapshot, dict):
-        state["host_last_snapshot"] = host_last_snapshot
-
-    state["browser_degraded_active"] = bool_field(raw, "browser_degraded_active", default=False)
-    state["browser_degraded_first_seen_ts"] = _coerce_float(raw.get("browser_degraded_first_seen_ts"), default=0.0)
-    ble = raw.get("browser_launch_last_error")
-    state["browser_launch_last_error"] = str(ble)[:800] if isinstance(ble, str) and ble.strip() else None
-
-    state.update(decode_health_sections(raw))
-
-    return state
-
-
-def _load_last_ok_state(path: Path) -> dict[str, bool]:
-    return dict(_load_monitor_state(path).get("last_ok") or {})
-
-
-def _write_state_atomic(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f"{path.name}.tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
-    tmp.replace(path)
 
 
 def _read_linux_meminfo_kb() -> dict[str, int]:

@@ -1,213 +1,182 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Typed rolling history and availability/latency calculations for the cycle."""
+
 from __future__ import annotations
 
 from bisect import bisect_left
-from typing import Any, Iterable
+from contextlib import suppress
+from typing import TYPE_CHECKING, TypedDict, Unpack
+
+from .cycle_values import required_float
+from .history_decode import Sample, coerce_history, sample_timestamp
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from .event_bus_delivery import JsonValue
+
+__all__ = [
+    "Sample", "append_sample", "coerce_history", "compute_availability", "compute_burn_rate",
+    "compute_error_rate_percent", "extract_latency_ms", "latency_percentile_ms", "prune_history", "window_samples",
+]
+
+_PERCENT = 100.0
+_HTTP_INDEX = 2
+_BROWSER_INDEX = 3
 
 
-# Sample encoding for on-disk state.json (compact, stable schema):
-# [ts, ok, http_elapsed_ms, browser_elapsed_ms, status_code]
-#
-# - ts: float unix timestamp (seconds)
-# - ok: bool
-# - http_elapsed_ms/browser_elapsed_ms: float | None
-# - status_code: int | None
-Sample = list[Any]
+class SampleInput(TypedDict):
+    """Named inputs retained by the existing append_sample callers."""
+
+    domain: str
+    ts: float
+    ok: bool
+    http_elapsed_ms: float | None
+    browser_elapsed_ms: float | None
+    status_code: int | None
 
 
-def coerce_history(raw: Any) -> dict[str, list[Sample]]:
-    """
-    Best-effort decode for history loaded from state.json.
-    Ignores invalid entries to be robust to partial writes or older formats.
-    """
-    if not isinstance(raw, dict):
-        return {}
-
-    out: dict[str, list[Sample]] = {}
-    for domain, items in raw.items():
-        if not isinstance(domain, str) or not domain:
-            continue
-        if not isinstance(items, list):
-            continue
-
-        samples: list[Sample] = []
-        for item in items:
-            if not isinstance(item, list) or len(item) < 2:
-                continue
-            try:
-                ts = float(item[0])
-            except Exception:
-                continue
-            ok = bool(item[1])
-
-            http_ms = None
-            if len(item) >= 3 and item[2] is not None:
-                try:
-                    http_ms = float(item[2])
-                except Exception:
-                    http_ms = None
-
-            browser_ms = None
-            if len(item) >= 4 and item[3] is not None:
-                try:
-                    browser_ms = float(item[3])
-                except Exception:
-                    browser_ms = None
-
-            status_code = None
-            if len(item) >= 5 and item[4] is not None:
-                try:
-                    status_code = int(item[4])
-                except Exception:
-                    status_code = None
-
-            samples.append([ts, ok, http_ms, browser_ms, status_code])
-
-        samples.sort(key=lambda s: float(s[0] or 0.0))
-        if samples:
-            out[domain] = samples
-
-    return out
-
-
-def append_sample(
-    history: dict[str, list[Sample]],
-    *,
-    domain: str,
-    ts: float,
-    ok: bool,
-    http_elapsed_ms: float | None,
-    browser_elapsed_ms: float | None,
-    status_code: int | None,
-) -> None:
+def append_sample(history: dict[str, list[Sample]], **values: Unpack[SampleInput]) -> None:
+    """Append a sample, or insert by timestamp after a backwards clock step."""
+    domain = values["domain"]
     if not domain:
         return
-
+    http_ms, browser_ms, status = values["http_elapsed_ms"], values["browser_elapsed_ms"], values["status_code"]
     sample: Sample = [
-        float(ts),
-        bool(ok),
-        float(http_elapsed_ms) if http_elapsed_ms is not None else None,
-        float(browser_elapsed_ms) if browser_elapsed_ms is not None else None,
-        int(status_code) if status_code is not None else None,
+        float(values["ts"]), bool(values["ok"]),
+        float(http_ms) if http_ms is not None else None,
+        float(browser_ms) if browser_ms is not None else None,
+        int(status) if status is not None else None,
     ]
-
     items = history.get(domain)
     if items is None:
         history[domain] = [sample]
         return
-
-    # Normal case: we append in time-order (cycle order). If a clock jump or out-of-order
-    # append happens, fall back to sorted insert.
-    if not items or float(items[-1][0] or 0.0) <= float(sample[0] or 0.0):
+    if not items or sample_timestamp(items[-1]) <= sample_timestamp(sample):
         items.append(sample)
         return
-
-    idx = bisect_left([float(s[0] or 0.0) for s in items], float(sample[0] or 0.0))
-    items.insert(idx, sample)
+    timestamps = [sample_timestamp(item) for item in items]
+    index = bisect_left(timestamps, sample_timestamp(sample))
+    items.insert(index, sample)
 
 
 def prune_history(history: dict[str, list[Sample]], *, before_ts: float) -> None:
+    """Remove only samples older than the cutoff, retaining equality."""
     cutoff = float(before_ts)
-    for domain in list(history.keys()):
+    for domain in list(history):
         items = history.get(domain) or []
         if not items:
             del history[domain]
             continue
-
-        # Find first sample with ts >= cutoff.
-        ts_list = [float(s[0] or 0.0) for s in items]
-        idx = bisect_left(ts_list, cutoff)
-        if idx <= 0:
+        timestamps = [sample_timestamp(item) for item in items]
+        index = bisect_left(timestamps, cutoff)
+        if index <= 0:
             continue
-        if idx >= len(items):
+        if index >= len(items):
             del history[domain]
             continue
-        history[domain] = items[idx:]
+        history[domain] = items[index:]
 
 
 def window_samples(items: list[Sample], *, since_ts: float) -> list[Sample]:
+    """Select retained samples at or after the requested timestamp.
+
+    Returns:
+        The original sample rows in a new list, including cutoff equality.
+    """
     if not items:
         return []
     cutoff = float(since_ts)
-    ts_list = [float(s[0] or 0.0) for s in items]
-    idx = bisect_left(ts_list, cutoff)
-    return items[idx:]
+    timestamps = [sample_timestamp(item) for item in items]
+    index = bisect_left(timestamps, cutoff)
+    return items[index:]
 
 
 def compute_availability(items: list[Sample]) -> tuple[int, int, float | None]:
-    """
-    Returns (total, ok_count, ok_percent_or_None_if_total_0)
+    """Count retained effective-health observations.
+
+    Returns:
+        Total count, healthy count and percentage, or None for an empty window.
     """
     total = len(items)
     if total <= 0:
         return 0, 0, None
-    ok_count = sum(1 for s in items if bool(s[1]))
-    ok_pct = (ok_count / float(total)) * 100.0
-    return total, ok_count, ok_pct
+    healthy = sum(1 for sample in items if bool(sample[1]))
+    percentage = (healthy / float(total)) * _PERCENT
+    return total, healthy, percentage
 
 
 def compute_error_rate_percent(items: list[Sample]) -> float | None:
+    """Calculate errors from retained effective-health observations.
+
+    Returns:
+        The error percentage, or None when no observations are available.
+    """
     total = len(items)
     if total <= 0:
         return None
-    ok_count = sum(1 for s in items if bool(s[1]))
-    err_count = total - ok_count
-    return (err_count / float(total)) * 100.0
+    healthy = sum(1 for sample in items if bool(sample[1]))
+    errors = total - healthy
+    return (errors / float(total)) * _PERCENT
 
 
 def _percentile(sorted_values: list[float], p: float) -> float | None:
     if not sorted_values:
         return None
-    p = float(p)
-    if p <= 0:
+    percentile = float(p)
+    if percentile <= 0:
         return float(sorted_values[0])
-    if p >= 100:
+    if percentile >= _PERCENT:
         return float(sorted_values[-1])
-    # Nearest-rank method.
-    k = int(round((p / 100.0) * (len(sorted_values) - 1)))
-    k = max(0, min(k, len(sorted_values) - 1))
-    return float(sorted_values[k])
+    index = round((percentile / _PERCENT) * (len(sorted_values) - 1))
+    index = max(0, min(index, len(sorted_values) - 1))
+    return float(sorted_values[index])
 
 
-def extract_latency_ms(items: Iterable[Sample], *, field: str) -> list[float]:
-    idx = 2 if field == "http_elapsed_ms" else 3
-    out: list[float] = []
-    for s in items:
-        if not isinstance(s, list) or len(s) <= idx:
+def extract_latency_ms(items: Iterable[JsonValue], *, field: str) -> list[float]:
+    """Read available HTTP or browser latency fields with legacy fallbacks.
+
+    Returns:
+        Converted latencies in input order; malformed or absent values omitted.
+    """
+    index = _HTTP_INDEX if field == "http_elapsed_ms" else _BROWSER_INDEX
+    result: list[float] = []
+    for sample in items:
+        if not isinstance(sample, list) or len(sample) <= index:
             continue
-        v = s[idx]
-        if v is None:
+        value = sample[index]
+        if value is None:
             continue
-        try:
-            out.append(float(v))
-        except Exception:
-            continue
-    return out
+        with suppress(TypeError, ValueError, OverflowError):
+            result.append(required_float(value))
+    return result
 
 
 def latency_percentile_ms(items: list[Sample], *, field: str, percentile: float) -> float | None:
+    """Apply the existing rounded-rank calculation to available latencies.
+
+    Returns:
+        The selected latency, or None when no latency values are available.
+    """
     values = extract_latency_ms(items, field=field)
     values.sort()
     return _percentile(values, percentile)
 
 
 def compute_burn_rate(items: list[Sample], *, slo_target_percent: float) -> float | None:
+    """Divide the observed error rate by the configured SLO error budget.
+
+    Returns:
+        The original burn-rate calculation, or None for absent/invalid inputs.
     """
-    burn_rate = error_rate / error_budget
-    where:
-      error_rate = (1 - availability)
-      error_budget = (1 - SLO)
-    """
-    total, ok_count, _ok_pct = compute_availability(items)
+    total, healthy, _percentage = compute_availability(items)
     if total <= 0:
         return None
-
     target = float(slo_target_percent)
-    if not (0.0 < target < 100.0):
+    if not 0.0 < target < _PERCENT:
         return None
-    budget = 1.0 - (target / 100.0)
+    budget = 1.0 - (target / _PERCENT)
     if budget <= 0.0:
         return None
-
-    err_rate = (total - ok_count) / float(total)
-    return err_rate / budget
-
+    error_rate = (total - healthy) / float(total)
+    return error_rate / budget

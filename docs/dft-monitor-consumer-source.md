@@ -366,6 +366,51 @@ Exact evidence is under
 `launcher-proof.log`, `gates-final.log` and `gates-with-main.log`.
 Earlier failed type/style iterations remain alongside the final proof.
 
+### History and loader decomposition increment
+
+The next increment completes the typed restart boundary. `history_decode.py`
+normalizes persisted five-field samples; `history.py` retains append/insertion,
+cutoff, availability, error-rate, latency and SLO calculations with explicit
+types. `monitor_state.py` owns schema-six/legacy decoding, and
+`state_storage.py` owns the actual JSON/file edge. Missing state remains silent;
+malformed/unreadable state retains its warning and defaults without rewriting
+input. Atomic writes keep the original sibling temporary path, sorted Unicode
+JSON and replacement semantics. A failed replacement propagates and preserves
+the current file. The broad read fallback is confined to that I/O boundary;
+numeric decoding retains its existing narrow conversion fallbacks.
+
+Main imports these boundaries through its original helper names. Its16 existing
+package imports are now relative, resolving the same47 imported objects under
+the actual launcher. No probe scheduling, threshold, alert-builder, event
+persistence call site or DFT implementation changes. After reversing these
+declared imports/extractions, the rest of main's syntax tree matches parent
+`a70a62d23beaab823121eaa960d7d63b046617ac`. Main is reduced by another80 lines.
+
+Twelve focused tests pass in0.104 seconds. Comparison with the committed parent
+matches4470 history operations,598 complete loader cases and three atomic-write
+byte comparisons. Four existing history/SLO/RED test functions also pass in the
+isolated comparison process. The final four real launcher runs pass in1.348
+seconds with default/explicit config, persistent independent domain health,
+one failure/recovery pair, browser cleanup and zero outgoing attempts. DFT is
+disabled in those synthetic runs; the earlier DFT/nginx proofs remain separate.
+This is working-increment proof, not a separately repeated post-commit campaign.
+
+All six scoped modules/tests pass architecture, Ruff, BasedPyright, Pylint10
+and Semgrep. The repository aggregate still fails on21 existing suppressions.
+With main included, the final local result remains failed:445 Ruff findings,
+470 typing errors/one warning, Pylint9.24/10,69 Semgrep findings and remaining
+architecture debt. Resolving imports exposes actual source types; no checks,
+baselines, exclusions or diagnostic policy are changed.
+
+Evidence is under
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261002/history-extraction-20261002/`:
+`tests-final.log`, `prove_history_compatibility_relative.py` and its JSON,
+`differential-relative.log`, `prove_unrelated_launcher_relative.py` and its JSON,
+`launcher-relative.log`, `package-import-proof.json`, `gates-focused-final.log`
+and `gates-with-main-relative.log`. Earlier pre-import comparisons and failed
+style iterations are retained. This source work does not allocate or verify any
+live checker, reader, journal, receiver, off-host observer or admission window.
+
 The five-file producer acknowledgement delta at `6885e8` is reviewed as source.
 It requires the exact reviewed status digest, bound operations owner, retained
 incident reference, existing expiry lock and a fresh trusted clean run. It
