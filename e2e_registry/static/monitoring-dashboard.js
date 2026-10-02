@@ -1139,6 +1139,19 @@
     return ({ healthy: "Healthy", failing: "Failing", stale: "Stale", infra_degraded: "Infra degraded", never_run: "Never run", parked: "Parked", disabled: "Disabled", unknown: "Unavailable" })[status] || titleCase(status);
   }
 
+  const JOURNEY_PAUSE_LABELS = {
+    parked: { horizon: "Resumes", reason: "Pause reason", openEnded: "No resume horizon recorded" },
+    disabled: { horizon: "Schedulable again", reason: "Disable reason", openEnded: "Never · switched off" },
+  };
+
+  function appendJourneyPauseFacts(facts, journey) {
+    const labels = JOURNEY_PAUSE_LABELS[journey.status];
+    if (!labels) return;
+    const horizon = numberOrNull(journey.disabled_until_ts);
+    appendIncidentField(facts, labels.horizon, horizon === null ? labels.openEnded : formatDateTime(horizon));
+    appendIncidentField(facts, labels.reason, journey.disabled_reason || "Not recorded");
+  }
+
   function shortHash(value) {
     return typeof value === "string" && value.length > 12 ? value.slice(0, 12) : (value || "Unavailable");
   }
@@ -1313,6 +1326,7 @@
       details.hidden = !expanded;
       const facts = createElement("dl", "journey-detail-grid");
       appendIncidentField(facts, "Current status", journeyStatusLabel(journey.status));
+      appendJourneyPauseFacts(facts, journey);
       appendIncidentField(facts, "Kind / interval", numberOrNull(journey.interval_seconds) === null
         ? `${titleCase(journey.test_kind)} · schedule unavailable`
         : `${titleCase(journey.test_kind)} · every ${formatDuration(journey.interval_seconds)}`);

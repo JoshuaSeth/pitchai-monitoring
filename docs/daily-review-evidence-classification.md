@@ -47,7 +47,11 @@ to the monitoring lane.
   `status_class`, pause horizon and reason. Quote it as
   `failing=<active failures>/<active tests>` and give the parked and disabled
   counts separately (for example `parked=3`, of which `<n>` failed
-  historically). Before 2026-10-02 the same field counted every row with
+  historically). The registry dashboard mirrors that split: parked and disabled
+  journeys are labelled `Parked`/`Disabled`, and their detail panel shows the
+  resume horizon (`Resumes` / `Schedulable again`) with the recorded pause or
+  disable reason, so a paused lane can be checked without reading the raw
+  payload. Before 2026-10-02 the same field counted every row with
   `effective_ok=0` whether it was enabled or disabled, which is why older
   reports read `failing_tests=2` (both disabled historical
   `dft_prod_exam_import_2doc_sla_daily_e2e` rows) while `ok` stayed `True`.
