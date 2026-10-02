@@ -26,7 +26,6 @@ from domain_checks.common_check import (
     http_get_check,
     load_domain_spec_from_module_dict,
 )
-from domain_checks.dft_cycle import DftCycle, parse_cycle_config
 from domain_checks.history import append_sample, coerce_history, prune_history
 from domain_checks.inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from domain_checks.metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
@@ -61,6 +60,8 @@ from domain_checks.telegram import (
     send_telegram_message,
     send_telegram_message_chunked,
 )
+
+from .dft_cycle import DftCycle, parse_cycle_config
 
 
 LOGGER = logging.getLogger("service-monitoring")
