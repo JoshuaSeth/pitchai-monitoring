@@ -97,7 +97,7 @@ Set variables once:
 
 ```bash
 BASE="https://monitoring.pitchai.net"
-API_KEY="PASTE_YOUR_API_KEY_HERE"
+API_KEY="<paste-your-api-key>"
 MAIN_DOMAIN_URL="https://autopar.pitchai.net"   # MUST be canonical production app domain
 ```
 
@@ -270,7 +270,7 @@ This shows the complete flow in one go (upload → run → inspect):
 
 ```bash
 BASE="https://monitoring.pitchai.net"
-API_KEY="PASTE_YOUR_API_KEY_HERE"
+API_KEY="<paste-your-api-key>"
 MAIN_DOMAIN_URL="https://autopar.pitchai.net"
 
 cat > autopar_home_smoke.py <<'PY'
