@@ -13,15 +13,26 @@ stopped. These historical observations do not establish a newer compute sample.
 
 ## Source contract and current implementation
 
-Reviewed producer revision: `51b4a2eb6bc47463b1c3c31e328f70f06ee3a380`, the
-three-file path/install-manifest correction on parent acknowledgement revision
-`6885e80032e02f9189b2b548c7a388eb951773d8`. The retained checker revision is
+Reviewed producer revision: `3c543bd1d767a1cf57dc912a63eab523cfca17ba`, the
+capacity-signal addition on path/install-manifest correction
+`51b4a2eb6bc47463b1c3c31e328f70f06ee3a380`. The retained acknowledgement revision
+is `6885e80032e02f9189b2b548c7a388eb951773d8`. The retained checker revision is
 `15ae402ea589dea5a82e7a5d36eb84bbd6bd3576` and writer correction is
 `ca40adf82100c70659702d75e71ef003f81e7d1b`, DFT PR4478.
 The checker is `scripts/dft_access_log_status.py`; its output is fixed codes,
 original heartbeat age and historical overdue count. Only a zero exit with
 trusted age below900 seconds and no errors proves current health. Historical
 counts are preserved and do not independently prohibit acknowledged recovery.
+
+The capacity increment adds metadata-only accounting of allocated writer roots,
+same-filesystem quarantine and private state. Its12GiB warning and16GiB budget
+signals enter the existing failure latch. The unchanged checker maps current
+status errors to `retention_run_failed` and an unresolved latch to
+`retention_fault_latched`; both codes are already accepted by this consumer.
+The three-field checker response, consumer invocation and recovery rules need no
+functional change. Additional private status counters are not read directly by
+the consumer and do not become incident payload fields. A clean capacity sample
+or newly written status cannot acknowledge either producer or consumer incidents.
 
 The consumer source currently contains:
 
@@ -173,6 +184,13 @@ refuse an unexpected existing path and verify current monitor identity, actual
 ancestor traversal/read permissions, allocated config, reviewed checker source
 and same-host/boot clock capability. Do not widen credentials/groups or relax
 0600 to obtain access. No guessed SSH/Docker executor is supplied.
+Producer3c543bd selects configuration `/etc/pitchai/dft-web-access-v1.json`
+(root0600) and immutable tooling under
+`/opt/pitchai/dft-web-access/releases/<full-reviewed-SHA>`. The exact new release
+contains `scripts/__init__.py` plus seven modules including capacity; no `current`
+link is proposed. The retained nginx mount does not establish access to those
+configuration/tooling paths or host clock capability. The prior absence read
+covered older candidate names and cannot establish absence of these targets.
 The consumer journal requires its own admitted private path in the monitoring
 state volume; it must not point at producer status/config or any access root.
 Private ownership checks do not select that allocation or prove the runtime
@@ -270,6 +288,20 @@ No algorithm suite or service command was repeated. The existing746 entry at
 open against staging, with bb44 retaining integration. This review does not
 install or relocate state, renew its allocation age, or satisfy checker/config/
 clock/journal/receiver/off-host admission. Original requests remain unreplayed.
+
+The subsequent five-file3c543bd producer delta and its existing raw receipts were
+reviewed without rerunning producer/nginx tests. Its four new cases passed16.58s,
+two affected regressions passed4.41s, and one corrected assertion case passed2.99s;
+scoped gates and template/rendered systemd verification passed in the retained
+producer proof. `d31-capacity-receipt.json` and
+`d31-release-inputs-3c543bd-20261002/manifest.json` retain the exact15-file source
+packet, rendered unit and earlier unchanged vhost candidates. Source/module
+identities, checker schema and unit hardening remain distinct from installation.
+The sparse threshold fixtures prove accounting boundaries, not physical capacity,
+throughput or alert delivery. The4GiB margin still requires actual writer rate,
+five-minute cadence, scan/response delay and host headroom evidence. It does not
+authorize a quota, young-data deletion or disabling logs. No host path was probed
+and neither capacity signal was emitted to a live receiver by this review.
 
 Producer acknowledgement never implies consumer recovery. The consumer needs
 an explicit matching `acknowledged_incident_id` and a later healthy checker plus
