@@ -8,9 +8,9 @@ This module does not open retention files, reset the producer latch or send.
 from __future__ import annotations
 
 import json
-import math
 from contextlib import suppress
 from dataclasses import dataclass, replace
+from sys import float_info
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -61,7 +61,7 @@ def checker_observation(returncode: int | None, stdout: bytes) -> CheckerObserva
     if not isinstance(payload, dict):
         return CheckerObservation(errors=("checker_response_invalid",))
     age, overdue, errors = payload.get("age_seconds"), payload.get("overdue_segments"), payload.get("errors")
-    valid_age = not isinstance(age, bool) and isinstance(age, (float, int)) and math.isfinite(age) and age >= 0
+    valid_age = not isinstance(age, bool) and isinstance(age, (float, int)) and 0 <= age <= float_info.max
     valid_count = not isinstance(overdue, bool) and isinstance(overdue, int) and overdue >= 0
     if not valid_count or not isinstance(errors, list) or any(not isinstance(code, str) for code in errors):
         return CheckerObservation(errors=("checker_response_invalid",))

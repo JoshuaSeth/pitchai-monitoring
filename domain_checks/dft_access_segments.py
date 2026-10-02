@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import math
 from contextlib import suppress
 from dataclasses import replace
 from typing import TYPE_CHECKING, cast
@@ -46,7 +45,7 @@ def _record(line: bytes, capture: str, hour_start: float) -> tuple[float, int, s
     valid = (
         record.get("class") == "dft-web-access-v1" and record.get("capture_hour") == capture
         and isinstance(timestamp, (int, float)) and not isinstance(timestamp, bool)
-        and math.isfinite(timestamp) and hour_start <= timestamp < hour_start + _HOUR_SECONDS
+        and hour_start <= timestamp < hour_start + _HOUR_SECONDS
         and isinstance(status, int) and not isinstance(status, bool) and _STATUS_MIN <= status <= _STATUS_MAX
         and isinstance(agent, str)
     )

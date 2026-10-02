@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
+from sys import float_info
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,7 +25,7 @@ class CutoverBoundary:
             ValueError: Either original admission time is invalid.
         """
         values = (self.writer_adopted_at, self.old_workers_drained_at)
-        if any(isinstance(value, bool) or not math.isfinite(value) or value <= 0 for value in values):
+        if any(isinstance(value, bool) or not 0 < value <= float_info.max for value in values):
             message = "dft_invalid_cutover_boundary"
             raise ValueError(message)
 

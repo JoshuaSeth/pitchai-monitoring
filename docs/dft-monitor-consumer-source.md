@@ -123,6 +123,17 @@ history, invalid boundaries and byte-preserving refusal of prior journal schema.
 These fixtures exercise source behavior only; they do not prove actual writer
 adoption, natural worker drain, runtime throughput or live delivery.
 
+Numeric boundary validation also rejects integers too large for floating-point
+conversion before attempting that conversion. A bounded malformed checker age
+becomes `checker_age_unavailable`; malformed original event epochs remain
+`invalid_segment_record`, and invalid admission times remain an allocation
+refusal. The numeric regression reproduced four `OverflowError` failures before
+the correction. Fourteen affected cases then passed in23.216 seconds, including
+an actual synthetic local checker, journal restart and matching acknowledgement.
+Malformed output preserves the same incident and immutable failed intent until
+fresh healthy evidence; the eventual recovery cannot overtake that failed intent.
+No real producer checker, retained status or delivery endpoint is used.
+
 The producer review at `de1f3e3` demonstrated a 1,000,200-byte valid hour with
 only 150 current-window bytes rejected by the former whole-hour reader. The new
 regression exceeds the same 1 MB budget, faults on the first bounded scan,
