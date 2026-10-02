@@ -32,6 +32,7 @@ from .testing_registry import (
     SCOPE_PARKED_FAILING,
     SCOPE_PARKED_UNTIL_TS,
     SCOPE_RESUMED_PASSING,
+    SCOPE_TENANT_TOKEN,
     registry_database,
     seed_status_scope_registry,
 )
@@ -205,3 +206,24 @@ async def test_registry_status_route_publishes_the_scoped_summary(
     compatibility = optional_object(dashboard.get("e2e"))
     if compatibility.get("failing_tests") != 1 or compatibility.get("parked_tests") != 1:
         pytest.fail(f"dashboard E2E compatibility block changed: {compatibility}")
+
+
+@pytest.mark.asyncio
+async def test_tenant_status_route_reports_only_active_failures(
+    tmp_path: Path,
+    dashboard_server: DashboardServer,
+) -> None:
+    """Keep a tenant's parked and retired rows out of its failing count."""
+    seed_status_scope_registry(tmp_path / "e2e-registry.db", now=_NOW)
+    legacy = unscoped_status_summary(RegistrySettings(db_path=str(tmp_path / "e2e-registry.db")))
+    client_factory = partial(AsyncClient, base_url=dashboard_server.base_url)
+    async with client_factory() as client:
+        tenant = await _get_json(client, "/api/v1/status/summary", SCOPE_TENANT_TOKEN)
+    if legacy.get("failing_tests") != _LEGACY_FAILING_COUNT:
+        pytest.fail(f"legacy tenant scope stopped counting historical failures: {legacy}")
+    expected_total = _EXPECTED_STATUS_COUNTS["total_tests"]
+    expected_failing = _EXPECTED_STATUS_COUNTS["failing_tests"]
+    if tenant.get("total_tests") != expected_total or tenant.get("failing_tests") != expected_failing:
+        pytest.fail(f"tenant status counts changed: {tenant}")
+    if sorted(_labels(object_list(tenant.get("tests")), "test_id")) != _ACTIVE_IDS:
+        pytest.fail(f"tenant status exposed non-active rows: {tenant.get('tests')}")

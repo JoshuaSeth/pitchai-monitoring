@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import secrets
 import sqlite3
 from contextlib import closing
 from importlib import import_module
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 _TENANT_INSERT = "INSERT INTO tenants (id, name, created_at_ts, updated_at_ts) VALUES ('local', 'Local', 1, 1)"
+_API_KEY_INSERT = "INSERT INTO api_keys (id, tenant_id, name, token_hash, created_at_ts) VALUES (?, 'local', ?, ?, 1)"
+_TOKEN_BYTES = 24
 _TEST_INSERT = (
     "INSERT INTO tests (id, tenant_id, name, base_url, enabled, definition_json, "
     "created_at_ts, updated_at_ts) "
@@ -30,6 +33,9 @@ SCOPE_PARKED_FAILING = "scope.parked_failing"
 SCOPE_DISABLED_FAILING = "scope.disabled_failing"
 SCOPE_PARKED_REASON = "temporary probe cleanup"
 SCOPE_DISABLED_REASON = "retired lane"
+# Plaintext tenant credential seeded for the tenant-scoped status proof.
+SCOPE_TENANT_TOKEN = secrets.token_urlsafe(_TOKEN_BYTES)
+SCOPE_TENANT_KEY_ID = "local.scope_key"
 # Production parks a lane for years and expires a pause by leaving it in the past.
 SCOPE_PARKED_UNTIL_TS = 1_893_456_000.0
 SCOPE_EXPIRED_UNTIL_TS = 1_600_000_000.0
@@ -75,7 +81,14 @@ class RegistryDatabase(NamedTuple):
     SCHEMA_VERSION: int
 
 
+class RegistryAuth(NamedTuple):
+    """Deployed registry auth module consumed through a typed boundary."""
+
+    hash_token: Callable[[str], str]
+
+
 REGISTRY_DATABASE = cast("RegistryDatabase", cast("object", import_module("e2e_registry.db")))
+REGISTRY_AUTH = cast("RegistryAuth", cast("object", import_module("e2e_registry.auth")))
 
 
 def registry_database(path: Path) -> Path:
@@ -95,9 +108,13 @@ def seed_inventory(db_path: Path, *, now: float, run_age_seconds: float) -> None
 
 
 def seed_status_scope_registry(db_path: Path, *, now: float) -> None:
-    """Register active, resumed, parked and disabled rows for status-scope tests."""
+    """Register active, resumed, parked and disabled rows plus one tenant key."""
     with closing(sqlite3.connect(str(db_path), timeout=30)) as connection:
         _ = connection.execute(_TENANT_INSERT)
+        _ = connection.execute(
+            _API_KEY_INSERT,
+            (SCOPE_TENANT_KEY_ID, "scope", REGISTRY_AUTH.hash_token(SCOPE_TENANT_TOKEN)),
+        )
         for identifier, enabled, until_ts, reason, effective_ok in _SCOPE_ROWS:
             _ = connection.execute(
                 _PAUSE_TEST_INSERT,
