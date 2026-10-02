@@ -4,13 +4,14 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from .dft_access_cutover import DftAccessCutover
 from .dft_checker_process import observe_checker
+from .dft_cutover_config import parse_cutover_boundary
+from .dft_handoff import DftHandoff
 from .dft_journal import DftJournal
 from .metrics_nginx import compute_access_window_stats
 
@@ -18,6 +19,8 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from datetime import datetime
 
+    from .dft_access_cutover import DftAccessCutover
+    from .dft_cutover_config import CutoverBoundary
     from .dft_journal import PendingTransition
     from .event_bus_delivery import JsonValue
     from .metrics_nginx import NginxAccessWindowStats
@@ -38,6 +41,7 @@ class DftCycleConfig:
     retention_config: Path
     journal_path: Path
     acknowledged_incident_id: str | None = None
+    cutover: CutoverBoundary | None = None
 
 
 def _absolute_path(settings: dict[str, JsonValue], key: str) -> Path:
@@ -71,7 +75,7 @@ def parse_cycle_config(value: JsonValue) -> DftCycleConfig | None:
         raise ValueError(message)
     return DftCycleConfig("segments" if mode == "segments" else "shared", _absolute_path(value, "source_root"),
                           _absolute_path(value, "retention_config"), _absolute_path(value, "journal_path"),
-                          acknowledgement)
+                          acknowledgement, parse_cutover_boundary(value.get("cutover")) if mode == "segments" else None)
 
 
 class DftCycle:
@@ -81,13 +85,21 @@ class DftCycle:
         """Keep disabled runs free of additional state files or subprocesses."""
         self.config: DftCycleConfig | None = config
         self.receiver: TransitionReceiver | None = receiver
-        self.access: DftAccessCutover | None = DftAccessCutover(config.mode, _PRODUCTION_ROOT) if config else None
         self.journal: DftJournal | None = DftJournal(config.journal_path) if config else None
-        if self.access is not None and self.journal is not None:
-            self.access.snapshots = self.journal.load_segments()
+        self.handoff: DftHandoff | None = None
+        with ExitStack() as cleanup:
+            if config is not None and self.journal is not None:
+                cleanup.callback(self.journal.close)
+                self.handoff = DftHandoff(config.mode, config.cutover, self.journal, _PRODUCTION_ROOT)
+            cleanup.pop_all()
         self.coverage_ok: bool = config is None
         self._coverage_pending: bool = False
         self.summary: dict[str, JsonValue] = {"enabled": config is not None}
+
+    @property
+    def access(self) -> DftAccessCutover | None:
+        """Expose the selected feed from the handoff's single source of authority."""
+        return self.handoff.access if self.handoff is not None else None
 
     def close(self) -> None:
         """Close only the consumer-owned journal on cycle shutdown."""
@@ -111,6 +123,9 @@ class DftCycle:
                                       window_seconds=window_seconds, max_bytes=max_bytes)
         self.coverage_ok = result is not None
         self._coverage_pending = True
+        if self.handoff is not None:
+            self.handoff.record_read(now=now.timestamp(), covered=self.coverage_ok,
+                                     window_seconds=window_seconds, max_bytes=max_bytes)
         if self.journal is not None:
             self.journal.save_segments(self.access.snapshots)
         return result
@@ -122,6 +137,10 @@ class DftCycle:
         coverage_current = self.coverage_ok and self._coverage_pending
         self._coverage_pending = False
         observation = await observe_checker(self.config.source_root, self.config.retention_config)
+        if self.handoff is not None:
+            self.handoff.observe(now=now, checker_healthy=observation.healthy and coverage_current)
+            if self.handoff.pending:
+                observation = replace(observation, errors=(*observation.errors, "segment_cutover_pending"))
         if not coverage_current:
             observation = replace(observation, errors=(*observation.errors, "access_window_unavailable"))
         incident = self.journal.record(observation, now=now,
@@ -133,6 +152,7 @@ class DftCycle:
             "incident_id": incident.incident_id if incident else None,
             "incident_closed_at": incident.closed_at if incident else None,
             "delivery_route_allocated": self.receiver is not None,
+            "active_access_source": self.access.mode if self.access is not None else None,
         }
 
     async def deliver_pending(self, *, now: float) -> None:

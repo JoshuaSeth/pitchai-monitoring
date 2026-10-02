@@ -74,6 +74,14 @@ The consumer source currently contains:
   bytes, and uses the journal's persisted retry backoff. Future receiver
   admission must verify cancellation and durable deduplication; a timeout cannot
   establish whether remote acceptance occurred.
+- `domain_checks/dft_handoff.py` and `dft_cutover_config.py`: a requested
+  segment selection initially retains shared authority. The existing cycle
+  advances bounded candidate cursors after its checker call. It selects
+  segments only after an actual complete original window and a healthy checker,
+  with a successful shared read in that cycle. Selection is durable before the
+  next read uses segments; a later segment fault never falls back automatically.
+  Writer-adoption and natural old-worker-drain timestamps are explicit admission
+  inputs. An active selection rejects changed timestamps on restart.
 
 The format adapter is explicit: producer `event_unix` becomes the original
 monitoring event timestamp, and `agent` supplies the transient `user_agent`
@@ -107,6 +115,13 @@ The subsequent receiver-deadline increment passed six affected tests
 in88.045 seconds, including an in-memory receiver that never replies until
 explicitly released after restart. The original intent remains pending through
 the deadline and is retried unchanged. No network receiver is used in that proof.
+The bounded handoff increment passed13 affected isolated tests in73.218 seconds.
+The added cases cover multi-poll cold catch-up across journal restart, a failed
+checker preventing selection after parsing, original drain timing, skipped-read
+refusal, durable selection without automatic fallback, explicit rollback
+history, invalid boundaries and byte-preserving refusal of prior journal schema.
+These fixtures exercise source behavior only; they do not prove actual writer
+adoption, natural worker drain, runtime throughput or live delivery.
 
 The producer review at `de1f3e3` demonstrated a 1,000,200-byte valid hour with
 only 150 current-window bytes rejected by the former whole-hour reader. The new
@@ -153,6 +168,11 @@ Private ownership checks do not select that allocation or prove the runtime
 principal. Existing unmarked consumer state would require a separately reviewed
 migration; this source change refuses it and performs no migration.
 No path is allocated or created by the default disabled configuration.
+The selection-history addition uses consumer journal schema2. Schema1 or
+unmarked files are refused byte-for-byte; this source supplies no migration,
+state deletion or replacement allocation. No runtime consumer journal has been
+commissioned by this work. An existing allocation would require its owner's
+explicit preservation/migration disposition before using this version.
 
 ## Receiver and delivery limits
 
@@ -264,12 +284,55 @@ under `d31-ack-proof-6885e80032`; those tests were read, not repeated here.
    in6f97's reviewed layout.
 3. Verify sufficient original segment coverage for a complete300-second window
    and bounded-reader catch-up at the admitted request volume.
-   Change DFT consumer authority and shared-feed exclusion together; preserve
-   every other host. Rollback must restore the shared DFT writer before selecting
-   it and retain a coverage fault until its full window exists. Never delete or
-   rotate old files to manufacture coverage or retention compliance.
+   Use the existing-cycle handoff described below. DFT consumer authority and
+   shared-feed exclusion change together; every other host retains its feed.
+   Rollback must restore the shared DFT writer before selecting it and retain a
+   coverage fault until its full window exists. Never delete or rotate old files
+   to manufacture coverage or retention compliance.
 4. Observe the installed source and content-free checker status through the
    existing cycle. Later natural incidents alone may establish live delivery.
+
+### Bounded first-read handoff in the existing cycle
+
+The producer's prepared `d31-release-inputs-51b4a2e-20261002/adoption-phases.md`
+identifies why elapsed300 seconds alone cannot establish cutover readiness:
+shared mode does not advance segment cursors, and a cold hour may require
+multiple bounded reads. No separate warm-up command or schedule is introduced.
+
+After actual dedicated writer adoption and natural drain of all retained old
+nginx workers, the existing owner can prepare `mode: segments` with a `cutover`
+mapping containing the original numeric epoch values `writer_adopted_at` and
+`old_workers_drained_at`. These fields are claims that require owner evidence;
+the consumer cannot verify nginx adoption or drain from inside its namespace.
+The admitted interval must have remained uninterrupted. A reload completion,
+master PID, copied status, restart or pre-created empty hour is not that evidence.
+
+Until selection is recorded, reads continue using shared DFT counts, excluding
+staging and probe traffic as before. Each successful shared read supplies one
+candidate-read intent for the existing checker observation. The candidate
+window must be at least300 seconds, and its start must be no earlier than both
+admission timestamps. The reader advances at most the configured segment byte
+budget per candidate poll, persists only validated counters/cursors, and retains
+shared authority through incomplete catch-up, missing/invalid segments or a
+failed checker. `segment_cutover_pending` remains explicit in consumer health
+and cannot satisfy incident recovery. No zero-traffic fallback is manufactured.
+
+After a complete candidate window and healthy checker, the journal commits
+selection and the next access read uses segments with shared DFT exclusion.
+That read revalidates the original files and advances the same cursors; it does
+not reuse cached counters as current coverage without reading. Restart restores
+selected authority only for the matching original admission. A later missing
+or truncated segment is unavailable coverage, with no automatic shared fallback.
+
+An explicitly admitted rollback uses `mode: shared`; its first successful shared
+read retires the selection while retaining the original adoption, drain and
+selection timestamps in the journal. This source does not itself establish that
+the shared writer/window is intact. Re-adoption requires the owner's actual new
+boundary and complete proof again. Retention incidents, acknowledgement history
+and outgoing intents are independent of source selection and remain preserved.
+
+The prepared producer still writes a shared raw-log copy. Consumer selection
+does not remove that copy or satisfy its separate retention disposition.
 
 Raw proxy `sample_lines`, incident text and dispatch payloads in deployed
 `domain_checks.main` are potential downstream copies requiring separate DFT

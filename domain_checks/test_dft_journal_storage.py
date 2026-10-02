@@ -52,6 +52,21 @@ class TestJournalStorage(unittest.TestCase):
             restored.close()
 
     @staticmethod
+    def test_prior_schema_is_not_implicitly_migrated() -> None:
+        """A prior source journal stays byte-identical when selection history is absent."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "prior.sqlite"
+            prior = DftJournal(path)
+            prior.connection.execute("DROP TABLE source_selections")
+            prior.connection.execute("PRAGMA user_version=1")
+            prior.connection.commit()
+            prior.close()
+            original = path.read_bytes()
+            with require_error(ValueError, "dft_journal_identity_mismatch"):
+                DftJournal(path).close()
+            require(condition=path.read_bytes() == original, message="old journal was modified or silently migrated")
+
+    @staticmethod
     def test_untrusted_paths_are_refused_without_repair() -> None:
         """No chmod, adoption or writes occur through unsafe aliases or modes."""
         for mutation in ("file_mode", "parent_mode", "symlink", "hardlink", "parent_alias"):

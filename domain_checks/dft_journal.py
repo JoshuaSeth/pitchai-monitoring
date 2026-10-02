@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from itertools import starmap
 from typing import TYPE_CHECKING, Literal, cast
 
+from .dft_cutover_config import CutoverBoundary
 from .dft_journal_storage import open_private_journal
 from .dft_retention_consumer import RetentionIncident, observe_incident
 from .dft_segment_io import SegmentCount, SegmentSnapshot
@@ -59,6 +60,11 @@ class DftJournal:
                 server_errors INTEGER NOT NULL, gateway_errors INTEGER NOT NULL, client_errors INTEGER NOT NULL,
                 PRIMARY KEY(name,timestamp)
             );
+            CREATE TABLE source_selections (
+                writer_adopted REAL NOT NULL, workers_drained REAL NOT NULL,
+                selected REAL NOT NULL, retired REAL
+            );
+            CREATE UNIQUE INDEX one_active_source ON source_selections((1)) WHERE retired IS NULL;
         """)
 
     def close(self) -> None:
@@ -97,6 +103,28 @@ class DftJournal:
                     (name, count.timestamp, count.total, count.server_errors, count.gateway_errors, count.client_errors)
                     for count in item.counts
                 ])
+
+    def active_segment_boundary(self) -> CutoverBoundary | None:
+        """Read active selection without treating cached cursors as authority.
+
+        Returns:
+            The exact original admission times, or None before selection/after rollback.
+        """
+        row = cast("tuple[float, float] | None", self.connection.execute(
+            "SELECT writer_adopted,workers_drained FROM source_selections WHERE retired IS NULL",
+        ).fetchone())
+        return CutoverBoundary(*row) if row is not None else None
+
+    def select_segments(self, boundary: CutoverBoundary, *, now: float) -> None:
+        """Persist the verified handoff before the next cycle can count segments."""
+        with self.connection:
+            self.connection.execute("INSERT INTO source_selections VALUES(?,?,?,NULL)",
+                                    (boundary.writer_adopted_at, boundary.old_workers_drained_at, now))
+
+    def retire_segment_selection(self, *, now: float) -> None:
+        """Retain original admission history when explicit shared selection succeeds."""
+        with self.connection:
+            self.connection.execute("UPDATE source_selections SET retired=? WHERE retired IS NULL", (now,))
 
     def current(self) -> RetentionIncident | None:
         """Read the exact retained identity, including its acknowledgement.
