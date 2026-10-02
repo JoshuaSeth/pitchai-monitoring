@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import runpy
-import shutil
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, time as dt_time, timezone
@@ -27,6 +26,19 @@ from .common_check import (
     load_domain_spec_from_module_dict,
 )
 from .history import append_sample, prune_history
+from .host_readings import (
+    compute_cpu_used_percent as _compute_cpu_used_percent,
+    disk_usage_percent as _disk_usage_percent,
+    format_browser_health_hint as _format_browser_health_hint,
+    read_linux_meminfo_kb as _read_linux_meminfo_kb,
+    read_linux_proc_stat_cpu_total_idle as _read_linux_proc_stat_cpu_total_idle,
+)
+from .host_snapshot import collect_host_snapshot as _collect_host_snapshot
+from .host_thresholds import (
+    build_host_health_alert_message as _build_host_health_alert_message,
+    collect_host_health_violations as _collect_host_health_violations,
+    format_percent as _format_percent,
+)
 from .inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from .metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
 from .metrics_container_health import ContainerHealthIssue, check_container_health
@@ -477,67 +489,6 @@ def _collect_performance_violations(
     return slow
 
 
-def _build_host_health_alert_message(
-    *,
-    violations: list[str],
-    snap: dict[str, Any],
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: host health thresholds exceeded ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append("")
-    lines.extend(f"- {v}" for v in violations[:10])
-
-    extra: list[str] = []
-    disk = snap.get("disk") if isinstance(snap.get("disk"), dict) else {}
-    if disk:
-        # Include the worst path in a stable order (already computed in violations, but this is for heartbeat context).
-        worst_path = None
-        worst_pct = None
-        for path, info in disk.items():
-            if not isinstance(info, dict):
-                continue
-            pct = info.get("used_percent")
-            try:
-                pct_f = float(pct)
-            except Exception:
-                continue
-            if worst_pct is None or pct_f > worst_pct:
-                worst_pct = pct_f
-                worst_path = str(path)
-        if worst_path and worst_pct is not None:
-            extra.append(f"Disk worst: {worst_path} {_format_percent(worst_pct)}")
-
-    mem_used = snap.get("mem_used_percent")
-    if mem_used is not None:
-        extra.append(f"Mem used: {_format_percent(mem_used)}")
-
-    swap_used = snap.get("swap_used_percent")
-    if swap_used is not None:
-        extra.append(f"Swap used: {_format_percent(swap_used)}")
-
-    cpu_used = snap.get("cpu_used_percent")
-    if cpu_used is not None:
-        extra.append(f"CPU used: {_format_percent(cpu_used)}")
-
-    load1 = snap.get("load1")
-    load1pc = snap.get("load1_per_cpu")
-    try:
-        if load1 is not None:
-            if load1pc is not None:
-                extra.append(f"Load: {float(load1):.1f} (per_cpu={float(load1pc):.2f})")
-            else:
-                extra.append(f"Load: {float(load1):.1f}")
-    except Exception:
-        pass
-
-    if extra:
-        lines.append("")
-        lines.extend(extra[:6])
-
-    return "\n".join(lines).strip()
 
 
 def _build_performance_alert_message(
@@ -726,260 +677,20 @@ def _build_heartbeat_message(
     return "\n".join(lines).strip() + "\n"
 
 
-def _read_linux_meminfo_kb() -> dict[str, int]:
-    """
-    Best-effort host memory snapshot for diagnostics (Linux only).
-    On macOS/Windows, returns {}.
-    """
-    try:
-        raw = Path("/proc/meminfo").read_text(encoding="utf-8")
-    except Exception:
-        return {}
-
-    values: dict[str, int] = {}
-    for line in raw.splitlines():
-        if ":" not in line:
-            continue
-        key, rest = line.split(":", 1)
-        parts = rest.strip().split()
-        if not parts:
-            continue
-        try:
-            values[key.strip()] = int(parts[0])
-        except Exception:
-            continue
-    return values
 
 
-def _format_browser_health_hint() -> str:
-    info = _read_linux_meminfo_kb()
-    if not info:
-        return ""
-
-    def _mb(key: str) -> str:
-        v = info.get(key)
-        if v is None:
-            return "?"
-        return str(int(v / 1024))
-
-    mem_avail = _mb("MemAvailable")
-    swap_total = _mb("SwapTotal")
-    swap_free = _mb("SwapFree")
-    swap_used = "?"
-    try:
-        if swap_total != "?" and swap_free != "?":
-            swap_used = str(int(swap_total) - int(swap_free))
-    except Exception:
-        swap_used = "?"
-
-    try:
-        load1, load5, load15 = os.getloadavg()
-        load = f"{load1:.1f}/{load5:.1f}/{load15:.1f}"
-    except Exception:
-        load = "?"
-
-    return f"mem_avail_mb={mem_avail} swap_used_mb={swap_used}/{swap_total} load={load}"
 
 
-def _read_linux_proc_stat_cpu_total_idle() -> tuple[int, int] | None:
-    """
-    Return (total_jiffies, idle_jiffies) from /proc/stat for the aggregate CPU line.
-    Linux-only; returns None on non-Linux or parse failures.
-    """
-    try:
-        raw = Path("/proc/stat").read_text(encoding="utf-8")
-    except Exception:
-        return None
-
-    for line in raw.splitlines():
-        if not line.startswith("cpu "):
-            continue
-        parts = line.split()
-        # cpu user nice system idle iowait irq softirq steal guest guest_nice
-        nums: list[int] = []
-        for p in parts[1:]:
-            try:
-                nums.append(int(p))
-            except Exception:
-                nums.append(0)
-        if len(nums) < 4:
-            return None
-        total = int(sum(nums))
-        idle = int(nums[3] + (nums[4] if len(nums) > 4 else 0))
-        return total, idle
-    return None
 
 
-def _compute_cpu_used_percent(
-    *, prev_total: int, prev_idle: int, cur_total: int, cur_idle: int
-) -> float | None:
-    delta_total = int(cur_total) - int(prev_total)
-    delta_idle = int(cur_idle) - int(prev_idle)
-    if delta_total <= 0:
-        return None
-    used = max(0.0, min(100.0, (1.0 - (delta_idle / float(delta_total))) * 100.0))
-    return round(used, 3)
 
 
-def _disk_usage_percent(path: str) -> float | None:
-    try:
-        total, used, _free = shutil.disk_usage(path)
-    except Exception:
-        return None
-    if total <= 0:
-        return None
-    return round((used / float(total)) * 100.0, 3)
 
 
-def _format_percent(value: Any) -> str:
-    try:
-        if value is None:
-            return "n/a"
-        return f"{float(value):.1f}%"
-    except Exception:
-        return "n/a"
 
 
-def _collect_host_snapshot(*, disk_paths: list[str], cpu_prev_total: int, cpu_prev_idle: int) -> dict[str, Any]:
-    meminfo = _read_linux_meminfo_kb()
-    mem_total_kb = meminfo.get("MemTotal")
-    mem_avail_kb = meminfo.get("MemAvailable")
-    mem_used_pct = None
-    if isinstance(mem_total_kb, int) and mem_total_kb > 0 and isinstance(mem_avail_kb, int):
-        mem_used_pct = round((1.0 - (mem_avail_kb / float(mem_total_kb))) * 100.0, 3)
-
-    swap_total_kb = meminfo.get("SwapTotal")
-    swap_free_kb = meminfo.get("SwapFree")
-    swap_used_pct = None
-    if isinstance(swap_total_kb, int) and swap_total_kb > 0 and isinstance(swap_free_kb, int):
-        swap_used_pct = round((1.0 - (swap_free_kb / float(swap_total_kb))) * 100.0, 3)
-
-    disk: dict[str, Any] = {}
-    for p in disk_paths:
-        pp = str(p or "").strip()
-        if not pp:
-            continue
-        if not Path(pp).exists():
-            continue
-        disk_pct = _disk_usage_percent(pp)
-        if disk_pct is None:
-            continue
-        disk[pp] = {"used_percent": disk_pct}
-
-    cpu_used_pct = None
-    cpu_cur = _read_linux_proc_stat_cpu_total_idle()
-    cpu_prev_total = int(cpu_prev_total) if cpu_prev_total else 0
-    cpu_prev_idle = int(cpu_prev_idle) if cpu_prev_idle else 0
-    cpu_cur_total = None
-    cpu_cur_idle = None
-    if cpu_cur is not None:
-        cpu_cur_total, cpu_cur_idle = cpu_cur
-        if cpu_prev_total > 0 and cpu_prev_idle > 0:
-            cpu_used_pct = _compute_cpu_used_percent(
-                prev_total=cpu_prev_total,
-                prev_idle=cpu_prev_idle,
-                cur_total=cpu_cur_total,
-                cur_idle=cpu_cur_idle,
-            )
-
-    load1 = load5 = load15 = None
-    try:
-        l1, l5, l15 = os.getloadavg()
-        load1, load5, load15 = float(l1), float(l5), float(l15)
-    except Exception:
-        pass
-
-    cpu_count = os.cpu_count() or 0
-    load1_per_cpu = None
-    if load1 is not None and cpu_count > 0:
-        load1_per_cpu = round(load1 / float(cpu_count), 3)
-
-    snap: dict[str, Any] = {
-        "mem_total_kb": mem_total_kb,
-        "mem_available_kb": mem_avail_kb,
-        "mem_used_percent": mem_used_pct,
-        "swap_total_kb": swap_total_kb,
-        "swap_free_kb": swap_free_kb,
-        "swap_used_percent": swap_used_pct,
-        "disk": disk,
-        "cpu_used_percent": cpu_used_pct,
-        "cpu_count": cpu_count,
-        "load1": load1,
-        "load5": load5,
-        "load15": load15,
-        "load1_per_cpu": load1_per_cpu,
-        "cpu_prev_total_next": cpu_cur_total,
-        "cpu_prev_idle_next": cpu_cur_idle,
-    }
-    return snap
 
 
-def _collect_host_health_violations(
-    snap: dict[str, Any],
-    *,
-    disk_used_percent_max: float | None,
-    mem_used_percent_max: float | None,
-    swap_used_percent_max: float | None,
-    cpu_used_percent_max: float | None,
-    load1_per_cpu_max: float | None,
-) -> list[str]:
-    violations: list[str] = []
-
-    if disk_used_percent_max is not None:
-        worst_path = None
-        worst_pct = None
-        disk = snap.get("disk") if isinstance(snap.get("disk"), dict) else {}
-        for path, info in disk.items():
-            if not isinstance(info, dict):
-                continue
-            pct = info.get("used_percent")
-            try:
-                pct_f = float(pct)
-            except Exception:
-                continue
-            if worst_pct is None or pct_f > worst_pct:
-                worst_pct = pct_f
-                worst_path = str(path)
-        if worst_pct is not None and worst_pct >= float(disk_used_percent_max):
-            violations.append(f"Disk {worst_path}: {_format_percent(worst_pct)} >= {_format_percent(disk_used_percent_max)}")
-
-    if mem_used_percent_max is not None:
-        pct = snap.get("mem_used_percent")
-        try:
-            pct_f = float(pct)
-        except Exception:
-            pct_f = None
-        if pct_f is not None and pct_f >= float(mem_used_percent_max):
-            violations.append(f"Memory: {_format_percent(pct_f)} >= {_format_percent(mem_used_percent_max)}")
-
-    if swap_used_percent_max is not None:
-        pct = snap.get("swap_used_percent")
-        try:
-            pct_f = float(pct)
-        except Exception:
-            pct_f = None
-        if pct_f is not None and pct_f >= float(swap_used_percent_max):
-            violations.append(f"Swap: {_format_percent(pct_f)} >= {_format_percent(swap_used_percent_max)}")
-
-    if cpu_used_percent_max is not None:
-        pct = snap.get("cpu_used_percent")
-        try:
-            pct_f = float(pct)
-        except Exception:
-            pct_f = None
-        if pct_f is not None and pct_f >= float(cpu_used_percent_max):
-            violations.append(f"CPU: {_format_percent(pct_f)} >= {_format_percent(cpu_used_percent_max)}")
-
-    if load1_per_cpu_max is not None:
-        v = snap.get("load1_per_cpu")
-        try:
-            v_f = float(v)
-        except Exception:
-            v_f = None
-        if v_f is not None and v_f >= float(load1_per_cpu_max):
-            violations.append(f"Load1/CPU: {v_f:.2f} >= {float(load1_per_cpu_max):.2f}")
-
-    return violations
 
 
 def _domain_plugin_path(domain: str) -> Path:

@@ -553,3 +553,53 @@ particular, the separate existing `nginx_upstream_errors` dispatch field still
 originates from shared `error.log`; it is not supplied by the new hourly reader.
 No historical delivery or original-age disposition is inferred from these
 builders, and their other-site behavior is unchanged.
+# Host-health decomposition increment
+
+The next source increment separates the existing host diagnostics into
+`host_readings.py` (OS readings and CPU arithmetic), `host_snapshot.py`
+(typed JSON assembly), and `host_thresholds.py` (thresholds and local alert
+text). `main.py` imports the existing helper names; the remaining cycle AST
+matches parent `7906fcea75f5e531fd43010112b86d9e02958998` after those declared
+extractions. Main is now 4,763 lines, a further reduction of 289 lines.
+
+The public valid-caller contract preserves the five keyword thresholds,
+configured disk order, first-worst tie behavior, first CPU sample as baseline,
+missing readings, percentage arithmetic, warning text and bounded lists. OS
+read/encoding failures are handled at their I/O calls; numeric conversion is
+separate from snapshot assembly. No new route, threshold or scheduling policy
+is introduced. These modules remain in the complete canonical strict scope.
+
+Evidence is retained at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261002/host-extraction-20261002/`:
+
+- Eleven focused synthetic tests pass in 0.004 seconds. The differential tool
+  matches 693 parent outcomes, including 128 snapshots, 128 read-order traces,
+  128 sorted JSON byte comparisons, malformed fields, exact threshold equality,
+  nonfinite retained values and alert text. Four existing host/performance
+  cases also pass. No real host or network observations are needed.
+- Four real isolated launcher/config/restart runs exercise simultaneous host
+  and independent-domain two-failure/two-success transitions, persisted CPU
+  baselines, signal history, default config lookup and browser cleanup. HTTP,
+  browser and host inputs are synthetic. One host warning is captured by a
+  replacement local function returning explicit no-delivery; actual Telegram,
+  Events, Dispatch, network and subprocess transports are guarded. DFT stays
+  disabled. No receiver IDs or delivery receipts are produced.
+- Six runtime/test source files were copied and hashed before final unit,
+  differential and launcher verification; final source is checked against that
+  snapshot. This improves this increment's provenance without changing earlier
+  increments' working-proof limits. The initial launcher fixture used the
+  default `/` disk with mocked `statvfs` but did not separately mock existence;
+  its proof is retained separately. The final fixture uses an explicit synthetic
+  disk with synthetic existence and percentage observations.
+- Five new files pass scoped architecture, Ruff, BasedPyright, Pylint 10 and
+  Semgrep. Whole-main checks still fail: 415 Ruff findings, 437 typing errors
+  and one warning, Pylint 9.25/10, 53 Semgrep findings and architecture debt.
+  The aggregate retains 21 repository anti-bypass findings. Initial source and
+  test-style gate failures remain in the evidence directory.
+
+This is component source progress. It neither changes the retained DFT
+producer nor supplies actual checker/config/clock/reader/journal bindings,
+receiver acceptance, off-host coverage, original 300-second adoption/drain
+coverage plus the next segment read, throughput/copy disposition or finite
+Infrastructure624 admission. PR43/45 interfaces and original coordination
+requests retain their separate owners and current status.
