@@ -6,6 +6,10 @@ modules;6f97 owns the writer and checker in DFT PR4478;2042/bb44 own DFT release
 semantics;Infrastructure624 owns host admission and incident response. No
 deployment, private directory creation, event publication or Telegram send is
 part of this source change. Existing stopped workers remain stopped.
+Infrastructure624 confirms528's existing counterpart acceptance at11:23:59UTC
+on October2 and the supported11:27 Astra/medium, active/no-stop observation.
+This is retained against the existing746 task; withdrawn manager80f3 remains
+stopped. These historical observations do not establish a newer compute sample.
 
 ## Source contract and current implementation
 
@@ -54,19 +58,33 @@ The consumer source currently contains:
   existing cycle reads the chosen feed, calls the checker, records content-free
   health and persists its transitions. Default configuration is disabled and
   allocates no journal or process. No receiver is configured by this patch.
+  Each observation consumes a fresh access read; previous-cycle coverage cannot
+  satisfy recovery when an access check is skipped.
+
+The format adapter is explicit: producer `event_unix` becomes the original
+monitoring event timestamp, and `agent` supplies the transient `user_agent`
+probe filter. `status` feeds aggregate counters. The production root binds
+host `formatief-toetsen.pitchai.net` and environment `production`; no host field
+is inferred from a record. Staging is excluded by source selection. The
+offset-qualified `capture_hour` and filename select every original hour
+intersecting the window, including an hour or DST boundary. Neither mtime nor
+copy time substitutes for event age. The adapter emits no raw request sample.
 
 **Not commissioned:** the exact checker namespace, supported internal receiver
 and off-host observer remain unallocated. The local outgoing intent is not yet
 an accepted Events delivery envelope. It stays pending when no receiver is
 supplied. Source tests do not establish installed configuration or delivery.
 
-All 18 isolated standard-library tests pass (95.928 seconds). They use synthetic
+The prior18 isolated standard-library tests passed (95.928 seconds). They use synthetic
 child-process output, temporary
 original files, private SQLite journals and in-memory receiver responses. They
 cover large-hour bounded catch-up across restart, window/DST boundaries,
 partial completion, identical requests, source cutover, process failures,
 incident identity, acknowledgement and uncertain delivery ordering. No
 production checker, retention file or notification endpoint is invoked.
+The subsequent four-case cycle suite passed in21.453 seconds, including the new
+regression for matching acknowledgement with stale access coverage. The failed
+incident stays open until a fresh access read and healthy checker agree.
 
 The producer review at `de1f3e3` demonstrated a 1,000,200-byte valid hour with
 only 150 current-window bytes rejected by the former whole-hour reader. The new
@@ -92,13 +110,21 @@ The deployed parser accepts host-aware JSON and excludes the monitor UA.
 The source adapter restores the observed deployed host-aware JSON semantics
 while retaining historical combined-format parsing.
 
-Observed monitor UID/GID is0, nginx workers UID33. Approved design roots are
-`/var/log/nginx/dft-access-v1/production` and `/staging`; private state is
-`/var/lib/pitchai/dft-web-access-v1/status.json`. The original read-only nginx
-mount supplies only the log namespace. The new directories are absent and the
-container does not mount private state. Ancestor traversal, allocated config,
-reviewed checker source and same-host/boot clock capability require explicit
-rollout proof. No new principal/group or guessed SSH/Docker executor is supplied.
+The supplied11:31 metadata observed monitor UID/GID0 and nginx worker UID33.
+Infrastructure624's corrected design selects new nginx-UID-owned0700 parent
+`/var/log/nginx/dft-access-v1`, production/staging0700 leaves and0600 files.
+The writer must traverse every parent; a root-owned0700 writer ancestor is
+invalid. Keep shared ancestors unchanged, without copying fixture0711 modes.
+Private state moves to new root-owned0700 sibling
+`/var/log/nginx/dft-access-state-v1/status.json`, with root-owned0600 status.
+This supersedes the earlier `/var/lib/pitchai/dft-web-access-v1` candidate.
+Both design roots fall within the existing read-only `/var/log/nginx` mount;
+this removes the proposed mount gap but does not prove installed files or a
+working checker. Neither new path is created by this change. Admission must
+refuse an unexpected existing path and verify current monitor identity, actual
+ancestor traversal/read permissions, allocated config, reviewed checker source
+and same-host/boot clock capability. Do not widen credentials/groups or relax
+0600 to obtain access. No guessed SSH/Docker executor is supplied.
 The consumer journal requires its own admitted private path in the monitoring
 state volume; it must not point at producer status/config or any access root.
 No path is allocated or created by the default disabled configuration.
@@ -163,6 +189,11 @@ under `d31-ack-proof-6885e80032`; those tests were read, not repeated here.
    admits the exact checker namespace. Verify config allocation, original clock
    age, source SHA, mount/read/search permissions and checker invocation without
    a synthetic production event or outgoing test.
+   The08:50 window is closed. A fresh finite624 window, after source/reader/
+   receiver acceptance, retains6f97 as the sole live executor. The16GiB planning
+   log budget is an alert/capacity reservation, not permission to delete young
+   records or disable logging. Quarantine stays private on the same filesystem
+   in6f97's reviewed layout.
 3. Verify sufficient original segment coverage for a complete300-second window
    and bounded-reader catch-up at the admitted request volume.
    Change DFT consumer authority and shared-feed exclusion together; preserve
@@ -178,3 +209,19 @@ original-age and owner disposition. Shared monitoring/error logs, Docker output,
 historical copies and excluded4443 are not inputs to the DFT expiry policy.
 Their exact retained contents and original-age coverage remain unproved; this
 source task does not inspect, erase or reclassify them.
+
+For the proposed new input, the source copy path is bounded and content-free
+after parsing:
+
+| Stage | Transient input | Retained or forwarded output |
+| --- | --- | --- |
+| `dft_segment_io` / `dft_access_segments` | Bounded original JSONL bytes and agent for probe exclusion | Segment identity/byte cursor and timestamp/status counters; no record text, IP, agent or URI |
+| `DftAccessCutover` | Production aggregates and existing unrelated-host feed | Empty DFT `sample_lines`; unrelated hosts retain their existing samples |
+| Main proxy alert/dispatch builders | Selected access counters and sample list | No DFT access record from the new input can enter those sample fields |
+| Checker / `DftJournal` / local outgoing intent | Bounded checker result | Fixed errors, age, historical overdue count, incident identity and immutable transition; no log content |
+
+This source trace does not account for historical deployed copies. In
+particular, the separate existing `nginx_upstream_errors` dispatch field still
+originates from shared `error.log`; it is not supplied by the new hourly reader.
+No historical delivery or original-age disposition is inferred from these
+builders, and their other-site behavior is unchanged.

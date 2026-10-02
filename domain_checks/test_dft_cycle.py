@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -107,3 +107,33 @@ class TestDftCycle(unittest.IsolatedAsyncioTestCase):
             if cycle.journal is not None:
                 require(condition=cycle.journal.pending(now=0) is not None, message="pending intent disappeared")
                 cycle.journal.close()
+
+    @staticmethod
+    async def test_recovery_requires_a_new_access_read() -> None:
+        """Matching acknowledgement cannot reuse coverage from a failed cycle."""
+        now = datetime(2026, 10, 2, 12, 10, tzinfo=UTC)
+        recovered_at = 120
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shared = root / "shared.log"
+            shared.write_text(shared_line("other.pitchai.net", now, 200), encoding="utf-8")
+            config = DftCycleConfig("shared", root, root / "config", root / "consumer.sqlite")
+            cycle = DftCycle(config)
+            _ = cycle.read_access(access_log_path=str(shared), now=now, window_seconds=300, max_bytes=1000)
+            with patch("domain_checks.dft_cycle.observe_checker",
+                       return_value=CheckerObservation(errors=("retention_fault_latched",))):
+                await cycle.observe(now=0)
+            incident_id = cycle.summary.get("incident_id")
+            cycle.config = replace(config, acknowledged_incident_id=str(incident_id))
+            with patch("domain_checks.dft_cycle.observe_checker", return_value=CheckerObservation(age_seconds=1)):
+                await cycle.observe(now=60)
+                require(condition=cycle.summary.get("incident_id") == incident_id
+                        and cycle.summary.get("incident_closed_at") is None
+                        and cycle.summary.get("errors") == ["access_window_unavailable"],
+                        message="stale access coverage closed an acknowledged incident")
+                _ = cycle.read_access(access_log_path=str(shared), now=now, window_seconds=300, max_bytes=1000)
+                await cycle.observe(now=recovered_at)
+            require(condition=cycle.summary.get("incident_id") == incident_id
+                    and cycle.summary.get("incident_closed_at") == recovered_at,
+                    message="fresh verified coverage did not complete acknowledged recovery")
+            cycle.close()

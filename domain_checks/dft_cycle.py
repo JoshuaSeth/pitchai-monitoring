@@ -84,6 +84,7 @@ class DftCycle:
         if self.access is not None and self.journal is not None:
             self.access.snapshots = self.journal.load_segments()
         self.coverage_ok: bool = config is None
+        self._coverage_pending: bool = False
         self.summary: dict[str, JsonValue] = {"enabled": config is not None}
 
     def close(self) -> None:
@@ -107,6 +108,7 @@ class DftCycle:
             result = self.access.read(access_log_path=access_log_path, now=now,
                                       window_seconds=window_seconds, max_bytes=max_bytes)
         self.coverage_ok = result is not None
+        self._coverage_pending = True
         if self.journal is not None:
             self.journal.save_segments(self.access.snapshots)
         return result
@@ -115,8 +117,10 @@ class DftCycle:
         """Run once in the existing cycle; persist before attempting any receipt."""
         if self.config is None or self.journal is None:
             return
+        coverage_current = self.coverage_ok and self._coverage_pending
+        self._coverage_pending = False
         observation = await observe_checker(self.config.source_root, self.config.retention_config)
-        if not self.coverage_ok:
+        if not coverage_current:
             observation = replace(observation, errors=(*observation.errors, "access_window_unavailable"))
         incident = self.journal.record(observation, now=now,
                                        acknowledged_incident_id=self.config.acknowledged_incident_id)
