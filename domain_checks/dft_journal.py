@@ -5,16 +5,17 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 import uuid
 from dataclasses import asdict, dataclass
 from itertools import starmap
 from typing import TYPE_CHECKING, Literal, cast
 
+from .dft_journal_storage import open_private_journal
 from .dft_retention_consumer import RetentionIncident, observe_incident
 from .dft_segment_io import SegmentCount, SegmentSnapshot
 
 if TYPE_CHECKING:
+    import sqlite3
     from pathlib import Path
 
     from .dft_retention_consumer import CheckerObservation
@@ -40,9 +41,7 @@ class DftJournal:
 
     def __init__(self, path: Path) -> None:
         """Open the admitted consumer state file and initialize only its tables."""
-        self.connection: sqlite3.Connection = sqlite3.connect(path)
-        self.connection.execute("PRAGMA synchronous=FULL")
-        self.connection.executescript("""
+        self.connection: sqlite3.Connection = open_private_journal(path, """
             CREATE TABLE IF NOT EXISTS incidents (
                 id TEXT PRIMARY KEY, opened REAL NOT NULL, closed REAL, acknowledged INTEGER NOT NULL
             );

@@ -56,6 +56,13 @@ The consumer source currently contains:
   retries keep recovery behind failure. A sanitized receiver ID is a separate
   acceptance field. Pending capacity exhaustion fails loudly rather than
   deleting an incident or silently dropping an intent.
+- `domain_checks/dft_journal_storage.py`: require an already allocated0700
+  parent owned by the current principal and a0600 regular journal with one
+  link. Reject symlink paths and unrelated SQLite files. New journals record
+  the consumer application/schema identity in the initial transaction;
+  existing identity is inspected read-only before a writable connection is
+  opened. No directory creation, permission repair or implicit migration of
+  unmarked state is performed.
 - `domain_checks/dft_cycle.py` and the narrow `domain_checks.main` hook: the
   existing cycle reads the chosen feed, calls the checker, records content-free
   health and persists its transitions. Default configuration is disabled and
@@ -87,6 +94,10 @@ production checker, retention file or notification endpoint is invoked.
 The subsequent four-case cycle suite passed in21.453 seconds, including the new
 regression for matching acknowledgement with stale access coverage. The failed
 incident stays open until a fresh access read and healthy checker agree.
+The private-journal increment passed nine affected tests in186.213 seconds:
+unrelated-database refusal, unsafe alias/mode refusal, private reopen, durable
+retry, bounded catch-up after restart, and the four cycle cases. These are
+isolated source results; no existing runtime journal was opened or migrated.
 
 The producer review at `de1f3e3` demonstrated a 1,000,200-byte valid hour with
 only 150 current-window bytes rejected by the former whole-hour reader. The new
@@ -129,6 +140,9 @@ and same-host/boot clock capability. Do not widen credentials/groups or relax
 0600 to obtain access. No guessed SSH/Docker executor is supplied.
 The consumer journal requires its own admitted private path in the monitoring
 state volume; it must not point at producer status/config or any access root.
+Private ownership checks do not select that allocation or prove the runtime
+principal. Existing unmarked consumer state would require a separately reviewed
+migration; this source change refuses it and performs no migration.
 No path is allocated or created by the default disabled configuration.
 
 ## Receiver and delivery limits
