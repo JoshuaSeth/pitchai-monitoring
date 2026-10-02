@@ -3,10 +3,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from .models import utc_iso
+from .organization_fingerprint import organization_decision_key
 
 if TYPE_CHECKING:
     from .organization_policy import OrganizationDecision
@@ -80,7 +81,7 @@ def compare_selection(
             expected_expires_at=expected_text,
             fresh_expires_at=fresh_text,
         )
-    if fresh.decision_key != initial.decision_key:
+    if _recheck_key(fresh) != _recheck_key(initial):
         return SelectionMismatch(
             reason="organization_evidence_or_selection_changed",
             loud=False,
@@ -88,3 +89,24 @@ def compare_selection(
             fresh_expires_at=fresh_text,
         )
     return None
+
+
+def _recheck_key(decision: OrganizationDecision) -> str:
+    """Compare required evidence without unrelated available-window jitter.
+
+    Full audit and claim fingerprints remain unchanged. Both fresh decisions
+    must still select the same exact account, credit and entitlement. Available
+    peers do not prove exhaustion, so their reset epochs are not preconditions.
+
+    Returns:
+        A comparison key retaining membership, states and all exhausted epochs.
+    """
+    selected = decision.selection
+    selected_ref = selected.observation.descriptor.account_ref if selected else None
+    evidence = tuple(
+        replace(item, exhausted_window_resets=(), weekly_reset_at=None)
+        if item.state == "available" and item.account_ref != selected_ref
+        else item
+        for item in decision.evidence
+    )
+    return organization_decision_key(evidence=evidence, selection=selected)
