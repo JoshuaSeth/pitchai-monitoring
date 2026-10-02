@@ -1,108 +1,94 @@
 import Foundation
 import WatchConnectivity
 
-final class WatchSnapshotBridge: NSObject, WCSessionDelegate {
-    static let shared = WatchSnapshotBridge()
+@MainActor
+internal final class WatchSnapshotBridge: NSObject, WCSessionDelegate {
+    nonisolated private static let snapshotKey: String = "snapshot_v1"
 
-    private let contextQueue = DispatchQueue(label: "com.pitchai.codexstatus.watch-context")
+    internal static let shared: WatchSnapshotBridge = .init()
+
     private var pendingSnapshotData: Data?
     private var transferInFlightSnapshotData: Data?
 
-    private override init() {
+    override private init() {
         super.init()
-        guard WCSession.isSupported() else { return }
+        guard WCSession.isSupported() else {
+            return
+        }
         WCSession.default.delegate = self
         WCSession.default.activate()
     }
 
-    func publish(_ snapshot: CodexSnapshot) {
-        guard WCSession.isSupported() else { return }
+    internal func publish(_ snapshot: CodexSnapshot) {
+        guard WCSession.isSupported() else {
+            return
+        }
         do {
-            let data = try SnapshotCache.encoded(snapshot)
-            contextQueue.async { [weak self] in
-                guard let self else { return }
-                pendingSnapshotData = data
-                publishPendingContext(to: WCSession.default)
-            }
+            pendingSnapshotData = try SnapshotCache.encoded(snapshot)
+            publishPendingContext()
         } catch {
-            // The iPhone UI remains authoritative; the Watch will show its prior
+            // The iPhone UI remains authoritative; the Watch keeps its prior
             // timestamped snapshot and explicit stale state until the next transfer.
         }
     }
 
-    private func publishPendingContext(to session: WCSession) {
-        guard session.activationState == .activated,
-              let pendingSnapshotData else { return }
-        if transferInFlightSnapshotData != pendingSnapshotData {
-            session.transferUserInfo(["snapshot_v1": pendingSnapshotData])
-            transferInFlightSnapshotData = pendingSnapshotData
-        }
-        do {
-            try session.updateApplicationContext(["snapshot_v1": pendingSnapshotData])
-            self.pendingSnapshotData = nil
-        } catch {
-            // The queued user-info transfer remains available for background
-            // delivery. Preserve the newest snapshot until one delivery path
-            // succeeds or the paired-app state changes.
-        }
-    }
-
-    func session(
-        _ session: WCSession,
+    nonisolated internal func session(
+        _: WCSession,
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
-        guard error == nil, activationState == .activated else { return }
-        contextQueue.async { [weak self] in
-            self?.publishPendingContext(to: session)
+        guard error == nil, activationState == .activated else {
+            return
+        }
+        Task { @MainActor [weak self] in
+            self?.publishPendingContext()
         }
     }
 
-    func sessionDidBecomeInactive(_ session: WCSession) {}
+    nonisolated internal func sessionDidBecomeInactive(_: WCSession) {
+        // Pending data is preserved so reactivation can resume delivery.
+    }
 
-    func sessionDidDeactivate(_ session: WCSession) {
+    nonisolated internal func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
     }
 
-    func sessionWatchStateDidChange(_ session: WCSession) {
-        contextQueue.async { [weak self] in
-            self?.publishPendingContext(to: session)
+    nonisolated internal func sessionWatchStateDidChange(_: WCSession) {
+        Task { @MainActor [weak self] in
+            self?.publishPendingContext()
         }
     }
 
-    func sessionReachabilityDidChange(_ session: WCSession) {
-        guard session.isReachable else { return }
-        contextQueue.async { [weak self] in
-            self?.publishPendingContext(to: session)
+    nonisolated internal func sessionReachabilityDidChange(_ session: WCSession) {
+        guard session.isReachable else {
+            return
+        }
+        Task { @MainActor [weak self] in
+            self?.publishPendingContext()
         }
     }
 
-    func session(
-        _ session: WCSession,
+    nonisolated internal func session(
+        _: WCSession,
         didFinish userInfoTransfer: WCSessionUserInfoTransfer,
         error: Error?
     ) {
-        guard let deliveredData = userInfoTransfer.userInfo["snapshot_v1"] as? Data else {
+        guard let deliveredData = userInfoTransfer.userInfo[Self.snapshotKey] as? Data else {
             return
         }
-        contextQueue.async { [weak self] in
-            guard let self else { return }
-            if transferInFlightSnapshotData == deliveredData {
-                transferInFlightSnapshotData = nil
-            }
-            if error == nil, pendingSnapshotData == deliveredData {
-                pendingSnapshotData = nil
-            }
+        let failed: Bool = error != nil
+        Task { @MainActor [weak self] in
+            self?.completeTransfer(of: deliveredData, failed: failed)
         }
     }
 
-    func session(
-        _ session: WCSession,
+    nonisolated internal func session(
+        _: WCSession,
         didReceiveMessage message: [String: Any],
-        replyHandler: @escaping ([String: Any]) -> Void
+        replyHandler: sending @escaping ([String: Any]) -> Void
     ) {
-        guard let action = message["action"] as? String,
-              action == "snapshot" || action == "refresh" else {
+        let action: String? = message["action"] as? String
+        guard let action, action == "snapshot" || action == "refresh" else {
             replyHandler(["accepted": false])
             return
         }
@@ -110,12 +96,47 @@ final class WatchSnapshotBridge: NSObject, WCSessionDelegate {
             if action == "refresh" {
                 await SnapshotStore.shared.refresh(manual: true)
             }
-            if let snapshot = SnapshotStore.shared.snapshot,
-               let data = try? SnapshotCache.encoded(snapshot) {
-                replyHandler(["accepted": true, "snapshot_v1": data])
-            } else {
+            guard let snapshot = SnapshotStore.shared.snapshot else {
+                replyHandler(["accepted": false])
+                return
+            }
+            do {
+                let data: Data = try SnapshotCache.encoded(snapshot)
+                replyHandler(["accepted": true, Self.snapshotKey: data])
+            } catch {
                 replyHandler(["accepted": false])
             }
         }
+    }
+
+    private func completeTransfer(of data: Data, failed: Bool) {
+        if transferInFlightSnapshotData == data {
+            transferInFlightSnapshotData = nil
+        }
+        if !failed, pendingSnapshotData == data {
+            pendingSnapshotData = nil
+        }
+    }
+
+    private func publishPendingContext() {
+        let session: WCSession = .default
+        guard session.activationState == .activated, let pending = pendingSnapshotData else {
+            return
+        }
+        if transferInFlightSnapshotData != pending {
+            session.transferUserInfo([Self.snapshotKey: pending])
+            transferInFlightSnapshotData = pending
+        }
+        do {
+            try session.updateApplicationContext([Self.snapshotKey: pending])
+            pendingSnapshotData = nil
+        } catch {
+            // The queued user-info transfer remains available for background
+            // delivery, so the newest snapshot is preserved until one succeeds.
+        }
+    }
+
+    deinit {
+        // WatchConnectivity owns the session; no other resources are retained here.
     }
 }

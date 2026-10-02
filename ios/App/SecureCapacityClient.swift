@@ -2,53 +2,63 @@ import CryptoKit
 @preconcurrency import DeviceCheck
 import Foundation
 
-enum CapacityClientError: LocalizedError {
-    case appAttestUnavailable
-    case invalidServerResponse
-    case serverRejected(status: Int, message: String)
-    case challengeInvalid
+internal actor SecureCapacityClient {
+    private static let maximumResponseBytes: Int = 524_288
+    private static let minimumSuccessStatus: Int = 200
+    private static let maximumSuccessStatus: Int = 299
+    private static let requestTimeoutSeconds: TimeInterval = 35
+    private static let resourceTimeoutSeconds: TimeInterval = 45
+    private static let successStatuses: ClosedRange<Int> =
+        SecureCapacityClient.minimumSuccessStatus...SecureCapacityClient.maximumSuccessStatus
+    private static let unverifiedMessage: String =
+        "The installed app could not be verified by the capacity service."
 
-    var errorDescription: String? {
-        switch self {
-        case .appAttestUnavailable:
-            "App Attest is unavailable on this device. Live broker data remains locked."
-        case .invalidServerResponse:
-            "The capacity service returned an invalid response."
-        case let .serverRejected(status, message):
-            "\(message) (HTTP \(status))"
-        case .challengeInvalid:
-            "The one-time server challenge was invalid."
-        }
-    }
-}
-
-actor SecureCapacityClient {
-    static let live = SecureCapacityClient(
-        baseURL: URL(string: "https://codexusage.pitchai.net")!
+    internal static let live: SecureCapacityClient = .init(
+        baseURL: SecureCapacityClient.defaultBaseURL
     )
+
+    private static var defaultBaseURL: URL {
+        guard let url = URL(string: "https://codexusage.pitchai.net") else {
+            preconditionFailure("The capacity service URL must stay a valid URL literal.")
+        }
+        return url
+    }
 
     private let baseURL: URL
     private let session: URLSession
-    private let appAttest = DCAppAttestService.shared
+    internal let appAttest: DCAppAttestService
     private let keyDefaults: UserDefaults
-    private let keyIdentifierDefaultsKey = "codex-status.app-attest-key-id.v1"
+    private let keyIdentifierDefaultsKey: String = "codex-status.app-attest-key-id.v1"
 
-    init(baseURL: URL, keyDefaults: UserDefaults = .standard) {
+    internal init(baseURL: URL, keyDefaults: UserDefaults = .standard) {
         self.baseURL = baseURL
         self.keyDefaults = keyDefaults
+        self.appAttest = DCAppAttestService.shared
 
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration: URLSessionConfiguration = .ephemeral
         configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         configuration.httpCookieStorage = nil
         configuration.urlCredentialStorage = nil
         configuration.httpShouldSetCookies = false
         configuration.waitsForConnectivity = true
-        configuration.timeoutIntervalForRequest = 35
-        configuration.timeoutIntervalForResource = 45
+        configuration.timeoutIntervalForRequest = Self.requestTimeoutSeconds
+        configuration.timeoutIntervalForResource = Self.resourceTimeoutSeconds
         self.session = URLSession(configuration: configuration)
     }
 
-    func fetchCapacity() async throws -> CodexSnapshot {
+    private static func failureMessage(from data: Data) -> String {
+        do {
+            let envelope: APIErrorEnvelope = try JSONDecoder().decode(
+                APIErrorEnvelope.self,
+                from: data
+            )
+            return envelope.detail.message ?? Self.unverifiedMessage
+        } catch {
+            return Self.unverifiedMessage
+        }
+    }
+
+    internal func fetchCapacity() async throws -> CodexSnapshot {
         try await performAssertionRequest(
             purpose: "capacity",
             path: "/api/v1/mobile/capacity",
@@ -56,7 +66,7 @@ actor SecureCapacityClient {
         )
     }
 
-    func requestManualRefresh() async throws -> RefreshResponse {
+    internal func requestManualRefresh() async throws -> RefreshResponse {
         try await performAssertionRequest(
             purpose: "refresh",
             path: "/api/v1/mobile/refresh",
@@ -64,43 +74,27 @@ actor SecureCapacityClient {
         )
     }
 
-    static func canonicalClientData(
-        purpose: String,
-        challengeID: String,
-        challenge: String,
-        keyID: String
-    ) throws -> Data {
-        let value = [
-            "pitchai-codex-status-v1",
-            purpose,
-            challengeID,
-            challenge,
-            keyID
-        ].joined(separator: "\n")
-        guard let data = value.data(using: .ascii) else {
-            throw CapacityClientError.challengeInvalid
-        }
-        return data
-    }
-
     private func performAssertionRequest<Response: Decodable>(
         purpose: String,
         path: String,
         response: Response.Type
     ) async throws -> Response {
-        let keyID = try await registeredKeyID()
-        let challenge = try await requestChallenge(purpose: purpose, keyID: keyID)
-        let clientData = try Self.canonicalClientData(
+        let keyID: String = try await registeredKeyID()
+        let challenge: ChallengeResponse = try await requestChallenge(
+            purpose: purpose,
+            keyID: keyID
+        )
+        let clientData: Data = try Self.canonicalClientData(
             purpose: purpose,
             challengeID: challenge.challengeID,
             challenge: challenge.challenge,
             keyID: keyID
         )
-        let assertion = try await generateAssertion(
+        let assertion: Data = try await generateAssertion(
             keyID: keyID,
             clientDataHash: Data(SHA256.hash(data: clientData))
         )
-        let body = AssertionRequest(
+        let body: AssertionRequest = .init(
             challengeID: challenge.challengeID,
             keyID: keyID,
             assertion: assertion.base64EncodedString()
@@ -112,21 +106,24 @@ actor SecureCapacityClient {
         guard appAttest.isSupported else {
             throw CapacityClientError.appAttestUnavailable
         }
-        if let existing = keyDefaults.string(forKey: keyIdentifierDefaultsKey),
-           !existing.isEmpty {
+        let existing: String? = keyDefaults.string(forKey: keyIdentifierDefaultsKey)
+        if let existing, !existing.isEmpty {
             return existing
         }
 
-        let keyID = try await generateKey()
-        let challenge = try await requestChallenge(purpose: "attest", keyID: keyID)
-        guard let challengeData = Data(base64Encoded: challenge.challenge) else {
+        let keyID: String = try await generateKey()
+        let challenge: ChallengeResponse = try await requestChallenge(
+            purpose: "attest",
+            keyID: keyID
+        )
+        guard let challengeData: Data = .init(base64Encoded: challenge.challenge) else {
             throw CapacityClientError.challengeInvalid
         }
-        let attestation = try await attestKey(
+        let attestation: Data = try await attestKey(
             keyID: keyID,
             clientDataHash: Data(SHA256.hash(data: challengeData))
         )
-        let body = AttestationRequest(
+        let body: AttestationRequest = .init(
             challengeID: challenge.challengeID,
             keyID: keyID,
             attestation: attestation.base64EncodedString()
@@ -143,7 +140,10 @@ actor SecureCapacityClient {
         return keyID
     }
 
-    private func requestChallenge(purpose: String, keyID: String) async throws -> ChallengeResponse {
+    private func requestChallenge(
+        purpose: String,
+        keyID: String
+    ) async throws -> ChallengeResponse {
         try await post(
             path: "/api/v1/mobile/challenge",
             body: ChallengeRequest(purpose: purpose, keyID: keyID),
@@ -156,28 +156,27 @@ actor SecureCapacityClient {
         body: Body,
         response: Response.Type
     ) async throws -> Response {
-        let url = baseURL.appending(path: path)
-        var request = URLRequest(url: url)
+        var request: URLRequest = .init(url: baseURL.appending(path: path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let encoder = JSONEncoder()
+        let encoder: JSONEncoder = .init()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         request.httpBody = try encoder.encode(body)
 
-        let (data, rawResponse) = try await session.data(for: request)
+        let (data, rawResponse): (Data, URLResponse) = try await session.data(for: request)
         guard let httpResponse = rawResponse as? HTTPURLResponse else {
             throw CapacityClientError.invalidServerResponse
         }
-        guard data.count <= 512 * 1024 else {
+        guard data.count <= Self.maximumResponseBytes else {
             throw CapacityClientError.invalidServerResponse
         }
-        guard (200 ... 299).contains(httpResponse.statusCode) else {
-            let envelope = try? JSONDecoder().decode(APIErrorEnvelope.self, from: data)
-            throw CapacityClientError.serverRejected(
+        guard Self.successStatuses.contains(httpResponse.statusCode) else {
+            let rejection: ServerRejection = .init(
                 status: httpResponse.statusCode,
-                message: envelope?.detail.message ?? "The installed app could not be verified by the capacity service."
+                message: Self.failureMessage(from: data)
             )
+            throw CapacityClientError.serverRejected(rejection)
         }
         do {
             return try JSONDecoder().decode(response, from: data)
@@ -185,97 +184,4 @@ actor SecureCapacityClient {
             throw CapacityClientError.invalidServerResponse
         }
     }
-
-    private func generateKey() async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            appAttest.generateKey { keyID, error in
-                if let keyID {
-                    continuation.resume(returning: keyID)
-                } else {
-                    continuation.resume(throwing: error ?? CapacityClientError.appAttestUnavailable)
-                }
-            }
-        }
-    }
-
-    private func attestKey(keyID: String, clientDataHash: Data) async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
-            appAttest.attestKey(keyID, clientDataHash: clientDataHash) { attestation, error in
-                if let attestation {
-                    continuation.resume(returning: attestation)
-                } else {
-                    continuation.resume(throwing: error ?? CapacityClientError.invalidServerResponse)
-                }
-            }
-        }
-    }
-
-    private func generateAssertion(keyID: String, clientDataHash: Data) async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
-            appAttest.generateAssertion(keyID, clientDataHash: clientDataHash) { assertion, error in
-                if let assertion {
-                    continuation.resume(returning: assertion)
-                } else {
-                    continuation.resume(throwing: error ?? CapacityClientError.invalidServerResponse)
-                }
-            }
-        }
-    }
-}
-
-private struct ChallengeRequest: Encodable {
-    let purpose: String
-    let keyID: String
-
-    enum CodingKeys: String, CodingKey {
-        case purpose
-        case keyID = "key_id"
-    }
-}
-
-private struct ChallengeResponse: Decodable {
-    let challengeID: String
-    let challenge: String
-
-    enum CodingKeys: String, CodingKey {
-        case challengeID = "challenge_id"
-        case challenge
-    }
-}
-
-private struct AttestationRequest: Encodable {
-    let challengeID: String
-    let keyID: String
-    let attestation: String
-
-    enum CodingKeys: String, CodingKey {
-        case challengeID = "challenge_id"
-        case keyID = "key_id"
-        case attestation
-    }
-}
-
-private struct AttestationResponse: Decodable {
-    let registered: Bool
-}
-
-private struct AssertionRequest: Encodable {
-    let challengeID: String
-    let keyID: String
-    let assertion: String
-
-    enum CodingKeys: String, CodingKey {
-        case challengeID = "challenge_id"
-        case keyID = "key_id"
-        case assertion
-    }
-}
-
-private struct APIErrorEnvelope: Decodable {
-    let detail: APIErrorDetail
-}
-
-private struct APIErrorDetail: Decodable {
-    let code: String?
-    let message: String?
 }

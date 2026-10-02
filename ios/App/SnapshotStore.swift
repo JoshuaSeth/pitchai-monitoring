@@ -4,26 +4,37 @@ import SwiftUI
 import WidgetKit
 
 @MainActor
-final class SnapshotStore: ObservableObject {
-    static let shared = SnapshotStore()
-
-    enum LoadState: Equatable {
-        case idle
-        case loading
-        case loaded
+internal final class SnapshotStore: ObservableObject {
+    internal enum LoadState: Equatable {
         case failed(String)
+        case idle
+        case loaded
+        case loading
     }
 
-    @Published private(set) var snapshot: CodexSnapshot?
-    @Published private(set) var state: LoadState = .idle
-    @Published private(set) var refreshNotice: String?
-    @Published private(set) var lastAttemptAt: Date?
+    internal static let shared: SnapshotStore = .init()
+
+    private static let minimumBackgroundIntervalSeconds: Int = 900
+    private static let cacheFailureMessage: String =
+        "Live capacity could not be refreshed. Cached values remain visible."
+
+    @Published internal private(set) var snapshot: CodexSnapshot?
+    @Published internal private(set) var state: LoadState = .idle
+    @Published internal private(set) var refreshNotice: String?
+    @Published internal private(set) var lastAttemptAt: Date?
 
     private let client: SecureCapacityClient
     private let fixtureMode: Bool
     private var foregroundRefreshTask: Task<Void, Never>?
 
-    init(
+    private var backgroundInterval: TimeInterval {
+        let seconds: Int =
+            snapshot?.refreshPolicy.recommendedBackgroundIntervalSeconds
+            ?? Self.minimumBackgroundIntervalSeconds
+        return TimeInterval(max(Self.minimumBackgroundIntervalSeconds, seconds))
+    }
+
+    internal init(
         client: SecureCapacityClient = .live,
         fixtureMode: Bool = ProcessInfo.processInfo.arguments.contains("-CodexStatusFixture")
     ) {
@@ -33,8 +44,18 @@ final class SnapshotStore: ObservableObject {
         self.state = self.snapshot == nil ? .idle : .loaded
     }
 
-    func start() {
-        guard foregroundRefreshTask == nil else { return }
+    private static func safeMessage(for error: Error) -> String {
+        let description: String? = (error as? LocalizedError)?.errorDescription
+        guard let description, !description.isEmpty else {
+            return cacheFailureMessage
+        }
+        return description
+    }
+
+    internal func start() {
+        guard foregroundRefreshTask == nil else {
+            return
+        }
         if fixtureMode {
             snapshot = .fixture
             state = .loaded
@@ -44,49 +65,39 @@ final class SnapshotStore: ObservableObject {
             WatchSnapshotBridge.shared.publish(snapshot)
         }
         foregroundRefreshTask = Task { [weak self] in
-            guard let self else { return }
+            guard let self else {
+                return
+            }
             await refresh(manual: false)
             while !Task.isCancelled {
-                let seconds = snapshot?.refreshPolicy.recommendedBackgroundIntervalSeconds ?? 900
-                try? await Task.sleep(for: .seconds(max(900, seconds)))
-                guard !Task.isCancelled else { return }
+                await sleepBetweenRefreshes()
+                guard !Task.isCancelled else {
+                    return
+                }
                 await refresh(manual: false)
             }
         }
     }
 
-    func stopForegroundRefresh() {
+    internal func stopForegroundRefresh() {
         foregroundRefreshTask?.cancel()
         foregroundRefreshTask = nil
     }
 
-    func refresh(manual: Bool) async {
+    internal func refresh(manual: Bool) async {
         if fixtureMode {
             snapshot = .fixture
             state = .loaded
             refreshNotice = "Preview data refreshed"
             return
         }
-        if state == .loading { return }
+        if state == .loading {
+            return
+        }
         state = .loading
         lastAttemptAt = Date()
         do {
-            let updated: CodexSnapshot
-            if manual {
-                let response = try await client.requestManualRefresh()
-                updated = response.snapshot
-                if response.probeStarted {
-                    refreshNotice = "Provider state refreshed"
-                } else if response.reason == "probe_throttled",
-                          let retry = response.retryAfterSeconds {
-                    refreshNotice = "Already fresh · retry in \(retry)s"
-                } else {
-                    refreshNotice = "Latest broker state loaded"
-                }
-            } else {
-                updated = try await client.fetchCapacity()
-                refreshNotice = nil
-            }
+            let updated: CodexSnapshot = try await loadSnapshot(manual: manual)
             try SnapshotCache.save(updated)
             snapshot = updated
             state = .loaded
@@ -97,19 +108,17 @@ final class SnapshotStore: ObservableObject {
         }
     }
 
-    func performBackgroundRefresh(task: BGAppRefreshTask) {
+    internal func performBackgroundRefresh(task: BGAppRefreshTask) {
         scheduleBackgroundRefresh()
-        let work = Task { @MainActor [weak self] in
+        let work: Task<Void, Never> = .init { @MainActor [weak self] in
             guard let self else {
                 task.setTaskCompleted(success: false)
                 return
             }
             await refresh(manual: false)
-            let success: Bool
+            var success: Bool = false
             if case .loaded = state {
                 success = true
-            } else {
-                success = false
             }
             task.setTaskCompleted(success: success)
         }
@@ -118,12 +127,13 @@ final class SnapshotStore: ObservableObject {
         }
     }
 
-    func scheduleBackgroundRefresh() {
-        guard !fixtureMode else { return }
+    internal func scheduleBackgroundRefresh() {
+        guard !fixtureMode else {
+            return
+        }
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: BackgroundRefresh.identifier)
-        let request = BGAppRefreshTaskRequest(identifier: BackgroundRefresh.identifier)
-        let seconds = snapshot?.refreshPolicy.recommendedBackgroundIntervalSeconds ?? 900
-        request.earliestBeginDate = Date(timeIntervalSinceNow: TimeInterval(max(900, seconds)))
+        let request: BGAppRefreshTaskRequest = .init(identifier: BackgroundRefresh.identifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: backgroundInterval)
         do {
             try BGTaskScheduler.shared.submit(request)
         } catch {
@@ -131,28 +141,31 @@ final class SnapshotStore: ObservableObject {
         }
     }
 
-    private static func safeMessage(for error: Error) -> String {
-        if let localized = error as? LocalizedError,
-           let description = localized.errorDescription,
-           !description.isEmpty {
-            return description
+    private func loadSnapshot(manual: Bool) async throws -> CodexSnapshot {
+        guard manual else {
+            refreshNotice = nil
+            return try await client.fetchCapacity()
         }
-        return "Live capacity could not be refreshed. Cached values remain visible."
+        let response: RefreshResponse = try await client.requestManualRefresh()
+        if response.probeStarted {
+            refreshNotice = "Provider state refreshed"
+        } else if response.reason == "probe_throttled", let retry = response.retryAfterSeconds {
+            refreshNotice = "Already fresh · retry in \(retry)s"
+        } else {
+            refreshNotice = "Latest broker state loaded"
+        }
+        return response.snapshot
     }
-}
 
-enum BackgroundRefresh {
-    static let identifier = "com.pitchai.codexstatus.refresh"
-
-    static func register() {
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
-            guard let refreshTask = task as? BGAppRefreshTask else {
-                task.setTaskCompleted(success: false)
-                return
-            }
-            Task { @MainActor in
-                SnapshotStore.shared.performBackgroundRefresh(task: refreshTask)
-            }
+    private func sleepBetweenRefreshes() async {
+        do {
+            try await Task.sleep(for: .seconds(backgroundInterval))
+        } catch {
+            // Cancellation ends the foreground refresh loop.
         }
+    }
+
+    deinit {
+        // The foreground refresh task is cancelled through `stopForegroundRefresh()`.
     }
 }

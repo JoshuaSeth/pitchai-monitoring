@@ -1,10 +1,10 @@
 import SwiftUI
 
 @main
-struct CodexStatusWatchApp: App {
-    @StateObject private var store = WatchSnapshotStore()
+internal struct CodexStatusWatchApp: App {
+    @StateObject private var store: WatchSnapshotStore = .init()
 
-    var body: some Scene {
+    internal var body: some Scene {
         WindowGroup {
             WatchCapacityView()
                 .environmentObject(store)

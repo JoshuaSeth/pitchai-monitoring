@@ -12,6 +12,12 @@ including the iPhone, Watch, and widget build dependencies. Physical/live scheme
 are excluded; their existing opt-in tests must not be enabled for this gate.
 Missing tools and failed compilation or tests fail nonzero.
 
+Unit tests run through `xcodebuild test` using Apple's Swift Testing framework.
+The opt-in physical/live tests stay disabled unless `CODEX_STATUS_PHYSICAL_LIVE=1`
+is set. Strict concurrency is enforced, so shared state is fixed with native
+isolation; the PitchAI pattern rules reject `@unchecked Sendable`,
+`MainActor.assumeIsolated`, `Task.detached`, `try?`, and empty `catch` blocks.
+
 The rollout targets `staging`; production deployment requires a push to `main`.
 Its commit and squash title retain `[ios-quality-no-artifacts]`. The Python
 workflow also recognizes the exact rollout PR branch to prevent report artifact
