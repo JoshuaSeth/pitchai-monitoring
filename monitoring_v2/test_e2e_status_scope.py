@@ -7,6 +7,7 @@ import json
 import sqlite3
 import time
 from contextlib import closing
+from functools import partial
 from typing import TYPE_CHECKING, cast
 
 from httpx import AsyncClient
@@ -42,8 +43,6 @@ _INTERVAL_SECONDS = 300
 # Production parks a lane for years and expires a pause by leaving it in the past.
 _PARKED_UNTIL_TS = 1_893_456_000.0
 _EXPIRED_UNTIL_TS = 1_600_000_000.0
-_PARKED_REASON = "temporary probe cleanup"
-_RETIRED_REASON = "retired lane"
 _ACTIVE_FAILING = "scope.active_failing"
 _ACTIVE_PASSING = "scope.active_passing"
 _RESUMED_PASSING = "scope.resumed_passing"
@@ -89,8 +88,8 @@ _SEEDED_TESTS: tuple[tuple[str, int, float | None, str | None, int], ...] = (
     (_ACTIVE_FAILING, 1, None, None, 0),
     (_ACTIVE_PASSING, 1, None, None, 1),
     (_RESUMED_PASSING, 1, _EXPIRED_UNTIL_TS, "pause expired", 1),
-    (_PARKED_FAILING, 1, _PARKED_UNTIL_TS, _PARKED_REASON, 0),
-    (_DISABLED_FAILING, 0, None, _RETIRED_REASON, 0),
+    (_PARKED_FAILING, 1, _PARKED_UNTIL_TS, "temporary probe cleanup", 0),
+    (_DISABLED_FAILING, 0, None, "retired lane", 0),
 )
 _TENANT_INSERT = (
     "INSERT INTO tenants (id, name, created_at_ts, updated_at_ts) VALUES ('local', 'Local', 1, 1)"
@@ -232,7 +231,8 @@ async def test_registry_status_route_publishes_the_scoped_summary(
 ) -> None:
     """Publish the scoped summary from the status query production installs."""
     _seed_registry(tmp_path / "e2e-registry.db")
-    async with AsyncClient(base_url=dashboard_server.base_url) as client:
+    client_factory = partial(AsyncClient, base_url=dashboard_server.base_url)
+    async with client_factory() as client:
         status = await _get_json(client, "/api/v1/status/summary", dashboard_server.monitor_token)
         dashboard = await _get_json(client, "/api/v1/monitoring/summary", dashboard_server.monitor_token)
     observed = {key: status.get(key) for key in _EXPECTED_STATUS_COUNTS}
