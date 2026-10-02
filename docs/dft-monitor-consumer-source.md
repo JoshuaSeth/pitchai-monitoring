@@ -69,6 +69,11 @@ The consumer source currently contains:
   allocates no journal or process. No receiver is configured by this patch.
   Each observation consumes a fresh access read; previous-cycle coverage cannot
   satisfy recovery when an access check is skipped.
+  An allocated asynchronous receiver has a ten-second response deadline. A
+  timed-out attempt remains uncertain, retains its exact delivery identity and
+  bytes, and uses the journal's persisted retry backoff. Future receiver
+  admission must verify cancellation and durable deduplication; a timeout cannot
+  establish whether remote acceptance occurred.
 
 The format adapter is explicit: producer `event_unix` becomes the original
 monitoring event timestamp, and `agent` supplies the transient `user_agent`
@@ -98,6 +103,10 @@ The private-journal increment passed nine affected tests in186.213 seconds:
 unrelated-database refusal, unsafe alias/mode refusal, private reopen, durable
 retry, bounded catch-up after restart, and the four cycle cases. These are
 isolated source results; no existing runtime journal was opened or migrated.
+The subsequent receiver-deadline increment passed six affected tests
+in88.045 seconds, including an in-memory receiver that never replies until
+explicitly released after restart. The original intent remains pending through
+the deadline and is retried unchanged. No network receiver is used in that proof.
 
 The producer review at `de1f3e3` demonstrated a 1,000,200-byte valid hour with
 only 150 current-window bytes rejected by the former whole-hour reader. The new

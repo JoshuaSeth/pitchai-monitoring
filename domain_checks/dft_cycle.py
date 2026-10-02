@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import suppress
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
     from .metrics_nginx import NginxAccessWindowStats
 
 _PRODUCTION_ROOT = Path("/var/log/nginx/dft-access-v1/production")
+_DELIVERY_TIMEOUT_SECONDS = 10
 
 
 type TransitionReceiver = Callable[[PendingTransition], Awaitable[str | None]]
@@ -134,7 +136,7 @@ class DftCycle:
         }
 
     async def deliver_pending(self, *, now: float) -> None:
-        """Attempt only the oldest due item; uncertain acceptance keeps its bytes."""
+        """Bound the oldest due attempt; a timeout retains uncertainty and bytes."""
         if self.journal is None or self.receiver is None:
             return
         pending = self.journal.pending(now=now)
@@ -142,5 +144,6 @@ class DftCycle:
             return
         receipt = None
         with suppress(OSError):
-            receipt = await self.receiver(pending)
+            async with asyncio.timeout(_DELIVERY_TIMEOUT_SECONDS):
+                receipt = await self.receiver(pending)
         self.journal.settle(pending.delivery_id, receiver_id=receipt, now=now)
