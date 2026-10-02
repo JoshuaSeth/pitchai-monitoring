@@ -38,6 +38,8 @@ Seth's latest timing rule requires confirmed access expiry less than 96 hours aw
 
 An earlier account with unknown effective capacity does not block later eligible accounts when its fresh authoritative bank is empty: both the available count and exact inventory must be empty. This does not classify that account as exhausted. Known positive capacity still takes priority even with an empty bank; an unknown account with a bank still prevents redemption. Fresh complete inventory, target exhaustion, exact redeemability, final recheck, and unresolved-claim reconciliation remain mandatory.
 
+The final comparison ignores quota reset timestamps only for non-selected accounts that remain available in both fresh decisions. Their timestamps do not establish the selected account's exhaustion. Account membership and capacity states, the selected credit and entitlement, and all exhausted-account epochs remain strict. Full audit and durable claim fingerprints retain the original evidence; this comparison does not introduce timestamp tolerance for execution proofs.
+
 The service retains the broker-exported OAuth account and tenant headers for the selected account. It does not alter sessions, broker admission, disabled accounts, human-stopped workers, billing settings, or schedules. The only provider mutation is the exact banked-reset consume endpoint. Purchases, payments, top-ups, renewals, reactivation, overages, and artificial usage are outside this service.
 
 ## Execution exhaustion evidence
