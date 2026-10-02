@@ -13,8 +13,10 @@ stopped. These historical observations do not establish a newer compute sample.
 
 ## Source contract and current implementation
 
-Reviewed producer revision: `6885e80032e02f9189b2b548c7a388eb951773d8`, parent
-checker `15ae402ea589dea5a82e7a5d36eb84bbd6bd3576` and writer correction
+Reviewed producer revision: `51b4a2eb6bc47463b1c3c31e328f70f06ee3a380`, the
+three-file path/install-manifest correction on parent acknowledgement revision
+`6885e80032e02f9189b2b548c7a388eb951773d8`. The retained checker revision is
+`15ae402ea589dea5a82e7a5d36eb84bbd6bd3576` and writer correction is
 `ca40adf82100c70659702d75e71ef003f81e7d1b`, DFT PR4478.
 The checker is `scripts/dft_access_log_status.py`; its output is fixed codes,
 original heartbeat age and historical overdue count. Only a zero exit with
@@ -194,6 +196,26 @@ clears only the latch and adds acknowledgement metadata, preserving original
 age, failure history and cumulative counts. The checker command and three-field
 output remain unchanged; consumer invocation requires no functional change.
 This review neither runs nor authorizes a live acknowledgement.
+
+Producer correction `51b4a2e` is also reviewed as source. The exact Git diff
+changes only `infra/dft-web-access/retention.example.json`,
+`infra/dft-web-access/dft-web-access-retention.service` and
+`docs/ops/dft_web_access_retention.md`. Configuration and unit each contain one
+state-path substitution to `/var/log/nginx/dft-access-state-v1`; the runbook
+describes that sibling and the immutable `scripts/__init__.py` plus all six
+DFT access modules, including acknowledgement. Scripts and timer are unchanged.
+The checker command, output contract and consumer invocation need no change.
+
+Existing `d31-path-correction-receipt.json`, `d31-path-correction-source.patch`,
+`d31-path-correction-focused.log`, `d31-path-correction-systemd.log` and
+`d31-path-correction-commit-proof.txt` in6f97's evidence root were read. They
+retain the focused JSON/disjoint-allocation, allowlist, manifest/AST and
+systemd verification results; the systemd log is empty with recorded exit0.
+No algorithm suite or service command was repeated. The existing746 entry at
+14:45:49UTC records this producer delivery and remains intact. PR4478 is draft,
+open against staging, with bb44 retaining integration. This review does not
+install or relocate state, renew its allocation age, or satisfy checker/config/
+clock/journal/receiver/off-host admission. Original requests remain unreplayed.
 
 Producer acknowledgement never implies consumer recovery. The consumer needs
 an explicit matching `acknowledged_incident_id` and a later healthy checker plus
