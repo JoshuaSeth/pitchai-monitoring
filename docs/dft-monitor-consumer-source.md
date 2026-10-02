@@ -9,8 +9,9 @@ part of this source change. Existing stopped workers remain stopped.
 
 ## Source contract and current implementation
 
-Producer/checker revision: `15ae402ea589dea5a82e7a5d36eb84bbd6bd3576`, parent
-writer correction `ca40adf82100c70659702d75e71ef003f81e7d1b`, DFT PR4478.
+Reviewed producer revision: `6885e80032e02f9189b2b548c7a388eb951773d8`, parent
+checker `15ae402ea589dea5a82e7a5d36eb84bbd6bd3576` and writer correction
+`ca40adf82100c70659702d75e71ef003f81e7d1b`, DFT PR4478.
 The checker is `scripts/dft_access_log_status.py`; its output is fixed codes,
 original heartbeat age and historical overdue count. Only a zero exit with
 trusted age below900 seconds and no errors proves current health. Historical
@@ -137,19 +138,27 @@ anti-bypass check still reports 21 unchanged suppressions outside this change.
 Infrastructure624 holds the scoped integration-custody request. Clean library
 checks do not override the failed cycle-module gate.
 
-6f97 is separately implementing a guarded producer acknowledgement operation.
-Until its exact revision is reviewed, the checker contract remains pinned to
-`15ae402`. Producer acknowledgement never implies consumer recovery. The
-consumer needs an explicit matching `acknowledged_incident_id` and a later
-healthy checker plus complete access coverage. Restart, a new completion time,
-warnings and historical cumulative counts alone cannot close an incident.
+The five-file producer acknowledgement delta at `6885e8` is reviewed as source.
+It requires the exact reviewed status digest, bound operations owner, retained
+incident reference, existing expiry lock and a fresh trusted clean run. It
+clears only the latch and adds acknowledgement metadata, preserving original
+age, failure history and cumulative counts. The checker command and three-field
+output remain unchanged; consumer invocation requires no functional change.
+This review neither runs nor authorizes a live acknowledgement.
+
+Producer acknowledgement never implies consumer recovery. The consumer needs
+an explicit matching `acknowledged_incident_id` and a later healthy checker plus
+complete access coverage. Restart, a new completion time, warnings and historical
+cumulative counts alone cannot close an incident. Producer test receipts remain
+under `d31-ack-proof-6885e80032`; those tests were read, not repeated here.
 
 ## Finite proposed rollout slice
 
 1. Review the complete source and isolated proof, resolve the existing cycle
    module's strict-gate debt through scoped integration custody, and pass normal
    gates against staging. No validation-policy changes or deployment are part
-   of this draft. Review the separate producer acknowledgement source when ready.
+   of this draft. The producer acknowledgement source is reviewed; neither PR
+   is deployed by this source handoff.
 2.624 binds the existing failure route and independent off-host observer and
    admits the exact checker namespace. Verify config allocation, original clock
    age, source SHA, mount/read/search permissions and checker invocation without
