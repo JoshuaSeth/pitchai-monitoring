@@ -331,6 +331,41 @@ owner acceptance. Their business behavior is not integrated by this increment.
 Further cycle extraction must reconcile those interfaces before changing the
 overlapping scheduling, alert-builder or event-persistence slices.
 
+### Persisted-state decomposition increment
+
+The next increment extracts `state_values.py` and `state_sections.py` from the
+schema-six loader. The former decodes domain counters, address lists, bounded
+event lists and signal histories from persisted JSON. The latter allocates
+fresh defaults and normalizes health sections, including each probe family's
+independent state. It preserves existing omission/fallback rules, duplicate
+records, prefix limits, schema/version behavior and mutable-state ownership.
+File I/O, legacy-state detection, event/outbox persistence, probe schedules and
+the DFT modules remain unchanged. The main module is reduced by282 lines.
+
+Nine new focused tests pass. Comparison with parent
+`d53c7c470682ef2c6b9f829add1c87dc6715c4ce` matches352 collection decodes and874
+complete loader cases, plus missing-file, directory and malformed-JSON cases.
+Each state file's bytes remain unchanged. A syntax-tree comparison confirms
+the remainder of main is identical after reversing the declared extraction.
+Four isolated real-launcher runs pass in4.538 seconds with default/explicit
+config resolution, persisted independent domain streaks, exactly one failure
+and recovery transition, browser cleanup and zero outgoing attempts. These
+exercise the changed restart boundary; the earlier DFT/nginx proofs are reused.
+
+The four new modules/tests pass architecture, Ruff, BasedPyright, Pylint10/10
+and Semgrep. The aggregate still fails on21 existing repository suppression
+findings. Including the changed main module still fails:447 Ruff findings,
+1504 typing errors/one warning, Pylint9.19/10,71 Semgrep findings and remaining
+architecture violations. This is another intermediate source increment, not
+integration or runtime acceptance. No gate or baseline is altered.
+
+Exact evidence is under
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261002/state-extraction-20261002/`:
+`tests-final.log`, `prove_state_compatibility.py` and its JSON result,
+`differential-initial.log`, `prove_unrelated_launcher.py` and its JSON result,
+`launcher-proof.log`, `gates-final.log` and `gates-with-main.log`.
+Earlier failed type/style iterations remain alongside the final proof.
+
 The five-file producer acknowledgement delta at `6885e8` is reviewed as source.
 It requires the exact reviewed status digest, bound operations owner, retained
 incident reference, existing expiry lock and a fresh trusted clean run. It

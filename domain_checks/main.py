@@ -71,6 +71,15 @@ from .cycle_values import (
     required_int,
 )
 from .dft_cycle import DftCycle, parse_cycle_config
+from .state_sections import decode_health_sections, default_monitor_state
+from .state_values import (
+    coerce_bool_dict as _coerce_bool_dict,
+    coerce_int_dict as _coerce_int_dict,
+    coerce_float_dict as _coerce_float_dict,
+    coerce_str_list_dict as _coerce_str_list_dict,
+    coerce_list_of_dicts as _coerce_list_of_dicts,
+    coerce_signal_history as _coerce_signal_history,
+)
 
 
 LOGGER = logging.getLogger("service-monitoring")
@@ -718,194 +727,8 @@ def _build_heartbeat_message(
     return "\n".join(lines).strip() + "\n"
 
 
-def _coerce_bool_dict(value: Any) -> dict[str, bool]:
-    if not isinstance(value, dict):
-        return {}
-    state: dict[str, bool] = {}
-    for k, v in value.items():
-        if not isinstance(k, str):
-            continue
-        if isinstance(v, bool):
-            state[k] = v
-    return state
-
-
-def _coerce_int_dict(value: Any) -> dict[str, int]:
-    if not isinstance(value, dict):
-        return {}
-    state: dict[str, int] = {}
-    for k, v in value.items():
-        if not isinstance(k, str):
-            continue
-        try:
-            state[k] = int(v)
-        except Exception:
-            continue
-    return state
-
-
-def _coerce_float_dict(value: Any) -> dict[str, float]:
-    if not isinstance(value, dict):
-        return {}
-    state: dict[str, float] = {}
-    for k, v in value.items():
-        if not isinstance(k, str):
-            continue
-        try:
-            state[k] = float(v)
-        except Exception:
-            continue
-    return state
-
-
-def _coerce_str_list_dict(value: Any) -> dict[str, list[str]]:
-    if not isinstance(value, dict):
-        return {}
-    out: dict[str, list[str]] = {}
-    for k, v in value.items():
-        if not isinstance(k, str):
-            continue
-        if not isinstance(v, list):
-            continue
-        items: list[str] = []
-        for x in v:
-            s = str(x or "").strip()
-            if s:
-                items.append(s)
-        out[k] = items
-    return out
-
-
-def _coerce_list_of_dicts(value: Any, *, max_items: int = 500) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for item in value:
-        if not isinstance(item, dict):
-            continue
-        out.append(item)
-        if len(out) >= max(1, int(max_items)):
-            break
-    return out
-
-
-def _coerce_signal_history(value: Any, *, max_samples_per_signal: int = 50_000) -> dict[str, list[list[Any]]]:
-    if not isinstance(value, dict):
-        return {}
-    out: dict[str, list[list[Any]]] = {}
-    for k, v in value.items():
-        key = str(k or "").strip()
-        if not key:
-            continue
-        if not isinstance(v, list):
-            continue
-        samples: list[list[Any]] = []
-        for s in v:
-            if not isinstance(s, list) or not s:
-                continue
-            samples.append(s)
-            if len(samples) >= max(1, int(max_samples_per_signal)):
-                break
-        if samples:
-            out[key] = samples
-    return out
-
-
 def _load_monitor_state(path: Path) -> dict[str, Any]:
-    default_state = {
-        "version": 6,
-        # "observed": raw per-cycle observed results (can include transient flakes).
-        # "effective": debounced effective status aligned with DOWN alerting.
-        "history_ok_mode": "effective",
-        "last_ok": {},
-        "fail_streak": {},
-        "success_streak": {},
-        "history": {},
-        # Small rolling histories used by dashboards and post-incident review.
-        "signal_history": {},
-        "dispatch_history": [],
-        "dispatch_last": {},
-        "events": [],
-        "event_bus_outbox": [],
-        # Last host snapshot for visibility (dashboard/heartbeats).
-        "host_last_snapshot": {},
-        # Browser health state (Playwright infra stability).
-        "browser_degraded_active": False,
-        "browser_degraded_first_seen_ts": 0.0,
-        "browser_launch_last_error": None,
-        "browser_degraded_last_notice_ts": 0.0,
-        "host_health": {
-            "last_ok": True,
-            "fail_streak": 0,
-            "success_streak": 0,
-            "cpu_prev_total": 0,
-            "cpu_prev_idle": 0,
-        },
-        "performance": {
-            "last_ok": True,
-            "fail_streak": 0,
-            "success_streak": 0,
-        },
-        "slo": {
-            "last_ok": True,
-            "fail_streak": 0,
-            "success_streak": 0,
-        },
-        "tls": {
-            "last_ok": True,
-            "fail_streak": 0,
-            "success_streak": 0,
-            "last_run_ts": 0.0,
-        },
-        "dns": {
-            "last_ok": True,
-            "fail_streak": 0,
-            "success_streak": 0,
-            "last_run_ts": 0.0,
-            "last_ips": {},
-        },
-        "red": {
-            "last_ok": True,
-            "fail_streak": 0,
-            "success_streak": 0,
-        },
-        "synthetic": {
-            "last_ok": {},
-            "fail_streak": {},
-            "success_streak": {},
-            "last_run_ts": {},
-        },
-        "web_vitals": {
-            "last_ok": {},
-            "fail_streak": {},
-            "success_streak": {},
-            "last_run_ts": {},
-        },
-        "api_contract": {
-            "last_ok": {},
-            "fail_streak": {},
-            "success_streak": {},
-            "last_run_ts": {},
-        },
-        "container_health": {
-            "last_ok": True,
-            "fail_streak": 0,
-            "success_streak": 0,
-            "last_run_ts": 0.0,
-            "restart_counts": {},
-        },
-        "proxy": {
-            "last_ok": True,
-            "fail_streak": 0,
-            "success_streak": 0,
-        },
-        "meta": {
-            "last_ok": True,
-            "fail_streak": 0,
-            "success_streak": 0,
-            "state_write_fail_streak": 0,
-        },
-    }
+    default_state = default_monitor_state()
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -967,112 +790,7 @@ def _load_monitor_state(path: Path) -> dict[str, Any]:
     ble = raw.get("browser_launch_last_error")
     state["browser_launch_last_error"] = str(ble)[:800] if isinstance(ble, str) and ble.strip() else None
 
-    host = raw.get("host_health")
-    if isinstance(host, dict):
-        state["host_health"] = {
-            "last_ok": bool_field(host, "last_ok", default=True),
-            "fail_streak": _coerce_int(host.get("fail_streak"), default=0),
-            "success_streak": _coerce_int(host.get("success_streak"), default=0),
-            "cpu_prev_total": _coerce_int(host.get("cpu_prev_total"), default=0),
-            "cpu_prev_idle": _coerce_int(host.get("cpu_prev_idle"), default=0),
-        }
-
-    perf = raw.get("performance")
-    if isinstance(perf, dict):
-        state["performance"] = {
-            "last_ok": bool_field(perf, "last_ok", default=True),
-            "fail_streak": _coerce_int(perf.get("fail_streak"), default=0),
-            "success_streak": _coerce_int(perf.get("success_streak"), default=0),
-        }
-
-    slo = raw.get("slo")
-    if isinstance(slo, dict):
-        state["slo"] = {
-            "last_ok": bool_field(slo, "last_ok", default=True),
-            "fail_streak": _coerce_int(slo.get("fail_streak"), default=0),
-            "success_streak": _coerce_int(slo.get("success_streak"), default=0),
-        }
-
-    tls = raw.get("tls")
-    if isinstance(tls, dict):
-        state["tls"] = {
-            "last_ok": bool_field(tls, "last_ok", default=True),
-            "fail_streak": _coerce_int(tls.get("fail_streak"), default=0),
-            "success_streak": _coerce_int(tls.get("success_streak"), default=0),
-            "last_run_ts": _coerce_float(tls.get("last_run_ts"), default=0.0),
-        }
-
-    dns = raw.get("dns")
-    if isinstance(dns, dict):
-        state["dns"] = {
-            "last_ok": bool_field(dns, "last_ok", default=True),
-            "fail_streak": _coerce_int(dns.get("fail_streak"), default=0),
-            "success_streak": _coerce_int(dns.get("success_streak"), default=0),
-            "last_run_ts": _coerce_float(dns.get("last_run_ts"), default=0.0),
-            "last_ips": _coerce_str_list_dict(dns.get("last_ips")),
-        }
-
-    red = raw.get("red")
-    if isinstance(red, dict):
-        state["red"] = {
-            "last_ok": bool_field(red, "last_ok", default=True),
-            "fail_streak": _coerce_int(red.get("fail_streak"), default=0),
-            "success_streak": _coerce_int(red.get("success_streak"), default=0),
-        }
-
-    synthetic = raw.get("synthetic")
-    if isinstance(synthetic, dict):
-        state["synthetic"] = {
-            "last_ok": _coerce_bool_dict(synthetic.get("last_ok")),
-            "fail_streak": _coerce_int_dict(synthetic.get("fail_streak")),
-            "success_streak": _coerce_int_dict(synthetic.get("success_streak")),
-            "last_run_ts": _coerce_float_dict(synthetic.get("last_run_ts")),
-        }
-
-    web_vitals = raw.get("web_vitals")
-    if isinstance(web_vitals, dict):
-        state["web_vitals"] = {
-            "last_ok": _coerce_bool_dict(web_vitals.get("last_ok")),
-            "fail_streak": _coerce_int_dict(web_vitals.get("fail_streak")),
-            "success_streak": _coerce_int_dict(web_vitals.get("success_streak")),
-            "last_run_ts": _coerce_float_dict(web_vitals.get("last_run_ts")),
-        }
-
-    api_contract = raw.get("api_contract")
-    if isinstance(api_contract, dict):
-        state["api_contract"] = {
-            "last_ok": _coerce_bool_dict(api_contract.get("last_ok")),
-            "fail_streak": _coerce_int_dict(api_contract.get("fail_streak")),
-            "success_streak": _coerce_int_dict(api_contract.get("success_streak")),
-            "last_run_ts": _coerce_float_dict(api_contract.get("last_run_ts")),
-        }
-
-    container_health = raw.get("container_health")
-    if isinstance(container_health, dict):
-        state["container_health"] = {
-            "last_ok": bool_field(container_health, "last_ok", default=True),
-            "fail_streak": _coerce_int(container_health.get("fail_streak"), default=0),
-            "success_streak": _coerce_int(container_health.get("success_streak"), default=0),
-            "last_run_ts": _coerce_float(container_health.get("last_run_ts"), default=0.0),
-            "restart_counts": _coerce_int_dict(container_health.get("restart_counts")),
-        }
-
-    proxy = raw.get("proxy")
-    if isinstance(proxy, dict):
-        state["proxy"] = {
-            "last_ok": bool_field(proxy, "last_ok", default=True),
-            "fail_streak": _coerce_int(proxy.get("fail_streak"), default=0),
-            "success_streak": _coerce_int(proxy.get("success_streak"), default=0),
-        }
-
-    meta = raw.get("meta")
-    if isinstance(meta, dict):
-        state["meta"] = {
-            "last_ok": bool_field(meta, "last_ok", default=True),
-            "fail_streak": _coerce_int(meta.get("fail_streak"), default=0),
-            "success_streak": _coerce_int(meta.get("success_streak"), default=0),
-            "state_write_fail_streak": _coerce_int(meta.get("state_write_fail_streak"), default=0),
-        }
+    state.update(decode_health_sections(raw))
 
     return state
 
