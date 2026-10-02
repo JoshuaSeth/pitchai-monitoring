@@ -1,17 +1,13 @@
 import SwiftUI
 
 @main
-struct CodexStatusApp: App {
-    @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var store: SnapshotStore
+internal struct CodexStatusApp: App {
+    @Environment(\.scenePhase)
+    private var scenePhase: ScenePhase
 
-    init() {
-        BackgroundRefresh.register()
-        _ = WatchSnapshotBridge.shared
-        _store = StateObject(wrappedValue: SnapshotStore.shared)
-    }
+    @StateObject private var store: SnapshotStore = .shared
 
-    var body: some Scene {
+    internal var body: some Scene {
         WindowGroup {
             CapacityDashboardView()
                 .environmentObject(store)
@@ -35,5 +31,11 @@ struct CodexStatusApp: App {
                 break
             }
         }
+    }
+
+    internal init() {
+        BackgroundRefresh.register()
+        // Resolving the shared bridge activates the WatchConnectivity session at launch.
+        _ = WatchSnapshotBridge.shared
     }
 }
