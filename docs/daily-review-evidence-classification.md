@@ -15,7 +15,7 @@ Apply the scheduler's own predicate (`e2e_registry/db.py`):
 | Class | Registry shape | How to report it |
 | --- | --- | --- |
 | Schedulable recurring | `enabled=1`, no future `disabled_until_ts` | current evidence - quote runs, passes, last finish, streak |
-| Temporarily paused | `enabled=1` with a future `disabled_until_ts` | intentional pause - never current evidence, never a scheduler failure |
+| Temporarily paused | `enabled=1` with a future `disabled_until_ts` | intentional pause - never current evidence, never a scheduler failure; summarised as `parked_tests` |
 | Disabled | `enabled=0` | out of service - quote the disable reason, not the historical status |
 
 A paused row keeps its historical `last_status` (for example `pass` from
@@ -29,16 +29,28 @@ to the monitoring lane.
   recurring tests") and the per-test split. Never present it as "E2E is green".
 - Report the last finish and status per schedulable test. Evidence older than
   roughly two intervals is stale evidence and needs investigation.
-- Treat a nonzero `failing_tests` from the registry summary as an escalation
-  signal even when the summary `ok` flag is true, and inspect enabled tests whose
-  `last_status` is not `pass` even when `effective_ok=1` (one-failure grace).
-- The registry summary is not a health verdict:
-  `e2e_registry/db.py::status_summary` returns a hardcoded `ok: True` and counts
-  `failing_tests` as every test with `effective_ok=0`, enabled or disabled.
-  Quote it as `<n> rows with effective_ok=0 (<x> enabled, <y> disabled)`. On
-  2026-09-30 it read 2 (both disabled historical `dft_prod_exam_import_2doc_sla_daily_e2e`
-  rows) at 20:03Z and 4 (those two plus the two enabled AFASAsk lanes) at
-  20:59Z, while `ok` stayed `True` throughout.
+- Treat a nonzero active `failing_tests` from the registry summary as an
+  escalation signal even when the summary `ok` flag is true, and inspect enabled
+  tests whose `last_status` is not `pass` even when `effective_ok=1`
+  (one-failure grace). Parked and disabled historical failures are reported
+  separately, so they are not an escalation on their own, but quote their counts
+  so the split stays visible.
+- The registry summary is not a health verdict: `ok: True` only reports that the
+  registry answered. Since 2026-10-02 the published summary is scoped to
+  schedulable recurring rows by
+  `monitoring_v2/e2e_status_scope_runtime.py::active_status_summary`, which is
+  installed over `e2e_registry/db.py::status_summary` at the composition root, so
+  `failing_tests` counts **active** failures only and `failing_tests_scope=active`
+  names that scope. The same payload separates `active_tests`, `passing_tests`,
+  `failing_tests`, `parked_tests`, `parked_failing_tests`, `disabled_tests` and
+  `disabled_failing_tests`, and `all_tests` labels every row with its
+  `status_class`, pause horizon and reason. Quote it as
+  `failing=<active failures>/<active tests>` and give the parked and disabled
+  counts separately (for example `parked=3`, of which `<n>` failed
+  historically). Before 2026-10-02 the same field counted every row with
+  `effective_ok=0` whether it was enabled or disabled, which is why older
+  reports read `failing_tests=2` (both disabled historical
+  `dft_prod_exam_import_2doc_sla_daily_e2e` rows) while `ok` stayed `True`.
 
 ## Resolve claim rows, do not dismiss them
 

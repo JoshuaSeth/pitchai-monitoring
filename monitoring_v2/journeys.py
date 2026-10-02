@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
+from .e2e_status_scope_runtime import TEST_STATUS_DISABLED, TEST_STATUS_PARKED, classify_test_status
 from .json_types import (
     bool_value,
     float_value,
@@ -45,9 +46,12 @@ def _journey_status(test: JsonObject, *, now_ts: float) -> tuple[str, float | No
     stale_after = max(900, interval_seconds * 3) if interval_seconds and interval_seconds > 0 else None
     effective_ok = _binary_flag(test.get("effective_ok"))
     last_status = text_value(test.get("last_status"), default="unknown")
+    status_class = text_value(test.get("status_class")) or classify_test_status(test, now_ts=now_ts)
     status = "passing"
-    if enabled is False:
+    if enabled is False or status_class == TEST_STATUS_DISABLED:
         status = "disabled"
+    elif status_class == TEST_STATUS_PARKED:
+        status = "parked"
     elif enabled is None:
         status = "unknown"
     elif finished_at is None:
@@ -116,8 +120,11 @@ def _journey_item(
             "host": host or None,
             "owner_project": owners.get(host, "Unconfigured"),
             "status": status,
+            "status_class": text_value(test.get("status_class")),
             "enabled": _binary_flag(test.get("enabled")),
             "effective_ok": _binary_flag(test.get("effective_ok")),
+            "disabled_until_ts": float_value(test.get("disabled_until_ts")),
+            "disabled_reason": safe_text_excerpt(test.get("disabled_reason"), max_chars=160),
             "last_status": safe_text_excerpt(test.get("last_status"), max_chars=120),
             "last_finished_at_ts": finished_at,
             "last_ok_at_ts": float_value(test.get("last_ok_ts")),
@@ -164,6 +171,7 @@ def _status_counts(items: list[JsonObject]) -> dict[str, int]:
         "infra_degraded",
         "never_run",
         "unknown",
+        "parked",
         "disabled",
     )
     counts: dict[str, int] = dict.fromkeys(statuses, 0)
@@ -201,33 +209,38 @@ def build_journeys(
             "status": "unavailable",
             "data_state": "unavailable",
             "total": None,
+            "active": None,
             "passing": None,
             "failing": None,
             "stale": None,
             "infra_degraded": None,
             "never_run": None,
             "unknown": None,
+            "parked": None,
             "disabled": None,
             "latest_run_at_ts": None,
             "latest_run_age_seconds": None,
             "items": [],
         })
-    tests = object_list(status_object.get("tests"))
+    inventory = object_list(status_object.get("all_tests"))
+    tests = inventory or object_list(status_object.get("tests"))
     owners = _owners_by_domain(domains)
     dispatch = _dispatch_by_test(dispatch_runs)
     items, latest_run = _journey_items(tests, owners=owners, dispatch=dispatch, now_ts=now_ts)
     counts = _status_counts(items)
-    enabled_total = len(items) - counts["disabled"]
+    active_total = len(items) - counts["disabled"] - counts["parked"]
     return json_object({
         "status": _overall_status(counts),
         "data_state": "available" if items else "missing",
-        "total": enabled_total,
+        "total": active_total,
+        "active": active_total,
         "passing": counts["passing"],
         "failing": counts["failing"],
         "stale": counts["stale"],
         "infra_degraded": counts["infra_degraded"],
         "never_run": counts["never_run"],
         "unknown": counts["unknown"],
+        "parked": counts["parked"],
         "disabled": counts["disabled"],
         "latest_run_at_ts": latest_run,
         "latest_run_age_seconds": max(0.0, now_ts - latest_run) if latest_run is not None else None,
