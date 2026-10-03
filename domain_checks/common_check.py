@@ -12,6 +12,8 @@ from typing import Any
 import httpx
 from playwright.async_api import Browser, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
 
+from .browser_errors import is_browser_infra_error as _is_browser_infra_error
+
 
 DEFAULT_MAINTENANCE_TEXT = [
     "maintenance",
@@ -71,37 +73,6 @@ def _html_to_visible_text(html: str) -> str:
     without_scripts = _SCRIPT_AND_STYLE_RE.sub(" ", html)
     without_tags = _HTML_TAG_RE.sub(" ", without_scripts)
     return _normalize_text(without_tags)
-
-
-def _is_browser_infra_error(exc: Exception) -> bool:
-    name = type(exc).__name__
-    msg = str(exc or "").lower()
-
-    # Playwright infra / Chromium instability.
-    if name == "TargetClosedError":
-        return True
-    if "target page, context or browser has been closed" in msg:
-        return True
-    if "browser has been closed" in msg:
-        return True
-
-    # Renderer/page crashes: these are almost always infra/resource pressure on our host,
-    # not the actual website being down.
-    if "page crashed" in msg:
-        return True
-    if "target crashed" in msg:
-        return True
-
-    # Playwright driver / transport died (often due to Chromium crash/OOM/shm issues).
-    # In practice this means "the browser infra is broken", not that the website is down.
-    if "connection closed while reading from the driver" in msg:
-        return True
-    if "connection closed while writing to the driver" in msg:
-        return True
-    if "pipe closed by peer" in msg:
-        return True
-
-    return False
 
 
 def _safe_url(url: str) -> str:

@@ -16,9 +16,9 @@ class ChromiumLaunchOptions(TypedDict):
     executable_path: NotRequired[str]
 
 
-def chromium_arguments(shared_memory_bytes: int) -> list[str]:
-    """Return a fresh argument list, using disk-backed shared memory when small."""
-    args = [
+def base_chromium_arguments() -> list[str]:
+    """Return fresh common flags; each caller retains its shared-memory policy."""
+    return [
         "--no-sandbox",
         "--disable-gpu",
         "--disable-extensions",
@@ -32,6 +32,11 @@ def chromium_arguments(shared_memory_bytes: int) -> list[str]:
         "--no-default-browser-check",
         "--disable-features=site-per-process",
     ]
+
+
+def chromium_arguments(shared_memory_bytes: int) -> list[str]:
+    """Return a fresh argument list, using disk-backed shared memory when small."""
+    args = base_chromium_arguments()
     if shared_memory_bytes < _SHARED_MEMORY_MIN_BYTES:
         args.insert(1, "--disable-dev-shm-usage")
     return args

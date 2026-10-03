@@ -1670,3 +1670,45 @@ Exact source/pretest and raw proof are under
 `/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/registry-alert-boundary-20261003/`
 and `canonical-source-resolution-20261003/`. No production/runtime action,
 other-owner branch change or old proof campaign was performed.
+
+# Shared sandbox browser boundary in progress (2026-10-03)
+
+Monitoring and the Python sandbox now obtain fresh common Chromium arguments
+from `browser_launch.base_chromium_arguments`. Monitoring retains insertion at
+index one below 512 MiB, including zero; the sandbox still appends its always-on
+shared-memory flag. The runner's remaining duplicate and its separate unknown
+capacity policy are not yet changed.
+
+The sandbox separates submitted-module loading, result serialization, browser
+resources and prepared execution into `python_module`, `python_result`,
+`python_browser` and `python_execution`. Its public `RunResult` and private
+compatibility entry points remain; `run_one` also exposes the existing invocation
+for isolated tests. The existing classifier is shared through
+`domain_checks.browser_errors`, with the original common-check private name kept
+as an import alias. The remainder of `common_check.py` has identical AST. The
+CLI uses AnyIO's asyncio backend, matching the native launcher convention.
+
+Six focused tests pass. Parent comparisons cover 128 general lifecycle cases
+and a separate 128 cases with an entry failure before artifact/cleanup faults.
+Actual `run_one` and `_amain` run against synthetic submitted callables and a
+synthetic browser manager; no executable or socket is used. Results, operation
+order and structured logs match except traceback source locations. Eighty-one
+classifier comparisons and six monitor argument-boundary comparisons pass.
+Fixtures are removed. The CLI's AnyIO bootstrap and a real browser are not
+claimed by that proof. An initial system-Python classifier attempt failed before
+execution because Playwright was absent; the canonical environment proof is
+retained separately.
+
+This increment is not gate-clean. The eight-file check excluding the otherwise
+unchanged common-check body passes architecture, typing, Pylint and Semgrep but
+Ruff retains S108 on the original `/tmp` HOME default. That value is preserved,
+not disguised to bypass the rule. The complete nine-file check also exposes
+legacy `common_check.py` debt: total 89 Ruff findings, 70 typing errors, Pylint
+9.37 and 17 Semgrep findings, plus architectural failures. Removing the sandbox's
+private-import suppression leaves 20 repository anti-bypass findings. The
+remaining source work, including the HOME contract and complete common-check
+repair, stays explicit; no required gate, merge or runtime acceptance is claimed.
+
+Raw source, final pretest files, initial failures, differential tools and all
+changed-file gates are retained at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/sandbox-browser-boundary-20261003/`.
