@@ -26,6 +26,12 @@ from .common_check import (
     load_domain_spec_from_module_dict,
 )
 from .history import append_sample, prune_history
+from .performance import collect_performance_violations as _collect_performance_violations
+from .message_performance import (
+    format_ms as _format_ms,
+    build_performance_alert_message as _build_performance_alert_message,
+    build_performance_dispatch_prompt as _build_performance_dispatch_prompt,
+)
 from .message_templates import build_dispatch_prompt as _build_dispatch_prompt
 from .message_templates import dispatch_read_only_rules as _dispatch_read_only_rules
 from .message_templates import build_host_health_dispatch_prompt as _build_host_health_dispatch_prompt
@@ -305,13 +311,6 @@ def _load_timezone(name: str):
         return timezone.utc
 
 
-def _format_ms(value: Any) -> str:
-    try:
-        if value is None:
-            return "n/a"
-        return f"{int(round(float(value)))}ms"
-    except Exception:
-        return "n/a"
 
 
 def _format_uptime(delta: timedelta) -> str:
@@ -444,93 +443,10 @@ async def _notify_dispatch_disabled(
     await send_telegram_message(http_client, telegram_cfg, msg)
 
 
-def _collect_performance_violations(
-    results: dict[str, DomainCheckResult],
-    *,
-    http_elapsed_ms_max: float,
-    browser_elapsed_ms_max: float,
-    per_domain_overrides: dict[str, Any] | None = None,
-) -> list[dict[str, Any]]:
-    """
-    Returns a list of slow-domain entries (non-empty => observed performance degraded).
-
-    Each entry includes:
-    - domain
-    - http_ms / http_max_ms
-    - browser_ms / browser_max_ms (if present)
-    - reasons: list[str]
-    """
-    overrides = per_domain_overrides if isinstance(per_domain_overrides, dict) else {}
-    slow: list[dict[str, Any]] = []
-
-    for domain in sorted(results.keys()):
-        result = results[domain]
-        if not result.ok:
-            continue  # DOWN alerts handle this path; don't mix with perf warnings.
-        details = result.details or {}
-
-        override = overrides.get(domain) if isinstance(overrides.get(domain), dict) else {}
-        http_max = float(override.get("http_elapsed_ms_max", http_elapsed_ms_max))
-        browser_max = float(override.get("browser_elapsed_ms_max", browser_elapsed_ms_max))
-
-        http_ms = details.get("http_elapsed_ms")
-        browser_ms = details.get("browser_elapsed_ms")
-
-        reasons: list[str] = []
-        http_ms_f = None
-        try:
-            if http_ms is not None:
-                http_ms_f = float(http_ms)
-                if http_ms_f > http_max:
-                    reasons.append(f"http>{int(round(http_max))}ms")
-        except Exception:
-            http_ms_f = None
-
-        browser_ms_f = None
-        try:
-            if browser_ms is not None:
-                browser_ms_f = float(browser_ms)
-                if browser_ms_f > browser_max:
-                    reasons.append(f"browser>{int(round(browser_max))}ms")
-        except Exception:
-            browser_ms_f = None
-
-        if reasons:
-            slow.append(
-                {
-                    "domain": domain,
-                    "http_ms": http_ms_f,
-                    "http_max_ms": http_max,
-                    "browser_ms": browser_ms_f,
-                    "browser_max_ms": browser_max,
-                    "reasons": reasons,
-                }
-            )
-
-    return slow
 
 
 
 
-def _build_performance_alert_message(
-    *,
-    slow: list[dict[str, Any]],
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: website performance is degraded ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append("")
-    lines.append("Slow domains (HTTP / Browser):")
-    for entry in slow[:12]:
-        domain = entry.get("domain")
-        http_ms = _format_ms(entry.get("http_ms"))
-        browser_ms = _format_ms(entry.get("browser_ms"))
-        reasons = entry.get("reasons") or []
-        reason_txt = ",".join(str(x) for x in reasons[:3]) if reasons else "slow"
-        lines.append(f"- {domain}: {http_ms} / {browser_ms} ({reason_txt})")
-    return "\n".join(lines).strip()
 
 
 def _build_heartbeat_message(
@@ -745,33 +661,6 @@ def load_domain_spec(domain_entry: Any) -> DomainCheckSpec:
 
 
 
-def _build_performance_dispatch_prompt(*, slow: list[dict[str, Any]]) -> str:
-    entries = slow[:20]
-    slow_lines = []
-    for e in entries:
-        domain = e.get("domain")
-        http_ms = _format_ms(e.get("http_ms"))
-        browser_ms = _format_ms(e.get("browser_ms"))
-        reasons = e.get("reasons") or []
-        reason_txt = ", ".join(str(x) for x in reasons[:4]) if reasons else "slow"
-        slow_lines.append(f"- {domain}: HTTP {http_ms}, Browser {browser_ms} ({reason_txt})")
-    slow_txt = "\n".join(slow_lines) if slow_lines else "(none)"
-    return (
-        "The production service-monitoring container detected consistently slow response times for monitored domains.\n\n"
-        "Slow domains:\n"
-        f"{slow_txt}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Reproduce timings from the production host with curl (include DNS/TLS/connect/TTFB/total breakdown).\n"
-        "2) Check whether slowness is isolated to one domain or systemic (DNS, outbound network, CPU pressure).\n"
-        "3) If the slow domain is reverse-proxied on the host, inspect the relevant proxy/container logs and health.\n"
-        "4) Provide a clear triage summary and recommended next actions for a human operator.\n\n"
-        "Return a concise final report with:\n"
-        "- Reproduction results (commands + timings)\n"
-        "- Most likely root cause + evidence\n"
-        "- Impacted domains and whether it's systemic\n"
-        "- Recommended safe remediation steps (no changes executed)\n"
-    )
 
 
 

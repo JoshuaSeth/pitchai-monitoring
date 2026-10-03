@@ -644,3 +644,39 @@ does not resolve shared/error/Docker/historical copy disposition. Actual
 checker/config/clock/reader/schema2 journal, receiver/off-host, original
 300-second adoption/drain interval plus next selected read, throughput and
 finite Infrastructure624 admission remain separate runtime dependencies.
+
+# Performance decomposition increment
+
+`performance.py` owns existing healthy-domain performance evaluation;
+`message_performance.py` owns millisecond formatting and the two bounded
+message builders. Main imports the four existing helper names. No scheduler,
+transport, readiness interface or effective-health transition changes. Main
+is 4,140 lines; its remaining AST matches parent
+`7e7146d797e479e5c78ac6fab504c9689ef32ac2` after declared extraction/imports.
+
+The JSON-valued input contract retains sorted domain keys, DOWN exclusion,
+strict greater-than comparison, domain-specific overrides, independent HTTP
+and browser observations and numeric override refusal. An exceeded threshold
+that cannot be formatted still leaves that metric unavailable, preserving the
+legacy behavior; another metric can independently retain a violation. Missing
+and nonfinite display values remain `n/a`, with round-to-even for finite values.
+
+Private proof:
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/performance-extraction-20261003/`.
+Six focused cases pass, alongside 685 parent outcomes (three matching
+override exceptions), four existing host/performance cases and four actual
+isolated launcher/config/restart cycles. The launcher preserves independent
+domain and performance two-failure/two-success transitions, default config,
+history and browser cleanup. It uses synthetic observations, one replacement
+local warning capture, no outgoing attempts or receipt IDs, and DFT disabled.
+The existing DFT and producer/nginx proofs were not repeated.
+
+Three runtime files match their pre-test snapshots. Test-only style changes
+have separate retained snapshots and reruns; no earlier snapshot or failed
+gate log was overwritten. Three new files pass canonical scoped architecture,
+Ruff, BasedPyright, Pylint 10 and Semgrep. The main-only run still fails with
+382 Ruff findings, 388 typing errors and one warning, Pylint 9.15/10, 50
+Semgrep findings and architecture debt. The repository aggregate still has
+21 anti-bypass findings. Required gates remain binding; this is not runtime
+or integration acceptance. All previously listed operational dependencies
+and owner boundaries remain open and unchanged.
