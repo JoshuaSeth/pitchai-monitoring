@@ -26,6 +26,9 @@ from .common_check import (
     load_domain_spec_from_module_dict,
 )
 from .history import prune_history
+from .history_settings import load_slo_settings, load_red_settings
+from .network_settings import load_tls_settings, load_dns_settings
+from .resource_settings import load_host_settings, load_performance_settings
 from .cycle_history import record_domain_results
 from .history_migration import migrate_effective_history
 from .signal_history import SignalHistory
@@ -503,111 +506,22 @@ async def run_loop(config_path: Path, once: bool) -> int:
         default=8.0,
     )
 
-    host_health_cfg = cycle_section(config, "host_health")
-    host_health_enabled = bool(host_health_cfg.get("enabled", False))
-    host_health_down_after_failures = max(1, required_int(host_health_cfg.get("down_after_failures", 1)))
-    host_health_up_after_successes = max(1, required_int(host_health_cfg.get("up_after_successes", 1)))
-    host_disk_used_percent_max = _coerce_optional_float(host_health_cfg.get("disk_used_percent_max"))
-    host_mem_used_percent_max = _coerce_optional_float(host_health_cfg.get("mem_used_percent_max"))
-    host_swap_used_percent_max = _coerce_optional_float(host_health_cfg.get("swap_used_percent_max"))
-    host_cpu_used_percent_max = _coerce_optional_float(host_health_cfg.get("cpu_used_percent_max"))
-    host_load1_per_cpu_max = _coerce_optional_float(host_health_cfg.get("load1_per_cpu_max"))
-    host_dispatch_on_degraded = bool(host_health_cfg.get("dispatch_on_degraded", False))
-    host_notify_on_recovery = bool(host_health_cfg.get("notify_on_recovery", False))
+    host_settings = load_host_settings(config)
 
-    disk_paths_raw = host_health_cfg.get("disk_paths") or []
-    if not isinstance(disk_paths_raw, list) or not disk_paths_raw:
-        disk_paths_raw = ["/"]
-    host_disk_paths = [str(p).strip() for p in disk_paths_raw if str(p or "").strip()]
-    if not host_disk_paths:
-        host_disk_paths = ["/"]
-
-    perf_cfg = cycle_section(config, "performance")
-    perf_enabled = bool(perf_cfg.get("enabled", False))
-    perf_down_after_failures = max(1, required_int(perf_cfg.get("down_after_failures", 1)))
-    perf_up_after_successes = max(1, required_int(perf_cfg.get("up_after_successes", 1)))
-    perf_http_elapsed_ms_max = _coerce_float(perf_cfg.get("http_elapsed_ms_max", 1500.0), default=1500.0)
-    perf_browser_elapsed_ms_max = _coerce_float(perf_cfg.get("browser_elapsed_ms_max", 4000.0), default=4000.0)
-    perf_dispatch_on_degraded = bool(perf_cfg.get("dispatch_on_degraded", False))
-    perf_notify_on_recovery = bool(perf_cfg.get("notify_on_recovery", False))
-    perf_overrides = None
-    overrides_raw = perf_cfg.get("per_domain_overrides")
-    if isinstance(overrides_raw, dict):
-        perf_overrides = overrides_raw
+    perf_settings = load_performance_settings(config)
 
     history_cfg = cycle_section(config, "history")
     history_retention_days = _coerce_float(history_cfg.get("retention_days", 7.0), default=7.0)
     history_retention_days = max(1.0, float(history_retention_days))
     history_retention_seconds = history_retention_days * 86400.0
 
-    slo_cfg = cycle_section(config, "slo")
-    slo_enabled = bool(slo_cfg.get("enabled", False))
-    slo_target_percent = _coerce_float(slo_cfg.get("target_percent", 99.9), default=99.9)
-    slo_down_after_failures = max(1, required_int(slo_cfg.get("down_after_failures", 3)))
-    slo_up_after_successes = max(1, required_int(slo_cfg.get("up_after_successes", 2)))
-    slo_dispatch_on_degraded = bool(slo_cfg.get("dispatch_on_degraded", False))
-    slo_notify_on_recovery = bool(slo_cfg.get("notify_on_recovery", False))
-    slo_min_total_samples = max(1, required_int(slo_cfg.get("min_total_samples", 5)))
-    slo_rules = slo_cfg.get("burn_rate_rules")
-    if not isinstance(slo_rules, list) or not slo_rules:
-        slo_rules = [
-            {
-                "name": "page_fast_burn",
-                "short_window_minutes": 5,
-                "long_window_minutes": 60,
-                "short_burn_rate": 14.4,
-                "long_burn_rate": 6.0,
-            },
-            {
-                "name": "ticket_slow_burn",
-                "short_window_minutes": 360,
-                "long_window_minutes": 4320,  # 3 days
-                "short_burn_rate": 6.0,
-                "long_burn_rate": 1.0,
-            },
-        ]
+    slo_settings = load_slo_settings(config)
 
-    tls_cfg = cycle_section(config, "tls")
-    tls_enabled = bool(tls_cfg.get("enabled", False))
-    tls_interval_minutes = max(1, required_int(tls_cfg.get("interval_minutes", 60)))
-    tls_min_days_valid = _coerce_float(tls_cfg.get("min_days_valid", 14.0), default=14.0)
-    tls_timeout_seconds = _coerce_float(tls_cfg.get("timeout_seconds", 8.0), default=8.0)
-    tls_down_after_failures = max(1, required_int(tls_cfg.get("down_after_failures", 2)))
-    tls_up_after_successes = max(1, required_int(tls_cfg.get("up_after_successes", 1)))
-    tls_dispatch_on_degraded = bool(tls_cfg.get("dispatch_on_degraded", False))
-    tls_notify_on_recovery = bool(tls_cfg.get("notify_on_recovery", False))
+    tls_settings = load_tls_settings(config)
 
-    dns_cfg = cycle_section(config, "dns")
-    dns_enabled = bool(dns_cfg.get("enabled", False))
-    dns_interval_minutes = max(1, required_int(dns_cfg.get("interval_minutes", 15)))
-    dns_timeout_seconds = _coerce_float(dns_cfg.get("timeout_seconds", 4.0), default=4.0)
-    dns_resolvers_raw = dns_cfg.get("resolvers")
-    dns_resolvers = [str(x).strip() for x in dns_resolvers_raw] if isinstance(dns_resolvers_raw, list) else None
-    if dns_resolvers is not None:
-        dns_resolvers = [x for x in dns_resolvers if x]
-        if not dns_resolvers:
-            dns_resolvers = None
-    dns_require_ipv4 = bool(dns_cfg.get("require_ipv4", True))
-    dns_require_ipv6 = bool(dns_cfg.get("require_ipv6", False))
-    dns_alert_on_drift_default = bool(dns_cfg.get("alert_on_drift", False))
-    dns_expected_ips_by_domain = dns_cfg.get("expected_ips_by_domain") if isinstance(dns_cfg.get("expected_ips_by_domain"), dict) else {}
-    dns_alert_on_drift_by_domain = dns_cfg.get("alert_on_drift_by_domain") if isinstance(dns_cfg.get("alert_on_drift_by_domain"), dict) else {}
-    dns_down_after_failures = max(1, required_int(dns_cfg.get("down_after_failures", 2)))
-    dns_up_after_successes = max(1, required_int(dns_cfg.get("up_after_successes", 1)))
-    dns_dispatch_on_degraded = bool(dns_cfg.get("dispatch_on_degraded", False))
-    dns_notify_on_recovery = bool(dns_cfg.get("notify_on_recovery", False))
+    dns_settings = load_dns_settings(config)
 
-    red_cfg = cycle_section(config, "red")
-    red_enabled = bool(red_cfg.get("enabled", False))
-    red_window_minutes = max(1, required_int(red_cfg.get("window_minutes", 30)))
-    red_min_samples = max(1, required_int(red_cfg.get("min_samples", 10)))
-    red_error_rate_max_percent = _coerce_optional_float(red_cfg.get("error_rate_max_percent"))
-    red_http_p95_ms_max = _coerce_optional_float(red_cfg.get("http_p95_ms_max"))
-    red_browser_p95_ms_max = _coerce_optional_float(red_cfg.get("browser_p95_ms_max"))
-    red_down_after_failures = max(1, required_int(red_cfg.get("down_after_failures", 3)))
-    red_up_after_successes = max(1, required_int(red_cfg.get("up_after_successes", 2)))
-    red_dispatch_on_degraded = bool(red_cfg.get("dispatch_on_degraded", False))
-    red_notify_on_recovery = bool(red_cfg.get("notify_on_recovery", False))
+    red_settings = load_red_settings(config)
 
     syn_cfg = cycle_section(config, "synthetic")
     syn_enabled = bool(syn_cfg.get("enabled", False))
@@ -1329,14 +1243,14 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # SLO burn-rate monitoring
                     # ------------------------------
                     slo_violations: list[SloBurnViolation] = []
-                    if slo_enabled and isinstance(history_by_domain, dict) and history_by_domain:
+                    if slo_settings.alerts.enabled and isinstance(history_by_domain, dict) and history_by_domain:
                         try:
                             slo_violations = compute_slo_burn_violations(
                                 history_by_domain=history_by_domain,
                                 now_ts=time.time(),
-                                slo_target_percent=float(slo_target_percent),
-                                burn_rate_rules=slo_rules,
-                                min_total_samples=int(slo_min_total_samples),
+                                slo_target_percent=float(slo_settings.target_percent),
+                                burn_rate_rules=slo_settings.rules,
+                                min_total_samples=int(slo_settings.min_total_samples),
                             )
                         except Exception:
                             LOGGER.exception("SLO burn computation failed")
@@ -1359,8 +1273,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             observed_ok=slo_observed_ok,
                             fail_streak=int(slo_fail_streak),
                             success_streak=int(slo_success_streak),
-                            down_after_failures=slo_down_after_failures,
-                            up_after_successes=slo_up_after_successes,
+                            down_after_failures=slo_settings.alerts.down_after_failures,
+                            up_after_successes=slo_settings.alerts.up_after_successes,
                         )
                         _append_signal_sample(
                             "slo",
@@ -1376,8 +1290,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             )
                             msg = _build_slo_alert_message(
                                 violations=slo_violations,
-                                slo_target_percent=float(slo_target_percent),
-                                down_after_failures=slo_down_after_failures,
+                                slo_target_percent=float(slo_settings.target_percent),
+                                down_after_failures=slo_settings.alerts.down_after_failures,
                                 fail_streak=int(slo_fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
@@ -1388,7 +1302,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 [v.domain for v in slo_violations[:5]],
                             )
 
-                            if slo_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                            if slo_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                                 if "slo" in active_dispatch_tasks and not active_dispatch_tasks["slo"].done():
                                     LOGGER.info("Dispatch already running for SLO; skipping new dispatch")
                                 else:
@@ -1399,7 +1313,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             dispatch_cfg=dispatch_cfg,
                                             dispatch_state=dispatch_state,
                                             violations=slo_violations,
-                                            slo_target_percent=float(slo_target_percent),
+                                            slo_target_percent=float(slo_settings.target_percent),
                                             dispatch_history=dispatch_history,
                                             dispatch_last=dispatch_last,
                                             events=events,
@@ -1409,7 +1323,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         slo_recovered = (not prev_effective) and bool(slo_last_ok)
                         if slo_recovered:
                             _append_event("slo_recovered", ts=float(cycle_started))
-                        if slo_recovered and slo_notify_on_recovery:
+                        if slo_recovered and slo_settings.alerts.notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
                                 telegram_cfg,
@@ -1425,16 +1339,16 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # RED / golden signals
                     # ------------------------------
                     red_violations: list[RedViolation] = []
-                    if red_enabled and isinstance(history_by_domain, dict) and history_by_domain:
+                    if red_settings.alerts.enabled and isinstance(history_by_domain, dict) and history_by_domain:
                         try:
                             red_violations = compute_red_violations(
                                 history_by_domain=history_by_domain,
                                 now_ts=time.time(),
-                                window_minutes=int(red_window_minutes),
-                                min_samples=int(red_min_samples),
-                                error_rate_max_percent=red_error_rate_max_percent,
-                                http_p95_ms_max=red_http_p95_ms_max,
-                                browser_p95_ms_max=red_browser_p95_ms_max,
+                                window_minutes=int(red_settings.window_minutes),
+                                min_samples=int(red_settings.min_samples),
+                                error_rate_max_percent=red_settings.error_rate_max_percent,
+                                http_p95_ms_max=red_settings.http_p95_ms_max,
+                                browser_p95_ms_max=red_settings.browser_p95_ms_max,
                             )
                         except Exception:
                             LOGGER.exception("RED computation failed")
@@ -1457,8 +1371,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             observed_ok=red_observed_ok,
                             fail_streak=int(red_fail_streak),
                             success_streak=int(red_success_streak),
-                            down_after_failures=red_down_after_failures,
-                            up_after_successes=red_up_after_successes,
+                            down_after_failures=red_settings.alerts.down_after_failures,
+                            up_after_successes=red_settings.alerts.up_after_successes,
                         )
                         _append_signal_sample(
                             "red",
@@ -1474,8 +1388,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             )
                             msg = _build_red_alert_message(
                                 violations=red_violations,
-                                window_minutes=int(red_window_minutes),
-                                down_after_failures=red_down_after_failures,
+                                window_minutes=int(red_settings.window_minutes),
+                                down_after_failures=red_settings.alerts.down_after_failures,
                                 fail_streak=int(red_fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
@@ -1486,7 +1400,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 [v.domain for v in red_violations[:5]],
                             )
 
-                            if red_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                            if red_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                                 if "red" in active_dispatch_tasks and not active_dispatch_tasks["red"].done():
                                     LOGGER.info("Dispatch already running for RED; skipping new dispatch")
                                 else:
@@ -1497,7 +1411,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             dispatch_cfg=dispatch_cfg,
                                             dispatch_state=dispatch_state,
                                             violations=red_violations,
-                                            window_minutes=int(red_window_minutes),
+                                            window_minutes=int(red_settings.window_minutes),
                                             dispatch_history=dispatch_history,
                                             dispatch_last=dispatch_last,
                                             events=events,
@@ -1507,7 +1421,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         red_recovered = (not prev_effective) and bool(red_last_ok)
                         if red_recovered:
                             _append_event("red_recovered", ts=float(cycle_started))
-                        if red_recovered and red_notify_on_recovery:
+                        if red_recovered and red_settings.alerts.notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
                                 telegram_cfg,
@@ -1521,19 +1435,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                     host_snap: dict[str, Any] | None = None
                     host_violations: list[str] | None = None
-                    if host_health_enabled:
+                    if host_settings.alerts.enabled:
                         host_snap = _collect_host_snapshot(
-                            disk_paths=host_disk_paths,
+                            disk_paths=host_settings.disk_paths,
                             cpu_prev_total=host_cpu_prev_total,
                             cpu_prev_idle=host_cpu_prev_idle,
                         )
                         host_violations = _collect_host_health_violations(
                             host_snap,
-                            disk_used_percent_max=host_disk_used_percent_max,
-                            mem_used_percent_max=host_mem_used_percent_max,
-                            swap_used_percent_max=host_swap_used_percent_max,
-                            cpu_used_percent_max=host_cpu_used_percent_max,
-                            load1_per_cpu_max=host_load1_per_cpu_max,
+                            disk_used_percent_max=host_settings.disk_used_percent_max,
+                            mem_used_percent_max=host_settings.mem_used_percent_max,
+                            swap_used_percent_max=host_settings.swap_used_percent_max,
+                            cpu_used_percent_max=host_settings.cpu_used_percent_max,
+                            load1_per_cpu_max=host_settings.load1_per_cpu_max,
                         )
 
                         cpu_prev_total_next = host_snap.get("cpu_prev_total_next")
@@ -1557,8 +1471,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             observed_ok=host_observed_ok,
                             fail_streak=int(host_health_fail_streak),
                             success_streak=int(host_health_success_streak),
-                            down_after_failures=host_health_down_after_failures,
-                            up_after_successes=host_health_up_after_successes,
+                            down_after_failures=host_settings.alerts.down_after_failures,
+                            up_after_successes=host_settings.alerts.up_after_successes,
                         )
 
                         # Persist last host snapshot for dashboard visibility (and time-series history below).
@@ -1601,7 +1515,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             msg = _build_host_health_alert_message(
                                 violations=host_violations,
                                 snap=host_snap,
-                                down_after_failures=host_health_down_after_failures,
+                                down_after_failures=host_settings.alerts.down_after_failures,
                                 fail_streak=int(host_health_fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
@@ -1613,7 +1527,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             )
 
                             if (
-                                host_dispatch_on_degraded
+                                host_settings.alerts.dispatch_on_degraded
                                 and dispatch_cfg
                                 and _dispatch_is_enabled(dispatch_cfg, dispatch_state)
                             ):
@@ -1641,7 +1555,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         host_recovered = (not prev_effective) and bool(host_health_last_ok)
                         if host_recovered:
                             _append_event("host_health_recovered", ts=float(cycle_started))
-                        if host_recovered and host_notify_on_recovery:
+                        if host_recovered and host_settings.alerts.notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
                                 telegram_cfg,
@@ -1654,12 +1568,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             )
 
                     perf_slow: list[dict[str, Any]] | None = None
-                    if perf_enabled and cycle_results:
+                    if perf_settings.alerts.enabled and cycle_results:
                         perf_slow = _collect_performance_violations(
                             cycle_results,
-                            http_elapsed_ms_max=perf_http_elapsed_ms_max,
-                            browser_elapsed_ms_max=perf_browser_elapsed_ms_max,
-                            per_domain_overrides=perf_overrides,
+                            http_elapsed_ms_max=perf_settings.http_elapsed_ms_max,
+                            browser_elapsed_ms_max=perf_settings.browser_elapsed_ms_max,
+                            per_domain_overrides=perf_settings.overrides,
                         )
                         suppressed_perf_domains = sorted(
                             {
@@ -1683,8 +1597,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             observed_ok=perf_observed_ok,
                             fail_streak=int(perf_fail_streak),
                             success_streak=int(perf_success_streak),
-                            down_after_failures=perf_down_after_failures,
-                            up_after_successes=perf_up_after_successes,
+                            down_after_failures=perf_settings.alerts.down_after_failures,
+                            up_after_successes=perf_settings.alerts.up_after_successes,
                         )
                         _append_signal_sample(
                             "performance",
@@ -1699,7 +1613,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             )
                             msg = _build_performance_alert_message(
                                 slow=perf_slow,
-                                down_after_failures=perf_down_after_failures,
+                                down_after_failures=perf_settings.alerts.down_after_failures,
                                 fail_streak=int(perf_fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
@@ -1711,7 +1625,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             )
 
                             if (
-                                perf_dispatch_on_degraded
+                                perf_settings.alerts.dispatch_on_degraded
                                 and dispatch_cfg
                                 and _dispatch_is_enabled(dispatch_cfg, dispatch_state)
                             ):
@@ -1738,7 +1652,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         perf_recovered = (not prev_effective) and bool(perf_last_ok)
                         if perf_recovered:
                             _append_event("performance_recovered", ts=float(cycle_started))
-                        if perf_recovered and perf_notify_on_recovery:
+                        if perf_recovered and perf_settings.alerts.notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
                                 telegram_cfg,
@@ -1754,17 +1668,17 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # TLS certificate checks (expiry / handshake)
                     # ------------------------------
                     tls_results: list[TlsCertCheckResult] | None = None
-                    if tls_enabled:
+                    if tls_settings.alerts.enabled:
                         now_ts = time.time()
-                        due = (now_ts - float(tls_last_run_ts or 0.0)) >= float(tls_interval_minutes * 60)
+                        due = (now_ts - float(tls_last_run_ts or 0.0)) >= float(tls_settings.interval_minutes * 60)
                         if due and enabled_specs:
                             tls_last_run_ts = now_ts
                             urls_by_domain = {s.domain: s.url for s in enabled_specs}
                             try:
                                 tls_results = await check_tls_certs(
                                     urls_by_domain=urls_by_domain,
-                                    min_days_valid=float(tls_min_days_valid),
-                                    timeout_seconds=float(tls_timeout_seconds),
+                                    min_days_valid=float(tls_settings.min_days_valid),
+                                    timeout_seconds=float(tls_settings.timeout_seconds),
                                     concurrency=min(50, max(5, len(urls_by_domain))),
                                 )
                             except Exception:
@@ -1806,8 +1720,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 observed_ok=tls_observed_ok,
                                 fail_streak=int(tls_fail_streak),
                                 success_streak=int(tls_success_streak),
-                                down_after_failures=tls_down_after_failures,
-                                up_after_successes=tls_up_after_successes,
+                                down_after_failures=tls_settings.alerts.down_after_failures,
+                                up_after_successes=tls_settings.alerts.up_after_successes,
                             )
                             tls_fail_count = 0
                             try:
@@ -1830,8 +1744,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 )
                                 msg = _build_tls_alert_message(
                                     results=tls_alert_results,
-                                    min_days_valid=float(tls_min_days_valid),
-                                    down_after_failures=tls_down_after_failures,
+                                    min_days_valid=float(tls_settings.min_days_valid),
+                                    down_after_failures=tls_settings.alerts.down_after_failures,
                                     fail_streak=int(tls_fail_streak),
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
@@ -1841,7 +1755,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     redact_telegram_response(resps[-1] if resps else {}),
                                 )
 
-                                if tls_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                if tls_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                                     if "tls" in active_dispatch_tasks and not active_dispatch_tasks["tls"].done():
                                         LOGGER.info("Dispatch already running for TLS; skipping new dispatch")
                                     else:
@@ -1852,7 +1766,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                                 dispatch_cfg=dispatch_cfg,
                                                 dispatch_state=dispatch_state,
                                                 results=tls_alert_results,
-                                                min_days_valid=float(tls_min_days_valid),
+                                                min_days_valid=float(tls_settings.min_days_valid),
                                                 dispatch_history=dispatch_history,
                                                 dispatch_last=dispatch_last,
                                                 events=events,
@@ -1862,7 +1776,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             tls_recovered = (not prev_effective) and bool(tls_last_ok)
                             if tls_recovered:
                                 _append_event("tls_recovered", ts=float(cycle_started))
-                            if tls_recovered and tls_notify_on_recovery:
+                            if tls_recovered and tls_settings.alerts.notify_on_recovery:
                                 ok, resp = await send_telegram_message(
                                     http_client,
                                     telegram_cfg,
@@ -1878,25 +1792,25 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # DNS checks (resolution / drift)
                     # ------------------------------
                     dns_results: list[DnsCheckResult] | None = None
-                    if dns_enabled:
+                    if dns_settings.alerts.enabled:
                         now_ts = time.time()
-                        due = (now_ts - float(dns_last_run_ts or 0.0)) >= float(dns_interval_minutes * 60)
+                        due = (now_ts - float(dns_last_run_ts or 0.0)) >= float(dns_settings.interval_minutes * 60)
                         if due and enabled_specs:
                             dns_last_run_ts = now_ts
                             enabled_domains = [s.domain for s in enabled_specs]
 
                             # Normalize per-domain configs to lowercase keys.
                             expected_ips_norm: dict[str, list[str]] = {}
-                            if isinstance(dns_expected_ips_by_domain, dict):
-                                for k, v in dns_expected_ips_by_domain.items():
+                            if isinstance(dns_settings.drift.expected_ips_by_domain, dict):
+                                for k, v in dns_settings.drift.expected_ips_by_domain.items():
                                     kk = str(k or "").strip().lower()
                                     if not kk:
                                         continue
                                     expected_ips_norm[kk] = v if isinstance(v, list) else [v]
 
-                            drift_norm: dict[str, bool] = {d.lower(): bool(dns_alert_on_drift_default) for d in enabled_domains}
-                            if isinstance(dns_alert_on_drift_by_domain, dict):
-                                for k, v in dns_alert_on_drift_by_domain.items():
+                            drift_norm: dict[str, bool] = {d.lower(): bool(dns_settings.drift.alert_on_drift_default) for d in enabled_domains}
+                            if isinstance(dns_settings.drift.alert_on_drift_by_domain, dict):
+                                for k, v in dns_settings.drift.alert_on_drift_by_domain.items():
                                     kk = str(k or "").strip().lower()
                                     if not kk:
                                         continue
@@ -1905,10 +1819,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             try:
                                 dns_results = await check_dns(
                                     domains=enabled_domains,
-                                    resolvers=dns_resolvers,
-                                    timeout_seconds=float(dns_timeout_seconds),
-                                    require_ipv4=bool(dns_require_ipv4),
-                                    require_ipv6=bool(dns_require_ipv6),
+                                    resolvers=dns_settings.resolvers,
+                                    timeout_seconds=float(dns_settings.timeout_seconds),
+                                    require_ipv4=bool(dns_settings.require_ipv4),
+                                    require_ipv6=bool(dns_settings.require_ipv6),
                                     previous_ips_by_domain=dns_last_ips,
                                     expected_ips_by_domain=expected_ips_norm,
                                     alert_on_drift_by_domain=drift_norm,
@@ -1957,8 +1871,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 observed_ok=dns_observed_ok,
                                 fail_streak=int(dns_fail_streak),
                                 success_streak=int(dns_success_streak),
-                                down_after_failures=dns_down_after_failures,
-                                up_after_successes=dns_up_after_successes,
+                                down_after_failures=dns_settings.alerts.down_after_failures,
+                                up_after_successes=dns_settings.alerts.up_after_successes,
                             )
                             dns_fail_count = 0
                             try:
@@ -1981,7 +1895,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 )
                                 msg = _build_dns_alert_message(
                                     results=dns_alert_results,
-                                    down_after_failures=dns_down_after_failures,
+                                    down_after_failures=dns_settings.alerts.down_after_failures,
                                     fail_streak=int(dns_fail_streak),
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
@@ -1991,7 +1905,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     redact_telegram_response(resps[-1] if resps else {}),
                                 )
 
-                                if dns_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                if dns_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                                     if "dns" in active_dispatch_tasks and not active_dispatch_tasks["dns"].done():
                                         LOGGER.info("Dispatch already running for DNS; skipping new dispatch")
                                     else:
@@ -2011,7 +1925,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             dns_recovered = (not prev_effective) and bool(dns_last_ok)
                             if dns_recovered:
                                 _append_event("dns_recovered", ts=float(cycle_started))
-                            if dns_recovered and dns_notify_on_recovery:
+                            if dns_recovered and dns_settings.alerts.notify_on_recovery:
                                 ok, resp = await send_telegram_message(
                                     http_client,
                                     telegram_cfg,
@@ -2833,7 +2747,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     disabled_lines=disabled_lines,
                                     host_snap=host_snap,
                                     host_violations=host_violations,
-                                    perf_slow=perf_slow if perf_enabled else None,
+                                    perf_slow=perf_slow if perf_settings.alerts.enabled else None,
                                     external_e2e=external_summary,
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)

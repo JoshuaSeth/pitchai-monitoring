@@ -870,3 +870,46 @@ in the raw logs. Whole-main remains failed: 314 Ruff findings, 279 typing errors
 and one warning, Pylint 9.05, 33 Semgrep findings and architecture debt. The
 aggregate retains 21 anti-bypass findings. Required checks, whole-cycle repair
 and all retained runtime/receiver/coverage/copy/admission dependencies stay open.
+
+# Metric configuration increment
+
+`alert_settings` makes enablement, debounce and routing flags explicit.
+`resource_settings`, `history_settings` and `network_settings` decode the
+existing host/performance, SLO/RED and TLS/DNS sections. DNS drift policy is
+separate from transport settings. Required integer failures, optional float
+fallbacks, truthiness, metric-specific defaults and numeric minima remain.
+Supplied rule lists and domain policy maps retain identity; default SLO rules
+are fresh per load. Host path and resolver filtering retain their distinct
+falsey-value behavior. Settings loading performs no observations or delivery.
+
+Against parent `0b008e1b7ce2fd3c67eb5f6871acb6478bba9683`, six configuration
+blocks, 73 subsequent name reads and three imports account for main's complete
+AST change. All remaining AST is identical. Main is 2,937 lines, 86 fewer.
+API-readiness configuration, scheduling, state, event/outbox and DFT authority
+sections retain their existing control flow; no business branch was integrated.
+
+Private raw proof and tools are at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/metric-settings-extraction-20261003/`.
+Fourteen tests pass in 0.001s: eight settings tests and six existing section and
+scalar contracts. Exact-parent comparison passes 1,769 JSON configuration cases
+in 0.069s, including 476 matching exception classes and messages. It covers
+competing invalid required fields, nonmapping sections, scalar/container
+thresholds and original nonfinite float behavior. It does not establish an
+arbitrary Python object contract.
+
+Ten actual isolated launcher/config/state runs pass in 1.599s. Six retain the
+domain/performance transition and history-migration/restart cases. Four also
+enable host, TLS, DNS, SLO and RED with synthetic observations, proving each
+recorded degradation and recovery and actual parsed DNS/TLS call arguments.
+HTTP/browser/host/clock/TLS/DNS inputs remain substituted. Nineteen replacement
+text captures, including ten heartbeats, are unsent. DFT stays disabled, with
+no journal and zero guarded network/subprocess attempts. Prior DFT/nginx
+commissioning proof was not repeated or expanded by these runs.
+
+All six runtime/test files have unchanged pretest snapshots. Five new files
+pass architecture, Ruff, BasedPyright, Pylint 10 and Semgrep (five targets).
+Initial type, structure and test-style findings remain retained. Whole-main
+still fails with 312 Ruff findings, 277 typing errors and one warning, Pylint
+9.01, 33 Semgrep findings and architecture debt. Aggregate 21 anti-bypass
+findings remain. Required checks and the whole-cycle repair stay incomplete;
+all existing runtime, receiver/off-host, coverage/copy and admission gaps remain.
