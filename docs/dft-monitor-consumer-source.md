@@ -1331,3 +1331,23 @@ findings, 180 typing errors plus one warning, Pylint 8.78, eleven Semgrep
 findings and architecture debt. Aggregate 21 findings remain. Existing source
 interface and runtime binding requests are retained; no integration, runtime
 admission, installed receiver or delivery is established by this source proof.
+# Retained main import compatibility
+
+The whole-cycle review found a concrete collection failure: the existing
+`tests/test_host_and_performance_checks.py` still imports host/performance
+collectors from `main.py`. Those aliases are restored to their extracted owners.
+The explicit export list also retains the domain-entry adapter and disable-time
+parser used by current repository callers. Thirty-two unused imports with no
+retained caller are removed; import ordering is normalized. Runtime function
+bodies and all other non-import AST are unchanged.
+
+The protected `main-compatibility-20261003` packet retains the pre-fix ImportError,
+complete before/final source, import inventory, AST comparison and final proof.
+The twelve existing host/performance, disabling, alert-state and browser-fallback
+tests pass in 0.80s after the final source snapshot. No new synthetic campaign,
+host probe or delivery was needed for this import correction.
+
+Whole-main remains failed: 84 Ruff findings, 144 typing errors plus one warning,
+Pylint 9.11, eleven Semgrep findings and architecture debt. Repository aggregate
+21 findings remain. This fixes a supported import contract; it is not a waiver
+of the changed-file policy or an integration/runtime acceptance.

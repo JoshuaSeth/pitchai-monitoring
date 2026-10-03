@@ -7,16 +7,20 @@ import logging
 import os
 import runpy
 import time
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta, time as dt_time, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
 import yaml
 from playwright.async_api import Browser, async_playwright
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from .alert_transition import update_effective_ok as _update_effective_ok
+from .browser_admission import BrowserAdmission
+from .browser_launch import launch_options
+from .browser_phase_context import BrowserPhaseContext, BrowserProbeState
+from .browser_probe_settings import load_synthetic_settings, load_vitals_settings
+from .browser_recovery_phase import BrowserRecoveryPhase
 from .common_check import (
     DomainCheckResult,
     DomainCheckSpec,
@@ -25,122 +29,92 @@ from .common_check import (
     http_get_check,
     load_domain_spec_from_module_dict,
 )
-from .history import prune_history
-from .browser_probe_settings import load_synthetic_settings, load_vitals_settings
-from .service_settings import load_container_settings, load_meta_settings
-from .proxy_settings import load_proxy_settings
-from .heartbeat_settings import load_heartbeat_settings
-from .heartbeat_phase import HeartbeatPhase, HeartbeatSchedule, HeartbeatObservation, ExternalHeartbeat
-from .history_settings import load_slo_settings, load_red_settings
-from .network_settings import load_tls_settings, load_dns_settings
-from .resource_settings import load_host_settings, load_performance_settings
+from .container_phase import ContainerObservations, ContainerPhase
+from .cycle_channels import CycleChannels
+from .cycle_configuration import cycle_section
 from .cycle_history import record_domain_results
-from .history_migration import migrate_effective_history
-from .signal_history import SignalHistory
-from .browser_launch import launch_options
-from .browser_admission import BrowserAdmission
-from .browser_recovery_phase import BrowserRecoveryPhase
+from .cycle_values import coerce_float as _coerce_float
+from .cycle_values import coerce_int as _coerce_int
+from .cycle_values import required_int
+from .dft_cycle import DftCycle, parse_cycle_config
+from .dispatch_client import DispatchConfig
+from .dispatch_records import DispatchRecords
+from .dispatch_state import dispatch_is_enabled as _dispatch_is_enabled
+from .dispatch_workflow import dispatch_prompt_and_forward as _dispatch_prompt_and_forward
+from .dns_phase import DnsPhase
+from .domain_alerts import route_domain_telegram_alert as _route_domain_telegram_alert
+from .domain_entries import (
+    DomainEntryConfig,
+)
+from .domain_entries import (
+    format_disabled_domain_line as _format_disabled_domain_line,
+)
+from .domain_entries import (
+    normalize_domain_entries as _normalize_domain_entries,
+)
 from .domain_observation import DomainProbes, observe_domain
 from .domain_polling import DomainPolling
 from .domain_result_phase import DomainHealth, DomainResultPhase
-from .domain_entries import (
-    DomainEntryConfig,
-    normalize_domain_entries as _normalize_domain_entries,
-    format_disabled_domain_line as _format_disabled_domain_line,
-)
-from .domain_time import (
-    parse_disabled_until_ts as _parse_disabled_until_ts,
-    parse_hhmm as _parse_hhmm,
-    load_timezone as _load_timezone,
-)
-from .domain_alerts import (
-    build_down_alert_message as _build_down_alert_message,
-    route_domain_telegram_alert as _route_domain_telegram_alert,
-)
-from .heartbeat_message import (
-    format_uptime as _format_uptime,
-    build_heartbeat_message as _build_heartbeat_message,
-)
-from .dispatch_domain_routes import dispatch_and_forward as _dispatch_and_forward
-from .dispatch_workflow import dispatch_prompt_and_forward as _dispatch_prompt_and_forward
-from .dispatch_state import (
-    dispatch_state_reenable_if_due as _dispatch_state_reenable_if_due,
-    dispatch_is_enabled as _dispatch_is_enabled,
-    dispatch_disable as _dispatch_disable,
-    dispatch_should_notify as _dispatch_should_notify,
-)
-from .message_templates import build_dispatch_prompt as _build_dispatch_prompt
+from .domain_time import load_timezone as _load_timezone
+from .domain_time import parse_disabled_until_ts as _parse_disabled_until_ts
+from .event_bus import EventBusOutbox, load_event_bus_config
+from .event_bus_delivery import JsonObject
+from .health_state import HealthState
+from .heartbeat_phase import ExternalHeartbeat, HeartbeatObservation, HeartbeatPhase, HeartbeatSchedule
+from .heartbeat_settings import load_heartbeat_settings
+from .history import prune_history
+from .history_migration import migrate_effective_history
+from .history_phase_context import HistoryFrame
+from .history_settings import load_red_settings, load_slo_settings
+from .host_observations import HostObservations
+from .host_phase import HostPhase
+from .host_readings import compute_cpu_used_percent as _compute_cpu_used_percent
+from .host_readings import format_browser_health_hint as _format_browser_health_hint
+from .host_readings import read_linux_meminfo_kb as _read_linux_meminfo_kb
+from .host_thresholds import collect_host_health_violations as _collect_host_health_violations
+from .inventory import validate_domain_inventory
 from .message_templates import dispatch_read_only_rules as _dispatch_read_only_rules
-from .message_templates import build_meta_dispatch_prompt as _build_meta_dispatch_prompt
-from .message_container import build_container_health_dispatch_prompt as _build_container_health_dispatch_prompt
-from .message_proxy import build_proxy_dispatch_prompt as _build_proxy_dispatch_prompt
-from .host_readings import (
-    compute_cpu_used_percent as _compute_cpu_used_percent,
-    disk_usage_percent as _disk_usage_percent,
-    format_browser_health_hint as _format_browser_health_hint,
-    read_linux_meminfo_kb as _read_linux_meminfo_kb,
-    read_linux_proc_stat_cpu_total_idle as _read_linux_proc_stat_cpu_total_idle,
-)
-from .inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
+from .meta_phase import CycleTiming, MetaPhase
 from .metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
 from .metrics_synthetic import run_synthetic_transactions
 from .metrics_web_vitals import measure_web_vitals
-from .dispatch_client import (
-    DispatchConfig,
-    dispatch_job,
-    extract_last_agent_message_from_exec_log,
-    extract_last_error_message_from_exec_log,
-    get_last_agent_message,
-    get_run_log_tail,
-    run_ui_url,
-    wait_for_terminal_status,
-)
-from .event_bus import EventBusOutbox, load_event_bus_config
-from .telegram import (
-    TelegramConfig,
-    redact_telegram_response,
-    send_telegram_message,
-    send_telegram_message_chunked,
-)
-
-from .cycle_configuration import cycle_section
-from .alert_transition import update_effective_ok as _update_effective_ok
-from .health_state import HealthState
-from .host_observations import HostObservations
-from .host_phase import HostPhase
-from .probe_frame import ProbeDomains, ProbeFrame, ProbeSchedule
-from .tls_phase import TlsPhase
-from .dns_phase import DnsPhase
+from .monitor_state import load_monitor_state as _load_monitor_state
+from .network_settings import load_dns_settings, load_tls_settings
+from .performance import collect_performance_violations as _collect_performance_violations
 from .performance_phase import PerformancePhase
-from .container_phase import ContainerPhase, ContainerObservations
-from .proxy_phase import ProxyPhase
+from .probe_frame import ProbeDomains, ProbeFrame, ProbeSchedule
 from .proxy_observation import ProxyReader
-from .meta_phase import MetaPhase, CycleTiming
-from .browser_phase_context import BrowserPhaseContext, BrowserProbeState
-from .synthetic_phase import SyntheticPhase
-from .vitals_phase import VitalsPhase
-from .cycle_channels import CycleChannels
-from .event_bus_delivery import JsonObject
-from .dispatch_records import DispatchRecords
-from .history_phase_context import HistoryFrame
-from .slo_phase import run_slo_phase
+from .proxy_phase import ProxyPhase
+from .proxy_settings import load_proxy_settings
 from .red_phase import run_red_phase
-from .cycle_values import (
-    coerce_float as _coerce_float,
-    coerce_int as _coerce_int,
-    coerce_optional_float as _coerce_optional_float,
-    required_int,
-)
-from .dft_cycle import DftCycle, parse_cycle_config
-from .monitor_state import load_monitor_state as _load_monitor_state, load_last_ok_state as _load_last_ok_state
+from .resource_settings import load_host_settings, load_performance_settings
+from .service_settings import load_container_settings, load_meta_settings
+from .signal_history import SignalHistory
+from .slo_phase import run_slo_phase
 from .state_storage import write_state_atomic as _write_state_atomic
 from .state_values import (
     coerce_bool_dict as _coerce_bool_dict,
-    coerce_int_dict as _coerce_int_dict,
+)
+from .state_values import (
     coerce_float_dict as _coerce_float_dict,
+)
+from .state_values import (
+    coerce_int_dict as _coerce_int_dict,
+)
+from .state_values import (
     coerce_str_list_dict as _coerce_str_list_dict,
 )
+from .synthetic_phase import SyntheticPhase
+from .telegram import TelegramConfig, redact_telegram_response, send_telegram_message
+from .tls_phase import TlsPhase
+from .vitals_phase import VitalsPhase
 
+# Retained import contract used by repository tests and monitoring_v2.domain_runtime.
+__all__ = [
+    "DomainEntryConfig", "_collect_host_health_violations", "_collect_performance_violations",
+    "_compute_cpu_used_percent", "_parse_disabled_until_ts",
+    "check_one_domain", "load_config", "load_domain_spec", "main", "run_loop",
+]
 
 LOGGER = logging.getLogger("service-monitoring")
 
