@@ -21,6 +21,7 @@ from .browser_launch import launch_options
 from .browser_phase_context import BrowserPhaseContext, BrowserProbeState
 from .browser_probe_settings import load_synthetic_settings, load_vitals_settings
 from .browser_recovery_phase import BrowserRecoveryPhase
+from .browser_state import browser_state_snapshot, restore_browser_state
 from .common_check import (
     DomainCheckResult,
     DomainCheckSpec,
@@ -29,12 +30,12 @@ from .common_check import (
     http_get_check,
     load_domain_spec_from_module_dict,
 )
-from .container_phase import ContainerObservations, ContainerPhase
+from .container_phase import ContainerPhase
 from .cycle_channels import CycleChannels
 from .cycle_configuration import cycle_section
+from .cycle_health_state import CycleHealthState
 from .cycle_history import record_domain_results
 from .cycle_values import coerce_float as _coerce_float
-from .cycle_values import coerce_int as _coerce_int
 from .cycle_values import required_int
 from .dft_cycle import DftCycle, parse_cycle_config
 from .dispatch_client import DispatchConfig
@@ -59,14 +60,12 @@ from .domain_time import load_timezone as _load_timezone
 from .domain_time import parse_disabled_until_ts as _parse_disabled_until_ts
 from .event_bus import EventBusOutbox, load_event_bus_config
 from .event_bus_delivery import JsonObject
-from .health_state import HealthState
 from .heartbeat_phase import ExternalHeartbeat, HeartbeatObservation, HeartbeatPhase, HeartbeatSchedule
 from .heartbeat_settings import load_heartbeat_settings
 from .history import prune_history
 from .history_migration import migrate_effective_history
 from .history_phase_context import HistoryFrame
 from .history_settings import load_red_settings, load_slo_settings
-from .host_observations import HostObservations
 from .host_phase import HostPhase
 from .host_readings import compute_cpu_used_percent as _compute_cpu_used_percent
 from .host_readings import format_browser_health_hint as _format_browser_health_hint
@@ -82,7 +81,7 @@ from .monitor_state import load_monitor_state as _load_monitor_state
 from .network_settings import load_dns_settings, load_tls_settings
 from .performance import collect_performance_violations as _collect_performance_violations
 from .performance_phase import PerformancePhase
-from .probe_frame import ProbeDomains, ProbeFrame, ProbeSchedule
+from .probe_frame import ProbeDomains, ProbeFrame
 from .proxy_observation import ProxyReader
 from .proxy_phase import ProxyPhase
 from .proxy_settings import load_proxy_settings
@@ -92,18 +91,6 @@ from .service_settings import load_container_settings, load_meta_settings
 from .signal_history import SignalHistory
 from .slo_phase import run_slo_phase
 from .state_storage import write_state_atomic as _write_state_atomic
-from .state_values import (
-    coerce_bool_dict as _coerce_bool_dict,
-)
-from .state_values import (
-    coerce_float_dict as _coerce_float_dict,
-)
-from .state_values import (
-    coerce_int_dict as _coerce_int_dict,
-)
-from .state_values import (
-    coerce_str_list_dict as _coerce_str_list_dict,
-)
 from .synthetic_phase import SyntheticPhase
 from .telegram import TelegramConfig, redact_telegram_response, send_telegram_message
 from .tls_phase import TlsPhase
@@ -510,41 +497,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
     success_streak: dict[str, int] = {}
     history_by_domain: dict[str, list[list[Any]]] = {}
     disk_state: dict[str, Any] = {}
-    host_health = HealthState()
-    host_observations = HostObservations()
-    perf_health = HealthState()
-    slo_health = HealthState()
-    tls_health = HealthState()
-    tls_schedule = ProbeSchedule()
-    dns_health = HealthState()
-    dns_schedule = ProbeSchedule()
-    dns_last_ips: dict[str, list[str]] = {}
-    red_health = HealthState()
-    synthetic_last_ok: dict[str, bool] = {}
-    synthetic_fail_streak: dict[str, int] = {}
-    synthetic_success_streak: dict[str, int] = {}
-    synthetic_last_run_ts: dict[str, float] = {}
-    web_vitals_last_ok: dict[str, bool] = {}
-    web_vitals_fail_streak: dict[str, int] = {}
-    web_vitals_success_streak: dict[str, int] = {}
-    web_vitals_last_run_ts: dict[str, float] = {}
-    api_contract_last_ok: dict[str, bool] = {}
-    api_contract_fail_streak: dict[str, int] = {}
-    api_contract_success_streak: dict[str, int] = {}
-    api_contract_last_run_ts: dict[str, float] = {}
-    container_health = HealthState()
-    container_schedule = ProbeSchedule()
-    container_observations = ContainerObservations()
-    proxy_health = HealthState()
-    meta_health = HealthState()
-    state_write_fail_streak = 0
+    cycle_health = CycleHealthState()
+    host_observations = cycle_health.host
     signal_history: dict[str, list[list[Any]]] = {}
     dispatch_history: list[dict[str, Any]] = []
     dispatch_last: dict[str, dict[str, Any]] = {}
     events: list[dict[str, Any]] = []
-    browser_degraded_active = False
-    browser_degraded_first_seen_ts = 0.0
-    browser_launch_last_error: str | None = None
     if state_path is not None:
         disk_state = _load_monitor_state(state_path)
         last_ok.update(disk_state.get("last_ok") or {})
@@ -556,13 +514,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
         dispatch_last = disk_state.get("dispatch_last") if isinstance(disk_state.get("dispatch_last"), dict) else {}
         events = disk_state.get("events") if isinstance(disk_state.get("events"), list) else []
         host_observations.last_snapshot = disk_state.get("host_last_snapshot") if isinstance(disk_state.get("host_last_snapshot"), dict) else {}
-        browser_degraded_active = bool(disk_state.get("browser_degraded_active", False))
-        try:
-            browser_degraded_first_seen_ts = float(disk_state.get("browser_degraded_first_seen_ts") or 0.0)
-        except Exception:
-            browser_degraded_first_seen_ts = 0.0
-        ble = disk_state.get("browser_launch_last_error")
-        browser_launch_last_error = str(ble)[:800] if isinstance(ble, str) and ble.strip() else None
         history_ok_mode = str(disk_state.get("history_ok_mode") or "").strip().lower()
         if history_ok_mode != "effective" and isinstance(history_by_domain, dict) and history_by_domain:
             # One-time migration: older state files stored per-cycle *observed* ok in history,
@@ -581,68 +532,34 @@ async def run_loop(config_path: Path, once: bool) -> int:
                 )
             except Exception:
                 LOGGER.exception("Failed to migrate history ok mode to effective")
-        host_state = disk_state.get("host_health")
-        if isinstance(host_state, dict):
-            host_health = HealthState.from_section(host_state)
-            host_observations.cpu_prev_total = _coerce_int(host_state.get("cpu_prev_total"), default=0)
-            host_observations.cpu_prev_idle = _coerce_int(host_state.get("cpu_prev_idle"), default=0)
-        perf_state = disk_state.get("performance")
-        if isinstance(perf_state, dict):
-            perf_health = HealthState.from_section(perf_state)
-        slo_state = disk_state.get("slo")
-        if isinstance(slo_state, dict):
-            slo_health = HealthState.from_section(slo_state)
-
-        tls_state = disk_state.get("tls")
-        if isinstance(tls_state, dict):
-            tls_health = HealthState.from_section(tls_state)
-            tls_schedule.last_run_ts = _coerce_float(tls_state.get("last_run_ts"), default=0.0)
-
-        dns_state = disk_state.get("dns")
-        if isinstance(dns_state, dict):
-            dns_health = HealthState.from_section(dns_state)
-            dns_schedule.last_run_ts = _coerce_float(dns_state.get("last_run_ts"), default=0.0)
-            dns_last_ips = _coerce_str_list_dict(dns_state.get("last_ips"))
-
-        red_state = disk_state.get("red")
-        if isinstance(red_state, dict):
-            red_health = HealthState.from_section(red_state)
-
-        syn_state = disk_state.get("synthetic")
-        if isinstance(syn_state, dict):
-            synthetic_last_ok = _coerce_bool_dict(syn_state.get("last_ok"))
-            synthetic_fail_streak = _coerce_int_dict(syn_state.get("fail_streak"))
-            synthetic_success_streak = _coerce_int_dict(syn_state.get("success_streak"))
-            synthetic_last_run_ts = _coerce_float_dict(syn_state.get("last_run_ts"))
-
-        wv_state = disk_state.get("web_vitals")
-        if isinstance(wv_state, dict):
-            web_vitals_last_ok = _coerce_bool_dict(wv_state.get("last_ok"))
-            web_vitals_fail_streak = _coerce_int_dict(wv_state.get("fail_streak"))
-            web_vitals_success_streak = _coerce_int_dict(wv_state.get("success_streak"))
-            web_vitals_last_run_ts = _coerce_float_dict(wv_state.get("last_run_ts"))
-
-        api_state = disk_state.get("api_contract")
-        if isinstance(api_state, dict):
-            api_contract_last_ok = _coerce_bool_dict(api_state.get("last_ok"))
-            api_contract_fail_streak = _coerce_int_dict(api_state.get("fail_streak"))
-            api_contract_success_streak = _coerce_int_dict(api_state.get("success_streak"))
-            api_contract_last_run_ts = _coerce_float_dict(api_state.get("last_run_ts"))
-
-        cont_state = disk_state.get("container_health")
-        if isinstance(cont_state, dict):
-            container_health = HealthState.from_section(cont_state)
-            container_schedule.last_run_ts = _coerce_float(cont_state.get("last_run_ts"), default=0.0)
-            container_observations.restart_counts = _coerce_int_dict(cont_state.get("restart_counts"))
-
-        proxy_state = disk_state.get("proxy")
-        if isinstance(proxy_state, dict):
-            proxy_health = HealthState.from_section(proxy_state)
-
-        meta_state = disk_state.get("meta")
-        if isinstance(meta_state, dict):
-            meta_health = HealthState.from_section(meta_state)
-            state_write_fail_streak = _coerce_int(meta_state.get("state_write_fail_streak"), default=0)
+    cycle_health.restore(disk_state)
+    host_health = cycle_health.health["host_health"]
+    perf_health = cycle_health.health["performance"]
+    slo_health = cycle_health.health["slo"]
+    tls_health = cycle_health.health["tls"]
+    tls_schedule = cycle_health.schedules["tls"]
+    dns_health = cycle_health.health["dns"]
+    dns_schedule = cycle_health.schedules["dns"]
+    dns_last_ips = cycle_health.dns_ips
+    red_health = cycle_health.health["red"]
+    container_health = cycle_health.health["container_health"]
+    container_schedule = cycle_health.schedules["container_health"]
+    container_observations = cycle_health.containers
+    proxy_health = cycle_health.health["proxy"]
+    meta_health = cycle_health.health["meta"]
+    state_write_fail_streak = cycle_health.write_fail_streak
+    synthetic_last_ok = cycle_health.probes["synthetic"].last_ok
+    synthetic_fail_streak = cycle_health.probes["synthetic"].fail_streak
+    synthetic_success_streak = cycle_health.probes["synthetic"].success_streak
+    synthetic_last_run_ts = cycle_health.probes["synthetic"].last_run_ts
+    web_vitals_last_ok = cycle_health.probes["web_vitals"].last_ok
+    web_vitals_fail_streak = cycle_health.probes["web_vitals"].fail_streak
+    web_vitals_success_streak = cycle_health.probes["web_vitals"].success_streak
+    web_vitals_last_run_ts = cycle_health.probes["web_vitals"].last_run_ts
+    api_contract_last_ok = cycle_health.probes["api_contract"].last_ok
+    api_contract_fail_streak = cycle_health.probes["api_contract"].fail_streak
+    api_contract_success_streak = cycle_health.probes["api_contract"].success_streak
+    api_contract_last_run_ts = cycle_health.probes["api_contract"].last_run_ts
     event_bus_outbox: EventBusOutbox | None = None
     if event_bus_config is not None:
         raw_outbox = disk_state.get("event_bus_outbox", [])
@@ -656,21 +573,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     browser_min_mem_available_mb_raw = os.getenv("BROWSER_MIN_MEM_AVAILABLE_MB")
     if browser_min_mem_available_mb_raw is None:
         browser_min_mem_available_mb_raw = config.get("browser_min_mem_available_mb", 2048)
-    try:
-        browser_min_mem_available_mb = int(browser_min_mem_available_mb_raw)
-    except Exception:
-        browser_min_mem_available_mb = 2048
-    monitor_state: dict[str, Any] = {
-        "browser_degraded_active": bool(browser_degraded_active),
-        "browser_degraded_first_seen_ts": float(browser_degraded_first_seen_ts or 0.0),
-        "browser_degraded_last_notice_ts": float(disk_state.get("browser_degraded_last_notice_ts") or 0.0),
-        "browser_degraded_recover_streak": 0,
-        "browser_degraded_notice_min_interval_seconds": 6 * 3600,
-        "browser_launch_fail_count": 0,
-        "browser_launch_next_try_ts": 0.0,
-        "browser_launch_last_error": browser_launch_last_error,
-        "browser_min_mem_available_mb": max(0, browser_min_mem_available_mb),
-    }
+    monitor_state = restore_browser_state(disk_state, browser_min_mem_available_mb_raw)
 
     def _append_event(kind: str, *, ts: float | None = None, **fields: Any) -> None:
         nonlocal state_write_fail_streak
@@ -725,67 +628,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
             "event_bus_outbox": event_bus_outbox.to_state() if event_bus_outbox else [],
             "dft_web_access": dft_cycle.summary,
             "host_last_snapshot": host_observations.last_snapshot,
-            "browser_degraded_active": bool(monitor_state.get("browser_degraded_active", False)),
-            "browser_degraded_first_seen_ts": float(monitor_state.get("browser_degraded_first_seen_ts") or 0.0),
-            "browser_launch_last_error": (
-                str(monitor_state.get("browser_launch_last_error"))[:800]
-                if isinstance(monitor_state.get("browser_launch_last_error"), str)
-                else None
-            ),
-            "browser_degraded_last_notice_ts": float(monitor_state.get("browser_degraded_last_notice_ts") or 0.0),
-            "host_health": {
-                **host_health.to_state(),
-                "cpu_prev_total": int(host_observations.cpu_prev_total),
-                "cpu_prev_idle": int(host_observations.cpu_prev_idle),
-            },
-            "performance": {
-                **perf_health.to_state(),
-            },
-            "slo": {
-                **slo_health.to_state(),
-            },
-            "tls": {
-                **tls_health.to_state(),
-                "last_run_ts": float(tls_schedule.last_run_ts),
-            },
-            "dns": {
-                **dns_health.to_state(),
-                "last_run_ts": float(dns_schedule.last_run_ts),
-                "last_ips": dns_last_ips,
-            },
-            "red": {
-                **red_health.to_state(),
-            },
-            "synthetic": {
-                "last_ok": synthetic_last_ok,
-                "fail_streak": synthetic_fail_streak,
-                "success_streak": synthetic_success_streak,
-                "last_run_ts": synthetic_last_run_ts,
-            },
-            "web_vitals": {
-                "last_ok": web_vitals_last_ok,
-                "fail_streak": web_vitals_fail_streak,
-                "success_streak": web_vitals_success_streak,
-                "last_run_ts": web_vitals_last_run_ts,
-            },
-            "api_contract": {
-                "last_ok": api_contract_last_ok,
-                "fail_streak": api_contract_fail_streak,
-                "success_streak": api_contract_success_streak,
-                "last_run_ts": api_contract_last_run_ts,
-            },
-            "container_health": {
-                **container_health.to_state(),
-                "last_run_ts": float(container_schedule.last_run_ts),
-                "restart_counts": container_observations.restart_counts,
-            },
-            "proxy": {
-                **proxy_health.to_state(),
-            },
-            "meta": {
-                **meta_health.to_state(),
-                "state_write_fail_streak": int(state_write_fail_streak),
-            },
+            **browser_state_snapshot(monitor_state),
+            **cycle_health.snapshot(state_write_fail_streak),
         }
 
     def _persist_browser_notice() -> None:

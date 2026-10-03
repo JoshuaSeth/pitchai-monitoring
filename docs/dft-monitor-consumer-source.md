@@ -1351,3 +1351,30 @@ Whole-main remains failed: 84 Ruff findings, 144 typing errors plus one warning,
 Pylint 9.11, eleven Semgrep findings and architecture debt. Repository aggregate
 21 findings remain. This fixes a supported import contract; it is not a waiver
 of the changed-file policy or an integration/runtime acceptance.
+
+# Cycle restart state
+
+`CycleHealthState` restores independent health sections, original attempt times,
+CPU and DNS baselines, container restart counts and the three per-domain probe
+maps. Snapshot construction reads those same phase-owned objects. `browser_state`
+keeps degradation/notice ages and bounded failure evidence across restart while
+resetting only the existing process-local retry counters. Malformed first-seen
+time retains its zero fallback; malformed last-notice time still fails startup.
+No schema, file allocation, API-readiness logic or event delivery policy changed.
+
+Protected evidence is under the October 3 `monitoring-dft-746` artifact root in
+`cycle-state-20261003`. Ten final focused tests pass (0.003s), including actual
+isolated atomic state write/read and two-success recovery across restart. The
+parent comparisons cover 6,480 health-state cases (0.825s) and 10,648 browser
+cases (0.524s, 968 matching error classes). Five native launcher/config/restart
+runs pass (1.741s); all results match the retained baseline, including notice
+persistence before browser restart. Nineteen local texts, including five
+heartbeats, are unsent. DFT is disabled in these launcher cases. Final pretest
+bytes and declared full-main AST substitutions are retained. Initial fixture
+and strict-style failures remain in the packet.
+
+The four new files pass their scoped canonical gates. Whole-main still fails:
+81 Ruff findings, 92 typing errors plus one warning, Pylint 9.03, nine Semgrep
+findings and architecture debt. Aggregate 21 anti-bypass findings remain. The
+existing whole-cycle source repair and required runtime bindings continue;
+these restart proofs do not establish installed delivery or ingress admission.
