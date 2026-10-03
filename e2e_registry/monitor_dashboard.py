@@ -18,6 +18,7 @@ from domain_checks.history import (
     window_samples,
 )
 from domain_checks.inventory import parse_domain_alert_policy
+from e2e_registry.disablement import parse_disabled_until
 
 
 def _safe_float(value: Any) -> float | None:
@@ -130,31 +131,6 @@ def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
             disabled = bool(entry.get("disabled")) or (entry.get("enabled") is False)
             alert_policy = parse_domain_alert_policy(entry, path=f"domains[{index}]")
 
-            def _parse_until(value: Any) -> float | None:
-                if value is None:
-                    return None
-                if isinstance(value, (int, float)):
-                    ts = float(value)
-                    return ts if ts > 0 else None
-                s = str(value or "").strip()
-                if not s:
-                    return None
-                try:
-                    ts = float(s)
-                    return ts if ts > 0 else None
-                except Exception:
-                    pass
-                s_iso = s[:-1] + "+00:00" if s.endswith("Z") else s
-                try:
-                    dt = datetime.fromisoformat(s_iso)
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    return dt.timestamp()
-                except ValueError:
-                    d2 = date.fromisoformat(s)
-                    dt = datetime(d2.year, d2.month, d2.day, tzinfo=timezone.utc)
-                    return dt.timestamp()
-
             out.append(
                 {
                     "domain": d,
@@ -164,7 +140,7 @@ def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
                     "kind": str(entry.get("kind") or "application").strip(),
                     "disabled": disabled,
                     "disabled_reason": str(entry.get("disabled_reason") or "").strip() or None,
-                    "disabled_until_ts": _parse_until(entry.get("disabled_until")),
+                    "disabled_until_ts": parse_disabled_until(entry.get("disabled_until")),
                     "alert_policy": alert_policy.to_dashboard_dict(),
                 }
             )

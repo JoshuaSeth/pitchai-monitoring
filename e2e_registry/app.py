@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from e2e_registry import db as dbm
+from e2e_registry.disablement import InvalidDisablementError, parse_disabled_until
 from e2e_registry import monitor_dashboard as md
 from e2e_registry.alerts import (
     build_dispatch_prompt_for_failure,
@@ -111,35 +112,9 @@ def _sha256_hex(data: bytes) -> str:
 
 
 def _parse_until(value: Any) -> float | None:
-    # Lightweight parser compatible with service-monitoring's disabled_until rules.
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        ts = float(value)
-        return ts if ts > 0 else None
-    s = str(value or "").strip()
-    if not s:
-        return None
     try:
-        ts = float(s)
-        return ts if ts > 0 else None
-    except Exception:
-        pass
-    # ISO-8601 parsing without extra deps: accept YYYY-MM-DD and YYYY-MM-DDTHH:MM:SSZ/offset
-    try:
-        from datetime import date, datetime, timezone
-
-        s_iso = s[:-1] + "+00:00" if s.endswith("Z") else s
-        try:
-            dt = datetime.fromisoformat(s_iso)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            return dt.timestamp()
-        except ValueError:
-            d = date.fromisoformat(s)
-            dt = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
-            return dt.timestamp()
-    except Exception as exc:
+        return parse_disabled_until(value)
+    except InvalidDisablementError as exc:
         raise HTTPException(status_code=400, detail=f"invalid_until: {exc}") from exc
 
 
