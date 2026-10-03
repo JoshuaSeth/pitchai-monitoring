@@ -85,6 +85,12 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf "%s %s\n" "${0##*/}" "$*" >>"$COMMAND_LOG"
+if [ "${0##*/}" = logrotate ]; then
+  config=${!#}
+  printf '%s\n' 'logrotate-config-begin' >>"$COMMAND_LOG"
+  sed 's/^/logrotate-config: /' "$config" >>"$COMMAND_LOG"
+  printf '%s\n' 'logrotate-config-end' >>"$COMMAND_LOG"
+fi
 EOF
 )
   write_executable "$fake_bin/df" "$df_stub"
@@ -140,4 +146,11 @@ assert_contains "$OUTPUT" "post-release available=4500B" "release headroom was n
 assert_not_contains "$OUTPUT" "post-release-reclaim" "healthy release reclaimed cache"
 assert_equals "" "$COMMANDS" "healthy release touched host caches"
 
-printf 'PASS: 3 disk-reserve guard scenarios\n'
+run_guard emergency-rotation none 50 75 200
+assert_equals 0 "$RESERVE_EXISTS" "emergency guard should remain unarmed"
+assert_contains "$OUTPUT" "post-emergency available=200B" "emergency rotation did not refresh headroom"
+assert_contains "$COMMANDS" "logrotate -f " "emergency rotation did not call logrotate"
+assert_contains "$COMMANDS" "logrotate-config: su root syslog" "emergency rotation omitted the secure identity"
+assert_contains "$COMMANDS" "logrotate-config: include $TEST_ROOT/emergency-rotation/rsyslog" "emergency rotation omitted the distro policy"
+
+printf 'PASS: 4 disk-reserve guard scenarios\n'
