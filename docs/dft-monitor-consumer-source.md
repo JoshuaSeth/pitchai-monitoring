@@ -1259,3 +1259,29 @@ Both new files pass scoped checks. Aggregate 21 findings remain, and main still
 fails with 140 Ruff findings, 179 typing errors plus one warning, Pylint 8.87,
 fourteen Semgrep findings and architecture debt. This is another part of the
 authorized whole-cycle repair, not release acceptance or runtime admission.
+
+# Browser recovery cycle boundary
+
+`BrowserRecoveryPhase` retains pre-transition sampling, throttled notice order,
+timestamp persistence before browser restart, and five healthy cycles before
+recovery. The browser admission object still owns the handle. An ordinary close
+failure allows another admission attempt; cancellation preserves the handle and
+propagates. Payload construction and the current write-failure counter remain
+with the owning cycle, including event-triggered writes before the immediate
+notice write. No new transport, route or automatic incident reset is added.
+
+The `browser-recovery-extraction-20261003` packet contains four focused tests,
+528 complete parent comparisons (152 matching failures/cancellations), and five
+real isolated launcher runs. Four launcher results equal the parent after JSON
+serialization. The fifth injects a browser infrastructure fault and observes
+the saved notice timestamp and event before close/restart. All nineteen local
+captures are unsent; five are heartbeats. DFT is disabled in these fixtures.
+Initial fixture comparison and guarded host-observation failures remain in the
+packet; the host read was blocked before data access and then substituted.
+
+Both new files pass scoped checks. The aggregate 21 findings remain. Main still
+fails with 127 Ruff findings, 176 typing errors plus one warning, Pylint 8.85,
+thirteen Semgrep findings and architecture debt. Whole-cycle repair and actual
+DFT runtime bindings remain open. The 11:30 supported self read reports
+Astra/xhigh and no lane stop; the Infrastructure detail read timed out. The
+existing binding request and source-interface coordination are not replayed.

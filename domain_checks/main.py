@@ -39,6 +39,7 @@ from .history_migration import migrate_effective_history
 from .signal_history import SignalHistory
 from .browser_launch import launch_options
 from .browser_admission import BrowserAdmission
+from .browser_recovery_phase import BrowserRecoveryPhase
 from .domain_observation import DomainProbes, observe_domain
 from .domain_entries import (
     DomainEntryConfig,
@@ -811,6 +812,21 @@ async def run_loop(config_path: Path, once: bool) -> int:
             },
         }
 
+    def _persist_browser_notice() -> None:
+        nonlocal state_write_fail_streak
+        if state_path is not None:
+            try:
+                _write_state_atomic(state_path, _build_state_payload())
+                state_write_fail_streak = 0
+            except Exception as exc:
+                state_write_fail_streak = int(state_write_fail_streak) + 1
+                LOGGER.warning(
+                    "Failed to persist degraded notice timestamp path=%s error=%s",
+                    state_path,
+                    exc,
+                )
+
+
     async def _flush_event_bus(http_client: httpx.AsyncClient) -> None:
         if event_bus_outbox is None or event_bus_outbox.pending_count == 0:
             return
@@ -872,6 +888,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                 return await p.chromium.launch(**launch_options(shm_bytes, chromium_path))
 
             browser_admission = BrowserAdmission(monitor_state, _launch_browser, _read_linux_meminfo_kb)
+            browser_recovery = BrowserRecoveryPhase(browser_admission, _format_browser_health_hint,
+                                                    _persist_browser_notice)
 
             await browser_admission.ensure(time.time())
             try:
@@ -1223,90 +1241,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     await synthetic_phase.run(browser_context)
                     await vitals_phase.run(browser_context)
 
-                    _append_signal_sample(
-                        "browser",
-                        [
-                            float(cycle_started),
-                            0 if browser_degraded else 1,
-                            1 if bool(monitor_state.get("browser_degraded_active")) else 0,
-                            int(monitor_state.get("browser_launch_fail_count") or 0),
-                        ],
-                    )
-
-                    if browser_degraded:
-                        now_ts = time.time()
-                        if not monitor_state.get("browser_degraded_active", False):
-                            monitor_state["browser_degraded_active"] = True
-                            monitor_state["browser_degraded_first_seen_ts"] = now_ts
-                            monitor_state["browser_degraded_recover_streak"] = 0
-
-                        monitor_state["browser_degraded_recover_streak"] = 0
-                        last_notice = float(monitor_state.get("browser_degraded_last_notice_ts") or 0.0)
-                        min_interval = float(
-                            monitor_state.get("browser_degraded_notice_min_interval_seconds") or (6 * 3600)
-                        )
-                        should_notify = last_notice <= 0.0 or (now_ts - last_notice) >= min_interval
-                        if should_notify:
-                            monitor_state["browser_degraded_last_notice_ts"] = now_ts
-                            LOGGER.warning("Playwright browser checks degraded; restarting browser process")
-                            health_hint = _format_browser_health_hint()
-                            last_err = monitor_state.get("browser_launch_last_error")
-                            lines = [
-                                "Monitor warning: Playwright browser checks are degraded (browser crash/close detected).",
-                                "Continuing with HTTP-only results and attempting to restart the browser process.",
-                            ]
-                            if isinstance(last_err, str) and last_err.strip():
-                                lines.append(f"Last browser error: {last_err.strip()[:500]}")
-                            if health_hint:
-                                lines.append(f"Host: {health_hint}")
-                            ok, resp = await send_telegram_message(
-                                http_client,
-                                telegram_cfg,
-                                "\n".join(lines).strip(),
-                            )
-                            LOGGER.warning(
-                                "Browser degraded notice sent ok=%s telegram=%s",
-                                ok,
-                                redact_telegram_response(resp),
-                            )
-                            _append_event(
-                                "browser_degraded_notice",
-                                ts=float(now_ts),
-                                last_error=(last_err.strip()[:800] if isinstance(last_err, str) else None),
-                                host_hint=(health_hint.strip()[:500] if isinstance(health_hint, str) else None),
-                            )
-
-                            # Persist the notice timestamp immediately (before any risky restart work) to avoid spam
-                            # if the process crashes and restarts.
-                            if state_path is not None:
-                                try:
-                                    _write_state_atomic(state_path, _build_state_payload())
-                                    state_write_fail_streak = 0
-                                except Exception as exc:
-                                    state_write_fail_streak = int(state_write_fail_streak) + 1
-                                    LOGGER.warning(
-                                        "Failed to persist degraded notice timestamp path=%s error=%s",
-                                        state_path,
-                                        exc,
-                                    )
-
-                        try:
-                            if browser_admission.browser is not None:
-                                await browser_admission.browser.close()
-                        except Exception:
-                            pass
-                        browser_admission.browser = None
-                        await browser_admission.ensure(now_ts)
-                    else:
-                        if monitor_state.get("browser_degraded_active"):
-                            streak = int(monitor_state.get("browser_degraded_recover_streak") or 0) + 1
-                            monitor_state["browser_degraded_recover_streak"] = streak
-                            if streak >= 5:
-                                monitor_state["browser_degraded_active"] = False
-                                monitor_state["browser_degraded_first_seen_ts"] = 0.0
-                                monitor_state["browser_degraded_recover_streak"] = 0
-                                LOGGER.info("Playwright browser checks recovered")
-                                _append_event("browser_recovered", ts=time.time())
+                    await browser_recovery.run(probe_frame, degraded=browser_degraded)
 
                     # Prune completed dispatch tasks to avoid unbounded growth.
                     for domain, task in list(active_dispatch_tasks.items()):
