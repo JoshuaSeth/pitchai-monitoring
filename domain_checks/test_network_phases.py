@@ -25,6 +25,7 @@ from .telegram import TelegramConfig
 from .tls_phase import TlsPhase
 
 if TYPE_CHECKING:
+    from .config_values import ConfigValue
     from .event_bus_delivery import JsonObject
 
 
@@ -41,7 +42,7 @@ def _fixture() -> tuple[ProbeFrame, list[JsonObject]]:
     return ProbeFrame(100, domains, channels, event, SignalHistory({})), events
 
 
-def _settings() -> JsonObject:
+def _settings() -> dict[str, ConfigValue]:
     return {"enabled": True, "interval_minutes": 1, "down_after_failures": 1, "up_after_successes": 2,
             "notify_on_recovery": False, "dispatch_on_degraded": False}
 

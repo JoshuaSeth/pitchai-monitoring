@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from datetime import time
 
     from .config_values import ConfigValue
-    from .event_bus_delivery import JsonValue
 
 
 @dataclass(frozen=True)
@@ -26,7 +25,7 @@ class HeartbeatSettings:
     times: list[time]
 
 
-def load_heartbeat_settings(config: Mapping[str, JsonValue]) -> HeartbeatSettings:
+def load_heartbeat_settings(config: Mapping[str, ConfigValue]) -> HeartbeatSettings:
     """Validate enabled schedules while leaving disabled malformed times unused.
 
     Returns:

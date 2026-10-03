@@ -13,7 +13,7 @@ from .cycle_values import coerce_float, coerce_optional_float
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .event_bus_delivery import JsonObject, JsonValue
+    from .config_values import ConfigValue
 
 
 @dataclass(frozen=True)
@@ -36,10 +36,10 @@ class PerformanceSettings:
     alerts: AlertSettings
     http_elapsed_ms_max: float
     browser_elapsed_ms_max: float
-    overrides: JsonObject | None
+    overrides: dict[str, ConfigValue] | None
 
 
-def _disk_paths(raw: JsonValue) -> list[str]:
+def _disk_paths(raw: ConfigValue) -> list[str]:
     if not isinstance(raw, list) or not raw:
         return ["/"]
     nonempty = [value for value in raw if str(value or "").strip()]
@@ -47,7 +47,7 @@ def _disk_paths(raw: JsonValue) -> list[str]:
     return paths or ["/"]
 
 
-def load_host_settings(config: Mapping[str, JsonValue]) -> HostSettings:
+def load_host_settings(config: Mapping[str, ConfigValue]) -> HostSettings:
     """Retain optional host thresholds, booleans and the original root fallback.
 
     Returns:
@@ -65,7 +65,7 @@ def load_host_settings(config: Mapping[str, JsonValue]) -> HostSettings:
     )
 
 
-def load_performance_settings(config: Mapping[str, JsonValue]) -> PerformanceSettings:
+def load_performance_settings(config: Mapping[str, ConfigValue]) -> PerformanceSettings:
     """Retain explicit zero/negative thresholds and caller-owned override maps.
 
     Returns:

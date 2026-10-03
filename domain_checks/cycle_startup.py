@@ -17,8 +17,9 @@ from .telegram import TelegramConfig
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from .config_values import ConfigValue
     from .event_bus import EventBusConfig
-    from .event_bus_delivery import JsonObject, JsonValue
+    from .event_bus_delivery import JsonObject
 
 LOGGER = logging.getLogger("service-monitoring")
 
@@ -35,7 +36,7 @@ class CycleLimits:
     up_after_successes: int
 
     @classmethod
-    def read(cls, config: Mapping[str, JsonValue]) -> CycleLimits:
+    def read(cls, config: Mapping[str, ConfigValue]) -> CycleLimits:
         """Decode required numeric inputs in the original startup order.
 
         Returns:
@@ -98,7 +99,7 @@ class ChannelStartup:
         return cls(telegram, events, dispatch, state)
 
 
-def external_heartbeat(config: Mapping[str, JsonValue], environment: Mapping[str, str]) -> ExternalHeartbeat:
+def external_heartbeat(config: Mapping[str, ConfigValue], environment: Mapping[str, str]) -> ExternalHeartbeat:
     """Read existing registry precedence without probing it or choosing a new endpoint.
 
     Returns:

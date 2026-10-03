@@ -15,7 +15,7 @@ from .proxy_settings import load_proxy_settings
 from .service_settings import load_container_settings, load_meta_settings
 
 if TYPE_CHECKING:
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
 
 
 class ProbeSettingsTests(unittest.TestCase):
@@ -79,8 +79,8 @@ class ProbeSettingsTests(unittest.TestCase):
     @staticmethod
     def test_container_pattern_lists_retain_identity_and_order() -> None:
         """Existing downstream matching keeps ownership of unnormalized input lists."""
-        include: list[JsonValue] = ["^synthetic$", None, "^synthetic$"]
-        exclude: list[JsonValue] = ["ignored"]
+        include: list[ConfigValue] = ["^synthetic$", None, "^synthetic$"]
+        exclude: list[ConfigValue] = ["ignored"]
         settings = load_container_settings({"container_health": {"include_name_patterns": include,
                                                                  "exclude_name_patterns": exclude,
                                                                  "monitor_all": "false"}})

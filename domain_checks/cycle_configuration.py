@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
+
 
 type CycleSection = Literal[
     "heartbeat", "host_health", "performance", "history", "slo", "tls", "dns", "red",
@@ -16,7 +17,7 @@ type CycleSection = Literal[
 ]
 
 
-def cycle_section(config: Mapping[str, JsonValue], name: CycleSection) -> dict[str, JsonValue]:
+def cycle_section(config: Mapping[str, ConfigValue], name: CycleSection) -> dict[str, ConfigValue]:
     """Retain the existing optional-section behavior without untyped wrappers.
 
     A populated mapping is returned unchanged. Missing, empty or non-mapping

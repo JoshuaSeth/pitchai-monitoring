@@ -1,48 +1,29 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Native monitor CLI and probe bindings for the ordered monitoring cycle."""
+
 from __future__ import annotations
 
 import argparse
-import asyncio
 import logging
 import os
-import runpy
-import time
-from datetime import datetime
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, cast
 
-import httpx
-import yaml
-from playwright.async_api import Browser, async_playwright
+import anyio
+from playwright.async_api import async_playwright
 
-from .dispatch_api_contract import dispatch_api_contract_and_forward as _dispatch_api_contract_and_forward
-from .message_api_contract import build_api_contract_alert_message as _build_api_contract_alert_message
-from .message_api_contract import build_api_contract_dispatch_prompt as _build_api_contract_dispatch_prompt
 from .alert_transition import update_effective_ok as _update_effective_ok
-from .browser_admission import BrowserAdmission
-from .browser_launch import launch_options
-from .browser_recovery_phase import BrowserRecoveryPhase
-from .browser_state import restore_browser_state
 from .common_check import (
-    DomainCheckResult,
-    DomainCheckSpec,
     browser_check,
-    find_chromium_executable,
     http_get_check,
-    load_domain_spec_from_module_dict,
 )
-from .cycle_assembly import NativeProbes, ObservationSettings, PhaseAssembly
-from .cycle_channels import CycleChannels
-from .cycle_health_state import CycleHealthState
-from .cycle_domain_phase import CycleDomainPhase, CycleInventory
-from .cycle_iteration import CycleIteration, CycleParticipants
-from .cycle_phases import BrowserPhases, CyclePhases
-from .cycle_records import CycleRecords
-from .cycle_persistence import CyclePersistence, restore_outbox
-from .cycle_startup import ChannelStartup, CycleLimits, external_heartbeat
-from .cycle_settings import CycleMetricsSettings, CycleProbeSettings, CycleServiceSettings
-from .dft_cycle import DftCycle, parse_cycle_config
-from .dispatch_records import DispatchRecords
+from .config_file import load_config, load_domain_spec
+from .cycle_assembly import NativeProbes
+from .cycle_preparation import CyclePreparation, CycleResources
+from .cycle_runtime import BrowserOperations, CycleRuntime
+from .dispatch_api_contract import dispatch_api_contract_and_forward as _dispatch_api_contract_and_forward
 from .domain_entries import (
     DomainEntryConfig,
 )
@@ -50,240 +31,101 @@ from .domain_entries import (
     normalize_domain_entries as _normalize_domain_entries,
 )
 from .domain_observation import DomainProbes, observe_domain
-from .domain_polling import DomainPolling
-from .domain_time import load_timezone as _load_timezone
 from .domain_time import parse_disabled_until_ts as _parse_disabled_until_ts
-from .event_bus_delivery import JsonObject
-from .heartbeat_phase import HeartbeatPhase, HeartbeatSchedule
-from .heartbeat_settings import load_heartbeat_settings
 from .host_readings import compute_cpu_used_percent as _compute_cpu_used_percent
 from .host_readings import format_browser_health_hint as _format_browser_health_hint
 from .host_readings import read_linux_meminfo_kb as _read_linux_meminfo_kb
 from .host_thresholds import collect_host_health_violations as _collect_host_health_violations
-from .inventory import validate_domain_inventory
-from .meta_phase import CycleTiming
+from .message_api_contract import build_api_contract_alert_message as _build_api_contract_alert_message
+from .message_api_contract import build_api_contract_dispatch_prompt as _build_api_contract_dispatch_prompt
 from .metrics_api_contract import run_api_contract_checks
 from .metrics_synthetic import run_synthetic_transactions
 from .metrics_web_vitals import measure_web_vitals
 from .monitor_state import load_monitor_state as _load_monitor_state
+from .monitor_transport import MonitorHttpClient
+from .native_browser import NativeBrowserLauncher
 from .performance import collect_performance_violations as _collect_performance_violations
-from .signal_history import SignalHistory
-from .state_storage import write_state_atomic as _write_state_atomic
+
+if TYPE_CHECKING:
+    import asyncio
+
+    from httpx import AsyncClient
+    from playwright.async_api import Browser
+
+    from .common_check import DomainCheckResult, DomainCheckSpec
 
 # Retained import contract used by repository tests and monitoring_v2.domain_runtime.
 __all__ = [
-    "_build_api_contract_alert_message", "_build_api_contract_dispatch_prompt", "_dispatch_api_contract_and_forward",
-    "DomainEntryConfig", "_collect_host_health_violations", "_collect_performance_violations",
-    "_compute_cpu_used_percent", "_load_monitor_state", "_parse_disabled_until_ts",
-    "check_one_domain", "load_config", "load_domain_spec", "main", "run_loop",
+    "DomainEntryConfig",
+    "_build_api_contract_alert_message",
+    "_build_api_contract_dispatch_prompt",
+    "_collect_host_health_violations",
+    "_collect_performance_violations",
+    "_compute_cpu_used_percent",
+    "_dispatch_api_contract_and_forward",
+    "_load_monitor_state",
+    "_normalize_domain_entries",
+    "_parse_disabled_until_ts",
+    "_update_effective_ok",
+    "check_one_domain",
+    "load_config",
+    "load_domain_spec",
+    "main",
+    "run_loop",
 ]
 
 LOGGER = logging.getLogger("service-monitoring")
 
 
-def load_config(path: Path) -> dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f) or {}
-    if not isinstance(data, dict):
-        raise ValueError("Config YAML must be a mapping")
-    return data
-
-
-def _domain_plugin_path(domain: str) -> Path:
-    return Path(__file__).parent / domain / "check.py"
-
-
-def load_domain_spec(domain_entry: Any) -> DomainCheckSpec:
-    if isinstance(domain_entry, str):
-        domain = domain_entry
-        inline_check = None
-    else:
-        domain = str(domain_entry["domain"])
-        inline_check = domain_entry.get("check")
-
-    plugin_path = _domain_plugin_path(domain)
-    if plugin_path.exists():
-        module_vars = runpy.run_path(str(plugin_path))
-        return load_domain_spec_from_module_dict(module_vars)
-
-    if isinstance(inline_check, dict):
-        return load_domain_spec_from_module_dict({"CHECK": {"domain": domain, **inline_check}})
-
-    raise FileNotFoundError(
-        f"Missing domain check module for {domain}: expected {plugin_path} (or inline 'check' in config.yaml)"
-    )
-
-
 async def check_one_domain(
     spec: DomainCheckSpec,
-    http_client: httpx.AsyncClient,
+    http_client: AsyncClient,
     browser: Browser | None,
     *,
     browser_semaphore: asyncio.Semaphore,
 ) -> DomainCheckResult:
+    """Return the original HTTP/browser result under existing semaphore admission."""
     probes = DomainProbes(http_get_check, browser_check)
     return await observe_domain(spec, http_client, browser, browser_semaphore=browser_semaphore, probes=probes)
 
 
-async def run_loop(config_path: Path, once: bool) -> int:
-    config = load_config(config_path)
-    validate_domain_inventory(config)
-    limits = CycleLimits.read(config)
-    interval_seconds = limits.interval
-    tolerance_seconds = limits.tolerance
-    browser_concurrency = limits.browser_concurrency
-    check_concurrency = limits.check_concurrency
-    down_after_failures = limits.down_after_failures
-    up_after_successes = limits.up_after_successes
+async def run_loop(config_path: Path, *, once: bool) -> int:
+    """Run the native monitor with the configured inventory and retained records.
 
-    domains_cfg = config.get("domains", [])
-    if not isinstance(domains_cfg, list) or not domains_cfg:
-        raise ValueError("Config must contain a non-empty 'domains' list")
-
-    channels = ChannelStartup.read(os.environ)
-    telegram_cfg = channels.telegram
-    event_bus_config = channels.event_bus
-    dispatch_cfg = channels.dispatch
-    dispatch_state = channels.dispatch_state
-
-    domain_entries = _normalize_domain_entries(domains_cfg)
-    entries_by_domain = {entry.domain: entry for entry in domain_entries}
-    alertable_domains = {entry.domain for entry in domain_entries if entry.routes_telegram}
-    specs_by_domain: dict[str, DomainCheckSpec] = {
-        entry.domain: load_domain_spec(entry.raw_entry) for entry in domain_entries
-    }
-    all_domains = [entry.domain for entry in domain_entries]
-
-    heartbeat_settings = load_heartbeat_settings(config)
-
-    tz = _load_timezone(heartbeat_settings.timezone)
-    started_at = datetime.now(tz)
-    last_heartbeat_sent: dict[str, str] = {}  # HH:MM -> YYYY-MM-DD
-
-    registry_heartbeat = external_heartbeat(config, os.environ)
-
-    metric_settings = CycleMetricsSettings.read(config)
-    probe_settings = CycleProbeSettings.read(config)
-    service_settings = CycleServiceSettings.read(config)
-
-    chromium_path = find_chromium_executable()
-    if not chromium_path:
-        raise RuntimeError("Could not find a Chromium/Chrome executable (set CHROMIUM_PATH)")
-
-    now_ts = time.time()
-    disabled_domains = [entry.domain for entry in domain_entries if entry.is_disabled(now_ts)]
-    LOGGER.info(
-        "Starting service monitor domains=%s disabled_domains=%s interval_seconds=%s chromium_path=%s",
-        all_domains,
-        disabled_domains,
-        interval_seconds,
-        chromium_path,
-    )
-
-    state_path_raw = str(os.getenv("STATE_PATH", "/data/state.json") or "").strip()
-    state_path = Path(state_path_raw) if state_path_raw else None
-    dft_cycle = DftCycle(parse_cycle_config(config.get("dft_web_access")))
-
-    records = CycleRecords.load(state_path, down_after_failures=down_after_failures,
-                                up_after_successes=up_after_successes)
-    cycle_health = CycleHealthState()
-    cycle_health.host.last_snapshot = records.host_snapshot
-    cycle_health.restore(records.disk)
-    event_bus_outbox = restore_outbox(event_bus_config, records.disk)
-    active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
-    check_semaphore = asyncio.Semaphore(check_concurrency)
-    browser_semaphore = asyncio.Semaphore(browser_concurrency)
-    browser_min_mem_available_mb_raw = os.getenv("BROWSER_MIN_MEM_AVAILABLE_MB")
-    if browser_min_mem_available_mb_raw is None:
-        browser_min_mem_available_mb_raw = config.get("browser_min_mem_available_mb", 2048)
-    monitor_state = restore_browser_state(records.disk, browser_min_mem_available_mb_raw)
-
-    persistence = CyclePersistence(state_path, records, cycle_health, monitor_state, dft_cycle, event_bus_outbox)
-    signal_series = SignalHistory(records.signals)
-
-    async with httpx.AsyncClient(headers={"User-Agent": "PitchAI Service Monitoring Bot"}) as http_client:
-        cycle_channels = CycleChannels(
-            http_client, telegram_cfg, dispatch_cfg, dispatch_state,
-            DispatchRecords(records.activity.dispatch_history, records.activity.dispatch_last, records.activity.events), active_dispatch_tasks,
-        )
-        heartbeat_phase = HeartbeatPhase(heartbeat_settings,
-            HeartbeatSchedule(tz, started_at, tolerance_seconds, last_heartbeat_sent), registry_heartbeat)
-        participants = CycleParticipants(entries_by_domain, alertable_domains)
-        assembly = PhaseAssembly(ObservationSettings(metric_settings, probe_settings, service_settings),
-                                 persistence, participants, signal_series)
-        native_probes = NativeProbes(lambda inputs: run_synthetic_transactions(**inputs),
-                                     lambda inputs: measure_web_vitals(**inputs),
-                                     lambda inputs: run_api_contract_checks(**inputs))
-        observations = assembly.build(cycle_channels, limits, specs_by_domain, native_probes)
-        if event_bus_outbox is not None:
-            persistence.event("service_started", time.time(), {
-                "interval_seconds": int(interval_seconds),
-                "monitored_domains": int(len(all_domains) - len(disabled_domains)),
-            })
-            await persistence.flush(http_client)
-            if state_path is not None:
-                _write_state_atomic(state_path, persistence.snapshot())
-        async with async_playwright() as p:
-            async def _launch_browser() -> Browser:
-                shm_bytes = 0
-                try:
-                    st = os.statvfs("/dev/shm")
-                    shm_bytes = int(st.f_frsize) * int(st.f_blocks)
-                except Exception:
-                    shm_bytes = 0
-                return await p.chromium.launch(**launch_options(shm_bytes, chromium_path))
-
-            browser_admission = BrowserAdmission(monitor_state, _launch_browser, _read_linux_meminfo_kb)
-            browser_recovery = BrowserRecoveryPhase(browser_admission, _format_browser_health_hint,
-                                                    partial(persistence.persist, "browser_notice"))
-
-            domain_polling = DomainPolling(check_semaphore, browser_semaphore, http_client, browser_admission,
+    Returns:
+        Zero after one completed cycle; repeated mode retains its existing schedule.
+    """
+    prepared = CyclePreparation.read(config_path)
+    resources = CycleResources.load(prepared)
+    async with MonitorHttpClient() as http_client:
+        probes: NativeProbes[Browser] = NativeProbes(lambda inputs: run_synthetic_transactions(**inputs),
+                              lambda inputs: measure_web_vitals(**inputs),
+                              lambda inputs: run_api_contract_checks(**inputs))
+        runtime: CycleRuntime[Browser] = CycleRuntime.bind(prepared, resources, http_client, probes)
+        await runtime.record_startup()
+        async with async_playwright() as playwright:
+            launcher = NativeBrowserLauncher(playwright, prepared.browser.executable)
+            operations: BrowserOperations[Browser] = BrowserOperations(
+                                           launcher.launch, _read_linux_meminfo_kb, _format_browser_health_hint,
                                            lambda inputs: check_one_domain(**inputs))
-            domain_cycle = CycleDomainPhase(CycleInventory(domain_entries, specs_by_domain, tz), persistence,
-                                            browser_admission, domain_polling, observations.domains,
-                                            metric_settings.retention_seconds)
-            phases = CyclePhases(domain_cycle, observations.history, observations.metrics,
-                BrowserPhases(observations.synthetic, observations.vitals, browser_recovery),
-                heartbeat_phase, observations.meta)
-            iteration = CycleIteration(participants,
-                                       cycle_channels, persistence, phases, signal_series)
-            await browser_admission.ensure(time.time())
-            try:
-                while True:
-                    cycle_started = time.time()
-                    LOGGER.info("Running check cycle")
-                    probe_frame = await iteration.run(cycle_started)
+            return await runtime.browser_runner(operations).run(once=once)
 
-                    if once:
-                        return 0
 
-                    elapsed = time.time() - cycle_started
+@dataclass
+class MonitorArguments(argparse.Namespace):
+    """Typed values supplied by the existing command-line argument parser."""
 
-                    # ------------------------------
-                    # Meta-monitoring (monitor pipeline health)
-                    # ------------------------------
-                    await observations.meta.run(probe_frame, CycleTiming(
-                        interval_seconds, elapsed, cycle_health.write_fail_streak, browser_admission.browser,
-                        check_concurrency, browser_concurrency,
-                    ))
-
-                    await persistence.flush(http_client)
-                    persistence.persist("post_meta")
-
-                    sleep_for = max(0.0, interval_seconds - elapsed)
-                    LOGGER.info(
-                        "Cycle complete elapsed_seconds=%s sleep_seconds=%s",
-                        round(elapsed, 3),
-                        round(sleep_for, 3),
-                    )
-                    await asyncio.sleep(sleep_for)
-            finally:
-                dft_cycle.close()
-                if browser_admission.browser is not None:
-                    await browser_admission.browser.close()
+    config: str = str(Path(__file__).with_name("config.yaml"))
+    once: bool = False
+    log_level: str = "INFO"
 
 
 def main() -> int:
+    """Own the CLI event loop with the explicit asyncio backend.
+
+    Returns:
+        The native loop exit status without starting a nested event loop.
+    """
     parser = argparse.ArgumentParser(description="PitchAI Service Domain Monitor")
     parser.add_argument(
         "--config",
@@ -296,10 +138,10 @@ def main() -> int:
         default=os.getenv("LOG_LEVEL", "INFO"),
         help="Logging level (INFO, WARNING, ...)",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(namespace=MonitorArguments())
 
     logging.basicConfig(
-        level=getattr(logging, str(args.log_level).upper(), logging.INFO),
+        level=cast("int | str", getattr(logging, args.log_level.upper(), logging.INFO)),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
 
@@ -307,7 +149,7 @@ def main() -> int:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-    return asyncio.run(run_loop(Path(args.config), once=bool(args.once)))
+    return anyio.run(partial(run_loop, Path(args.config), once=args.once), backend="asyncio")
 
 
 if __name__ == "__main__":

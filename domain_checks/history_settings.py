@@ -13,7 +13,7 @@ from .cycle_values import coerce_float, coerce_optional_float, required_int
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
 
 
 @dataclass(frozen=True)
@@ -23,7 +23,7 @@ class SloSettings:
     alerts: AlertSettings
     target_percent: float
     min_total_samples: int
-    rules: list[JsonValue]
+    rules: list[ConfigValue]
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,7 @@ class RedSettings:
     browser_p95_ms_max: float | None
 
 
-def load_slo_settings(config: Mapping[str, JsonValue]) -> SloSettings:
+def load_slo_settings(config: Mapping[str, ConfigValue]) -> SloSettings:
     """Load SLO settings, retaining a supplied nonempty rule list by identity.
 
     Returns:
@@ -49,7 +49,7 @@ def load_slo_settings(config: Mapping[str, JsonValue]) -> SloSettings:
     alerts = AlertSettings.from_section(section, down=3, up=2)
     minimum = max(1, required_int(section.get("min_total_samples", 5)))
     raw_rules = section.get("burn_rate_rules")
-    rules: list[JsonValue]
+    rules: list[ConfigValue]
     if not isinstance(raw_rules, list) or not raw_rules:
         rules = [
             {"name": "page_fast_burn", "short_window_minutes": 5, "long_window_minutes": 60,
@@ -62,7 +62,7 @@ def load_slo_settings(config: Mapping[str, JsonValue]) -> SloSettings:
     return SloSettings(alerts, target, minimum, rules)
 
 
-def load_red_settings(config: Mapping[str, JsonValue]) -> RedSettings:
+def load_red_settings(config: Mapping[str, ConfigValue]) -> RedSettings:
     """Read RED's strict sample/window values and optional numeric thresholds.
 
     Returns:

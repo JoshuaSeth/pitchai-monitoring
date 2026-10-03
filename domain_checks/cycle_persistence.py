@@ -13,7 +13,7 @@ from .event_bus import EventBusOutbox
 from .state_storage import write_state_atomic
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, MutableMapping
     from pathlib import Path
     from types import TracebackType
 
@@ -93,7 +93,7 @@ class CyclePersistence:
     path: Path | None
     records: CycleRecords
     health: CycleHealthState
-    browser: Mapping[str, BrowserStateValue]
+    browser: MutableMapping[str, BrowserStateValue]
     dft: DftCycle
     outbox: EventBusOutbox | None
 

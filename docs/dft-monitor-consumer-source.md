@@ -1472,3 +1472,49 @@ nineteen unsent text captures, five heartbeats and zero outgoing attempts. DFT
 remains disabled in that fixture. Two new files pass scoped checks; aggregate
 and whole-main debt remain separate. Initial fixture/static failures and the
 test-only corrections after the runtime snapshot remain visible.
+
+# Native cycle boundary (2026-10-03)
+
+The launcher still enters `domain_checks.main` and resolves the same default
+configuration. `config_file` retains native YAML dates/binary values and plugin
+precedence; `cycle_preparation` retains validation, clock and state-loading
+order. `cycle_runtime` binds the same mutable records to the native probes.
+`cycle_runner` owns the original repeat timing and cleanup boundary: initial
+admission remains outside cleanup, DFT closes before the current browser, and
+`--once` returns before the meta phase. A failed DFT close still prevents the
+later browser close. This does not add a global cleanup guarantee.
+
+The CLI uses AnyIO's explicit asyncio backend and rejects nested loop entry.
+Its typed argument namespace preserves the existing flags and default path.
+The internal `run_loop` now requires the `once` keyword; the sole repository
+caller already supplies it. HTTPX transport defaults and the monitor user agent
+are retained by `MonitorHttpClient`. Native browser launch reads shared-memory
+capacity without creating a file and retains its ordinary-error fallback.
+
+Local evidence is in
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/cycle-startup-boundary-20261003/`.
+Twelve final focused cases pass, including scheduling cancellation, failure
+precedence, YAML/plugin behavior and native I/O defaults. Ten earlier focused
+cases include the affected DFT numeric/cutover regressions. Five ordinary and
+three API launcher observations retain parent behavior with synthetic inputs,
+DFT disabled and zero outgoing/network/subprocess attempts. The default-path
+fixture now intercepts both launcher and cycle reads through `Path.open`; its
+read count is separately recorded, not claimed identical to the older fixture.
+
+Current changed files pass Ruff, architecture and Semgrep. Canonical typing and
+Pylint still fail because the locked quality environment does not resolve
+Playwright/PyYAML; the repository-wide 21 anti-bypass findings also remain.
+Strict type analysis of all 171 PR Python files against the already-retained
+runtime environment reports zero errors/warnings. That diagnostic does not
+replace the required locked gate. No dependency, policy, baseline or suppression
+was changed. Twenty-seven existing modules/tests have identical executable AST
+after removing annotations/imports; configuration fixtures now describe YAML
+values separately from persisted JSON.
+
+This is source/component proof. Installed checker/config/clock/reader and
+schema2 journal, accepted internal receiver/off-host observer, copy disposition,
+throughput and the finite Infrastructure transaction remain unproved. Original
+300-second coverage after both writer adoption and natural drain, durable
+selection, the next successful selected read and explicit acknowledgement plus
+fresh health remain required. No ingress, expiry, acknowledgement or delivery
+was performed by this increment.

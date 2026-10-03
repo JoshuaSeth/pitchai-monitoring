@@ -20,7 +20,7 @@ from .dft_test_support import require, require_error
 from .test_dft_cutover import shared_line
 
 if TYPE_CHECKING:
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
     from .metrics_nginx import NginxAccessWindowStats
 
 _NOW = datetime(2026, 10, 2, 12, 10, tzinfo=UTC)
@@ -170,7 +170,7 @@ class TestDftHandoff(unittest.IsolatedAsyncioTestCase):
     @staticmethod
     async def test_invalid_admission_times_are_rejected() -> None:
         """Missing, boolean and invalid original times never authorize a source switch."""
-        invalid: list[JsonValue] = [None, {}, {"writer_adopted_at": True, "old_workers_drained_at": 1},
+        invalid: list[ConfigValue] = [None, {}, {"writer_adopted_at": True, "old_workers_drained_at": 1},
                                     {"writer_adopted_at": 1, "old_workers_drained_at": float("inf")}]
         for value in invalid:
             with require_error(ValueError, "dft_invalid_cutover_boundary"):

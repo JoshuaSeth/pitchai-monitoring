@@ -5,4 +5,6 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-type ConfigValue = str | int | float | bool | date | datetime | list[ConfigValue] | dict[str, ConfigValue] | None
+type ConfigValue = (
+    str | bytes | int | float | bool | date | datetime | list[ConfigValue] | dict[str, ConfigValue] | None
+)

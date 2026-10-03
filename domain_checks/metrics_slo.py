@@ -12,7 +12,7 @@ from .cycle_values import required_float, required_int
 from .history import compute_availability, compute_burn_rate, window_samples
 
 if TYPE_CHECKING:
-    from .event_bus_delivery import JsonObject, JsonValue
+    from .config_values import ConfigValue
     from .history_decode import Sample
 
 
@@ -48,7 +48,7 @@ class BurnRule:
     long_threshold: float
 
     @classmethod
-    def parse(cls, raw: JsonObject) -> BurnRule | None:
+    def parse(cls, raw: dict[str, ConfigValue]) -> BurnRule | None:
         """Read numeric rule fields without changing malformed-rule omission.
 
         Returns:
@@ -94,7 +94,7 @@ class BurnRule:
         return None
 
 
-def _coerce_rules(raw: JsonValue) -> list[JsonObject]:
+def _coerce_rules(raw: ConfigValue) -> list[dict[str, ConfigValue]]:
     if not isinstance(raw, list):
         return []
     return [item for item in raw if isinstance(item, dict)]
@@ -102,7 +102,7 @@ def _coerce_rules(raw: JsonValue) -> list[JsonObject]:
 
 def compute_slo_burn_violations(
     *, history_by_domain: dict[str, list[Sample]], now_ts: float, slo_target_percent: float,
-    burn_rate_rules: list[JsonValue], min_total_samples: int = 5,
+    burn_rate_rules: list[ConfigValue], min_total_samples: int = 5,
 ) -> list[SloBurnViolation]:
     """Compare both burn windows to their original inclusive thresholds.
 

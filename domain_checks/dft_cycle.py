@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from datetime import datetime
 
+    from .config_values import ConfigValue
     from .dft_access_cutover import DftAccessCutover
     from .dft_cutover_config import CutoverBoundary
     from .dft_journal import PendingTransition
@@ -44,7 +45,7 @@ class DftCycleConfig:
     cutover: CutoverBoundary | None = None
 
 
-def _absolute_path(settings: dict[str, JsonValue], key: str) -> Path:
+def _absolute_path(settings: dict[str, ConfigValue], key: str) -> Path:
     value = settings.get(key)
     if isinstance(value, str) and Path(value).is_absolute() and ".." not in Path(value).parts:
         return Path(value)
@@ -52,7 +53,7 @@ def _absolute_path(settings: dict[str, JsonValue], key: str) -> Path:
     raise ValueError(message)
 
 
-def parse_cycle_config(value: JsonValue) -> DftCycleConfig | None:
+def parse_cycle_config(value: ConfigValue) -> DftCycleConfig | None:
     """Require an explicit admitted allocation; default configuration is disabled.
 
     Returns:

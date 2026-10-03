@@ -13,7 +13,7 @@ from .cycle_values import coerce_float, required_int
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ class ApiContractSettings:
     timeout_seconds: float
 
     @classmethod
-    def read(cls, config: Mapping[str, JsonValue]) -> ApiContractSettings:
+    def read(cls, config: Mapping[str, ConfigValue]) -> ApiContractSettings:
         """Read the current section without adding readiness checks or routes.
 
         Returns:

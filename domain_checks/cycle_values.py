@@ -9,9 +9,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from .config_values import ConfigValue
     from .event_bus_delivery import JsonValue
 
-type NumericInput = JsonValue | bytes
+type NumericInput = ConfigValue | JsonValue
 
 
 def required_int(value: NumericInput) -> int:

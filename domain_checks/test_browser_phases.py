@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from httpx import AsyncClient
 
     from .browser_admission import BrowserAdmission, BrowserConnection
+    from .config_values import ConfigValue
     from .event_bus_delivery import JsonObject
 
 
@@ -71,7 +72,7 @@ class TestBrowserPhases(unittest.IsolatedAsyncioTestCase):
         context, events = _context()
         synthetic = BrowserProbeState({"a.invalid": False}, {"a.invalid": 2}, {}, {})
         vitals = BrowserProbeState({"a.invalid": False}, {"a.invalid": 2}, {}, {})
-        settings: JsonObject = {"enabled": True, "up_after_successes": 1}
+        settings: dict[str, ConfigValue] = {"enabled": True, "up_after_successes": 1}
         transaction = SyntheticTransactionResult(domain="a.invalid", name="fixture", ok=False,
             elapsed_ms=None, error="infra", details={}, browser_infra_error=True)
         vital = WebVitalsResult(domain="a.invalid", ok=False, metrics={}, error="infra",

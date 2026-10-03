@@ -10,6 +10,7 @@ from .cycle_values import coerce_optional_float, required_float
 
 if TYPE_CHECKING:
     from .common_check import DomainCheckResult
+    from .config_values import ConfigValue
     from .event_bus_delivery import JsonObject, JsonValue
 
 
@@ -33,7 +34,7 @@ def collect_performance_violations(
     *,
     http_elapsed_ms_max: float,
     browser_elapsed_ms_max: float,
-    per_domain_overrides: JsonObject | None = None,
+    per_domain_overrides: dict[str, ConfigValue] | None = None,
 ) -> list[JsonObject]:
     """Evaluate healthy domains in stable order using existing strict thresholds.
 
@@ -55,7 +56,7 @@ def collect_performance_violations(
 def evaluate_domain(
     domain: str,
     result: DomainCheckResult,
-    override_value: JsonValue,
+    override_value: ConfigValue,
     defaults: tuple[float, float],
 ) -> JsonObject | None:
     """Resolve one domain's overrides and independent measurements.

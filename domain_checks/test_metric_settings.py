@@ -13,7 +13,7 @@ from .network_settings import load_dns_settings, load_tls_settings
 from .resource_settings import load_host_settings, load_performance_settings
 
 if TYPE_CHECKING:
-    from .event_bus_delivery import JsonObject, JsonValue
+    from .config_values import ConfigValue
 
 
 class MetricSettingsTests(unittest.TestCase):
@@ -51,7 +51,7 @@ class MetricSettingsTests(unittest.TestCase):
         """Only host path normalization drops falsey entries before string conversion."""
         host = load_host_settings({"host_health": {"disk_paths": [None, False, 0, "  ", " /synthetic ", True]}})
         require(condition=host.disk_paths == ["/synthetic", "True"], message="path normalization changed")
-        cases: list[JsonValue] = [None, [], [0, False, " "], "bad"]
+        cases: list[ConfigValue] = [None, [], [0, False, " "], "bad"]
         for raw in cases:
             require(condition=load_host_settings({"host_health": {"disk_paths": raw}}).disk_paths == ["/"],
                     message="root fallback changed")
@@ -59,7 +59,7 @@ class MetricSettingsTests(unittest.TestCase):
     @staticmethod
     def test_dns_resolvers_keep_order_duplicates_and_scalar_stringification() -> None:
         """Resolver filtering retains falsey scalar strings and legitimate duplicates."""
-        raw: list[JsonValue] = [None, False, 0, " ", " 192.0.2.1 ", "192.0.2.1"]
+        raw: list[ConfigValue] = [None, False, 0, " ", " 192.0.2.1 ", "192.0.2.1"]
         dns = load_dns_settings({"dns": {"resolvers": raw}})
         require(condition=dns.resolvers == ["None", "False", "0", "192.0.2.1", "192.0.2.1"],
                 message="resolver normalization changed")
@@ -70,10 +70,10 @@ class MetricSettingsTests(unittest.TestCase):
     @staticmethod
     def test_maps_and_supplied_rules_retain_identity() -> None:
         """Settings do not silently clone caller-owned policy maps and rules."""
-        expected: JsonObject = {"EXAMPLE.invalid": ["192.0.2.1"]}
-        drift: JsonObject = {"EXAMPLE.invalid": "false"}
-        overrides: JsonObject = {"EXAMPLE.invalid": {"http_elapsed_ms_max": 0}}
-        rules: list[JsonValue] = [{"name": "synthetic"}, None]
+        expected: dict[str, ConfigValue] = {"EXAMPLE.invalid": ["192.0.2.1"]}
+        drift: dict[str, ConfigValue] = {"EXAMPLE.invalid": "false"}
+        overrides: dict[str, ConfigValue] = {"EXAMPLE.invalid": {"http_elapsed_ms_max": 0}}
+        rules: list[ConfigValue] = [{"name": "synthetic"}, None]
         dns = load_dns_settings({"dns": {"expected_ips_by_domain": expected, "alert_on_drift_by_domain": drift}})
         require(condition=dns.drift.expected_ips_by_domain is expected and dns.drift.alert_on_drift_by_domain is drift,
                 message="domain policy mapping copied")

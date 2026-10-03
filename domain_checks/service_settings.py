@@ -13,7 +13,7 @@ from .cycle_values import coerce_float, required_int
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
 
 
 @dataclass(frozen=True)
@@ -21,8 +21,8 @@ class ContainerSelection:
     """Preserve configured pattern lists for the existing downstream matcher."""
 
     monitor_all: bool
-    include_patterns: list[JsonValue]
-    exclude_patterns: list[JsonValue]
+    include_patterns: list[ConfigValue]
+    exclude_patterns: list[ConfigValue]
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,7 @@ class MetaSettings:
     state_write_failures_max: int
 
 
-def load_container_settings(config: Mapping[str, JsonValue]) -> ContainerSettings:
+def load_container_settings(config: Mapping[str, ConfigValue]) -> ContainerSettings:
     """Read container settings without opening sockets or normalizing patterns.
 
     Returns:
@@ -65,7 +65,7 @@ def load_container_settings(config: Mapping[str, JsonValue]) -> ContainerSetting
     )
 
 
-def load_meta_settings(config: Mapping[str, JsonValue]) -> MetaSettings:
+def load_meta_settings(config: Mapping[str, ConfigValue]) -> MetaSettings:
     """Read pipeline settings while retaining strict write-failure thresholds.
 
     Returns:

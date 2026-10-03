@@ -13,7 +13,7 @@ from .cycle_values import coerce_float, coerce_int, coerce_optional_float, requi
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class VitalsSettings:
     limits: VitalsLimits
 
 
-def load_synthetic_settings(config: Mapping[str, JsonValue]) -> SyntheticSettings:
+def load_synthetic_settings(config: Mapping[str, ConfigValue]) -> SyntheticSettings:
     """Retain strict interval/count parsing before debounce configuration.
 
     Returns:
@@ -61,7 +61,7 @@ def load_synthetic_settings(config: Mapping[str, JsonValue]) -> SyntheticSetting
     return SyntheticSettings(alerts, interval, count, timeout)
 
 
-def load_vitals_settings(config: Mapping[str, JsonValue]) -> VitalsSettings:
+def load_vitals_settings(config: Mapping[str, ConfigValue]) -> VitalsSettings:
     """Read the original timing defaults, optional thresholds and alert policy.
 
     Returns:

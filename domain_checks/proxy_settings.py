@@ -13,7 +13,7 @@ from .cycle_values import coerce_optional_float, required_int
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class ProxySettings:
     max_upstream_errors_per_domain: int
 
 
-def load_proxy_settings(config: Mapping[str, JsonValue]) -> ProxySettings:
+def load_proxy_settings(config: Mapping[str, ConfigValue]) -> ProxySettings:
     """Decode existing shared-feed settings without opening paths or selecting DFT.
 
     Returns:

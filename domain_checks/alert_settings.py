@@ -11,7 +11,7 @@ from .cycle_values import required_int
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ class AlertSettings:
     notify_on_recovery: bool
 
     @classmethod
-    def from_section(cls, section: Mapping[str, JsonValue], *, down: int, up: int) -> Self:
+    def from_section(cls, section: Mapping[str, ConfigValue], *, down: int, up: int) -> Self:
         """Read the existing flags and fail loudly for malformed debounce values.
 
         Returns:

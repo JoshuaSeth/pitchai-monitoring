@@ -13,7 +13,7 @@ from .cycle_values import coerce_float, required_int
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from .event_bus_delivery import JsonObject, JsonValue
+    from .config_values import ConfigValue
 
 
 @dataclass(frozen=True)
@@ -31,8 +31,8 @@ class DnsDriftSettings:
     """Retain domain drift policy without normalizing its keys or values."""
 
     alert_on_drift_default: bool
-    expected_ips_by_domain: JsonObject
-    alert_on_drift_by_domain: JsonObject
+    expected_ips_by_domain: dict[str, ConfigValue]
+    alert_on_drift_by_domain: dict[str, ConfigValue]
 
 
 @dataclass(frozen=True)
@@ -48,7 +48,7 @@ class DnsSettings:
     drift: DnsDriftSettings
 
 
-def load_tls_settings(config: Mapping[str, JsonValue]) -> TlsSettings:
+def load_tls_settings(config: Mapping[str, ConfigValue]) -> TlsSettings:
     """Decode TLS configuration without changing interval or streak minima.
 
     Returns:
@@ -62,7 +62,7 @@ def load_tls_settings(config: Mapping[str, JsonValue]) -> TlsSettings:
     return TlsSettings(alerts, interval, days, timeout)
 
 
-def _resolvers(raw: JsonValue) -> list[str] | None:
+def _resolvers(raw: ConfigValue) -> list[str] | None:
     if not isinstance(raw, list):
         return None
     values = [str(value).strip() for value in raw]
@@ -70,7 +70,7 @@ def _resolvers(raw: JsonValue) -> list[str] | None:
     return nonempty or None
 
 
-def load_dns_settings(config: Mapping[str, JsonValue]) -> DnsSettings:
+def load_dns_settings(config: Mapping[str, ConfigValue]) -> DnsSettings:
     """Decode DNS settings without interpreting or copying domain policy maps.
 
     Returns:

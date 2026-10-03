@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from .browser_probe_settings import SyntheticSettings, VitalsSettings
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
     from .history_settings import RedSettings, SloSettings
     from .network_settings import DnsSettings, TlsSettings
     from .proxy_settings import ProxySettings
@@ -41,7 +41,7 @@ class CycleMetricsSettings:
     red: RedSettings
 
     @classmethod
-    def read(cls, config: Mapping[str, JsonValue]) -> CycleMetricsSettings:
+    def read(cls, config: Mapping[str, ConfigValue]) -> CycleMetricsSettings:
         """Return unchanged defaults, coercions and the first failing field."""
         host = load_host_settings(config)
         performance = load_performance_settings(config)
@@ -61,7 +61,7 @@ class CycleProbeSettings:
     api: ApiContractSettings
 
     @classmethod
-    def read(cls, config: Mapping[str, JsonValue]) -> CycleProbeSettings:
+    def read(cls, config: Mapping[str, ConfigValue]) -> CycleProbeSettings:
         """Return the original synthetic, vitals, then API configuration."""
         synthetic = load_synthetic_settings(config)
         vitals = load_vitals_settings(config)
@@ -78,7 +78,7 @@ class CycleServiceSettings:
     meta: MetaSettings
 
     @classmethod
-    def read(cls, config: Mapping[str, JsonValue]) -> CycleServiceSettings:
+    def read(cls, config: Mapping[str, ConfigValue]) -> CycleServiceSettings:
         """Return original settings with unchanged error precedence."""
         container = load_container_settings(config)
         proxy = load_proxy_settings(config)

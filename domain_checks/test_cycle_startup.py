@@ -12,7 +12,7 @@ from .dft_test_support import require, require_error
 from .dispatch_state import dispatch_is_enabled
 
 if TYPE_CHECKING:
-    from .event_bus_delivery import JsonObject
+    from .config_values import ConfigValue
 
 
 class CycleStartupTests(unittest.TestCase):
@@ -74,7 +74,7 @@ class CycleStartupTests(unittest.TestCase):
     @staticmethod
     def test_external_registry_precedence_keeps_explicit_empty_override() -> None:
         """Empty environment base disables its read; tokens keep the existing fallback chain."""
-        config: JsonObject = {"external_e2e": {"enabled": True, "base_url": "https://configured.invalid",
+        config: dict[str, ConfigValue] = {"external_e2e": {"enabled": True, "base_url": "https://configured.invalid",
                                    "monitor_token": " config-token ", "timeout_seconds": "9"}}
         summary = external_heartbeat(config, {"E2E_REGISTRY_BASE_URL": " ",
                                               "E2E_REGISTRY_MONITOR_TOKEN": " ",

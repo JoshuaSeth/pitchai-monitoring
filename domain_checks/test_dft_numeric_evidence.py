@@ -21,7 +21,7 @@ from .dft_test_support import require, require_error
 from .test_dft_cutover import shared_line
 
 if TYPE_CHECKING:
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
 
 _UNREPRESENTABLE = 10**400
 _LARGE_FINITE_AGE = 1e308
@@ -64,7 +64,7 @@ class TestNumericEvidence(unittest.IsolatedAsyncioTestCase):
     def test_cutover_epoch_cannot_escape_allocation_refusal() -> None:
         """Either unrepresentable original admission time is rejected explicitly."""
         for key in ("writer_adopted_at", "old_workers_drained_at"):
-            value: dict[str, JsonValue] = {"writer_adopted_at": 1, "old_workers_drained_at": 1}
+            value: dict[str, ConfigValue] = {"writer_adopted_at": 1, "old_workers_drained_at": 1}
             value[key] = _UNREPRESENTABLE
             with require_error(ValueError, "dft_invalid_cutover_boundary"):
                 parse_cutover_boundary(value)

@@ -8,7 +8,7 @@ from sys import float_info
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .event_bus_delivery import JsonValue
+    from .config_values import ConfigValue
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ class CutoverBoundary:
             raise ValueError(message)
 
 
-def parse_cutover_boundary(value: JsonValue) -> CutoverBoundary:
+def parse_cutover_boundary(value: ConfigValue) -> CutoverBoundary:
     """Read the two explicit owner-proved timestamps for a requested handoff.
 
     Returns:
