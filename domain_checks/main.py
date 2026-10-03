@@ -30,6 +30,7 @@ from .browser_probe_settings import load_synthetic_settings, load_vitals_setting
 from .service_settings import load_container_settings, load_meta_settings
 from .proxy_settings import load_proxy_settings
 from .heartbeat_settings import load_heartbeat_settings
+from .heartbeat_phase import HeartbeatPhase, HeartbeatSchedule, HeartbeatObservation, ExternalHeartbeat
 from .history_settings import load_slo_settings, load_red_settings
 from .network_settings import load_tls_settings, load_dns_settings
 from .resource_settings import load_host_settings, load_performance_settings
@@ -840,6 +841,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
         container_phase = ContainerPhase(container_settings, container_health, container_schedule, container_observations)
         proxy_phase = ProxyPhase(ProxyReader(proxy_settings, dft_cycle, specs_by_domain), proxy_health)
         meta_phase = MetaPhase(meta_settings, meta_health)
+        heartbeat_phase = HeartbeatPhase(heartbeat_settings,
+            HeartbeatSchedule(tz, started_at, tolerance_seconds, last_heartbeat_sent),
+            ExternalHeartbeat(external_e2e_enabled, external_e2e_base_url, external_e2e_token,
+                              external_e2e_timeout_seconds))
         synthetic_phase = SyntheticPhase(syn_settings, BrowserProbeState(
             synthetic_last_ok, synthetic_fail_streak, synthetic_success_streak, synthetic_last_run_ts),
             lambda inputs: run_synthetic_transactions(**inputs))
@@ -1313,67 +1318,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             LOGGER.exception("Dispatch task crashed domain=%s", domain)
                         del active_dispatch_tasks[domain]
 
-                    if heartbeat_settings.enabled and (cycle_results or disabled_lines):
-                        now = datetime.now(tz)
-                        today = now.date().isoformat()
-                        for t in heartbeat_settings.times:
-                            hhmm = t.strftime("%H:%M")
-                            if last_heartbeat_sent.get(hhmm) == today:
-                                continue
-                            scheduled_dt = datetime(
-                                year=now.year,
-                                month=now.month,
-                                day=now.day,
-                                hour=t.hour,
-                                minute=t.minute,
-                                tzinfo=tz,
-                            )
-                            if scheduled_dt <= now < (scheduled_dt + timedelta(seconds=tolerance_seconds)):
-                                external_summary = None
-                                if external_e2e_enabled and external_e2e_base_url:
-                                    if not external_e2e_token:
-                                        external_summary = {"ok": False, "error": "missing_e2e_registry_token"}
-                                    else:
-                                        try:
-                                            url = (
-                                                external_e2e_base_url.rstrip("/")
-                                                + "/api/v1/status/summary"
-                                            )
-                                            resp = await http_client.get(
-                                                url,
-                                                headers={"Authorization": f"Bearer {external_e2e_token}"},
-                                                timeout=float(external_e2e_timeout_seconds),
-                                            )
-                                            resp.raise_for_status()
-                                            data = resp.json()
-                                            if isinstance(data, dict):
-                                                external_summary = data
-                                            else:
-                                                external_summary = {"ok": False, "error": "invalid_e2e_registry_response"}
-                                        except Exception as exc:
-                                            external_summary = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-
-                                msg = _build_heartbeat_message(
-                                    now=now,
-                                    scheduled_label=f"{hhmm} {heartbeat_settings.timezone}",
-                                    started_at=started_at,
-                                    results=cycle_results,
-                                    domain_entries=entries_by_domain,
-                                    disabled_lines=disabled_lines,
-                                    host_snap=host_snap,
-                                    host_violations=host_violations,
-                                    perf_slow=perf_slow if perf_settings.alerts.enabled else None,
-                                    external_e2e=external_summary,
-                                )
-                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                                last_heartbeat_sent[hhmm] = today
-                                LOGGER.info(
-                                    "Heartbeat sent scheduled=%s ok=%s telegram_last=%s",
-                                    hhmm,
-                                    ok_all,
-                                    redact_telegram_response(resps[-1] if resps else {}),
-                                )
-                                break
+                    await heartbeat_phase.run(cycle_channels, HeartbeatObservation(
+                        cycle_results, entries_by_domain, disabled_lines, host_snap, host_violations,
+                        perf_slow if perf_settings.alerts.enabled else None,
+                    ))
 
                     await dft_cycle.observe(now=time.time())
 

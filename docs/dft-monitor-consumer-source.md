@@ -1236,3 +1236,26 @@ Pylint 8.88, fifteen Semgrep findings and architecture debt. PR43 and PR45 retai
 their original open heads and overlapping API-contract slices. Whole-cycle
 repair, required integration checks and the actual runtime bindings remain
 open. Neither this source result nor local captures establish delivery.
+
+# Heartbeat cycle boundary
+
+`HeartbeatPhase` preserves the configured time order, inclusive start/exclusive
+tolerance window and existing daily sent map. The optional registry API has an
+explicit observation boundary: ordinary failures become the existing summary
+diagnostic; cancellation propagates. An unsent transport response retains the
+existing processing/dedup behavior and is not delivery evidence. A failed or
+cancelled transport does not mark the scheduled heartbeat processed.
+
+The protected `heartbeat-phase-extraction-20261003` packet contains seven focused
+tests, 1,944 comparisons with the retained parent block (285 matching failures)
+and four actual launcher/config/restart runs. The remainder of main's AST is
+unchanged after the declared substitution. Launcher observations are synthetic,
+DFT is disabled, and seventeen local unsent captures include four heartbeats;
+there are no outgoing attempts or receiver receipts. Initial assertion-fixture
+and test-boundary gate failures are retained. The final unit tests substitute
+the HTTP boundary; they do not establish an installed registry connection.
+
+Both new files pass scoped checks. Aggregate 21 findings remain, and main still
+fails with 140 Ruff findings, 179 typing errors plus one warning, Pylint 8.87,
+fourteen Semgrep findings and architecture debt. This is another part of the
+authorized whole-cycle repair, not release acceptance or runtime admission.
