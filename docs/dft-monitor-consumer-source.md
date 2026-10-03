@@ -1518,3 +1518,55 @@ throughput and the finite Infrastructure transaction remain unproved. Original
 selection, the next successful selected read and explicit acknowledgement plus
 fresh health remain required. No ingress, expiry, acknowledgement or delivery
 was performed by this increment.
+
+# Native DFT integration and complete gate result (2026-10-03)
+
+Eight isolated DFT-enabled launcher cases pass against committed `88ef6ed`
+(78.384 seconds). They execute the real launcher, cycle assembly, checker
+subprocess wrapper, access parser and schema2 journal with a temporary synthetic
+checker and mocked HTTP/browser/capacity inputs. The existing disabled case
+creates no DFT journal. A failed checker opens one incident; healthy-only and
+acknowledgement-without-access observations retain it. Matching acknowledgement
+plus fresh checker/access health closes it. Historical overdue count seven
+remains evidence rather than an automatic unresolved fault.
+
+The selecting cycle persists segment authority while retaining its two shared
+requests. The next successful cycle counts two legitimate identical production
+segment records and one unrelated shared request; shared DFT, staging and monitor
+traffic are excluded. The journal contains two local synthetic intents with zero
+attempts and zero receiver receipts. No forbidden network or subprocess attempt
+occurred; only the seven temporary checker subprocesses were permitted. Synthetic
+fixtures were removed. This does not prove a real 300-second adoption/drain
+interval, installed namespace, accepted receiver, off-host coverage or throughput.
+
+Exact local proof, the test-start manifest of 310 runtime/test files and the
+fixture adaptation are retained at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/native-dft-integration-88ef6ed-20261003/`.
+Source bytes remained unchanged through the run. The earlier eight-case receipt
+is retained independently; this run verifies the newly refactored native path.
+
+The complete local ratchet and hosted runs `37144184557`/`37144181151` at `88ef6ed`
+fail Quality ratchet and Full zero-debt; enforcement integrity passes. Fresh
+staging branch-protection reads require Enforcement integrity and Quality ratchet
+with strict base freshness and admin enforcement. Full zero-debt remains visible
+debt rather than a required staging check. No additional staging rules were
+returned. These results are actual gate rejections, not unavailable CI. In addition to
+the locked environment's missing Playwright/PyYAML dependencies, the full scan
+finds cross-file Pylint duplication involving monitoring browser arguments, E2E
+runner/sandbox arguments, monitoring/E2E diagnostic safety text and a container
+test fixture. An inherited registry/dashboard duplicate also increases its
+fingerprint multiplicity. Earlier isolated file checks did not establish these
+cross-file obligations. The complete candidate retains 10,141 repository findings,
+including the 21 anti-bypass findings; this total is not a count of new defects.
+
+Exact diagnostics are in the preceding `cycle-startup-boundary-20261003` packet.
+The retained Infrastructure/release result path carries the cross-surface source
+custody dependency. Canonical settings, dependency declarations, baselines,
+suppression policy and other owners' E2E files remain unchanged. Required checks
+have not passed, PR204 remains draft, and no merge or runtime admission is claimed.
+The dependency configuration and both lockfiles are hashed by the portable
+enforcement manifest and verifier/workflow trust chain. Repairing their dependency
+declarations therefore needs coordinated review of that chain; an ad hoc install
+would not repair hosted execution. PR157 also touches the verifier, while PR156
+and PR157 both touch the E2E sandbox/registry surfaces. Their existing owners and
+stops remain intact.
