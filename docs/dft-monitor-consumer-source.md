@@ -13,6 +13,16 @@ stopped. These historical observations do not establish a newer compute sample.
 
 ## Source contract and current implementation
 
+Phase assembly/configuration grouping (October 3): the existing option readers
+run in the same validation order and phases retain their original mutable health,
+channel and probe references. Construction of immutable phase objects is grouped;
+configuration validation, clock sampling and observation effects remain ordered.
+Three focused tests and eight final isolated launcher runs pass, with ordinary
+results equal to the parent. Three new-file scoped gates pass. Earlier local-count
+and formatting gate failures remain in the packet. No source or runtime route is
+allocated by assembly, and aggregate/required gate failures remain open.
+Local proof: `/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/cycle-assembly-20261003/`.
+
 Ordered iteration extraction (October 3): typed phase groups retain the native
 domain/history/host/performance/network/API/container/proxy/browser/heartbeat
 sequence, followed by DFT observation, signal pruning, outbox flush and state
