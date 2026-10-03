@@ -961,3 +961,49 @@ Pylint 8.95, 33 Semgrep findings and architecture debt. Aggregate 21 anti-bypass
 findings remain. Whole-cycle repair and required checks remain unfinished;
 existing checker/config/clock/reader/journal/receiver/off-host, original-window,
 throughput/copy and finite-admission dependencies remain unchanged.
+
+# Browser admission increment
+
+`browser_admission.BrowserAdmission` owns the current native connection and
+retains the cycle's scalar retry state. Connected handles bypass retry and
+memory checks. Disconnected handles are closed before admission; low known
+memory delays launch by 60 seconds without increasing the failure count.
+Retry equality admits a launch. `browser_launch_boundary` records ordinary
+native launch exceptions with the existing capped exponential delay and error
+text. Cancellation remains distinct: cancellation during close retains the
+handle for final cleanup, while cancellation after disconnected cleanup leaves
+ownership cleared. Missing memory remains unknown; memory-reader failures
+still propagate outside launch-error handling.
+
+Native launch arguments and shared-memory observation remain in the original
+`_launch_browser` function. Degraded notices, five-success recovery, final
+cleanup, API-readiness and DFT control remain in the cycle. Against parent
+`70157b1482e7b365b6d907d9cab06523aa906461`, one nested function, its connection
+declaration, 16 name references and one import account for the complete main
+AST change. Remaining AST is identical. Main is 2,830 lines, 52 fewer.
+
+Private tools and raw proof are at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/browser-admission-extraction-20261003/`.
+Eleven tests pass in 0.021s (eight new lifecycle tests and three existing launch
+option tests), plus the existing browser-unavailable fallback case. Exact-parent
+comparison passes 2,880 cases in 0.042s, including 1,020 matching exception
+classes/messages. It checks returned identity, retained connection ownership,
+state mutation and cleanup/probe order for the cycle's scalar state contract.
+
+Five actual isolated launcher invocations cover ten cycles in 3.258s. Four
+preserve independent domain and enabled-probe failure/two-success recovery.
+The fifth runs six cycles through an initial launch failure, delayed retry,
+one degraded notice and recovery only after five healthy cycles. It preserves
+healthy HTTP results during browser unavailability. HTTP/browser/container/log,
+memory and clock observations are synthetic. Fourteen local text captures,
+including seven heartbeats, are unsent. DFT stays disabled with no journal and
+zero guarded network/subprocess attempts; prior DFT/nginx proof is unchanged.
+
+All four runtime/test files match their pretest snapshots. Three new files pass
+scoped architecture, Ruff, BasedPyright, Pylint 10 and Semgrep. Initial native
+launcher candidate, interface/style findings and the comparison fixture's
+missing postponed annotations are retained separately from final proof.
+Whole-main remains failed: 303 Ruff findings, 288 typing errors and one warning,
+Pylint 8.93, 30 Semgrep findings and architecture debt. Aggregate 21 anti-bypass
+findings remain. Required gates, whole-cycle repair and all existing operational
+bindings and admission dependencies remain open.

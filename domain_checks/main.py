@@ -37,6 +37,7 @@ from .cycle_history import record_domain_results
 from .history_migration import migrate_effective_history
 from .signal_history import SignalHistory
 from .browser_launch import launch_options
+from .browser_admission import BrowserAdmission
 from .domain_observation import DomainProbes, observe_domain
 from .domain_entries import (
     DomainEntryConfig,
@@ -923,8 +924,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
             if state_path is not None:
                 _write_state_atomic(state_path, _build_state_payload())
         async with async_playwright() as p:
-            browser: Browser | None = None
-
             async def _launch_browser() -> Browser:
                 shm_bytes = 0
                 try:
@@ -934,60 +933,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     shm_bytes = 0
                 return await p.chromium.launch(**launch_options(shm_bytes, chromium_path))
 
-            async def _ensure_browser(now_ts: float) -> Browser | None:
-                nonlocal browser
+            browser_admission = BrowserAdmission(monitor_state, _launch_browser, _read_linux_meminfo_kb)
 
-                if browser is not None:
-                    try:
-                        if browser.is_connected():
-                            return browser
-                    except Exception:
-                        pass
-                    try:
-                        await browser.close()
-                    except Exception:
-                        pass
-                    browser = None
-
-                next_try = float(monitor_state.get("browser_launch_next_try_ts") or 0.0)
-                if next_try > 0.0 and now_ts < next_try:
-                    return None
-
-                min_mem_mb = int(monitor_state.get("browser_min_mem_available_mb") or 0)
-                if min_mem_mb > 0:
-                    meminfo = _read_linux_meminfo_kb()
-                    avail_kb = meminfo.get("MemAvailable")
-                    if isinstance(avail_kb, int):
-                        avail_mb = int(avail_kb / 1024)
-                        if avail_mb < min_mem_mb:
-                            monitor_state["browser_launch_last_error"] = (
-                                f"low_mem_available_mb={avail_mb} < {min_mem_mb}"
-                            )
-                            monitor_state["browser_launch_next_try_ts"] = now_ts + 60.0
-                            browser = None
-                            return None
-
-                try:
-                    browser = await _launch_browser()
-                    monitor_state["browser_launch_fail_count"] = 0
-                    monitor_state["browser_launch_next_try_ts"] = 0.0
-                    monitor_state["browser_launch_last_error"] = None
-                    return browser
-                except Exception as exc:
-                    fail_count = int(monitor_state.get("browser_launch_fail_count") or 0) + 1
-                    monitor_state["browser_launch_fail_count"] = fail_count
-                    backoff = min(300.0, 5.0 * (2 ** min(fail_count, 6)))
-                    monitor_state["browser_launch_next_try_ts"] = now_ts + backoff
-                    monitor_state["browser_launch_last_error"] = f"{type(exc).__name__}: {exc}"
-                    browser = None
-                    LOGGER.warning(
-                        "Playwright launch failed; continuing HTTP-only retry_in=%ss error=%s",
-                        int(round(backoff)),
-                        monitor_state["browser_launch_last_error"],
-                    )
-                    return None
-
-            await _ensure_browser(time.time())
+            await browser_admission.ensure(time.time())
             try:
                 while True:
                     cycle_started = time.time()
@@ -997,7 +945,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     browser_degraded = False
                     # Ensure the browser is alive at the start of each cycle. This prevents a single
                     # between-cycle crash/close event from degrading *every* domain in the next cycle.
-                    await _ensure_browser(time.time())
+                    await browser_admission.ensure(time.time())
 
                     async def _safe_check(spec: DomainCheckSpec) -> DomainCheckResult:
                         async with check_semaphore:
@@ -1005,7 +953,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 return await check_one_domain(
                                     spec,
                                     http_client,
-                                    browser,
+                                    browser_admission.browser,
                                     browser_semaphore=browser_semaphore,
                                 )
                             except Exception as exc:
@@ -2280,7 +2228,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # Synthetic transactions (Playwright step flows)
                     # ------------------------------
                     syn_failures_for_dispatch: list[SyntheticTransactionResult] = []
-                    if syn_settings.alerts.enabled and enabled_specs and browser is not None and not browser_degraded:
+                    if syn_settings.alerts.enabled and enabled_specs and browser_admission.browser is not None and not browser_degraded:
                         now_ts = time.time()
                         candidates = [
                             s
@@ -2294,7 +2242,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             results = await run_synthetic_transactions(
                                 domain=spec.domain,
                                 base_url=spec.url,
-                                browser=browser,
+                                browser=browser_admission.browser,
                                 transactions=spec.synthetic_transactions,
                                 timeout_seconds=float(syn_settings.timeout_seconds),
                             )
@@ -2394,7 +2342,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # Core Web Vitals (browser metrics)
                     # ------------------------------
                     wv_failures_for_dispatch: list[WebVitalsResult] = []
-                    if wv_settings.alerts.enabled and enabled_specs and browser is not None and not browser_degraded:
+                    if wv_settings.alerts.enabled and enabled_specs and browser_admission.browser is not None and not browser_degraded:
                         now_ts = time.time()
                         candidates = [
                             s
@@ -2407,7 +2355,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             r = await measure_web_vitals(
                                 domain=spec.domain,
                                 url=spec.url,
-                                browser=browser,
+                                browser=browser_admission.browser,
                                 timeout_seconds=float(wv_settings.timeout_seconds),
                                 post_load_wait_ms=int(wv_settings.post_load_wait_ms),
                             )
@@ -2616,12 +2564,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     )
 
                         try:
-                            if browser is not None:
-                                await browser.close()
+                            if browser_admission.browser is not None:
+                                await browser_admission.browser.close()
                         except Exception:
                             pass
-                        browser = None
-                        await _ensure_browser(now_ts)
+                        browser_admission.browser = None
+                        await browser_admission.ensure(now_ts)
                     else:
                         if monitor_state.get("browser_degraded_active"):
                             streak = int(monitor_state.get("browser_degraded_recover_streak") or 0) + 1
@@ -2797,8 +2745,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                                 "elapsed_seconds": round(float(elapsed), 3),
                                                 "state_write_fail_streak": int(state_write_fail_streak),
                                                 "browser_connected": (
-                                                    bool(browser and getattr(browser, "is_connected", lambda: False)())
-                                                    if browser is not None
+                                                    bool(browser_admission.browser and getattr(browser_admission.browser, "is_connected", lambda: False)())
+                                                    if browser_admission.browser is not None
                                                     else False
                                                 ),
                                                 "check_concurrency": int(check_concurrency),
@@ -2847,8 +2795,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     await asyncio.sleep(sleep_for)
             finally:
                 dft_cycle.close()
-                if browser is not None:
-                    await browser.close()
+                if browser_admission.browser is not None:
+                    await browser_admission.browser.close()
 
 
 def main() -> int:
