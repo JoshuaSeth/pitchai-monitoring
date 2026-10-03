@@ -31,7 +31,7 @@
     "quality/pitchai_quality/source_files.py": "fb53f3871634d650ed3dcd3ffa3a8f435f1800eb8f1697c368f8377d9406dd26",
     "quality/pitchai_quality/strict_policy.py": "edb7d25dcc0b8b5f529e0b2b35d598c97a550ae2c7362568494a7651ae022298",
     "quality/pitchai_quality/tool_environment.py": "57caf43b3fef4e71c0e892c12ac698849dbd2adb94d7b4b6dec5a61a46ff26f4",
-    "quality/pyproject.toml": "69e4866a9b4ea17ca7e0a7f87852d3ad2b18abfcc6cf499ef70e20ebd0b1dfe3",
+    "quality/pyproject.toml": "08022b473bb2bdd2b257878cdc9c7353f97deed828a24fd8283665dc482a2adf",
     "quality/tests/__init__.py": "199768334b946ce16baa75a88b01f64faa8e6d2f82b17b64155a06f7202d3b9c",
     "quality/tests/test_ratchet.py": "f67b816a0110e6d365ece9d91db7dc3866baad4eb2f31027547266a23d085450",
     "quality/uv.lock": "5d0c2e5b74fb4a937a0c989acc95da182da121527d4bde683523a2c7e739fd63",

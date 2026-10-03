@@ -1632,3 +1632,41 @@ Raw proof and the six-file pretest snapshot are retained at
 Offline resolution used available uv 0.11.26 with Python 3.12.12, not the hosted
 uv 0.10.0. Existing cross-E2E/registry repair and every operational binding remain
 open. No runtime installation, delivery or ingress action occurred.
+
+# Registry alerts and application source resolution (2026-10-03)
+
+The canonical dependency report at `7f2e3a7` removes the native cycle's unresolved
+dependency findings. Its complete ratchet still fails: resolving Playwright
+exposes real probe/test type errors, alongside the existing cross-file duplicates
+and registry multiplicity increase. Those diagnostics are retained rather than
+treated as a dependency-installation failure.
+
+Cross-package E2E imports also require the repository source root: BasedPyright's
+project directory is `quality/`, while application packages are siblings. The
+candidate adds `extraPaths = [".."]` to the existing quality configuration.
+This changes source resolution only, with all diagnostic rules, full discovery,
+dependencies, locks, root project semantics and baseline bytes unchanged. The
+manifest/verifier/workflow hashes follow that exact configuration byte change;
+the coordinated trust-root review remains required. Seven isolated alterations
+still reject and the restored fixture passes, including the workflow's actual
+verifier-digest check.
+
+`e2e_registry.alerts` keeps its public entry points and compatibility text aliases.
+Pure text lives in `alert_messages`; diagnostic safety text is the same callable
+used by monitoring. `alert_records` owns the existing best-effort worker-thread
+DB write, cancellation propagation and terminal notice decision. Registry alert
+admission, dispatch/status/log order, persistence before forwarding, JSON/text
+bounds and the processed-without-message branch remain intact. No transport or
+audience is added.
+
+Nine focused tests and 673 text/180 dispatch-flow parent comparisons pass with
+synthetic inputs and captured DB/transport callbacks. Five affected files pass
+all scoped gates; the aggregate still reports 21 anti-bypass findings. Initial
+test-style/type failures and their corrections remain in the evidence packet.
+This is not installed receiver or delivery evidence. Browser and registry-date
+source repairs remain in progress under the existing allocation.
+
+Exact source/pretest and raw proof are under
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/registry-alert-boundary-20261003/`
+and `canonical-source-resolution-20261003/`. No production/runtime action,
+other-owner branch change or old proof campaign was performed.

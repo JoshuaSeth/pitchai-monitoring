@@ -63,6 +63,7 @@ docstring-code-format = false
 typeCheckingMode = "strict"
 failOnWarnings = true
 include = [".."]
+extraPaths = [".."]
 pythonVersion = "3.12"
 pythonPlatform = "All"
 venvPath = "."

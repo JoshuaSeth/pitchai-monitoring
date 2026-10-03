@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           verifier_path="quality/pitchai_quality/check_no_validation_bypasses.py"
-          expected_verifier_sha256="a551115a7b04330ff038b4b89c18352d6155dc5e3892d0d9bafd99922e61960d"
+          expected_verifier_sha256="b278b1fa7d3248579c00393804f590ed05889cecab8a105b56618ef1aa5bf330"
           actual_verifier_sha256="$(sha256sum "$verifier_path" | awk '{print $1}')"
           if [[ "$actual_verifier_sha256" != "$expected_verifier_sha256" ]]; then
             printf '%s: SHA-256 trust anchor mismatch (expected %s, got %s)\n' \
