@@ -783,3 +783,45 @@ Pylint 9.05/10, 37 Semgrep findings and architecture debt. The aggregate
 retains 21 anti-bypass findings. These component passes do not override
 required gates or finish the whole-cycle repair. Previously listed runtime,
 receiver/off-host, copy/coverage and finite-admission dependencies remain open.
+
+# Browser observation and launch option increment
+
+`domain_observation` separates HTTP failure, explicit HTTP-only contracts,
+browser absence, browser infrastructure failure and product browser failure.
+Its typed `DomainProbes` carries the cycle's current HTTP/browser callables.
+The public `main.check_one_domain` boundary still binds those callables at
+each invocation, preserving the existing replacement seam. HTTP failure
+retains its original details object; merged browser details keep precedence.
+The browser semaphore still releases on failure and cancellation, and the
+original cancellation exception propagates.
+
+`browser_launch` builds fresh typed Chromium options, retaining argument
+order, the original 512MiB boundary and omission of an absent executable.
+The native launch, OS shared-memory read/fallback, retry state and cleanup
+remain in the existing cycle. This introduces no browser or process wrapper,
+runtime dependency installation or change to quality configuration. Two
+function substitutions and two imports account for main's AST difference
+from parent `4b35d2c1210edfcfd051ebac59cf6e42defdeb2c`. Main is 3,117 lines,
+75 fewer. API readiness/event-persistence sections remain untouched.
+
+Private raw proof and tools are at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/browser-observation-extraction-20261003/`.
+Six focused tests pass in 0.041s; the existing browser-fallback test passes.
+Parent comparison covers 240 observation combinations and 24 launch bundles
+in 0.523s, plus identical launch RuntimeError and CancelledError propagation.
+Four actual isolated launcher/config/restart runs pass in 1.741s with synthetic
+HTTP/browser/clock inputs, including a browser-enabled domain after recovery.
+Default configuration, state history, independent domain/performance
+transitions, expiry/stops and cleanup remain covered. Six replacement text
+captures have no delivery receipts; DFT remains disabled, with zero outgoing
+network/subprocess attempts. Completed DFT/nginx proof is not repeated.
+
+Five runtime/test files were snapshotted before final behavioral proof. One
+test-only optional-key lookup has a separate snapshot and focused rerun; its
+exact expected string and every runtime byte remain unchanged. Four new files
+pass architecture, Ruff, BasedPyright, Pylint 10 and Semgrep. Initial interface,
+dependency and test iterations are retained. Whole-main still fails with 325
+Ruff findings, 293 typing errors and one warning, Pylint 9.04, 37 Semgrep
+findings and architecture debt. Aggregate 21 anti-bypass findings remain.
+No full-cycle or runtime completion is claimed; required checks and all
+previous commissioning/admission dependencies remain open.

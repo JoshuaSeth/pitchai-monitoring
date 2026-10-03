@@ -26,6 +26,8 @@ from .common_check import (
     load_domain_spec_from_module_dict,
 )
 from .history import append_sample, prune_history
+from .browser_launch import launch_options
+from .domain_observation import DomainProbes, observe_domain
 from .domain_entries import (
     DomainEntryConfig,
     normalize_domain_entries as _normalize_domain_entries,
@@ -395,6 +397,8 @@ async def _dispatch_api_contract_and_forward(
 
 
 
+
+
 async def check_one_domain(
     spec: DomainCheckSpec,
     http_client: httpx.AsyncClient,
@@ -402,65 +406,8 @@ async def check_one_domain(
     *,
     browser_semaphore: asyncio.Semaphore,
 ) -> DomainCheckResult:
-    http_ok, http_details = await http_get_check(spec, http_client)
-    if not http_ok:
-        return DomainCheckResult(
-            domain=spec.domain,
-            ok=False,
-            reason="http_check_failed",
-            details=http_details,
-        )
-
-    if not spec.browser_enabled:
-        return DomainCheckResult(
-            domain=spec.domain,
-            ok=True,
-            reason="browser_not_applicable",
-            details={
-                **http_details,
-                "browser_skipped": True,
-                "browser_skip_reason": "explicit_http_contract",
-                "browser_elapsed_ms": None,
-            },
-        )
-
-    if browser is None:
-        return DomainCheckResult(
-            domain=spec.domain,
-            ok=True,
-            reason="browser_degraded",
-            details={
-                **http_details,
-                "error": "browser_unavailable",
-                "browser_connected": False,
-                "browser_infra_error": True,
-                "browser_elapsed_ms": None,
-            },
-        )
-
-    async with browser_semaphore:
-        browser_ok, browser_details = await browser_check(spec, browser)
-    if not browser_ok:
-        if bool(browser_details.get("browser_infra_error")):
-            return DomainCheckResult(
-                domain=spec.domain,
-                ok=True,
-                reason="browser_degraded",
-                details={**http_details, **browser_details},
-            )
-        return DomainCheckResult(
-            domain=spec.domain,
-            ok=False,
-            reason="browser_check_failed",
-            details={**http_details, **browser_details},
-        )
-
-    return DomainCheckResult(
-        domain=spec.domain,
-        ok=True,
-        reason="ok",
-        details={**http_details, **browser_details},
-    )
+    probes = DomainProbes(http_get_check, browser_check)
+    return await observe_domain(spec, http_client, browser, browser_semaphore=browser_semaphore, probes=probes)
 
 
 async def run_loop(config_path: Path, once: bool) -> int:
@@ -1177,35 +1124,13 @@ async def run_loop(config_path: Path, once: bool) -> int:
             browser: Browser | None = None
 
             async def _launch_browser() -> Browser:
-                args = [
-                    "--no-sandbox",
-                    "--disable-gpu",
-                    "--disable-extensions",
-                    "--disable-background-networking",
-                    "--disable-background-timer-throttling",
-                    "--disable-backgrounding-occluded-windows",
-                    "--disable-renderer-backgrounding",
-                    "--disable-sync",
-                    "--metrics-recording-only",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                    "--disable-features=site-per-process",
-                ]
-
                 shm_bytes = 0
                 try:
                     st = os.statvfs("/dev/shm")
                     shm_bytes = int(st.f_frsize) * int(st.f_blocks)
                 except Exception:
                     shm_bytes = 0
-                if shm_bytes < (512 * 1024 * 1024):
-                    # CI defaults to a tiny /dev/shm; this avoids renderer crashes when shared memory is constrained.
-                    args.insert(1, "--disable-dev-shm-usage")
-
-                launch_kwargs: dict[str, Any] = {"headless": True, "args": args}
-                if chromium_path:
-                    launch_kwargs["executable_path"] = chromium_path
-                return await p.chromium.launch(**launch_kwargs)
+                return await p.chromium.launch(**launch_options(shm_bytes, chromium_path))
 
             async def _ensure_browser(now_ts: float) -> Browser | None:
                 nonlocal browser
