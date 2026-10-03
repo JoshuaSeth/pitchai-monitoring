@@ -25,7 +25,10 @@ from .common_check import (
     http_get_check,
     load_domain_spec_from_module_dict,
 )
-from .history import append_sample, prune_history
+from .history import prune_history
+from .cycle_history import record_domain_results
+from .history_migration import migrate_effective_history
+from .signal_history import SignalHistory
 from .browser_launch import launch_options
 from .domain_observation import DomainProbes, observe_domain
 from .domain_entries import (
@@ -781,35 +784,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
             # Convert stored history to the debounced effective ok stream so SLO/RED align with
             # our domain DOWN alerting definition.
             try:
-                migrated: dict[str, list[list[Any]]] = {}
-                for domain, items in history_by_domain.items():
-                    if not isinstance(domain, str) or not domain:
-                        continue
-                    if not isinstance(items, list) or not items:
-                        continue
-                    prev_effective = True
-                    f_streak = 0
-                    s_streak = 0
-                    out_items: list[list[Any]] = []
-                    for s in items:
-                        if not isinstance(s, list) or len(s) < 2:
-                            continue
-                        observed_ok = bool(s[1])
-                        next_effective, f_streak, s_streak, _alerted = _update_effective_ok(
-                            prev_effective_ok=bool(prev_effective),
-                            observed_ok=observed_ok,
-                            fail_streak=int(f_streak),
-                            success_streak=int(s_streak),
-                            down_after_failures=down_after_failures,
-                            up_after_successes=up_after_successes,
-                        )
-                        s2 = list(s)
-                        s2[1] = bool(next_effective)
-                        out_items.append(s2)
-                        prev_effective = bool(next_effective)
-                    if out_items:
-                        migrated[domain] = out_items
-                history_by_domain = migrated
+                history_by_domain = migrate_effective_history(
+                    history_by_domain, down_after_failures=down_after_failures,
+                    up_after_successes=up_after_successes,
+                )
                 LOGGER.info(
                     "Migrated history ok mode to effective prev_mode=%s domains=%s",
                     (history_ok_mode or "unknown"),
@@ -952,44 +930,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     exc,
                 )
 
-    def _append_signal_sample(name: str, sample: list[Any]) -> None:
-        key = str(name or "").strip()
-        if not key:
-            return
-        if not sample:
-            return
-        items = signal_history.get(key)
-        if items is None:
-            signal_history[key] = [sample]
-            return
-        items.append(sample)
-
-    def _prune_signal_history(*, before_ts: float) -> None:
-        cutoff = float(before_ts)
-        for key in list(signal_history.keys()):
-            items = signal_history.get(key) or []
-            if not items:
-                signal_history.pop(key, None)
-                continue
-            idx = 0
-            for i, s in enumerate(items):
-                try:
-                    ts = float(s[0])
-                except Exception:
-                    idx = i + 1
-                    continue
-                if ts >= cutoff:
-                    idx = i
-                    break
-            else:
-                idx = len(items)
-            if idx <= 0:
-                continue
-            if idx >= len(items):
-                signal_history.pop(key, None)
-                continue
-            del items[:idx]
-            signal_history[key] = items
+    signal_series = SignalHistory(signal_history)
+    _append_signal_sample = signal_series.append
+    _prune_signal_history = signal_series.prune
 
     def _build_state_payload() -> dict[str, Any]:
         # Keep state bounded. We prune time-series histories by timestamp below, but
@@ -1372,44 +1315,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     for domain in disabled_set:
                         history_by_domain.pop(domain, None)
 
-                    for domain, result in cycle_results.items():
-                        details = result.details or {}
-                        http_ms = None
-                        try:
-                            if details.get("http_elapsed_ms") is not None:
-                                http_ms = float(details.get("http_elapsed_ms"))
-                        except Exception:
-                            http_ms = None
-                        browser_ms = None
-                        try:
-                            if details.get("browser_elapsed_ms") is not None:
-                                browser_ms = float(details.get("browser_elapsed_ms"))
-                        except Exception:
-                            browser_ms = None
-                        status_code = None
-                        try:
-                            if details.get("status_code") is not None:
-                                status_code = int(details.get("status_code"))
-                        except Exception:
-                            status_code = None
-
-                        # IMPORTANT: use the debounced effective state for history-driven SLO/RED metrics.
-                        #
-                        # Rationale: a single transient failure (e.g. one Playwright timeout) is often a
-                        # monitor flake and is intentionally suppressed by `down_after_failures`.
-                        # Using the effective state keeps SLO burn-rate alerts aligned with our
-                        # "domain is DOWN" definition, reducing false-positive budget burn.
-                        effective_ok = bool(last_ok.get(domain, bool(result.ok)))
-
-                        append_sample(
-                            history_by_domain,
-                            domain=domain,
-                            ts=float(cycle_started),
-                            ok=effective_ok,
-                            http_elapsed_ms=http_ms,
-                            browser_elapsed_ms=browser_ms,
-                            status_code=status_code,
-                        )
+                    record_domain_results(history_by_domain, cycle_results, last_ok, ts=cycle_started)
 
                     try:
                         prune_history(

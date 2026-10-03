@@ -825,3 +825,48 @@ Ruff findings, 293 typing errors and one warning, Pylint 9.04, 37 Semgrep
 findings and architecture debt. Aggregate 21 anti-bypass findings remain.
 No full-cycle or runtime completion is claimed; required checks and all
 previous commissioning/admission dependencies remain open.
+
+# Cycle history increment
+
+`history_migration` converts retained observed history to effective health with
+independent domain failure/recovery streaks. It preserves row order, original
+timestamps and shallow extra values. `cycle_history` records current timings
+against debounced health, retaining the existing optional numeric fallbacks and
+backwards-clock insertion. `signal_history.SignalHistory` owns operations on
+the cycle's existing map: append retains row identity and repeated legitimate
+samples; pruning removes only the prefix before the first qualifying original
+timestamp, including equality. Persistence and delivery remain in the cycle.
+
+Against parent `5247e9157b53b1dd0b47862fae796de1d1269a0a`, AST restoration
+accounts for the startup migration block, two nested signal helpers, the
+per-cycle recording loop, three new imports and the removed unused
+`append_sample` import. All remaining main AST is identical. Main is 3,023
+lines, 94 fewer. Disabled-domain removal, migration error logging and the
+existing SLO/RED inputs and prune ordering remain in place. API readiness and
+event/outbox integration are unchanged.
+
+Private raw proof and executable comparison/launcher tools are at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/cycle-history-extraction-20261003/`.
+Fourteen tests pass in 0.001s (eight new and six existing history contracts).
+Exact-parent comparison passes 800 migration, 40 append, 180 prune and 756
+record cases in 0.725s. Its contract covers persisted JSON, list sample rows,
+string keys and valid existing caller maps. It does not extend the old helper
+contract to arbitrary Python objects.
+
+Six isolated real launcher/config/state runs pass in 0.902s. Four retain the
+independent domain/performance failure and two-success recovery sequence; two
+additional runs seed observed history, verify one-time migration, restart
+without remigration, cutoff equality, signal pruning and disabled-domain
+removal. HTTP/browser/host/clock observations are synthetic. Eight local text
+captures (six heartbeat, one critical, one performance) are explicitly unsent.
+DFT remains disabled, no journal is allocated, and outbound/network/subprocess
+guards record zero attempts. Prior DFT/nginx proof is not repeated.
+
+Five runtime/test files were snapshotted before proof. A later unused main
+import removal has its own snapshot and final comparison/launcher reruns; the
+four new files are unchanged. All four pass scoped architecture, Ruff,
+BasedPyright, Pylint 10 and Semgrep. The initial test annotation finding remains
+in the raw logs. Whole-main remains failed: 314 Ruff findings, 279 typing errors
+and one warning, Pylint 9.05, 33 Semgrep findings and architecture debt. The
+aggregate retains 21 anti-bypass findings. Required checks, whole-cycle repair
+and all retained runtime/receiver/coverage/copy/admission dependencies stay open.
