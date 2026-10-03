@@ -121,11 +121,7 @@ def _capacity_state(
     exhausted_resets = tuple(sorted(exhausted_reset_values))
     if observation.usage_state.get(
         "spendable_credits",
-    ) is True and not proof_is_current(
-        observation,
-        now=now,
-        max_age=MAX_OBSERVATION_AGE,
-    ):
+    ) is True:
         return (
             "available",
             "provider confirms spendable credits beyond included allowance",

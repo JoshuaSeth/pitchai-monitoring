@@ -101,6 +101,23 @@ def test_loss_of_execution_proof_on_final_recheck_cancels_without_consuming(tmp_
     require_equal(len(source.consume_calls), 0)
 
 
+def test_confirmed_spendable_credits_override_earlier_execution_denial() -> None:
+    """Current credit permission prevents a reset despite a retained fresh denial."""
+    initial = proved_observation()
+    recovered = replace(initial, usage_state={**initial.usage_state, "spendable_credits": True})
+    require_equal(evaluate(recovered).state, "not_exhausted")
+
+
+def test_credit_recovery_on_final_recheck_cancels_with_proof_retained(tmp_path: Path) -> None:
+    """Recovery of usable credits cancels consumption even before proof is cleared."""
+    initial = proved_observation()
+    recovered = replace(initial, usage_state={**initial.usage_state, "spendable_credits": True})
+    source = SequencedSource((initial.descriptor,), {initial.descriptor.account_ref: [initial, recovered]}, [])
+    summary = run_guardian(tmp_path / "credit-recovery.sqlite3", source=source, now=NOW)
+    require_equal(summary.redemption_count, 0)
+    require_equal(len(source.consume_calls), 0)
+
+
 def test_reported_malformed_secondary_epoch_cannot_be_silently_omitted() -> None:
     """Every reported non-null current window needs a complete matching epoch."""
     observation = proved_observation()
