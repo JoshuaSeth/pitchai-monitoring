@@ -23,7 +23,6 @@ from .message_api_contract import build_api_contract_dispatch_prompt as _build_a
 from .alert_transition import update_effective_ok as _update_effective_ok
 from .browser_admission import BrowserAdmission
 from .browser_launch import launch_options
-from .browser_phase_context import BrowserPhaseContext
 from .browser_probe_settings import load_synthetic_settings, load_vitals_settings
 from .browser_recovery_phase import BrowserRecoveryPhase
 from .browser_state import restore_browser_state
@@ -40,6 +39,8 @@ from .cycle_channels import CycleChannels
 from .cycle_configuration import cycle_section
 from .cycle_health_state import CycleHealthState
 from .cycle_domain_phase import CycleDomainPhase, CycleInventory
+from .cycle_iteration import CycleIteration, CycleParticipants
+from .cycle_phases import BrowserPhases, CyclePhases, HistoryPhases, MetricPhases
 from .cycle_records import CycleRecords
 from .cycle_persistence import CyclePersistence, restore_outbox
 from .cycle_startup import ChannelStartup, CycleLimits, external_heartbeat
@@ -59,9 +60,8 @@ from .domain_result_phase import DomainHealth, DomainResultPhase
 from .domain_time import load_timezone as _load_timezone
 from .domain_time import parse_disabled_until_ts as _parse_disabled_until_ts
 from .event_bus_delivery import JsonObject
-from .heartbeat_phase import HeartbeatObservation, HeartbeatPhase, HeartbeatSchedule
+from .heartbeat_phase import HeartbeatPhase, HeartbeatSchedule
 from .heartbeat_settings import load_heartbeat_settings
-from .history_phase_context import HistoryFrame
 from .history_settings import load_red_settings, load_slo_settings
 from .host_phase import HostPhase
 from .host_readings import compute_cpu_used_percent as _compute_cpu_used_percent
@@ -77,15 +77,12 @@ from .monitor_state import load_monitor_state as _load_monitor_state
 from .network_settings import load_dns_settings, load_tls_settings
 from .performance import collect_performance_violations as _collect_performance_violations
 from .performance_phase import PerformancePhase
-from .probe_frame import ProbeDomains, ProbeFrame
 from .proxy_observation import ProxyReader
 from .proxy_phase import ProxyPhase
 from .proxy_settings import load_proxy_settings
-from .red_phase import run_red_phase
 from .resource_settings import load_host_settings, load_performance_settings
 from .service_settings import load_container_settings, load_meta_settings
 from .signal_history import SignalHistory
-from .slo_phase import run_slo_phase
 from .state_storage import write_state_atomic as _write_state_atomic
 from .synthetic_phase import SyntheticPhase
 from .tls_phase import TlsPhase
@@ -370,7 +367,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
     last_ok = records.domains.last_ok
     fail_streak = records.domains.fail_streak
     success_streak = records.domains.success_streak
-    history_by_domain = records.history
     disk_state = records.disk
     cycle_health = CycleHealthState()
     host_observations = cycle_health.host
@@ -405,7 +401,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
     persistence = CyclePersistence(state_path, records, cycle_health, monitor_state, dft_cycle, event_bus_outbox)
     signal_series = SignalHistory(signal_history)
-    _prune_signal_history = signal_series.prune
 
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI Service Monitoring Bot"}) as http_client:
         cycle_channels = CycleChannels(
@@ -460,73 +455,17 @@ async def run_loop(config_path: Path, once: bool) -> int:
             domain_cycle = CycleDomainPhase(CycleInventory(domain_entries, specs_by_domain, tz), persistence,
                                             browser_admission, domain_polling, domain_result_phase,
                                             history_retention_seconds)
+            phases = CyclePhases(domain_cycle, HistoryPhases(slo_settings, slo_health, red_settings, red_health),
+                MetricPhases(host_phase, performance_phase, tls_phase, dns_phase, api_phase, container_phase, proxy_phase),
+                BrowserPhases(synthetic_phase, vitals_phase, browser_recovery), heartbeat_phase, meta_phase)
+            iteration = CycleIteration(CycleParticipants(entries_by_domain, alertable_domains),
+                                       cycle_channels, persistence, phases, signal_series)
             await browser_admission.ensure(time.time())
             try:
                 while True:
                     cycle_started = time.time()
                     LOGGER.info("Running check cycle")
-                    domain_observation = await domain_cycle.run(cycle_started)
-                    cycle_results = domain_observation.results
-                    enabled_specs = domain_observation.specs
-                    disabled_lines = domain_observation.disabled_lines
-                    browser_degraded = domain_observation.browser_degraded
-
-                    history_frame = HistoryFrame(
-                        history_by_domain, alertable_domains, cycle_started,
-                        cycle_channels, persistence.event, signal_series,
-                    )
-                    await run_slo_phase(history_frame, slo_settings, slo_health)
-                    await run_red_phase(history_frame, red_settings, red_health)
-
-                    host_snap, host_violations = await host_phase.run(cycle_started)
-
-                    probe_frame = ProbeFrame(
-                        cycle_started, ProbeDomains(enabled_specs, set(entries_by_domain), alertable_domains),
-                        cycle_channels, persistence.event, signal_series,
-                    )
-                    perf_slow = await performance_phase.run(probe_frame, cycle_results)
-                    tls_results = await tls_phase.run(probe_frame)
-                    dns_results = await dns_phase.run(probe_frame)
-
-                    await api_phase.run(probe_frame)
-
-                    # ------------------------------
-                    # Docker container health checks
-                    # ------------------------------
-                    container_issues = await container_phase.run(probe_frame)
-
-                    # ------------------------------
-                    # Reverse proxy upstream/failover checks
-                    # ------------------------------
-                    await proxy_phase.run(probe_frame, cycle_results)
-
-                    # ------------------------------
-                    # Synthetic transactions (Playwright step flows)
-                    # ------------------------------
-                    browser_context = BrowserPhaseContext(probe_frame, entries_by_domain, browser_admission,
-                                                          browser_degraded)
-                    await synthetic_phase.run(browser_context)
-                    await vitals_phase.run(browser_context)
-
-                    await browser_recovery.run(probe_frame, degraded=browser_degraded)
-
-                    cycle_channels.prune_completed()
-
-                    await heartbeat_phase.run(cycle_channels, HeartbeatObservation(
-                        cycle_results, entries_by_domain, disabled_lines, host_snap, host_violations,
-                        perf_slow if perf_settings.alerts.enabled else None,
-                    ))
-
-                    await dft_cycle.observe(now=time.time())
-
-                    try:
-                        _prune_signal_history(before_ts=time.time() - float(history_retention_seconds))
-                    except Exception:
-                        LOGGER.exception("Failed to prune signal history")
-
-                    await persistence.flush(http_client)
-
-                    persistence.persist("cycle")
+                    probe_frame = await iteration.run(cycle_started)
 
                     if once:
                         return 0

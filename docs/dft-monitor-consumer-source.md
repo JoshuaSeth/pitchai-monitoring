@@ -13,6 +13,16 @@ stopped. These historical observations do not establish a newer compute sample.
 
 ## Source contract and current implementation
 
+Ordered iteration extraction (October 3): typed phase groups retain the native
+domain/history/host/performance/network/API/container/proxy/browser/heartbeat
+sequence, followed by DFT observation, signal pruning, outbox flush and state
+write. Scheduling, once mode, meta observation and final connection cleanup stay
+with the caller. Three focused tests cover ordering, shared object identity and
+interrupted phases; eight synthetic launcher runs preserve prior outcomes.
+Three new files pass scoped gates; repository-wide21 and remaining whole-main
+failures stay visible. No outgoing attempt or installed-runtime claim follows.
+Local proof: `/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/cycle-iteration-20261003/`.
+
 Domain-cycle extraction (October 3): stopped-domain counters are cleared before
 polling, enabled specs keep inventory order, and results are handled in completion
 order. A cancelled observation leaves started siblings under their existing loop
