@@ -824,7 +824,7 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-09-29"
+  reviewed_at: "2026-10-03"
   authoritative_sources:
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
@@ -853,6 +853,8 @@ inventory:
     - "PitchAI Screens test-service nginx, release-validation notes and read-only /health contract (2026-09-26)"
     - "Nine-day agent, PM, repository and live ingress sweep (2026-09-29); Namecheap snapshot 20260929T204813Z-2f5a7360f9a5-f34d34e7: 79 records"
     - "SalesEngine public demo and private GZB/Jeugdtandarts review ingress, PM handoffs and credential-free HTTPS contracts (2026-09-29)"
+    - "Nine-day agent, PM, repository, DNS and ingress sweep (2026-10-03); Namecheap snapshot 20261003T014034Z-2f5a7360f9a5-33a5a683: 79 records"
+    - "HetCIS PM runtime reconciliation (2026-09-30) and credential-free GET validation contracts (2026-10-03)"
 
 domain_groups:
   corporate:
@@ -970,6 +972,20 @@ check_profiles:
         state: attached
 
 domains:
+  - domain: dft-openai-info.openai.azure.com
+    label: "DFT historical Azure OpenAI resource"
+    group: dft
+    environment: staging
+    kind: infrastructure
+    sources: [dft-manager-resource-discovery-20261002, live-get-probe-20261003]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Historical Azure resource under DFT migration review, not an approved production model route. Root availability only, with no authenticated or billable model calls."
+    check:
+      <<: *json_200
+      url: https://dft-openai-info.openai.azure.com/
+      browser_enabled: false
+      expected_final_host_suffix: dft-openai-info.openai.azure.com
   - domain: apologetica-react-staging.web.app
     label: "Apologetica React Firebase preview"
     group: learning-demos
@@ -1888,6 +1904,50 @@ domains:
       url: https://www.hetcis.nl/
       expected_title_contains: "Centrum voor Israëlstudies"
       required_text_all: ["Centrum voor Israëlstudies"]
+  # Read-only request validation proves routing/runtime availability, not upload
+  # or form delivery. Never POST here: those paths can write files or send mail.
+  - domain: upload-to-wasabi-7v37bcjssa-uc.a.run.app
+    label: "HetCIS upload backend"
+    group: hetcis
+    environment: production
+    kind: infrastructure
+    sources: [hetcis-runtime-reconciliation-20260930, live-get-probe-20261003]
+    check:
+      <<: *json_200
+      url: https://upload-to-wasabi-7v37bcjssa-uc.a.run.app/
+      allowed_status_codes: [403]
+      browser_enabled: false
+      expected_final_host_suffix: upload-to-wasabi-7v37bcjssa-uc.a.run.app
+      required_text_all: [origin_required, Request origin is required]
+  - domain: us-central1-cis-db-e9fd3.cloudfunctions.net
+    label: "HetCIS upload function alias"
+    group: hetcis
+    environment: production
+    kind: alias
+    sources: [hetcis-runtime-reconciliation-20260930, live-get-probe-20261003]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Same upload service as the normally monitored Cloud Run hostname; retain visibility without duplicate incident pages."
+    check:
+      <<: *json_200
+      url: https://us-central1-cis-db-e9fd3.cloudfunctions.net/upload_to_wasabi
+      allowed_status_codes: [403]
+      browser_enabled: false
+      expected_final_host_suffix: us-central1-cis-db-e9fd3.cloudfunctions.net
+      required_text_all: [origin_required, Request origin is required]
+  - domain: submit-maatje-form-7v37bcjssa-uc.a.run.app
+    label: "HetCIS Maatje form backend"
+    group: hetcis
+    environment: production
+    kind: infrastructure
+    sources: [hetcis-runtime-reconciliation-20260930, live-get-probe-20261003]
+    check:
+      <<: *json_200
+      url: https://submit-maatje-form-7v37bcjssa-uc.a.run.app/
+      allowed_status_codes: [400]
+      browser_enabled: false
+      expected_final_host_suffix: submit-maatje-form-7v37bcjssa-uc.a.run.app
+      required_text_all: [INVALID_ARGUMENT, Bad Request]
   - domain: staging.hetcis.pitchai.net
     label: "HetCIS staging"
     group: hetcis
