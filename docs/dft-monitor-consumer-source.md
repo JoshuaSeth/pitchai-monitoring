@@ -1175,3 +1175,37 @@ Six changed/new modules pass scoped gates. Main remains failed: 220 Ruff,
 213 typing errors and one warning, Pylint 8.83, architecture and Semgrep debt.
 The aggregate 21 anti-bypass findings and required whole-file ratchet remain
 visible. This work continues the release repair; it is not installed delivery.
+
+# Container, proxy and pipeline-health cycle phases
+
+`ContainerPhase`, `ProxyReader`/`ProxyPhase` and `MetaPhase` now isolate the
+remaining shared service observations and their existing transition ordering.
+The proxy reader delegates access coverage and source ownership to `DftCycle`.
+An unavailable access window still prevents recovery from a degraded proxy
+state. Container inspection failure preserves the previous restart baseline;
+cancellation advances the attempted timestamp without inventing health.
+Pipeline timing remains after ordinary persistence and before the final write
+and sleep. Browser connectivity is sampled only for an admitted dispatch.
+
+The legacy header checker now uses its package-relative import and explicit
+JSON types. Its primary/backup classification and sorted output are preserved
+over 581 parent comparisons. Existing shared-error samples remain a separate
+copy-lineage obligation; this extraction adds no deletion or new route.
+
+Evidence is at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/service-phases-extraction-20261003/`.
+Twelve affected tests and 864 complete phase comparisons pass. Four unrelated
+domain/metric launcher runs match the parent's complete results, with eleven
+unsent local captures and no outgoing attempts. The changed proxy call site
+also passes the existing eight-scenario DFT launcher tool against current
+working bytes: real local parser/checker subprocess/schema-two journal with
+synthetic inputs, shared selection counters followed by next-read segment
+authority, and acknowledgement plus fresh checker/access recovery. No receiver
+is allocated; both synthetic outbox intents remain unattempted. This is neither
+installed producer/checker proof nor a natural delivery receipt.
+
+Six modules pass scoped checks. Main is reduced to 1,723 lines but still has
+172 Ruff findings, 194 typing errors plus one warning, Pylint 8.86 and remaining
+architecture/Semgrep debt. The 21 aggregate findings remain. Required whole-file
+repair continues. The fresh 624 read timed out; the retained additive binding
+request remains separate from acceptance and finite runtime admission.

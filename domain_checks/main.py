@@ -58,11 +58,8 @@ from .heartbeat_message import (
     build_heartbeat_message as _build_heartbeat_message,
 )
 from .dispatch_domain_routes import dispatch_and_forward as _dispatch_and_forward
-from .dispatch_domain_routes import dispatch_meta_and_forward as _dispatch_meta_and_forward
 from .dispatch_probe_routes import dispatch_synthetic_and_forward as _dispatch_synthetic_and_forward
 from .dispatch_probe_routes import dispatch_web_vitals_and_forward as _dispatch_web_vitals_and_forward
-from .dispatch_probe_routes import dispatch_container_health_and_forward as _dispatch_container_health_and_forward
-from .dispatch_probe_routes import dispatch_proxy_and_forward as _dispatch_proxy_and_forward
 from .dispatch_workflow import dispatch_prompt_and_forward as _dispatch_prompt_and_forward
 from .dispatch_state import (
     dispatch_state_reenable_if_due as _dispatch_state_reenable_if_due,
@@ -72,15 +69,12 @@ from .dispatch_state import (
 )
 from .message_templates import build_dispatch_prompt as _build_dispatch_prompt
 from .message_templates import dispatch_read_only_rules as _dispatch_read_only_rules
-from .message_templates import build_meta_alert_message as _build_meta_alert_message
 from .message_templates import build_meta_dispatch_prompt as _build_meta_dispatch_prompt
 from .message_browser import build_synthetic_alert_message as _build_synthetic_alert_message
 from .message_browser import build_synthetic_dispatch_prompt as _build_synthetic_dispatch_prompt
 from .message_browser import build_web_vitals_alert_message as _build_web_vitals_alert_message
 from .message_browser import build_web_vitals_dispatch_prompt as _build_web_vitals_dispatch_prompt
-from .message_container import build_container_health_alert_message as _build_container_health_alert_message
 from .message_container import build_container_health_dispatch_prompt as _build_container_health_dispatch_prompt
-from .message_proxy import build_proxy_alert_message as _build_proxy_alert_message
 from .message_proxy import build_proxy_dispatch_prompt as _build_proxy_dispatch_prompt
 from .host_readings import (
     compute_cpu_used_percent as _compute_cpu_used_percent,
@@ -91,14 +85,6 @@ from .host_readings import (
 )
 from .inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from .metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
-from .metrics_container_health import ContainerHealthIssue, check_container_health
-from .metrics_nginx import (
-    NginxAccessWindowStats,
-    NginxUpstreamErrorEvent,
-    parse_recent_upstream_errors,
-    summarize_upstream_errors,
-)
-from .metrics_proxy import ProxyIssue, check_upstream_header_expectations
 from .metrics_synthetic import SyntheticTransactionResult, run_synthetic_transactions
 from .metrics_web_vitals import WebVitalsResult, measure_web_vitals
 from .dispatch_client import (
@@ -128,6 +114,10 @@ from .probe_frame import ProbeDomains, ProbeFrame, ProbeSchedule
 from .tls_phase import TlsPhase
 from .dns_phase import DnsPhase
 from .performance_phase import PerformancePhase
+from .container_phase import ContainerPhase, ContainerObservations
+from .proxy_phase import ProxyPhase
+from .proxy_observation import ProxyReader
+from .meta_phase import MetaPhase, CycleTiming
 from .cycle_channels import CycleChannels
 from .event_bus_delivery import JsonObject
 from .dispatch_records import DispatchRecords
@@ -568,8 +558,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
     api_contract_success_streak: dict[str, int] = {}
     api_contract_last_run_ts: dict[str, float] = {}
     container_health = HealthState()
-    container_last_run_ts = 0.0
-    container_restart_counts: dict[str, int] = {}
+    container_schedule = ProbeSchedule()
+    container_observations = ContainerObservations()
     proxy_health = HealthState()
     meta_health = HealthState()
     state_write_fail_streak = 0
@@ -667,8 +657,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
         cont_state = disk_state.get("container_health")
         if isinstance(cont_state, dict):
             container_health = HealthState.from_section(cont_state)
-            container_last_run_ts = _coerce_float(cont_state.get("last_run_ts"), default=0.0)
-            container_restart_counts = _coerce_int_dict(cont_state.get("restart_counts"))
+            container_schedule.last_run_ts = _coerce_float(cont_state.get("last_run_ts"), default=0.0)
+            container_observations.restart_counts = _coerce_int_dict(cont_state.get("restart_counts"))
 
         proxy_state = disk_state.get("proxy")
         if isinstance(proxy_state, dict):
@@ -811,8 +801,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
             },
             "container_health": {
                 **container_health.to_state(),
-                "last_run_ts": float(container_last_run_ts),
-                "restart_counts": container_restart_counts,
+                "last_run_ts": float(container_schedule.last_run_ts),
+                "restart_counts": container_observations.restart_counts,
             },
             "proxy": {
                 **proxy_health.to_state(),
@@ -850,6 +840,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
         performance_phase = PerformancePhase(perf_settings, perf_health)
         tls_phase = TlsPhase(tls_settings, tls_health, tls_schedule)
         dns_phase = DnsPhase(dns_settings, dns_health, dns_schedule, dns_last_ips)
+        container_phase = ContainerPhase(container_settings, container_health, container_schedule, container_observations)
+        proxy_phase = ProxyPhase(ProxyReader(proxy_settings, dft_cycle, specs_by_domain), proxy_health)
+        meta_phase = MetaPhase(meta_settings, meta_health)
         if event_bus_outbox is not None:
             _append_event(
                 "service_started",
@@ -1207,264 +1200,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # ------------------------------
                     # Docker container health checks
                     # ------------------------------
-                    container_issues: list[ContainerHealthIssue] | None = None
-                    if container_settings.alerts.enabled:
-                        now_ts = time.time()
-                        due = (now_ts - float(container_last_run_ts or 0.0)) >= float(container_settings.interval_minutes * 60)
-                        if due:
-                            container_last_run_ts = now_ts
-                            try:
-                                container_issues, container_restart_counts_next = await check_container_health(
-                                    docker_socket_path=container_settings.docker_socket_path,
-                                    include_name_patterns=container_settings.selection.include_patterns,
-                                    exclude_name_patterns=container_settings.selection.exclude_patterns,
-                                    monitor_all=bool(container_settings.selection.monitor_all),
-                                    previous_restart_counts=container_restart_counts,
-                                    timeout_seconds=float(container_settings.timeout_seconds),
-                                )
-                                container_restart_counts = container_restart_counts_next
-                            except Exception:
-                                LOGGER.exception("Container health check crashed")
-                                container_issues = [
-                                    ContainerHealthIssue(
-                                        name="docker",
-                                        container_id="",
-                                        running=None,
-                                        status=None,
-                                        restart_count=None,
-                                        restart_increase=None,
-                                        oom_killed=None,
-                                        health_status=None,
-                                        exit_code=None,
-                                        error="container_health_check_crashed",
-                                    )
-                                ]
-
-                            container_observed_ok = not bool(container_issues)
-                            prev_effective = bool(container_health.last_ok)
-                            container_alerted_down = container_health.advance(
-                                observed_ok=container_observed_ok, thresholds=container_settings.alerts,
-                            )
-                            container_issue_count = int(len(container_issues or []))
-                            _append_signal_sample(
-                                "container_health",
-                                [float(cycle_started), 1 if bool(container_health.last_ok) else 0,
-                                 container_issue_count],
-                            )
-
-                            if container_alerted_down and container_issues:
-                                _append_event(
-                                    "container_health_degraded",
-                                    ts=float(cycle_started),
-                                    issues=[it.name for it in container_issues[:20]],
-                                )
-                                msg = _build_container_health_alert_message(
-                                    issues=container_issues,
-                                    down_after_failures=container_settings.alerts.down_after_failures,
-                                    fail_streak=int(container_health.fail_streak),
-                                )
-                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                                LOGGER.warning(
-                                    "Container health degraded alert sent_ok=%s telegram_last=%s issues=%s",
-                                    ok_all,
-                                    redact_telegram_response(resps[-1] if resps else {}),
-                                    [it.name for it in container_issues[:5]],
-                                )
-
-                                if container_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                                    if "container_health" in active_dispatch_tasks and not active_dispatch_tasks["container_health"].done():
-                                        LOGGER.info("Dispatch already running for container_health; skipping new dispatch")
-                                    else:
-                                        active_dispatch_tasks["container_health"] = asyncio.create_task(
-                                            _dispatch_container_health_and_forward(
-                                                http_client=http_client,
-                                                telegram_cfg=telegram_cfg,
-                                                dispatch_cfg=dispatch_cfg,
-                                                dispatch_state=dispatch_state,
-                                                issues=container_issues,
-                                                dispatch_history=dispatch_history,
-                                                dispatch_last=dispatch_last,
-                                                events=events,
-                                            )
-                                        )
-
-                            container_recovered = (not prev_effective) and bool(container_health.last_ok)
-                            if container_recovered:
-                                _append_event("container_health_recovered", ts=float(cycle_started))
-                            if container_recovered and container_settings.alerts.notify_on_recovery:
-                                ok, resp = await send_telegram_message(
-                                    http_client,
-                                    telegram_cfg,
-                                    "Container health recovered ✅",
-                                )
-                                LOGGER.info(
-                                    "Container health recovery notice sent_ok=%s telegram=%s",
-                                    ok,
-                                    redact_telegram_response(resp),
-                                )
+                    container_issues = await container_phase.run(probe_frame)
 
                     # ------------------------------
                     # Reverse proxy upstream/failover checks
                     # ------------------------------
-                    if proxy_settings.alerts.enabled and cycle_results:
-                        proxy_tz = _load_timezone(proxy_settings.feed.timezone_name)
-                        all_upstream_issues = check_upstream_header_expectations(
-                            specs_by_domain=specs_by_domain, cycle_results=cycle_results
-                        )
-                        suppressed_proxy_domains = sorted(
-                            {
-                                issue.domain
-                                for issue in all_upstream_issues
-                                if issue.domain not in alertable_domains
-                            }
-                        )
-                        if suppressed_proxy_domains:
-                            LOGGER.info(
-                                "Proxy header failures excluded from Telegram routing domains=%s",
-                                suppressed_proxy_domains,
-                            )
-                        upstream_issues = [
-                            issue for issue in all_upstream_issues if issue.domain in alertable_domains
-                        ]
-
-                        access_stats = None
-                        access_violation = False
-                        if proxy_settings.max_502_504_percent is not None and proxy_settings.feed.access_log_path:
-                            access_stats = dft_cycle.read_access(
-                                access_log_path=proxy_settings.feed.access_log_path,
-                                now=datetime.now(timezone.utc),
-                                window_seconds=int(proxy_settings.feed.window_seconds),
-                                max_bytes=int(proxy_settings.feed.access_max_bytes),
-                            )
-                            if access_stats is not None and access_stats.total >= int(proxy_settings.min_total_requests):
-                                pct = (int(access_stats.status_502_504) / float(access_stats.total or 1)) * 100.0
-                                if float(pct) > float(proxy_settings.max_502_504_percent):
-                                    access_violation = True
-
-                        upstream_events = []
-                        upstream_summary = None
-                        upstream_violation = False
-                        if proxy_settings.feed.error_log_path and proxy_settings.max_upstream_errors_per_domain > 0:
-                            all_upstream_events = parse_recent_upstream_errors(
-                                error_log_path=proxy_settings.feed.error_log_path,
-                                now=datetime.now(timezone.utc),
-                                window_seconds=int(proxy_settings.feed.window_seconds),
-                                local_tz=proxy_tz,
-                                max_bytes=int(proxy_settings.feed.error_max_bytes),
-                            )
-                            upstream_events = [
-                                event
-                                for event in all_upstream_events
-                                if event.server not in entries_by_domain or event.server in alertable_domains
-                            ]
-                            upstream_summary = summarize_upstream_errors(upstream_events)
-                            counts = upstream_summary.get("counts_by_server") if isinstance(upstream_summary, dict) else {}
-                            if isinstance(counts, dict):
-                                enabled_domains = {
-                                    s.domain for s in enabled_specs if s.domain in alertable_domains
-                                }
-                                for server, count in counts.items():
-                                    if server not in enabled_domains:
-                                        continue
-                                    if int(count) >= int(proxy_settings.max_upstream_errors_per_domain):
-                                        upstream_violation = True
-                                        break
-
-                        # The access-log rate has no domain attribution in the configured
-                        # Nginx combined log format, so it remains a global critical signal.
-                        # Domain policy applies only where the failing domain is known.
-                        proxy_observed_ok = (
-                            (not upstream_issues)
-                            and (not access_violation)
-                            and (not upstream_violation)
-                            and (dft_cycle.coverage_ok or proxy_health.last_ok)
-                        )
-                        prev_effective = bool(proxy_health.last_ok)
-                        proxy_alerted_down = proxy_health.advance(
-                            observed_ok=proxy_observed_ok, thresholds=proxy_settings.alerts,
-                        )
-                        pct_502_504 = None
-                        access_total = 0
-                        access_502_504 = 0
-                        if access_stats is not None:
-                            try:
-                                access_total = int(access_stats.total)
-                                access_502_504 = int(access_stats.status_502_504)
-                                pct_502_504 = (access_502_504 / float(access_total or 1)) * 100.0
-                            except Exception:
-                                pct_502_504 = None
-                                access_total = 0
-                                access_502_504 = 0
-                        _append_signal_sample(
-                            "proxy",
-                            [
-                                float(cycle_started),
-                                1 if bool(proxy_health.last_ok) else 0,
-                                int(len(upstream_issues or [])),
-                                pct_502_504,
-                                int(access_total),
-                                int(access_502_504),
-                                int(len(upstream_events or [])),
-                            ],
-                        )
-
-                        if proxy_alerted_down and (not proxy_observed_ok):
-                            _append_event(
-                                "proxy_degraded",
-                                ts=float(cycle_started),
-                                upstream_issues=int(len(upstream_issues or [])),
-                                access_502_504_percent=pct_502_504,
-                                upstream_events=int(len(upstream_events or [])),
-                            )
-                            msg = _build_proxy_alert_message(
-                                upstream_issues=upstream_issues,
-                                access_stats=access_stats,
-                                upstream_errors_summary=upstream_summary,
-                                window_seconds=int(proxy_settings.feed.window_seconds),
-                                down_after_failures=proxy_settings.alerts.down_after_failures,
-                                fail_streak=int(proxy_health.fail_streak),
-                            )
-                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                            LOGGER.warning(
-                                "Proxy degraded alert sent_ok=%s telegram_last=%s",
-                                ok_all,
-                                redact_telegram_response(resps[-1] if resps else {}),
-                            )
-
-                            if proxy_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                                if "proxy" in active_dispatch_tasks and not active_dispatch_tasks["proxy"].done():
-                                    LOGGER.info("Dispatch already running for proxy; skipping new dispatch")
-                                else:
-                                    active_dispatch_tasks["proxy"] = asyncio.create_task(
-                                        _dispatch_proxy_and_forward(
-                                            http_client=http_client,
-                                            telegram_cfg=telegram_cfg,
-                                            dispatch_cfg=dispatch_cfg,
-                                            dispatch_state=dispatch_state,
-                                            upstream_issues=upstream_issues,
-                                            access_stats=access_stats,
-                                            upstream_error_events=upstream_events,
-                                            window_seconds=int(proxy_settings.feed.window_seconds),
-                                            dispatch_history=dispatch_history,
-                                            dispatch_last=dispatch_last,
-                                            events=events,
-                                        )
-                                    )
-
-                        proxy_recovered = (not prev_effective) and bool(proxy_health.last_ok)
-                        if proxy_recovered:
-                            _append_event("proxy_recovered", ts=float(cycle_started))
-                        if proxy_recovered and proxy_settings.alerts.notify_on_recovery:
-                            ok, resp = await send_telegram_message(
-                                http_client,
-                                telegram_cfg,
-                                "Proxy/upstream signals recovered ✅",
-                            )
-                            LOGGER.info(
-                                "Proxy recovery notice sent_ok=%s telegram=%s",
-                                ok,
-                                redact_telegram_response(resp),
-                            )
+                    await proxy_phase.run(probe_frame, cycle_results)
 
                     # ------------------------------
                     # Synthetic transactions (Playwright step flows)
@@ -1920,95 +1661,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # ------------------------------
                     # Meta-monitoring (monitor pipeline health)
                     # ------------------------------
-                    if meta_settings.alerts.enabled:
-                        meta_reasons: list[str] = []
-                        try:
-                            overrun_threshold = float(interval_seconds) * float(meta_settings.cycle_overrun_factor)
-                        except Exception:
-                            overrun_threshold = float(interval_seconds) * 1.25
-                        if float(elapsed) > float(overrun_threshold):
-                            meta_reasons.append(
-                                f"cycle_overrun: elapsed={round(float(elapsed), 3)}s > threshold={round(float(overrun_threshold), 3)}s interval={int(interval_seconds)}s"
-                            )
-                        if int(state_write_fail_streak) >= int(meta_settings.state_write_failures_max):
-                            meta_reasons.append(
-                                f"state_write_failures: streak={int(state_write_fail_streak)} >= {int(meta_settings.state_write_failures_max)}"
-                            )
-
-                        meta_observed_ok = not bool(meta_reasons)
-                        prev_effective = bool(meta_health.last_ok)
-                        meta_alerted_down = meta_health.advance(
-                            observed_ok=meta_observed_ok, thresholds=meta_settings.alerts,
-                        )
-                        _append_signal_sample(
-                            "meta",
-                            [
-                                float(cycle_started),
-                                1 if bool(meta_health.last_ok) else 0,
-                                int(len(meta_reasons or [])),
-                                round(float(elapsed), 3),
-                                int(state_write_fail_streak),
-                            ],
-                        )
-
-                        if meta_alerted_down and meta_reasons:
-                            _append_event("meta_degraded", ts=float(cycle_started), reasons=meta_reasons[:20])
-                            msg = _build_meta_alert_message(
-                                reasons=meta_reasons,
-                                down_after_failures=meta_settings.alerts.down_after_failures,
-                                fail_streak=int(meta_health.fail_streak),
-                            )
-                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                            LOGGER.warning(
-                                "Meta degraded alert sent_ok=%s telegram_last=%s reasons=%s",
-                                ok_all,
-                                redact_telegram_response(resps[-1] if resps else {}),
-                                meta_reasons[:3],
-                            )
-
-                            if meta_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                                if "meta" in active_dispatch_tasks and not active_dispatch_tasks["meta"].done():
-                                    LOGGER.info("Dispatch already running for meta; skipping new dispatch")
-                                else:
-                                    active_dispatch_tasks["meta"] = asyncio.create_task(
-                                        _dispatch_meta_and_forward(
-                                            http_client=http_client,
-                                            telegram_cfg=telegram_cfg,
-                                            dispatch_cfg=dispatch_cfg,
-                                            dispatch_state=dispatch_state,
-                                            reasons=meta_reasons,
-                                            context={
-                                                "interval_seconds": int(interval_seconds),
-                                                "elapsed_seconds": round(float(elapsed), 3),
-                                                "state_write_fail_streak": int(state_write_fail_streak),
-                                                "browser_connected": (
-                                                    bool(browser_admission.browser and getattr(browser_admission.browser, "is_connected", lambda: False)())
-                                                    if browser_admission.browser is not None
-                                                    else False
-                                                ),
-                                                "check_concurrency": int(check_concurrency),
-                                                "browser_concurrency": int(browser_concurrency),
-                                            },
-                                            dispatch_history=dispatch_history,
-                                            dispatch_last=dispatch_last,
-                                            events=events,
-                                        )
-                                    )
-
-                        meta_recovered = (not prev_effective) and bool(meta_health.last_ok)
-                        if meta_recovered:
-                            _append_event("meta_recovered", ts=float(cycle_started))
-                        if meta_recovered and meta_settings.alerts.notify_on_recovery:
-                            ok, resp = await send_telegram_message(
-                                http_client,
-                                telegram_cfg,
-                                "Monitoring pipeline recovered ✅",
-                            )
-                            LOGGER.info(
-                                "Meta recovery notice sent_ok=%s telegram=%s",
-                                ok,
-                                redact_telegram_response(resp),
-                            )
+                    await meta_phase.run(probe_frame, CycleTiming(
+                        interval_seconds, elapsed, state_write_fail_streak, browser_admission.browser,
+                        check_concurrency, browser_concurrency,
+                    ))
 
                     await _flush_event_bus(http_client)
                     if state_path is not None:
