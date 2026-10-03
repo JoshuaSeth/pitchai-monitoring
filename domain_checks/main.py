@@ -152,8 +152,8 @@ from .telegram import (
 
 from .cycle_configuration import cycle_section
 from .alert_transition import update_effective_ok as _update_effective_ok
+from .health_state import HealthState
 from .cycle_values import (
-    bool_field,
     coerce_float as _coerce_float,
     coerce_int as _coerce_int,
     coerce_optional_float as _coerce_optional_float,
@@ -564,29 +564,17 @@ async def run_loop(config_path: Path, once: bool) -> int:
     success_streak: dict[str, int] = {}
     history_by_domain: dict[str, list[list[Any]]] = {}
     disk_state: dict[str, Any] = {}
-    host_health_last_ok = True
-    host_health_fail_streak = 0
-    host_health_success_streak = 0
+    host_health = HealthState()
     host_cpu_prev_total = 0
     host_cpu_prev_idle = 0
-    perf_last_ok = True
-    perf_fail_streak = 0
-    perf_success_streak = 0
-    slo_last_ok = True
-    slo_fail_streak = 0
-    slo_success_streak = 0
-    tls_last_ok = True
-    tls_fail_streak = 0
-    tls_success_streak = 0
+    perf_health = HealthState()
+    slo_health = HealthState()
+    tls_health = HealthState()
     tls_last_run_ts = 0.0
-    dns_last_ok = True
-    dns_fail_streak = 0
-    dns_success_streak = 0
+    dns_health = HealthState()
     dns_last_run_ts = 0.0
     dns_last_ips: dict[str, list[str]] = {}
-    red_last_ok = True
-    red_fail_streak = 0
-    red_success_streak = 0
+    red_health = HealthState()
     synthetic_last_ok: dict[str, bool] = {}
     synthetic_fail_streak: dict[str, int] = {}
     synthetic_success_streak: dict[str, int] = {}
@@ -599,17 +587,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
     api_contract_fail_streak: dict[str, int] = {}
     api_contract_success_streak: dict[str, int] = {}
     api_contract_last_run_ts: dict[str, float] = {}
-    container_last_ok = True
-    container_fail_streak = 0
-    container_success_streak = 0
+    container_health = HealthState()
     container_last_run_ts = 0.0
     container_restart_counts: dict[str, int] = {}
-    proxy_last_ok = True
-    proxy_fail_streak = 0
-    proxy_success_streak = 0
-    meta_last_ok = True
-    meta_fail_streak = 0
-    meta_success_streak = 0
+    proxy_health = HealthState()
+    meta_health = HealthState()
     state_write_fail_streak = 0
     signal_history: dict[str, list[list[Any]]] = {}
     dispatch_history: list[dict[str, Any]] = []
@@ -657,42 +639,30 @@ async def run_loop(config_path: Path, once: bool) -> int:
                 LOGGER.exception("Failed to migrate history ok mode to effective")
         host_state = disk_state.get("host_health")
         if isinstance(host_state, dict):
-            host_health_last_ok = bool_field(host_state, "last_ok", default=True)
-            host_health_fail_streak = _coerce_int(host_state.get("fail_streak"), default=0)
-            host_health_success_streak = _coerce_int(host_state.get("success_streak"), default=0)
+            host_health = HealthState.from_section(host_state)
             host_cpu_prev_total = _coerce_int(host_state.get("cpu_prev_total"), default=0)
             host_cpu_prev_idle = _coerce_int(host_state.get("cpu_prev_idle"), default=0)
         perf_state = disk_state.get("performance")
         if isinstance(perf_state, dict):
-            perf_last_ok = bool_field(perf_state, "last_ok", default=True)
-            perf_fail_streak = _coerce_int(perf_state.get("fail_streak"), default=0)
-            perf_success_streak = _coerce_int(perf_state.get("success_streak"), default=0)
+            perf_health = HealthState.from_section(perf_state)
         slo_state = disk_state.get("slo")
         if isinstance(slo_state, dict):
-            slo_last_ok = bool_field(slo_state, "last_ok", default=True)
-            slo_fail_streak = _coerce_int(slo_state.get("fail_streak"), default=0)
-            slo_success_streak = _coerce_int(slo_state.get("success_streak"), default=0)
+            slo_health = HealthState.from_section(slo_state)
 
         tls_state = disk_state.get("tls")
         if isinstance(tls_state, dict):
-            tls_last_ok = bool_field(tls_state, "last_ok", default=True)
-            tls_fail_streak = _coerce_int(tls_state.get("fail_streak"), default=0)
-            tls_success_streak = _coerce_int(tls_state.get("success_streak"), default=0)
+            tls_health = HealthState.from_section(tls_state)
             tls_last_run_ts = _coerce_float(tls_state.get("last_run_ts"), default=0.0)
 
         dns_state = disk_state.get("dns")
         if isinstance(dns_state, dict):
-            dns_last_ok = bool_field(dns_state, "last_ok", default=True)
-            dns_fail_streak = _coerce_int(dns_state.get("fail_streak"), default=0)
-            dns_success_streak = _coerce_int(dns_state.get("success_streak"), default=0)
+            dns_health = HealthState.from_section(dns_state)
             dns_last_run_ts = _coerce_float(dns_state.get("last_run_ts"), default=0.0)
             dns_last_ips = _coerce_str_list_dict(dns_state.get("last_ips"))
 
         red_state = disk_state.get("red")
         if isinstance(red_state, dict):
-            red_last_ok = bool_field(red_state, "last_ok", default=True)
-            red_fail_streak = _coerce_int(red_state.get("fail_streak"), default=0)
-            red_success_streak = _coerce_int(red_state.get("success_streak"), default=0)
+            red_health = HealthState.from_section(red_state)
 
         syn_state = disk_state.get("synthetic")
         if isinstance(syn_state, dict):
@@ -717,23 +687,17 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
         cont_state = disk_state.get("container_health")
         if isinstance(cont_state, dict):
-            container_last_ok = bool_field(cont_state, "last_ok", default=True)
-            container_fail_streak = _coerce_int(cont_state.get("fail_streak"), default=0)
-            container_success_streak = _coerce_int(cont_state.get("success_streak"), default=0)
+            container_health = HealthState.from_section(cont_state)
             container_last_run_ts = _coerce_float(cont_state.get("last_run_ts"), default=0.0)
             container_restart_counts = _coerce_int_dict(cont_state.get("restart_counts"))
 
         proxy_state = disk_state.get("proxy")
         if isinstance(proxy_state, dict):
-            proxy_last_ok = bool_field(proxy_state, "last_ok", default=True)
-            proxy_fail_streak = _coerce_int(proxy_state.get("fail_streak"), default=0)
-            proxy_success_streak = _coerce_int(proxy_state.get("success_streak"), default=0)
+            proxy_health = HealthState.from_section(proxy_state)
 
         meta_state = disk_state.get("meta")
         if isinstance(meta_state, dict):
-            meta_last_ok = bool_field(meta_state, "last_ok", default=True)
-            meta_fail_streak = _coerce_int(meta_state.get("fail_streak"), default=0)
-            meta_success_streak = _coerce_int(meta_state.get("success_streak"), default=0)
+            meta_health = HealthState.from_section(meta_state)
             state_write_fail_streak = _coerce_int(meta_state.get("state_write_fail_streak"), default=0)
     event_bus_outbox: EventBusOutbox | None = None
     if event_bus_config is not None:
@@ -823,39 +787,27 @@ async def run_loop(config_path: Path, once: bool) -> int:
             ),
             "browser_degraded_last_notice_ts": float(monitor_state.get("browser_degraded_last_notice_ts") or 0.0),
             "host_health": {
-                "last_ok": bool(host_health_last_ok),
-                "fail_streak": int(host_health_fail_streak),
-                "success_streak": int(host_health_success_streak),
+                **host_health.to_state(),
                 "cpu_prev_total": int(host_cpu_prev_total),
                 "cpu_prev_idle": int(host_cpu_prev_idle),
             },
             "performance": {
-                "last_ok": bool(perf_last_ok),
-                "fail_streak": int(perf_fail_streak),
-                "success_streak": int(perf_success_streak),
+                **perf_health.to_state(),
             },
             "slo": {
-                "last_ok": bool(slo_last_ok),
-                "fail_streak": int(slo_fail_streak),
-                "success_streak": int(slo_success_streak),
+                **slo_health.to_state(),
             },
             "tls": {
-                "last_ok": bool(tls_last_ok),
-                "fail_streak": int(tls_fail_streak),
-                "success_streak": int(tls_success_streak),
+                **tls_health.to_state(),
                 "last_run_ts": float(tls_last_run_ts),
             },
             "dns": {
-                "last_ok": bool(dns_last_ok),
-                "fail_streak": int(dns_fail_streak),
-                "success_streak": int(dns_success_streak),
+                **dns_health.to_state(),
                 "last_run_ts": float(dns_last_run_ts),
                 "last_ips": dns_last_ips,
             },
             "red": {
-                "last_ok": bool(red_last_ok),
-                "fail_streak": int(red_fail_streak),
-                "success_streak": int(red_success_streak),
+                **red_health.to_state(),
             },
             "synthetic": {
                 "last_ok": synthetic_last_ok,
@@ -876,21 +828,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                 "last_run_ts": api_contract_last_run_ts,
             },
             "container_health": {
-                "last_ok": bool(container_last_ok),
-                "fail_streak": int(container_fail_streak),
-                "success_streak": int(container_success_streak),
+                **container_health.to_state(),
                 "last_run_ts": float(container_last_run_ts),
                 "restart_counts": container_restart_counts,
             },
             "proxy": {
-                "last_ok": bool(proxy_last_ok),
-                "fail_streak": int(proxy_fail_streak),
-                "success_streak": int(proxy_success_streak),
+                **proxy_health.to_state(),
             },
             "meta": {
-                "last_ok": bool(meta_last_ok),
-                "fail_streak": int(meta_fail_streak),
-                "success_streak": int(meta_success_streak),
+                **meta_health.to_state(),
                 "state_write_fail_streak": int(state_write_fail_streak),
             },
         }
@@ -1160,18 +1106,14 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         slo_violations = [v for v in slo_violations if v.domain in alertable_domains]
 
                         slo_observed_ok = not bool(slo_violations)
-                        prev_effective = bool(slo_last_ok)
-                        slo_last_ok, slo_fail_streak, slo_success_streak, slo_alerted_down = _update_effective_ok(
-                            prev_effective_ok=prev_effective,
-                            observed_ok=slo_observed_ok,
-                            fail_streak=int(slo_fail_streak),
-                            success_streak=int(slo_success_streak),
-                            down_after_failures=slo_settings.alerts.down_after_failures,
-                            up_after_successes=slo_settings.alerts.up_after_successes,
+                        prev_effective = bool(slo_health.last_ok)
+                        slo_alerted_down = slo_health.advance(
+                            observed_ok=slo_observed_ok, thresholds=slo_settings.alerts,
                         )
                         _append_signal_sample(
                             "slo",
-                            [float(cycle_started), 1 if bool(slo_last_ok) else 0, int(len(slo_violations or []))],
+                            [float(cycle_started), 1 if bool(slo_health.last_ok) else 0,
+                             int(len(slo_violations or []))],
                         )
 
                         if slo_alerted_down and slo_violations:
@@ -1185,7 +1127,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 violations=slo_violations,
                                 slo_target_percent=float(slo_settings.target_percent),
                                 down_after_failures=slo_settings.alerts.down_after_failures,
-                                fail_streak=int(slo_fail_streak),
+                                fail_streak=int(slo_health.fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                             LOGGER.warning(
@@ -1213,7 +1155,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         )
                                     )
 
-                        slo_recovered = (not prev_effective) and bool(slo_last_ok)
+                        slo_recovered = (not prev_effective) and bool(slo_health.last_ok)
                         if slo_recovered:
                             _append_event("slo_recovered", ts=float(cycle_started))
                         if slo_recovered and slo_settings.alerts.notify_on_recovery:
@@ -1258,18 +1200,14 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         red_violations = [v for v in red_violations if v.domain in alertable_domains]
 
                         red_observed_ok = not bool(red_violations)
-                        prev_effective = bool(red_last_ok)
-                        red_last_ok, red_fail_streak, red_success_streak, red_alerted_down = _update_effective_ok(
-                            prev_effective_ok=prev_effective,
-                            observed_ok=red_observed_ok,
-                            fail_streak=int(red_fail_streak),
-                            success_streak=int(red_success_streak),
-                            down_after_failures=red_settings.alerts.down_after_failures,
-                            up_after_successes=red_settings.alerts.up_after_successes,
+                        prev_effective = bool(red_health.last_ok)
+                        red_alerted_down = red_health.advance(
+                            observed_ok=red_observed_ok, thresholds=red_settings.alerts,
                         )
                         _append_signal_sample(
                             "red",
-                            [float(cycle_started), 1 if bool(red_last_ok) else 0, int(len(red_violations or []))],
+                            [float(cycle_started), 1 if bool(red_health.last_ok) else 0,
+                             int(len(red_violations or []))],
                         )
 
                         if red_alerted_down and red_violations:
@@ -1283,7 +1221,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 violations=red_violations,
                                 window_minutes=int(red_settings.window_minutes),
                                 down_after_failures=red_settings.alerts.down_after_failures,
-                                fail_streak=int(red_fail_streak),
+                                fail_streak=int(red_health.fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                             LOGGER.warning(
@@ -1311,7 +1249,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         )
                                     )
 
-                        red_recovered = (not prev_effective) and bool(red_last_ok)
+                        red_recovered = (not prev_effective) and bool(red_health.last_ok)
                         if red_recovered:
                             _append_event("red_recovered", ts=float(cycle_started))
                         if red_recovered and red_settings.alerts.notify_on_recovery:
@@ -1353,19 +1291,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 pass
 
                         host_observed_ok = not bool(host_violations)
-                        prev_effective = bool(host_health_last_ok)
-                        (
-                            host_health_last_ok,
-                            host_health_fail_streak,
-                            host_health_success_streak,
-                            host_alerted_down,
-                        ) = _update_effective_ok(
-                            prev_effective_ok=prev_effective,
-                            observed_ok=host_observed_ok,
-                            fail_streak=int(host_health_fail_streak),
-                            success_streak=int(host_health_success_streak),
-                            down_after_failures=host_settings.alerts.down_after_failures,
-                            up_after_successes=host_settings.alerts.up_after_successes,
+                        prev_effective = bool(host_health.last_ok)
+                        host_alerted_down = host_health.advance(
+                            observed_ok=host_observed_ok, thresholds=host_settings.alerts,
                         )
 
                         # Persist last host snapshot for dashboard visibility (and time-series history below).
@@ -1393,7 +1321,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             "host_health",
                             [
                                 float(cycle_started),
-                                1 if bool(host_health_last_ok) else 0,
+                                1 if bool(host_health.last_ok) else 0,
                                 host_snap.get("mem_used_percent"),
                                 host_snap.get("swap_used_percent"),
                                 host_snap.get("cpu_used_percent"),
@@ -1409,7 +1337,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 violations=host_violations,
                                 snap=host_snap,
                                 down_after_failures=host_settings.alerts.down_after_failures,
-                                fail_streak=int(host_health_fail_streak),
+                                fail_streak=int(host_health.fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                             LOGGER.warning(
@@ -1445,7 +1373,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         )
                                     )
 
-                        host_recovered = (not prev_effective) and bool(host_health_last_ok)
+                        host_recovered = (not prev_effective) and bool(host_health.last_ok)
                         if host_recovered:
                             _append_event("host_health_recovered", ts=float(cycle_started))
                         if host_recovered and host_settings.alerts.notify_on_recovery:
@@ -1484,18 +1412,13 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             item for item in perf_slow if str(item.get("domain")) in alertable_domains
                         ]
                         perf_observed_ok = not bool(perf_slow)
-                        prev_effective = bool(perf_last_ok)
-                        perf_last_ok, perf_fail_streak, perf_success_streak, perf_alerted_down = _update_effective_ok(
-                            prev_effective_ok=prev_effective,
-                            observed_ok=perf_observed_ok,
-                            fail_streak=int(perf_fail_streak),
-                            success_streak=int(perf_success_streak),
-                            down_after_failures=perf_settings.alerts.down_after_failures,
-                            up_after_successes=perf_settings.alerts.up_after_successes,
+                        prev_effective = bool(perf_health.last_ok)
+                        perf_alerted_down = perf_health.advance(
+                            observed_ok=perf_observed_ok, thresholds=perf_settings.alerts,
                         )
                         _append_signal_sample(
                             "performance",
-                            [float(cycle_started), 1 if bool(perf_last_ok) else 0, int(len(perf_slow or []))],
+                            [float(cycle_started), 1 if bool(perf_health.last_ok) else 0, int(len(perf_slow or []))],
                         )
 
                         if perf_alerted_down and perf_slow:
@@ -1507,7 +1430,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             msg = _build_performance_alert_message(
                                 slow=perf_slow,
                                 down_after_failures=perf_settings.alerts.down_after_failures,
-                                fail_streak=int(perf_fail_streak),
+                                fail_streak=int(perf_health.fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                             LOGGER.warning(
@@ -1542,7 +1465,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         )
                                     )
 
-                        perf_recovered = (not prev_effective) and bool(perf_last_ok)
+                        perf_recovered = (not prev_effective) and bool(perf_health.last_ok)
                         if perf_recovered:
                             _append_event("performance_recovered", ts=float(cycle_started))
                         if perf_recovered and perf_settings.alerts.notify_on_recovery:
@@ -1607,14 +1530,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 if r.domain not in entries_by_domain or r.domain in alertable_domains
                             ]
                             tls_observed_ok = all(r.ok for r in tls_alert_results)
-                            prev_effective = bool(tls_last_ok)
-                            tls_last_ok, tls_fail_streak, tls_success_streak, tls_alerted_down = _update_effective_ok(
-                                prev_effective_ok=prev_effective,
-                                observed_ok=tls_observed_ok,
-                                fail_streak=int(tls_fail_streak),
-                                success_streak=int(tls_success_streak),
-                                down_after_failures=tls_settings.alerts.down_after_failures,
-                                up_after_successes=tls_settings.alerts.up_after_successes,
+                            prev_effective = bool(tls_health.last_ok)
+                            tls_alerted_down = tls_health.advance(
+                                observed_ok=tls_observed_ok, thresholds=tls_settings.alerts,
                             )
                             tls_fail_count = 0
                             try:
@@ -1625,7 +1543,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 tls_fail_count = 0
                             _append_signal_sample(
                                 "tls",
-                                [float(cycle_started), 1 if bool(tls_last_ok) else 0, int(tls_fail_count)],
+                                [float(cycle_started), 1 if bool(tls_health.last_ok) else 0, int(tls_fail_count)],
                             )
 
                             if tls_alerted_down and tls_alert_results and (not tls_observed_ok):
@@ -1639,7 +1557,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     results=tls_alert_results,
                                     min_days_valid=float(tls_settings.min_days_valid),
                                     down_after_failures=tls_settings.alerts.down_after_failures,
-                                    fail_streak=int(tls_fail_streak),
+                                    fail_streak=int(tls_health.fail_streak),
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                                 LOGGER.warning(
@@ -1666,7 +1584,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             )
                                         )
 
-                            tls_recovered = (not prev_effective) and bool(tls_last_ok)
+                            tls_recovered = (not prev_effective) and bool(tls_health.last_ok)
                             if tls_recovered:
                                 _append_event("tls_recovered", ts=float(cycle_started))
                             if tls_recovered and tls_settings.alerts.notify_on_recovery:
@@ -1758,14 +1676,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 if r.domain not in entries_by_domain or r.domain in alertable_domains
                             ]
                             dns_observed_ok = all(r.ok for r in dns_alert_results)
-                            prev_effective = bool(dns_last_ok)
-                            dns_last_ok, dns_fail_streak, dns_success_streak, dns_alerted_down = _update_effective_ok(
-                                prev_effective_ok=prev_effective,
-                                observed_ok=dns_observed_ok,
-                                fail_streak=int(dns_fail_streak),
-                                success_streak=int(dns_success_streak),
-                                down_after_failures=dns_settings.alerts.down_after_failures,
-                                up_after_successes=dns_settings.alerts.up_after_successes,
+                            prev_effective = bool(dns_health.last_ok)
+                            dns_alerted_down = dns_health.advance(
+                                observed_ok=dns_observed_ok, thresholds=dns_settings.alerts,
                             )
                             dns_fail_count = 0
                             try:
@@ -1776,7 +1689,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 dns_fail_count = 0
                             _append_signal_sample(
                                 "dns",
-                                [float(cycle_started), 1 if bool(dns_last_ok) else 0, int(dns_fail_count)],
+                                [float(cycle_started), 1 if bool(dns_health.last_ok) else 0, int(dns_fail_count)],
                             )
 
                             if dns_alerted_down and dns_alert_results and (not dns_observed_ok):
@@ -1789,7 +1702,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 msg = _build_dns_alert_message(
                                     results=dns_alert_results,
                                     down_after_failures=dns_settings.alerts.down_after_failures,
-                                    fail_streak=int(dns_fail_streak),
+                                    fail_streak=int(dns_health.fail_streak),
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                                 LOGGER.warning(
@@ -1815,7 +1728,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             )
                                         )
 
-                            dns_recovered = (not prev_effective) and bool(dns_last_ok)
+                            dns_recovered = (not prev_effective) and bool(dns_health.last_ok)
                             if dns_recovered:
                                 _append_event("dns_recovered", ts=float(cycle_started))
                             if dns_recovered and dns_settings.alerts.notify_on_recovery:
@@ -1985,24 +1898,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 ]
 
                             container_observed_ok = not bool(container_issues)
-                            prev_effective = bool(container_last_ok)
-                            (
-                                container_last_ok,
-                                container_fail_streak,
-                                container_success_streak,
-                                container_alerted_down,
-                            ) = _update_effective_ok(
-                                prev_effective_ok=prev_effective,
-                                observed_ok=container_observed_ok,
-                                fail_streak=int(container_fail_streak),
-                                success_streak=int(container_success_streak),
-                                down_after_failures=container_settings.alerts.down_after_failures,
-                                up_after_successes=container_settings.alerts.up_after_successes,
+                            prev_effective = bool(container_health.last_ok)
+                            container_alerted_down = container_health.advance(
+                                observed_ok=container_observed_ok, thresholds=container_settings.alerts,
                             )
                             container_issue_count = int(len(container_issues or []))
                             _append_signal_sample(
                                 "container_health",
-                                [float(cycle_started), 1 if bool(container_last_ok) else 0, container_issue_count],
+                                [float(cycle_started), 1 if bool(container_health.last_ok) else 0,
+                                 container_issue_count],
                             )
 
                             if container_alerted_down and container_issues:
@@ -2014,7 +1918,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 msg = _build_container_health_alert_message(
                                     issues=container_issues,
                                     down_after_failures=container_settings.alerts.down_after_failures,
-                                    fail_streak=int(container_fail_streak),
+                                    fail_streak=int(container_health.fail_streak),
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                                 LOGGER.warning(
@@ -2041,7 +1945,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             )
                                         )
 
-                            container_recovered = (not prev_effective) and bool(container_last_ok)
+                            container_recovered = (not prev_effective) and bool(container_health.last_ok)
                             if container_recovered:
                                 _append_event("container_health_recovered", ts=float(cycle_started))
                             if container_recovered and container_settings.alerts.notify_on_recovery:
@@ -2130,16 +2034,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             (not upstream_issues)
                             and (not access_violation)
                             and (not upstream_violation)
-                            and (dft_cycle.coverage_ok or proxy_last_ok)
+                            and (dft_cycle.coverage_ok or proxy_health.last_ok)
                         )
-                        prev_effective = bool(proxy_last_ok)
-                        proxy_last_ok, proxy_fail_streak, proxy_success_streak, proxy_alerted_down = _update_effective_ok(
-                            prev_effective_ok=prev_effective,
-                            observed_ok=proxy_observed_ok,
-                            fail_streak=int(proxy_fail_streak),
-                            success_streak=int(proxy_success_streak),
-                            down_after_failures=proxy_settings.alerts.down_after_failures,
-                            up_after_successes=proxy_settings.alerts.up_after_successes,
+                        prev_effective = bool(proxy_health.last_ok)
+                        proxy_alerted_down = proxy_health.advance(
+                            observed_ok=proxy_observed_ok, thresholds=proxy_settings.alerts,
                         )
                         pct_502_504 = None
                         access_total = 0
@@ -2157,7 +2056,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             "proxy",
                             [
                                 float(cycle_started),
-                                1 if bool(proxy_last_ok) else 0,
+                                1 if bool(proxy_health.last_ok) else 0,
                                 int(len(upstream_issues or [])),
                                 pct_502_504,
                                 int(access_total),
@@ -2180,7 +2079,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 upstream_errors_summary=upstream_summary,
                                 window_seconds=int(proxy_settings.feed.window_seconds),
                                 down_after_failures=proxy_settings.alerts.down_after_failures,
-                                fail_streak=int(proxy_fail_streak),
+                                fail_streak=int(proxy_health.fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                             LOGGER.warning(
@@ -2209,7 +2108,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         )
                                     )
 
-                        proxy_recovered = (not prev_effective) and bool(proxy_last_ok)
+                        proxy_recovered = (not prev_effective) and bool(proxy_health.last_ok)
                         if proxy_recovered:
                             _append_event("proxy_recovered", ts=float(cycle_started))
                         if proxy_recovered and proxy_settings.alerts.notify_on_recovery:
@@ -2694,20 +2593,15 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             )
 
                         meta_observed_ok = not bool(meta_reasons)
-                        prev_effective = bool(meta_last_ok)
-                        meta_last_ok, meta_fail_streak, meta_success_streak, meta_alerted_down = _update_effective_ok(
-                            prev_effective_ok=prev_effective,
-                            observed_ok=meta_observed_ok,
-                            fail_streak=int(meta_fail_streak),
-                            success_streak=int(meta_success_streak),
-                            down_after_failures=meta_settings.alerts.down_after_failures,
-                            up_after_successes=meta_settings.alerts.up_after_successes,
+                        prev_effective = bool(meta_health.last_ok)
+                        meta_alerted_down = meta_health.advance(
+                            observed_ok=meta_observed_ok, thresholds=meta_settings.alerts,
                         )
                         _append_signal_sample(
                             "meta",
                             [
                                 float(cycle_started),
-                                1 if bool(meta_last_ok) else 0,
+                                1 if bool(meta_health.last_ok) else 0,
                                 int(len(meta_reasons or [])),
                                 round(float(elapsed), 3),
                                 int(state_write_fail_streak),
@@ -2719,7 +2613,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             msg = _build_meta_alert_message(
                                 reasons=meta_reasons,
                                 down_after_failures=meta_settings.alerts.down_after_failures,
-                                fail_streak=int(meta_fail_streak),
+                                fail_streak=int(meta_health.fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
                             LOGGER.warning(
@@ -2758,7 +2652,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         )
                                     )
 
-                        meta_recovered = (not prev_effective) and bool(meta_last_ok)
+                        meta_recovered = (not prev_effective) and bool(meta_health.last_ok)
                         if meta_recovered:
                             _append_event("meta_recovered", ts=float(cycle_started))
                         if meta_recovered and meta_settings.alerts.notify_on_recovery:

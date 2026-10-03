@@ -1007,3 +1007,48 @@ Whole-main remains failed: 303 Ruff findings, 288 typing errors and one warning,
 Pylint 8.93, 30 Semgrep findings and architecture debt. Aggregate 21 anti-bypass
 findings remain. Required gates, whole-cycle repair and all existing operational
 bindings and admission dependencies remain open.
+
+# Scalar health state increment
+
+`health_state.HealthState` owns one metric family's effective health and failure
+and success streaks. Nine independent instances replace the duplicated scalar
+groups for host health, performance, SLO, TLS, DNS, RED, containers, proxy and
+meta monitoring. Restart decoding keeps the original boolean/integer rules;
+each observation uses the existing debounce implementation. Snapshot creation
+preserves the schema-six field names and values. Loading and saving do not
+constitute healthy observations. Extra timestamps, CPU counters, DNS addresses,
+container restart counts and write-failure counts stay with their current owners.
+
+Against parent `1235e3d82d823700c4211d942b4bbdd17fae74b9`, independent AST reversal
+accounts for nine initializers, nine loaders, nine snapshot trios, nine
+transitions, 37 field references, one added import and one unused import removal.
+The remaining main AST is identical. API-readiness, per-domain maps, DFT
+coverage/outbox behavior, scheduling and cleanup remain outside this extraction.
+Main is now 2,724 lines, 106 fewer than its parent; whole-cycle repair continues.
+
+Private source snapshots, comparison tools and raw logs are at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/health-state-extraction-20261003/`.
+Thirteen focused and existing tests pass in 0.001s. Comparisons with the nine
+retained parent loader/transition blocks pass 24,696 restart cases and 6,912
+observation cases in 0.152s. Their contract is persisted JSON/scalar state and
+the cycle's typed alert settings, not arbitrary custom objects.
+
+Eight real isolated launcher/config/state runs cover all nine families: four
+metric runs in 0.785s and four probe runs in 0.929s. Each family retains DOWN and
+two-success recovery across restarts, while CPU, DNS, timer and container
+metadata survive. Domain state, stopped-domain exclusion, default config
+resolution and final browser cleanup remain covered. HTTP/browser/host/log,
+TLS/DNS and clock observations are synthetic. Twenty-one local text captures
+include eight heartbeats; none is delivered. DFT is disabled with no journal and
+zero guarded network/subprocess attempts. Earlier DFT/nginx proofs retain their
+scope and were not repeated.
+
+All three runtime/test files match the final pretest snapshots. Both new Python
+files pass scoped architecture, Ruff, BasedPyright, Pylint 10 and Semgrep. Initial
+test-style findings, the comparison fixture's indentation error and working
+proof before unused-import/format cleanup remain in separate logs. Whole-main
+checks still fail with 302 Ruff findings, 253 typing errors and one warning,
+Pylint 8.91, 30 Semgrep findings and architecture debt; aggregate 21 anti-bypass
+findings remain. Required checks and existing runtime/receiver/copy/admission
+dependencies remain open. Validator 6f97's bounded `70157b1` acceptance is
+retained separately; it does not extend to this newer increment.
