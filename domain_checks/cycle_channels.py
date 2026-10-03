@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from .dispatch_state import dispatch_is_enabled
 from .dispatch_transport import redact_telegram_response, send_telegram_message, send_telegram_message_chunked
@@ -13,6 +13,7 @@ from .dispatch_transport import redact_telegram_response, send_telegram_message,
 if TYPE_CHECKING:
     import asyncio
     from collections.abc import Sequence
+    from types import TracebackType
 
     from httpx import AsyncClient
 
@@ -26,6 +27,25 @@ LOGGER = logging.getLogger("service-monitoring")
 
 
 @dataclass(frozen=True)
+class DispatchResultBoundary:
+    """Log completed dispatch failures while preserving cancellation ownership."""
+
+    domain: str
+
+    def __enter__(self) -> Self:
+        """Return the boundary for this already completed task."""
+        return self
+
+    def __exit__(self, _kind: type[BaseException] | None, error: BaseException | None,
+                 traceback: TracebackType | None) -> bool:
+        """Return true for ordinary task errors; leave cancellation and system exits loud."""
+        if not isinstance(error, Exception):
+            return False
+        LOGGER.error("Dispatch task crashed domain=%s", self.domain, exc_info=(type(error), error, traceback))
+        return True
+
+
+@dataclass(frozen=True)
 class CycleChannels:
     """Use existing transports, task ownership and collections without new routes."""
 
@@ -35,6 +55,15 @@ class CycleChannels:
     dispatch_state: JsonObject
     records: DispatchRecords
     tasks: dict[str, asyncio.Task[None]]
+
+    def prune_completed(self) -> None:
+        """Consume completed results in snapshot order, retaining interrupted ownership."""
+        for domain, task in list(self.tasks.items()):
+            if not task.done():
+                continue
+            with DispatchResultBoundary(domain):
+                task.result()
+            del self.tasks[domain]
 
     def dispatch_available(self, key: str, active_message: str) -> bool:
         """Evaluate existing enablement and retain a currently running task.

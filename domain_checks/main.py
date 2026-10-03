@@ -41,6 +41,7 @@ from .browser_launch import launch_options
 from .browser_admission import BrowserAdmission
 from .browser_recovery_phase import BrowserRecoveryPhase
 from .domain_observation import DomainProbes, observe_domain
+from .domain_polling import DomainPolling
 from .domain_entries import (
     DomainEntryConfig,
     normalize_domain_entries as _normalize_domain_entries,
@@ -891,6 +892,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
             browser_recovery = BrowserRecoveryPhase(browser_admission, _format_browser_health_hint,
                                                     _persist_browser_notice)
 
+            domain_polling = DomainPolling(check_semaphore, browser_semaphore, http_client, browser_admission,
+                                           lambda inputs: check_one_domain(**inputs))
             await browser_admission.ensure(time.time())
             try:
                 while True:
@@ -902,25 +905,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # Ensure the browser is alive at the start of each cycle. This prevents a single
                     # between-cycle crash/close event from degrading *every* domain in the next cycle.
                     await browser_admission.ensure(time.time())
-
-                    async def _safe_check(spec: DomainCheckSpec) -> DomainCheckResult:
-                        async with check_semaphore:
-                            try:
-                                return await check_one_domain(
-                                    spec,
-                                    http_client,
-                                    browser_admission.browser,
-                                    browser_semaphore=browser_semaphore,
-                                )
-                            except Exception as exc:
-                                err = f"{type(exc).__name__}: {exc}"
-                                LOGGER.exception("Domain check crashed domain=%s error=%s", spec.domain, err)
-                                return DomainCheckResult(
-                                    domain=spec.domain,
-                                    ok=False,
-                                    reason="check_crashed",
-                                    details={"error": err},
-                                )
 
                     now_ts = time.time()
                     disabled_entries = [entry for entry in domain_entries if entry.is_disabled(now_ts)]
@@ -948,7 +932,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         specs_by_domain[entry.domain] for entry in domain_entries if entry.domain not in disabled_set
                     ]
 
-                    tasks = [asyncio.create_task(_safe_check(spec)) for spec in enabled_specs]
+                    tasks = [asyncio.create_task(domain_polling.run(spec)) for spec in enabled_specs]
 
                     for fut in asyncio.as_completed(tasks):
                         result = await fut
@@ -1243,15 +1227,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                     await browser_recovery.run(probe_frame, degraded=browser_degraded)
 
-                    # Prune completed dispatch tasks to avoid unbounded growth.
-                    for domain, task in list(active_dispatch_tasks.items()):
-                        if not task.done():
-                            continue
-                        try:
-                            task.result()
-                        except Exception:
-                            LOGGER.exception("Dispatch task crashed domain=%s", domain)
-                        del active_dispatch_tasks[domain]
+                    cycle_channels.prune_completed()
 
                     await heartbeat_phase.run(cycle_channels, HeartbeatObservation(
                         cycle_results, entries_by_domain, disabled_lines, host_snap, host_violations,

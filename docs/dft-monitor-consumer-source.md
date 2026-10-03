@@ -1285,3 +1285,25 @@ thirteen Semgrep findings and architecture debt. Whole-cycle repair and actual
 DFT runtime bindings remain open. The 11:30 supported self read reports
 Astra/xhigh and no lane stop; the Infrastructure detail read timed out. The
 existing binding request and source-interface coordination are not replayed.
+# Native domain polling and completed dispatch ownership
+
+The existing domain semaphore now owns `DomainPolling.run`; it samples the
+current browser only after admission, returns the original observation object,
+and keeps ordinary check crashes distinct from cancellation. `CycleChannels`
+consumes completed dispatch results in the original snapshot order. A cancelled
+task remains owned and interrupts pruning before later entries, as before.
+
+Protected evidence is in
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/domain-polling-extraction-20261003/`.
+Four focused tests pass (0.057s), ten native-signature parent comparisons pass
+(0.015s, four error/cancellation cases), and five isolated native launcher runs
+pass (1.527s). The complete launcher results equal the retained parent,
+including persistence before browser restart. Nineteen local text captures,
+including five heartbeats, are explicitly unsent. DFT is disabled in this proof;
+the earlier dedicated DFT evidence retains its separate scope. Declared source
+substitutions restore the remaining parent `main.py` AST exactly.
+
+Three component files pass the canonical scoped checks. Aggregate anti-bypass
+debt and the remaining whole-main failures remain release work. This increment
+does not establish installed checker/reader/journal, receiver, off-host coverage,
+or runtime admission.
