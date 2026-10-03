@@ -1,0 +1,482 @@
+{
+  "release": {
+    "staging_pr": 207,
+    "staging_merge": "2f6ad458a51d7cc67c4313623d5c80fcc1f92d3e",
+    "main_pr": 208,
+    "main_merge": "4f7977b3675b8acf38f4e9aa077fda9b05773f7c",
+    "deployment_run": 37091125819,
+    "deployment_conclusion": "success",
+    "required_checks": [
+      "Enforcement integrity",
+      "Quality ratchet"
+    ],
+    "required_checks_passed": true
+  },
+  "tests": {
+    "focused_passed": 24,
+    "deployment_passed": 270,
+    "deployment_skipped": 4,
+    "local_ratchet_changed_files": 4,
+    "optional_full_zero_debt_gate": "failed; not repository-required"
+  },
+  "live": {
+    "inventory": {
+      "version": 1,
+      "reviewed_at": "2026-10-03",
+      "active_domains": 93,
+      "groups": 16,
+      "retired_domains": 42,
+      "orphaned_state_domains": 1
+    },
+    "runtime_domain_set_equals_config": true,
+    "all_runtime_alert_policies_equal_config": true,
+    "service_health": {
+      "enabled": 93,
+      "healthy": 81,
+      "down": 12,
+      "alertable_down": 5,
+      "expected_down": 7,
+      "unknown": 0,
+      "disabled": 0
+    },
+    "freshness": {
+      "status": "fresh",
+      "state_updated_at_ts": 1790996037.239577,
+      "age_seconds": 8.745568752288818,
+      "interval_seconds": 60,
+      "stale_after_seconds": 180,
+      "source": "state.updated_at"
+    },
+    "selected_domains": [
+      {
+        "domain": "dft-openai-info.openai.azure.com",
+        "label": "DFT historical Azure OpenAI resource",
+        "group": "dft",
+        "group_label": "Formatief Toetsen (DFT)",
+        "group_description": "Canonical production, staging and marketing routes",
+        "group_order": 70,
+        "environment": "staging",
+        "kind": "infrastructure",
+        "disabled": false,
+        "disabled_reason": null,
+        "disabled_until_ts": null,
+        "alert_policy": {
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "reason": "Historical Azure resource under DFT migration review, not an approved production model route. Root availability only, with no authenticated or billable model calls."
+        },
+        "last": {
+          "ts": 1790995925.1289213,
+          "primary_ts": 1790995925.1289213,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 424.571,
+          "browser_ms": null,
+          "status_code": 200,
+          "primary_status_code": 200
+        },
+        "streaks": {
+          "fail": 0,
+          "success": 1
+        },
+        "availability_24h": {
+          "total": 1,
+          "ok": 1,
+          "ok_pct": 100
+        },
+        "latency_24h": {
+          "http_p95_ms": 424.571,
+          "browser_p95_ms": null
+        },
+        "slow_24h": {
+          "http_count": 0,
+          "browser_count": 0,
+          "http_threshold_ms": 1500,
+          "browser_threshold_ms": 4000
+        },
+        "synthetic": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        },
+        "web_vitals": {
+          "last_ok": true,
+          "fail_streak": 0,
+          "success_streak": 1,
+          "last_run_ts": 1790996025.1715937
+        },
+        "api_contract": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        }
+      },
+      {
+        "domain": "upload-to-wasabi-7v37bcjssa-uc.a.run.app",
+        "label": "HetCIS upload backend",
+        "group": "hetcis",
+        "group_label": "HetCIS",
+        "group_description": "Public production site and PitchAI staging service",
+        "group_order": 110,
+        "environment": "production",
+        "kind": "infrastructure",
+        "disabled": false,
+        "disabled_reason": null,
+        "disabled_until_ts": null,
+        "alert_policy": {
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "reason": null
+        },
+        "last": {
+          "ts": 1790995925.1289213,
+          "primary_ts": 1790995925.1289213,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 4760.812,
+          "browser_ms": null,
+          "status_code": 403,
+          "primary_status_code": 403
+        },
+        "streaks": {
+          "fail": 0,
+          "success": 1
+        },
+        "availability_24h": {
+          "total": 1,
+          "ok": 1,
+          "ok_pct": 100
+        },
+        "latency_24h": {
+          "http_p95_ms": 4760.812,
+          "browser_p95_ms": null
+        },
+        "slow_24h": {
+          "http_count": 1,
+          "browser_count": 0,
+          "http_threshold_ms": 1500,
+          "browser_threshold_ms": 4000
+        },
+        "synthetic": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        },
+        "web_vitals": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        },
+        "api_contract": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        }
+      },
+      {
+        "domain": "us-central1-cis-db-e9fd3.cloudfunctions.net",
+        "label": "HetCIS upload function alias",
+        "group": "hetcis",
+        "group_label": "HetCIS",
+        "group_description": "Public production site and PitchAI staging service",
+        "group_order": 110,
+        "environment": "production",
+        "kind": "alias",
+        "disabled": false,
+        "disabled_reason": null,
+        "disabled_until_ts": null,
+        "alert_policy": {
+          "telegram": "dashboard-only",
+          "telegram_enabled": false,
+          "reason": "Same upload service as the normally monitored Cloud Run hostname; retain visibility without duplicate incident pages."
+        },
+        "last": {
+          "ts": 1790995925.1289213,
+          "primary_ts": 1790995925.1289213,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 207.019,
+          "browser_ms": null,
+          "status_code": 403,
+          "primary_status_code": 403
+        },
+        "streaks": {
+          "fail": 0,
+          "success": 1
+        },
+        "availability_24h": {
+          "total": 1,
+          "ok": 1,
+          "ok_pct": 100
+        },
+        "latency_24h": {
+          "http_p95_ms": 207.019,
+          "browser_p95_ms": null
+        },
+        "slow_24h": {
+          "http_count": 0,
+          "browser_count": 0,
+          "http_threshold_ms": 1500,
+          "browser_threshold_ms": 4000
+        },
+        "synthetic": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        },
+        "web_vitals": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        },
+        "api_contract": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        }
+      },
+      {
+        "domain": "submit-maatje-form-7v37bcjssa-uc.a.run.app",
+        "label": "HetCIS Maatje form backend",
+        "group": "hetcis",
+        "group_label": "HetCIS",
+        "group_description": "Public production site and PitchAI staging service",
+        "group_order": 110,
+        "environment": "production",
+        "kind": "infrastructure",
+        "disabled": false,
+        "disabled_reason": null,
+        "disabled_until_ts": null,
+        "alert_policy": {
+          "telegram": "critical",
+          "telegram_enabled": true,
+          "reason": null
+        },
+        "last": {
+          "ts": 1790995925.1289213,
+          "primary_ts": 1790995925.1289213,
+          "ok": true,
+          "primary_ok": true,
+          "failure_sources": [],
+          "http_ms": 2953.761,
+          "browser_ms": null,
+          "status_code": 400,
+          "primary_status_code": 400
+        },
+        "streaks": {
+          "fail": 0,
+          "success": 1
+        },
+        "availability_24h": {
+          "total": 1,
+          "ok": 1,
+          "ok_pct": 100
+        },
+        "latency_24h": {
+          "http_p95_ms": 2953.761,
+          "browser_p95_ms": null
+        },
+        "slow_24h": {
+          "http_count": 1,
+          "browser_count": 0,
+          "http_threshold_ms": 1500,
+          "browser_threshold_ms": 4000
+        },
+        "synthetic": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        },
+        "web_vitals": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        },
+        "api_contract": {
+          "last_ok": null,
+          "fail_streak": null,
+          "success_streak": null,
+          "last_run_ts": null
+        }
+      }
+    ],
+    "quiet_domains": [
+      "dft-openai-info.openai.azure.com",
+      "apologetica-react-staging.web.app",
+      "gzb-review.135-181-182-48.sslip.io",
+      "jeugdtandarts-review.135-181-182-48.sslip.io",
+      "aetherreel.37.27.67.52.nip.io",
+      "screens.135-181-182-48.sslip.io",
+      "wrist-vault.135-181-182-48.sslip.io",
+      "webcodex.135-181-182-48.sslip.io",
+      "apol.135-181-182-48.sslip.io",
+      "route-anchor.135-181-182-48.sslip.io",
+      "registry.pitchai.net",
+      "agentcloud.pitchai.net",
+      "dashboards.pitchai.net",
+      "support.pitchai.net",
+      "theplanbook.pitchai.net",
+      "us-central1-cis-db-e9fd3.cloudfunctions.net",
+      "cursussen.pitchai.net",
+      "jeff-codex-voice.94.130.17.246.nip.io",
+      "jeff-work-inbox.94.130.17.246.nip.io"
+    ],
+    "quiet_actionable_incidents": [],
+    "containers": [
+      {
+        "name": "service-monitoring",
+        "image": "service-monitoring:4f7977b3675b8acf38f4e9aa077fda9b05773f7c",
+        "status": "running",
+        "started_at": "2026-10-03T02:52:02.184703389Z"
+      },
+      {
+        "name": "e2e-registry",
+        "image": "service-monitoring:4f7977b3675b8acf38f4e9aa077fda9b05773f7c",
+        "status": "running",
+        "started_at": "2026-10-03T02:52:01.781556339Z"
+      },
+      {
+        "name": "e2e-runner",
+        "image": "service-monitoring:4f7977b3675b8acf38f4e9aa077fda9b05773f7c",
+        "status": "running",
+        "started_at": "2026-10-03T02:52:01.968002567Z"
+      },
+      {
+        "name": "database-dependency-monitor",
+        "image": "service-monitoring:4f7977b3675b8acf38f4e9aa077fda9b05773f7c",
+        "status": "running",
+        "started_at": "2026-10-03T02:52:02.737411668Z"
+      },
+      {
+        "name": "domain-incident-events",
+        "image": "service-monitoring:4f7977b3675b8acf38f4e9aa077fda9b05773f7c",
+        "status": "running",
+        "started_at": "2026-10-03T02:52:02.398573962Z"
+      },
+      {
+        "name": "scheduler-placement-observer",
+        "image": "service-monitoring:4f7977b3675b8acf38f4e9aa077fda9b05773f7c",
+        "status": "running",
+        "started_at": "2026-10-03T02:52:02.602732787Z"
+      }
+    ],
+    "alertable_down": [
+      "dispatch.pitchai.net",
+      "codexusage.pitchai.net",
+      "jeff-codex-voice.pitchai.net",
+      "jeff-dispatch.pitchai.net",
+      "jeff-work-inbox.pitchai.net"
+    ]
+  },
+  "logs": {
+    "since": "2026-10-03T02:52:02.184703389Z",
+    "quiet_domains": [
+      "aetherreel.37.27.67.52.nip.io",
+      "agentcloud.pitchai.net",
+      "apol.135-181-182-48.sslip.io",
+      "apologetica-react-staging.web.app",
+      "cursussen.pitchai.net",
+      "dashboards.pitchai.net",
+      "dft-openai-info.openai.azure.com",
+      "gzb-review.135-181-182-48.sslip.io",
+      "jeff-codex-voice.94.130.17.246.nip.io",
+      "jeff-work-inbox.94.130.17.246.nip.io",
+      "jeugdtandarts-review.135-181-182-48.sslip.io",
+      "registry.pitchai.net",
+      "route-anchor.135-181-182-48.sslip.io",
+      "screens.135-181-182-48.sslip.io",
+      "support.pitchai.net",
+      "theplanbook.pitchai.net",
+      "us-central1-cis-db-e9fd3.cloudfunctions.net",
+      "webcodex.135-181-182-48.sslip.io",
+      "wrist-vault.135-181-182-48.sslip.io"
+    ],
+    "quiet_result_levels": {
+      "INFO": 30
+    },
+    "quiet_warning_count": 0,
+    "all_log_quiet_warning_error_count": 0,
+    "critical_warning_domains": [
+      "jeff-codex-voice.pitchai.net",
+      "jeff-dispatch.pitchai.net",
+      "jeff-work-inbox.pitchai.net",
+      "monitoring.pitchai.net"
+    ]
+  },
+  "runtime": {
+    "database_snapshot": {
+      "version": 2,
+      "collector": "healthy",
+      "dependencies": 44,
+      "generated_at_ts": 1790995932.8443244
+    },
+    "domain_incident_producer": {
+      "status": "healthy",
+      "bootstrapped": true,
+      "pending_count": 0,
+      "last_error": null
+    },
+    "scheduler_observer": {
+      "last_error": null,
+      "last_successful_poll_at_ts": 1790996043.2098427,
+      "last_successful_directory_poll_at_ts": 1790996043.2098427,
+      "bootstrapped": true
+    }
+  },
+  "browser": {
+    "status": 200,
+    "url": "http://127.0.0.1:18120/dashboard#domains",
+    "title": "Monitoring",
+    "rows": [
+      {
+        "host": "upload-to-wasabi-7v37bcjssa-uc.a.run.app",
+        "row": "HEALTHY\n\t\nupload-to-wasabi-7v37bcjssa-uc.a.run.app\nHetCIS upload backend · production\n\t—\t204ms\t—\t100.00%\t4.8s"
+      },
+      {
+        "host": "submit-maatje-form-7v37bcjssa-uc.a.run.app",
+        "row": "HEALTHY\n\t\nsubmit-maatje-form-7v37bcjssa-uc.a.run.app\nHetCIS Maatje form backend · production\n\t—\t256ms\t—\t100.00%\t3.0s"
+      },
+      {
+        "host": "us-central1-cis-db-e9fd3.cloudfunctions.net",
+        "row": "HEALTHY\nDASHBOARD ONLY\n\t\nus-central1-cis-db-e9fd3.cloudfunctions.net\nHetCIS upload function alias · production\n\t—\t184ms\t—\t100.00%\t207ms"
+      },
+      {
+        "host": "dft-openai-info.openai.azure.com",
+        "row": "HEALTHY\nDASHBOARD ONLY\n\t\ndft-openai-info.openai.azure.com\nDFT historical Azure OpenAI resource · staging\n\t—\t257ms\t—\t100.00%\t425ms"
+      }
+    ],
+    "transport": "Owner SSH tunnel to deployed dashboard; administrative verification, not external SSO acceptance"
+  },
+  "deployment_browser": {
+    "status": 200,
+    "domains": 93,
+    "groups": 16,
+    "mobile_width": 390,
+    "document_width": 390,
+    "console_errors": 0,
+    "page_errors": 0,
+    "failed_requests": 0,
+    "http_errors": 0
+  },
+  "nginx": {
+    "installed_file_matches_release": true,
+    "sha256": "b95501405d4c56afd1a5eb773e0678942a9e05ed946c5b16a319c78dcac86bb5",
+    "syntax_passed": true,
+    "existing_warnings": true
+  },
+  "unchanged_prior_contracts": 89,
+  "unchanged_retirements": 42
+}
