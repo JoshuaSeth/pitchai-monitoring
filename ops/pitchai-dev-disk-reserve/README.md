@@ -29,11 +29,13 @@ cross zero. This guard closes that gap for the monitored production surface:
    regenerable cache and rotated log generations is removed.
 4. **Emergency rotation.** If the filesystem is *still* below
    `FREE_EMERGENCY_BYTES` (100 MiB) — a few seconds of write headroom away from
-   the Postgres PANIC — force `logrotate -f /etc/logrotate.d/rsyslog` so the
-   active logs are rotated through the sanctioned rsyslog reopen hook, then
-   drop the generations it just produced. This is the only rung that touches
-   active log files, and it only fires when the alternative is the production
-   surface going down.
+   the Postgres PANIC — force the distro-owned
+   `/etc/logrotate.d/rsyslog` policy through a root-only wrapper that supplies
+   `su root syslog`. That explicit identity is required because `/var/log` is
+   intentionally group-writable on this host. The active logs rotate through
+   the sanctioned rsyslog reopen hook, then the guard drops the generations it
+   just produced. This is the only rung that touches active log files, and it
+   only fires when the alternative is the production surface going down.
 
 The guard never touches other lanes' work, never stops containers, and never
 changes the server-space registry policy. It writes one journal line per

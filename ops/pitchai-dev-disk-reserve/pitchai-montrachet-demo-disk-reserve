@@ -61,12 +61,28 @@ reclaim_rotated_log_archives() {
 # (logrotate reopens the files through the sanctioned postrotate hook) and drop
 # the generations it just created. Only fires below FREE_EMERGENCY_BYTES.
 rotate_active_syslog() {
+  local wrapper
   if [ "$DRY_RUN" = 1 ]; then
-    log "dry-run: would logrotate -f /etc/logrotate.d/rsyslog and drop the new generations"
+    log "dry-run: would logrotate -f $RSYSLOG_LOGROTATE_CONF with su root syslog and drop the new generations"
     return 0
   fi
-  log "crisis-reclaim(emergency): logrotate -f $RSYSLOG_LOGROTATE_CONF"
-  logrotate -f "$RSYSLOG_LOGROTATE_CONF" >/dev/null 2>&1 || log "crisis-reclaim(emergency): logrotate failed (continuing)"
+
+  # /var/log is root:syslog and group-writable on pitchai-dev. Modern
+  # logrotate refuses to process a stanza under that parent unless it names an
+  # explicit rotation identity. Keep the distro-owned rsyslog policy intact
+  # and supply that identity through a root-only wrapper for this emergency
+  # invocation.
+  if ! wrapper=$(mktemp "${TMPDIR:-/tmp}/pitchai-rsyslog-logrotate.XXXXXX"); then
+    log "crisis-reclaim(emergency): could not create logrotate wrapper (continuing)"
+    reclaim_rotated_log_archives
+    return 0
+  fi
+  chmod 0600 "$wrapper"
+  printf 'su root syslog\ninclude %s\n' "$RSYSLOG_LOGROTATE_CONF" >"$wrapper"
+
+  log "crisis-reclaim(emergency): logrotate -f $RSYSLOG_LOGROTATE_CONF with su root syslog"
+  logrotate -f "$wrapper" >/dev/null 2>&1 || log "crisis-reclaim(emergency): logrotate failed (continuing)"
+  rm -f -- "$wrapper"
   reclaim_rotated_log_archives
 }
 
