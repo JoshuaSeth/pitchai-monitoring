@@ -1395,3 +1395,17 @@ attempts are zero. The two new files pass scoped static checks. The repository's
 21 anti-bypass findings and the remaining whole-main debt remain open. The
 initial assertion/typing fixture failures are retained. This is source proof;
 installed checker, journal, receiver and finite admission remain outstanding.
+# Retained cycle records (2026-10-03)
+
+`cycle_records` owns the existing normalized domain counters, histories and
+activity records. Restart reads do not rewrite stored evidence; migration keeps
+the original debounce and failure behavior, and snapshots retain the same caps
+and mutable-map references. The existing `main._load_monitor_state` import
+contract is preserved. No new journal or schema migration was introduced.
+
+The local `cycle-records-20261003` packet beside the startup packet retains six
+focused tests and five parent-equivalent launcher runs (0.817 seconds), with
+nineteen unsent text captures, five heartbeats and zero outgoing attempts. DFT
+remains disabled in that fixture. Two new files pass scoped checks; aggregate
+and whole-main debt remain separate. Initial fixture/static failures and the
+test-only corrections after the runtime snapshot remain visible.

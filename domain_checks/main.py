@@ -35,6 +35,7 @@ from .cycle_channels import CycleChannels
 from .cycle_configuration import cycle_section
 from .cycle_health_state import CycleHealthState
 from .cycle_history import record_domain_results
+from .cycle_records import CycleRecords
 from .cycle_startup import ChannelStartup, CycleLimits, external_heartbeat
 from .cycle_values import coerce_float as _coerce_float
 from .cycle_values import required_int
@@ -64,7 +65,6 @@ from .event_bus_delivery import JsonObject
 from .heartbeat_phase import HeartbeatObservation, HeartbeatPhase, HeartbeatSchedule
 from .heartbeat_settings import load_heartbeat_settings
 from .history import prune_history
-from .history_migration import migrate_effective_history
 from .history_phase_context import HistoryFrame
 from .history_settings import load_red_settings, load_slo_settings
 from .host_phase import HostPhase
@@ -100,7 +100,7 @@ from .vitals_phase import VitalsPhase
 # Retained import contract used by repository tests and monitoring_v2.domain_runtime.
 __all__ = [
     "DomainEntryConfig", "_collect_host_health_violations", "_collect_performance_violations",
-    "_compute_cpu_used_percent", "_parse_disabled_until_ts",
+    "_compute_cpu_used_percent", "_load_monitor_state", "_parse_disabled_until_ts",
     "check_one_domain", "load_config", "load_domain_spec", "main", "run_loop",
 ]
 
@@ -446,47 +446,20 @@ async def run_loop(config_path: Path, once: bool) -> int:
     state_path = Path(state_path_raw) if state_path_raw else None
     dft_cycle = DftCycle(parse_cycle_config(config.get("dft_web_access")))
 
-    # Track state (persisted if STATE_PATH is mounted) to avoid spamming alerts every minute.
-    last_ok: dict[str, bool] = {}
-    fail_streak: dict[str, int] = {}
-    success_streak: dict[str, int] = {}
-    history_by_domain: dict[str, list[list[Any]]] = {}
-    disk_state: dict[str, Any] = {}
+    records = CycleRecords.load(state_path, down_after_failures=down_after_failures,
+                                up_after_successes=up_after_successes)
+    last_ok = records.domains.last_ok
+    fail_streak = records.domains.fail_streak
+    success_streak = records.domains.success_streak
+    history_by_domain = records.history
+    disk_state = records.disk
     cycle_health = CycleHealthState()
     host_observations = cycle_health.host
-    signal_history: dict[str, list[list[Any]]] = {}
-    dispatch_history: list[dict[str, Any]] = []
-    dispatch_last: dict[str, dict[str, Any]] = {}
-    events: list[dict[str, Any]] = []
-    if state_path is not None:
-        disk_state = _load_monitor_state(state_path)
-        last_ok.update(disk_state.get("last_ok") or {})
-        fail_streak.update(disk_state.get("fail_streak") or {})
-        success_streak.update(disk_state.get("success_streak") or {})
-        history_by_domain = disk_state.get("history") or {}
-        signal_history = disk_state.get("signal_history") if isinstance(disk_state.get("signal_history"), dict) else {}
-        dispatch_history = disk_state.get("dispatch_history") if isinstance(disk_state.get("dispatch_history"), list) else []
-        dispatch_last = disk_state.get("dispatch_last") if isinstance(disk_state.get("dispatch_last"), dict) else {}
-        events = disk_state.get("events") if isinstance(disk_state.get("events"), list) else []
-        host_observations.last_snapshot = disk_state.get("host_last_snapshot") if isinstance(disk_state.get("host_last_snapshot"), dict) else {}
-        history_ok_mode = str(disk_state.get("history_ok_mode") or "").strip().lower()
-        if history_ok_mode != "effective" and isinstance(history_by_domain, dict) and history_by_domain:
-            # One-time migration: older state files stored per-cycle *observed* ok in history,
-            # which made SLO burn-rate alerts extremely noisy (single transient flakes burn budget).
-            # Convert stored history to the debounced effective ok stream so SLO/RED align with
-            # our domain DOWN alerting definition.
-            try:
-                history_by_domain = migrate_effective_history(
-                    history_by_domain, down_after_failures=down_after_failures,
-                    up_after_successes=up_after_successes,
-                )
-                LOGGER.info(
-                    "Migrated history ok mode to effective prev_mode=%s domains=%s",
-                    (history_ok_mode or "unknown"),
-                    len(history_by_domain),
-                )
-            except Exception:
-                LOGGER.exception("Failed to migrate history ok mode to effective")
+    host_observations.last_snapshot = records.host_snapshot
+    signal_history = records.signals
+    dispatch_history = records.activity.dispatch_history
+    dispatch_last = records.activity.dispatch_last
+    events = records.activity.events
     cycle_health.restore(disk_state)
     host_health = cycle_health.health["host_health"]
     perf_health = cycle_health.health["performance"]
@@ -563,23 +536,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
     _append_signal_sample = signal_series.append
     _prune_signal_history = signal_series.prune
 
-    def _build_state_payload() -> dict[str, Any]:
-        # Keep state bounded. We prune time-series histories by timestamp below, but
-        # also hard-cap list growth for safety if a corrupt clock or bug bypasses pruning.
-        dispatch_history_capped = dispatch_history[-500:]
-        events_capped = events[-2000:]
+    def _build_state_payload() -> JsonObject:
         return {
             "version": 6,
             "history_ok_mode": "effective",
             "updated_at": datetime.now(timezone.utc).isoformat(),
-            "last_ok": last_ok,
-            "fail_streak": fail_streak,
-            "success_streak": success_streak,
-            "history": history_by_domain,
-            "signal_history": signal_history,
-            "dispatch_history": dispatch_history_capped,
-            "dispatch_last": dispatch_last,
-            "events": events_capped,
+            **records.snapshot(),
             "event_bus_outbox": event_bus_outbox.to_state() if event_bus_outbox else [],
             "dft_web_access": dft_cycle.summary,
             "host_last_snapshot": host_observations.last_snapshot,
@@ -724,6 +686,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # ------------------------------
                     if not isinstance(history_by_domain, dict):
                         history_by_domain = {}
+                        records.history = history_by_domain
                     for domain in disabled_set:
                         history_by_domain.pop(domain, None)
 
