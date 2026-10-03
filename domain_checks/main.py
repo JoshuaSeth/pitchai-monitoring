@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import logging
 import os
 import runpy
@@ -15,6 +14,11 @@ import httpx
 import yaml
 from playwright.async_api import Browser, async_playwright
 
+from .api_contract_phase import ApiContractPhase
+from .api_contract_settings import ApiContractSettings
+from .dispatch_api_contract import dispatch_api_contract_and_forward as _dispatch_api_contract_and_forward
+from .message_api_contract import build_api_contract_alert_message as _build_api_contract_alert_message
+from .message_api_contract import build_api_contract_dispatch_prompt as _build_api_contract_dispatch_prompt
 from .alert_transition import update_effective_ok as _update_effective_ok
 from .browser_admission import BrowserAdmission
 from .browser_launch import launch_options
@@ -38,14 +42,9 @@ from .cycle_history import record_domain_results
 from .cycle_records import CycleRecords
 from .cycle_startup import ChannelStartup, CycleLimits, external_heartbeat
 from .cycle_values import coerce_float as _coerce_float
-from .cycle_values import required_int
 from .dft_cycle import DftCycle, parse_cycle_config
-from .dispatch_client import DispatchConfig
 from .dispatch_records import DispatchRecords
-from .dispatch_state import dispatch_is_enabled as _dispatch_is_enabled
-from .dispatch_workflow import dispatch_prompt_and_forward as _dispatch_prompt_and_forward
 from .dns_phase import DnsPhase
-from .domain_alerts import route_domain_telegram_alert as _route_domain_telegram_alert
 from .domain_entries import (
     DomainEntryConfig,
 )
@@ -73,9 +72,8 @@ from .host_readings import format_browser_health_hint as _format_browser_health_
 from .host_readings import read_linux_meminfo_kb as _read_linux_meminfo_kb
 from .host_thresholds import collect_host_health_violations as _collect_host_health_violations
 from .inventory import validate_domain_inventory
-from .message_templates import dispatch_read_only_rules as _dispatch_read_only_rules
 from .meta_phase import CycleTiming, MetaPhase
-from .metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
+from .metrics_api_contract import run_api_contract_checks
 from .metrics_synthetic import run_synthetic_transactions
 from .metrics_web_vitals import measure_web_vitals
 from .monitor_state import load_monitor_state as _load_monitor_state
@@ -93,12 +91,12 @@ from .signal_history import SignalHistory
 from .slo_phase import run_slo_phase
 from .state_storage import write_state_atomic as _write_state_atomic
 from .synthetic_phase import SyntheticPhase
-from .telegram import TelegramConfig, redact_telegram_response, send_telegram_message
 from .tls_phase import TlsPhase
 from .vitals_phase import VitalsPhase
 
 # Retained import contract used by repository tests and monitoring_v2.domain_runtime.
 __all__ = [
+    "_build_api_contract_alert_message", "_build_api_contract_dispatch_prompt", "_dispatch_api_contract_and_forward",
     "DomainEntryConfig", "_collect_host_health_violations", "_collect_performance_violations",
     "_compute_cpu_used_percent", "_load_monitor_state", "_parse_disabled_until_ts",
     "check_one_domain", "load_config", "load_domain_spec", "main", "run_loop",
@@ -221,53 +219,6 @@ def load_domain_spec(domain_entry: Any) -> DomainCheckSpec:
 
 
 
-def _build_api_contract_alert_message(
-    *,
-    failures: list[ApiContractCheckResult],
-    down_after_failures: int,
-    fail_streak: int,
-) -> str:
-    lines = ["Monitor warning: API contract checks are failing ⚠️"]
-    if down_after_failures > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after_failures}")
-    lines.append("")
-    for r in failures[:15]:
-        sc = "n/a" if r.status_code is None else str(r.status_code)
-        ms = "n/a" if r.elapsed_ms is None else f"{int(round(float(r.elapsed_ms)))}ms"
-        err = (r.error or "contract_failed").strip()[:260]
-        lines.append(f"- {r.domain} [{r.name}]: {err} status={sc} ({ms}) url={r.url}")
-    return "\n".join(lines).strip()
-
-
-def _build_api_contract_dispatch_prompt(*, failures: list[ApiContractCheckResult]) -> str:
-    payload = [
-        {
-            "domain": r.domain,
-            "name": r.name,
-            "url": r.url,
-            "status_code": r.status_code,
-            "elapsed_ms": r.elapsed_ms,
-            "error": r.error,
-            "details": r.details,
-        }
-        for r in failures[:30]
-    ]
-    details = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
-    return (
-        "The service-monitoring detected API contract failures (JSON endpoints returning unexpected status/shape/latency).\n\n"
-        "Failing checks (JSON):\n"
-        f"{details}\n\n"
-        f"{_dispatch_read_only_rules()}\n"
-        "Task:\n"
-        "1) Reproduce the failing API calls from the production host (curl -i).\n"
-        "2) Determine whether the issue is backend crash, reverse proxy routing, deploy regression, or auth/config.\n"
-        "3) Identify the relevant container(s) and inspect logs/health/restarts.\n"
-        "4) Provide a clear remediation plan for a human operator (no changes executed).\n\n"
-        "Return a concise final report with:\n"
-        "- Root cause + evidence\n"
-        "- Impacted endpoints\n"
-        "- Recommended safe remediation steps\n"
-    )
 
 
 
@@ -306,30 +257,8 @@ def _build_api_contract_dispatch_prompt(*, failures: list[ApiContractCheckResult
 
 
 
-async def _dispatch_api_contract_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    failures: list[ApiContractCheckResult],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_api_contract_dispatch_prompt(failures=failures)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.api_contract",
-        telegram_title="API contract investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
+
+
 
 
 
@@ -413,14 +342,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
     wv_settings = load_vitals_settings(config)
 
-    api_cfg = cycle_section(config, "api_contract")
-    api_enabled = bool(api_cfg.get("enabled", False))
-    api_interval_minutes = max(1, required_int(api_cfg.get("interval_minutes", 10)))
-    api_timeout_seconds = _coerce_float(api_cfg.get("timeout_seconds", 10.0), default=10.0)
-    api_down_after_failures = max(1, required_int(api_cfg.get("down_after_failures", 2)))
-    api_up_after_successes = max(1, required_int(api_cfg.get("up_after_successes", 2)))
-    api_dispatch_on_degraded = bool(api_cfg.get("dispatch_on_degraded", False))
-    api_notify_on_recovery = bool(api_cfg.get("notify_on_recovery", False))
+    api_settings = ApiContractSettings.read(config)
 
     container_settings = load_container_settings(config)
 
@@ -607,6 +529,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
         vitals_phase = VitalsPhase(wv_settings, BrowserProbeState(
             web_vitals_last_ok, web_vitals_fail_streak, web_vitals_success_streak, web_vitals_last_run_ts),
             lambda inputs: measure_web_vitals(**inputs))
+        api_phase = ApiContractPhase(api_settings, cycle_health.probes["api_contract"], entries_by_domain,
+                                     lambda inputs: run_api_contract_checks(**inputs))
         if event_bus_outbox is not None:
             _append_event(
                 "service_started",
@@ -717,123 +641,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     tls_results = await tls_phase.run(probe_frame)
                     dns_results = await dns_phase.run(probe_frame)
 
-                    # ------------------------------
-                    # API contract checks (per-domain)
-                    # ------------------------------
-                    api_failures_to_alert: list[ApiContractCheckResult] = []
-                    api_failures_for_dispatch: list[ApiContractCheckResult] = []
-                    if api_enabled and enabled_specs:
-                        now_ts = time.time()
-                        due_domains = [
-                            s
-                            for s in enabled_specs
-                            if s.api_contract_checks
-                            and (now_ts - float(api_contract_last_run_ts.get(s.domain, 0.0))) >= float(api_interval_minutes * 60)
-                        ]
-                        if due_domains:
-                            tasks_by_domain: dict[str, asyncio.Task[list[ApiContractCheckResult]]] = {}
-                            for spec in due_domains[:50]:
-                                api_contract_last_run_ts[spec.domain] = now_ts
-                                tasks_by_domain[spec.domain] = asyncio.create_task(
-                                    run_api_contract_checks(
-                                        http_client=http_client,
-                                        domain=spec.domain,
-                                        base_url=spec.url,
-                                        checks=spec.api_contract_checks,
-                                        timeout_seconds=float(api_timeout_seconds),
-                                    )
-                                )
-
-                            for domain, task in tasks_by_domain.items():
-                                results = await task
-                                observed_ok = all(r.ok for r in results) if results else True
-                                prev_effective = api_contract_last_ok.get(domain, True)
-                                next_effective, next_fail, next_success, alerted_down = _update_effective_ok(
-                                    prev_effective_ok=bool(prev_effective),
-                                    observed_ok=observed_ok,
-                                    fail_streak=int(api_contract_fail_streak.get(domain, 0)),
-                                    success_streak=int(api_contract_success_streak.get(domain, 0)),
-                                    down_after_failures=api_down_after_failures,
-                                    up_after_successes=api_up_after_successes,
-                                )
-                                api_contract_last_ok[domain] = next_effective
-                                api_contract_fail_streak[domain] = next_fail
-                                api_contract_success_streak[domain] = next_success
-
-                                if alerted_down:
-                                    domain_entry = entries_by_domain[domain]
-                                    failures = [r for r in results if not r.ok]
-                                    _append_event(
-                                        "api_contract_degraded",
-                                        ts=float(cycle_started),
-                                        domain=domain,
-                                        failures=int(len(failures)),
-                                        telegram_alert=domain_entry.routes_telegram,
-                                        alert_policy=domain_entry.alert_policy.telegram,
-                                    )
-                                    if domain_entry.routes_telegram:
-                                        api_failures_to_alert.extend(failures)
-                                        api_failures_for_dispatch.extend(failures)
-                                    msg = _build_api_contract_alert_message(
-                                        failures=failures,
-                                        down_after_failures=api_down_after_failures,
-                                        fail_streak=int(next_fail),
-                                    )
-                                    routed = await _route_domain_telegram_alert(
-                                        http_client=http_client,
-                                        telegram_cfg=telegram_cfg,
-                                        entry=domain_entry,
-                                        message=msg,
-                                    )
-                                    if routed is not None:
-                                        ok_all, resps = routed
-                                        LOGGER.warning(
-                                            "API contract degraded domain=%s sent_ok=%s telegram_last=%s",
-                                            domain,
-                                            ok_all,
-                                            redact_telegram_response(resps[-1] if resps else {}),
-                                        )
-                                else:
-                                    recovered = (not prev_effective) and bool(next_effective)
-                                    if recovered:
-                                        _append_event(
-                                            "api_contract_recovered",
-                                            ts=float(cycle_started),
-                                            domain=domain,
-                                        )
-                                    if (
-                                        recovered
-                                        and api_notify_on_recovery
-                                        and entries_by_domain[domain].routes_telegram
-                                    ):
-                                        ok, resp = await send_telegram_message(
-                                            http_client,
-                                            telegram_cfg,
-                                            f"API contract checks recovered ✅ domain={domain}",
-                                        )
-                                        LOGGER.info(
-                                            "API contract recovery notice sent_ok=%s telegram=%s domain=%s",
-                                            ok,
-                                            redact_telegram_response(resp),
-                                            domain,
-                                        )
-
-                            if api_failures_for_dispatch and api_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                                if "api_contract" in active_dispatch_tasks and not active_dispatch_tasks["api_contract"].done():
-                                    LOGGER.info("Dispatch already running for api_contract; skipping new dispatch")
-                                else:
-                                    active_dispatch_tasks["api_contract"] = asyncio.create_task(
-                                        _dispatch_api_contract_and_forward(
-                                            http_client=http_client,
-                                            telegram_cfg=telegram_cfg,
-                                            dispatch_cfg=dispatch_cfg,
-                                            dispatch_state=dispatch_state,
-                                            failures=api_failures_for_dispatch,
-                                            dispatch_history=dispatch_history,
-                                            dispatch_last=dispatch_last,
-                                            events=events,
-                                        )
-                                    )
+                    await api_phase.run(probe_frame)
 
                     # ------------------------------
                     # Docker container health checks

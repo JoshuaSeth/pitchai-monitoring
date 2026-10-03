@@ -13,6 +13,24 @@ stopped. These historical observations do not establish a newer compute sample.
 
 ## Source contract and current implementation
 
+API phase extraction (October 3): the native cycle now delegates its existing
+API scheduling, debounce, event-before-transport ordering and dispatch task
+ownership to typed modules. It adds no readiness checks from PR43/45. Their
+overlap was returned to Infrastructure624 through existing source coordination
+before editing this slice; queue acceptance is not interface acceptance.
+Four focused tests,72 retained-parent message comparisons,19 phase comparisons,
+five parent-equivalent launcher runs and three API-enabled launcher runs pass.
+The latter retain one down edge and two-success recovery for active and muted
+synthetic domains, with two local unsent API texts. All launcher network and
+subprocess guards remain untouched; DFT is disabled in these launcher proofs.
+Five new-file scoped checks pass. Repository-wide21 suppression findings and
+remaining whole-main/required hosted gate failures still prevent release.
+Raw proof is local under
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/api-contract-phase-20261003/`.
+The producer reports `10ccf26d9f8578d34d384c0fb0e3d2e76cc71d74` as its newer
+scan-cache revision; that handoff leaves the checker interface unchanged and is
+not installed-source, throughput or runtime-admission evidence.
+
 Reviewed producer revision: `3c543bd1d767a1cf57dc912a63eab523cfca17ba`, the
 capacity-signal addition on path/install-manifest correction
 `51b4a2eb6bc47463b1c3c31e328f70f06ee3a380`. The retained acknowledgement revision
