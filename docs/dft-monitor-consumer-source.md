@@ -1602,3 +1602,33 @@ All six changed Python files pass scoped architecture, Ruff, BasedPyright,
 Pylint and Semgrep. The repository aggregate still rejects the existing 21
 anti-bypass findings. The complete ratchet, integrity-anchored dependencies and
 cross-E2E duplicate obligations remain separate from those file-scoped results.
+
+# Frozen analyzer dependency candidate (2026-10-03)
+
+The allocated PR204 candidate adds the application's existing PyYAML 6.0.2 and
+Playwright 1.50.0 to the canonical quality environment. Both locks add those
+packages and their greenlet 3.5.6/pyee 12.1.1 dependencies; existing package
+versions, analyzer versions and diagnostic configuration remain unchanged. No
+additional typing package is needed by the affected native modules. Root project
+semantics, baseline bytes and manifest membership remain unchanged.
+
+The six-file dependency/integrity delta updates only the corresponding manifest
+hashes, verifier manifest digest and workflow verifier digest. Verifier logic and
+normalized workflow semantics are unchanged. This coordinated trust-root change
+requires ordinary independent code review before integration. The paused audit
+owner and its PR156/PR157 branches remain untouched.
+
+Frozen offline installation succeeds. The four formerly unresolved native files
+now report zero typing errors or warnings, and all five affected Python files
+pass architecture, Ruff, BasedPyright, Pylint and Semgrep. Eight ratchet contract
+tests pass. Seven separate alterations to config, either lock, manifest, verifier,
+workflow and baseline are rejected in an isolated portable fixture; the actual
+workflow trust-anchor shell also rejects a changed verifier. Restored bytes pass.
+The full repository aggregate still rejects its 21 anti-bypass findings; these
+results do not establish the complete candidate or hosted Quality ratchet.
+
+Raw proof and the six-file pretest snapshot are retained at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/canonical-dependencies-20261003/`.
+Offline resolution used available uv 0.11.26 with Python 3.12.12, not the hosted
+uv 0.10.0. Existing cross-E2E/registry repair and every operational binding remain
+open. No runtime installation, delivery or ingress action occurred.
