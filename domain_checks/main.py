@@ -6,7 +6,8 @@ import logging
 import os
 import runpy
 import time
-from datetime import datetime, timezone
+from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,7 @@ from .browser_launch import launch_options
 from .browser_phase_context import BrowserPhaseContext, BrowserProbeState
 from .browser_probe_settings import load_synthetic_settings, load_vitals_settings
 from .browser_recovery_phase import BrowserRecoveryPhase
-from .browser_state import browser_state_snapshot, restore_browser_state
+from .browser_state import restore_browser_state
 from .common_check import (
     DomainCheckResult,
     DomainCheckSpec,
@@ -40,6 +41,7 @@ from .cycle_configuration import cycle_section
 from .cycle_health_state import CycleHealthState
 from .cycle_history import record_domain_results
 from .cycle_records import CycleRecords
+from .cycle_persistence import CyclePersistence, restore_outbox
 from .cycle_startup import ChannelStartup, CycleLimits, external_heartbeat
 from .cycle_values import coerce_float as _coerce_float
 from .dft_cycle import DftCycle, parse_cycle_config
@@ -59,7 +61,6 @@ from .domain_polling import DomainPolling
 from .domain_result_phase import DomainHealth, DomainResultPhase
 from .domain_time import load_timezone as _load_timezone
 from .domain_time import parse_disabled_until_ts as _parse_disabled_until_ts
-from .event_bus import EventBusOutbox
 from .event_bus_delivery import JsonObject
 from .heartbeat_phase import HeartbeatObservation, HeartbeatPhase, HeartbeatSchedule
 from .heartbeat_settings import load_heartbeat_settings
@@ -397,7 +398,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
     container_observations = cycle_health.containers
     proxy_health = cycle_health.health["proxy"]
     meta_health = cycle_health.health["meta"]
-    state_write_fail_streak = cycle_health.write_fail_streak
     synthetic_last_ok = cycle_health.probes["synthetic"].last_ok
     synthetic_fail_streak = cycle_health.probes["synthetic"].fail_streak
     synthetic_success_streak = cycle_health.probes["synthetic"].success_streak
@@ -410,13 +410,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     api_contract_fail_streak = cycle_health.probes["api_contract"].fail_streak
     api_contract_success_streak = cycle_health.probes["api_contract"].success_streak
     api_contract_last_run_ts = cycle_health.probes["api_contract"].last_run_ts
-    event_bus_outbox: EventBusOutbox | None = None
-    if event_bus_config is not None:
-        raw_outbox = disk_state.get("event_bus_outbox", [])
-        if not isinstance(raw_outbox, list):
-            raise RuntimeError("Persisted PitchAI Events Bus outbox must be a list")
-        event_bus_outbox = EventBusOutbox(event_bus_config, entries=raw_outbox)
-        LOGGER.info("Loaded PitchAI Events Bus outbox pending=%s", event_bus_outbox.pending_count)
+    event_bus_outbox = restore_outbox(event_bus_config, disk_state)
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
     check_semaphore = asyncio.Semaphore(check_concurrency)
     browser_semaphore = asyncio.Semaphore(browser_concurrency)
@@ -425,83 +419,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
         browser_min_mem_available_mb_raw = config.get("browser_min_mem_available_mb", 2048)
     monitor_state = restore_browser_state(disk_state, browser_min_mem_available_mb_raw)
 
-    def _append_event(kind: str, *, ts: float | None = None, **fields: Any) -> None:
-        nonlocal state_write_fail_streak
-        entry = {"ts": float(ts) if ts is not None else time.time(), "kind": str(kind)}
-        for k, v in fields.items():
-            entry[str(k)] = v
-        if event_bus_outbox is not None:
-            event_bus_outbox.enqueue(
-                str(kind),
-                occurred_at=float(entry["ts"]),
-                details={str(k): v for k, v in fields.items()},
-            )
-        events.append(entry)
-        if len(events) > 10_000:
-            del events[: max(0, len(events) - 8000)]
-        if event_bus_outbox is not None and state_path is not None:
-            try:
-                _write_state_atomic(state_path, _build_state_payload())
-                state_write_fail_streak = 0
-            except Exception as exc:
-                state_write_fail_streak = int(state_write_fail_streak) + 1
-                LOGGER.warning(
-                    "Failed to persist PitchAI Events Bus outbox path=%s error=%s",
-                    state_path,
-                    exc,
-                )
-
-    def _append_history_event(kind: str, timestamp: float, fields: JsonObject) -> None:
-        _append_event(kind, ts=timestamp, **fields)
-
+    persistence = CyclePersistence(state_path, records, cycle_health, monitor_state, dft_cycle, event_bus_outbox)
     signal_series = SignalHistory(signal_history)
-    _append_signal_sample = signal_series.append
     _prune_signal_history = signal_series.prune
-
-    def _build_state_payload() -> JsonObject:
-        return {
-            "version": 6,
-            "history_ok_mode": "effective",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            **records.snapshot(),
-            "event_bus_outbox": event_bus_outbox.to_state() if event_bus_outbox else [],
-            "dft_web_access": dft_cycle.summary,
-            "host_last_snapshot": host_observations.last_snapshot,
-            **browser_state_snapshot(monitor_state),
-            **cycle_health.snapshot(state_write_fail_streak),
-        }
-
-    def _persist_browser_notice() -> None:
-        nonlocal state_write_fail_streak
-        if state_path is not None:
-            try:
-                _write_state_atomic(state_path, _build_state_payload())
-                state_write_fail_streak = 0
-            except Exception as exc:
-                state_write_fail_streak = int(state_write_fail_streak) + 1
-                LOGGER.warning(
-                    "Failed to persist degraded notice timestamp path=%s error=%s",
-                    state_path,
-                    exc,
-                )
-
-
-    async def _flush_event_bus(http_client: httpx.AsyncClient) -> None:
-        if event_bus_outbox is None or event_bus_outbox.pending_count == 0:
-            return
-        attempts = await event_bus_outbox.flush(http_client)
-        for attempt in attempts:
-            log = LOGGER.info if attempt.success else LOGGER.warning
-            log(
-                "PitchAI Events Bus delivery success=%s delivery_id=%s status=%s "
-                "event_id=%s error=%s pending=%s",
-                attempt.success,
-                attempt.delivery_id,
-                attempt.status_code,
-                attempt.event_id,
-                attempt.error,
-                event_bus_outbox.pending_count,
-            )
 
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI Service Monitoring Bot"}) as http_client:
         cycle_channels = CycleChannels(
@@ -509,10 +429,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
             DispatchRecords(dispatch_history, dispatch_last, events), active_dispatch_tasks,
         )
         host_phase = HostPhase(host_settings, host_health, host_observations, cycle_channels,
-                               _append_history_event, signal_series)
+                               persistence.event, signal_series)
         domain_result_phase = DomainResultPhase(
             DomainHealth(last_ok, fail_streak, success_streak, down_after_failures, up_after_successes),
-            entries_by_domain, cycle_channels, _append_history_event,
+            entries_by_domain, cycle_channels, persistence.event,
         )
         performance_phase = PerformancePhase(perf_settings, perf_health)
         tls_phase = TlsPhase(tls_settings, tls_health, tls_schedule)
@@ -532,15 +452,13 @@ async def run_loop(config_path: Path, once: bool) -> int:
         api_phase = ApiContractPhase(api_settings, cycle_health.probes["api_contract"], entries_by_domain,
                                      lambda inputs: run_api_contract_checks(**inputs))
         if event_bus_outbox is not None:
-            _append_event(
-                "service_started",
-                ts=time.time(),
-                interval_seconds=int(interval_seconds),
-                monitored_domains=int(len(all_domains) - len(disabled_domains)),
-            )
-            await _flush_event_bus(http_client)
+            persistence.event("service_started", time.time(), {
+                "interval_seconds": int(interval_seconds),
+                "monitored_domains": int(len(all_domains) - len(disabled_domains)),
+            })
+            await persistence.flush(http_client)
             if state_path is not None:
-                _write_state_atomic(state_path, _build_state_payload())
+                _write_state_atomic(state_path, persistence.snapshot())
         async with async_playwright() as p:
             async def _launch_browser() -> Browser:
                 shm_bytes = 0
@@ -553,7 +471,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
             browser_admission = BrowserAdmission(monitor_state, _launch_browser, _read_linux_meminfo_kb)
             browser_recovery = BrowserRecoveryPhase(browser_admission, _format_browser_health_hint,
-                                                    _persist_browser_notice)
+                                                    partial(persistence.persist, "browser_notice"))
 
             domain_polling = DomainPolling(check_semaphore, browser_semaphore, http_client, browser_admission,
                                            lambda inputs: check_one_domain(**inputs))
@@ -626,7 +544,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                     history_frame = HistoryFrame(
                         history_by_domain, alertable_domains, cycle_started,
-                        cycle_channels, _append_history_event, signal_series,
+                        cycle_channels, persistence.event, signal_series,
                     )
                     await run_slo_phase(history_frame, slo_settings, slo_health)
                     await run_red_phase(history_frame, red_settings, red_health)
@@ -635,7 +553,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                     probe_frame = ProbeFrame(
                         cycle_started, ProbeDomains(enabled_specs, set(entries_by_domain), alertable_domains),
-                        cycle_channels, _append_history_event, signal_series,
+                        cycle_channels, persistence.event, signal_series,
                     )
                     perf_slow = await performance_phase.run(probe_frame, cycle_results)
                     tls_results = await tls_phase.run(probe_frame)
@@ -677,15 +595,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     except Exception:
                         LOGGER.exception("Failed to prune signal history")
 
-                    await _flush_event_bus(http_client)
+                    await persistence.flush(http_client)
 
-                    if state_path is not None:
-                        try:
-                            _write_state_atomic(state_path, _build_state_payload())
-                            state_write_fail_streak = 0
-                        except Exception as exc:
-                            state_write_fail_streak = int(state_write_fail_streak) + 1
-                            LOGGER.warning("Failed to write state file path=%s error=%s", state_path, exc)
+                    persistence.persist("cycle")
 
                     if once:
                         return 0
@@ -696,22 +608,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # Meta-monitoring (monitor pipeline health)
                     # ------------------------------
                     await meta_phase.run(probe_frame, CycleTiming(
-                        interval_seconds, elapsed, state_write_fail_streak, browser_admission.browser,
+                        interval_seconds, elapsed, cycle_health.write_fail_streak, browser_admission.browser,
                         check_concurrency, browser_concurrency,
                     ))
 
-                    await _flush_event_bus(http_client)
-                    if state_path is not None:
-                        try:
-                            _write_state_atomic(state_path, _build_state_payload())
-                            state_write_fail_streak = 0
-                        except Exception as exc:
-                            state_write_fail_streak = int(state_write_fail_streak) + 1
-                            LOGGER.warning(
-                                "Failed to write post-meta state file path=%s error=%s",
-                                state_path,
-                                exc,
-                            )
+                    await persistence.flush(http_client)
+                    persistence.persist("post_meta")
 
                     sleep_for = max(0.0, interval_seconds - elapsed)
                     LOGGER.info(

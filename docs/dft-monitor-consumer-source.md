@@ -13,6 +13,21 @@ stopped. These historical observations do not establish a newer compute sample.
 
 ## Source contract and current implementation
 
+Cycle persistence extraction (October 3): schema-six snapshots, the existing
+outbox, event retention and write warnings now share an explicit typed owner.
+Enqueue still precedes local history mutation; write failures retain pending
+events and increment the original counter. Successful writes reset the counter
+after serializing its prior value. Cancellation remains loud, and the startup
+write remains unguarded. No journal, route or PR45 `persist=True` behavior is
+adopted. A non-list outbox now raises a TypeError/RuntimeError subclass with the
+same diagnostic, retaining existing RuntimeError handlers while describing the
+invalid type accurately. Native per-entry validation is unchanged.
+Eight focused tests and eight isolated launcher runs pass; five launcher result
+objects match the parent, with three additional API-enabled cycles retaining
+down/two-success recovery. All captures are local and unsent, with DFT disabled.
+Two new-file scoped gates pass; aggregate21 and whole-main/hosted failures remain.
+Local proof: `/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/cycle-persistence-20261003/`.
+
 API phase extraction (October 3): the native cycle now delegates its existing
 API scheduling, debounce, event-before-transport ordering and dispatch task
 ownership to typed modules. It adds no readiness checks from PR43/45. Their
