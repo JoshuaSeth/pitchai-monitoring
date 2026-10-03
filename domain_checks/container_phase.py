@@ -77,9 +77,8 @@ class ContainerPhase:
             )
             self.observations.restart_counts = counts
             return issues
-        return [ContainerHealthIssue(name="docker", container_id="", running=None, status=None,
-                                     restart_count=None, restart_increase=None, oom_killed=None,
-                                     health_status=None, exit_code=None, error="container_health_check_crashed")]
+        return [ContainerHealthIssue.unavailable(name="docker", container_id="", status=None,
+                                                error="container_health_check_crashed")]
 
     async def _warn(self, frame: ProbeFrame, issues: list[ContainerHealthIssue]) -> None:
         """Use the unchanged existing warning and dispatch key."""

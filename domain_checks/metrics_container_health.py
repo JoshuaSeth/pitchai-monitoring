@@ -1,215 +1,160 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Native Docker list/inspect scheduling and existing health classification."""
+
 from __future__ import annotations
 
 import asyncio
 import re
-from dataclasses import dataclass
-from typing import Any
+from contextlib import suppress
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, NotRequired, TypedDict, Unpack, cast
 
-from domain_checks.docker_unix import docker_unix_get_json
+from .container_health_records import ContainerHealthIssue, assess_container
+from .docker_unix import docker_unix_get_json
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator, Sequence
 
-@dataclass(frozen=True)
-class ContainerHealthIssue:
-    name: str
-    container_id: str
-    running: bool | None
-    status: str | None
-    restart_count: int | None
-    restart_increase: int | None
-    oom_killed: bool | None
-    health_status: str | None
-    exit_code: int | None
-    error: str | None
+    from .event_bus_delivery import JsonValue
+
+__all__ = ["ContainerHealthIssue", "check_container_health"]
 
 
-def _compile_patterns(items: Any) -> list[re.Pattern[str]]:
+def _compile_patterns(items: Sequence[str]) -> list[re.Pattern[str]]:
     if not isinstance(items, list):
         return []
-    out: list[re.Pattern[str]] = []
-    for x in items:
-        s = str(x or "").strip()
-        if not s:
+    patterns: list[re.Pattern[str]] = []
+    for item in items:
+        value = str(item or "").strip()
+        if not value:
             continue
-        try:
-            out.append(re.compile(s))
-        except re.error:
-            # Treat invalid regex as a literal substring match.
-            out.append(re.compile(re.escape(s)))
-    return out
+        # Regex configuration keeps its existing invalid-pattern literal fallback.
+        with suppress(re.error):
+            patterns.append(re.compile(value))
+            continue
+        patterns.append(re.compile(re.escape(value)))
+    return patterns
 
 
 def _matches_any(name: str, patterns: list[re.Pattern[str]]) -> bool:
-    if not patterns:
-        return False
-    for p in patterns:
-        try:
-            if p.search(name):
+    for pattern in patterns:
+        # Preserve the existing per-pattern ordinary-error fallback.
+        with suppress(Exception):
+            if pattern.search(name):
                 return True
-        except Exception:
-            continue
     return False
 
 
-async def check_container_health(
-    *,
-    docker_socket_path: str,
-    include_name_patterns: list[str] | None,
-    exclude_name_patterns: list[str] | None,
+class InspectionTuning(TypedDict):
+    """The two existing optional keyword arguments and their native defaults."""
+
+    timeout_seconds: NotRequired[float]
+    concurrency: NotRequired[int]
+
+
+def _validate_tuning(tuning: InspectionTuning) -> None:
+    for key in tuning:
+        if key not in {"timeout_seconds", "concurrency"}:
+            message = f"check_container_health() got an unexpected keyword argument '{key}'"
+            raise TypeError(message)
+
+
+@dataclass
+class ContainerInspector:
+    """Own this observation's admitted inspections and newly available counts."""
+
+    socket_path: str
+    timeout_seconds: float
+    semaphore: asyncio.Semaphore
+    previous: dict[str, int]
+    counts: dict[str, int] = field(default_factory=dict)
+
+    def schedule(
+        self, selected: Iterable[tuple[str, str, str | None]],
+    ) -> list[asyncio.Task[ContainerHealthIssue | None]]:
+        """Create inspection tasks before awaiting any completion.
+
+        Returns:
+            Tasks in listing order under this observation's semaphore ownership.
+        """
+        tasks: list[asyncio.Task[ContainerHealthIssue | None]] = []
+        for container_id, name, status in selected:
+            tasks.append(asyncio.create_task(self.read(container_id, name, status)))
+        return tasks
+
+    async def read(self, container_id: str, name: str, status: str | None) -> ContainerHealthIssue | None:
+        """Return an issue after one admitted native read, keeping missing fields unknown."""
+        async with self.semaphore:
+            inspected = await asyncio.to_thread(
+                docker_unix_get_json, socket_path=self.socket_path, path=f"/containers/{container_id}/json",
+                timeout_seconds=float(self.timeout_seconds),
+            )
+        inspected_data = cast("JsonValue", inspected.data)
+        if not inspected.ok or not isinstance(inspected_data, dict):
+            return ContainerHealthIssue.unavailable(
+                name=name, container_id=container_id[:12], status=status,
+                error=f"docker_inspect_failed: {inspected.error or inspected.status}",
+            )
+        issue, count = assess_container(name=name, container_id=container_id, status=status,
+                                        data=inspected_data, previous_count=self.previous.get(container_id))
+        if count is not None:
+            self.counts[container_id] = count
+        return issue
+
+
+def _selected(
+    listed_data: list[JsonValue], included: list[re.Pattern[str]], excluded: list[re.Pattern[str]], *,
     monitor_all: bool,
-    previous_restart_counts: dict[str, int] | None,
-    timeout_seconds: float = 3.0,
-    concurrency: int = 8,
-) -> tuple[list[ContainerHealthIssue], dict[str, int]]:
-    """
-    Returns: (issues, current_restart_counts_by_container_id)
-    """
-    include_p = _compile_patterns(include_name_patterns or [])
-    exclude_p = _compile_patterns(exclude_name_patterns or [])
-    prev = previous_restart_counts if isinstance(previous_restart_counts, dict) else {}
-
-    listing = await asyncio.to_thread(
-        docker_unix_get_json,
-        socket_path=docker_socket_path,
-        path="/containers/json?all=1",
-        timeout_seconds=float(timeout_seconds),
-    )
-    if not listing.ok or not isinstance(listing.data, list):
-        issue = ContainerHealthIssue(
-            name="docker",
-            container_id="",
-            running=None,
-            status=None,
-            restart_count=None,
-            restart_increase=None,
-            oom_killed=None,
-            health_status=None,
-            exit_code=None,
-            error=f"docker_list_failed: {listing.error or listing.status}",
-        )
-        return [issue], {}
-
-    sem = asyncio.Semaphore(max(1, int(concurrency)))
-    current_restart_counts: dict[str, int] = {}
-
-    async def _inspect_one(container_id: str, name: str, status: str | None) -> ContainerHealthIssue | None:
-        async with sem:
-            insp = await asyncio.to_thread(
-                docker_unix_get_json,
-                socket_path=docker_socket_path,
-                path=f"/containers/{container_id}/json",
-                timeout_seconds=float(timeout_seconds),
-            )
-        if not insp.ok or not isinstance(insp.data, dict):
-            return ContainerHealthIssue(
-                name=name,
-                container_id=container_id[:12],
-                running=None,
-                status=status,
-                restart_count=None,
-                restart_increase=None,
-                oom_killed=None,
-                health_status=None,
-                exit_code=None,
-                error=f"docker_inspect_failed: {insp.error or insp.status}",
-            )
-
-        state = insp.data.get("State") if isinstance(insp.data.get("State"), dict) else {}
-        running = state.get("Running") if isinstance(state.get("Running"), bool) else None
-        oom = state.get("OOMKilled") if isinstance(state.get("OOMKilled"), bool) else None
-        exit_code = None
-        try:
-            if state.get("ExitCode") is not None:
-                exit_code = int(state.get("ExitCode"))
-        except Exception:
-            exit_code = None
-
-        health_status = None
-        health = state.get("Health")
-        if isinstance(health, dict):
-            hs = health.get("Status")
-            if isinstance(hs, str) and hs.strip():
-                health_status = hs.strip()
-
-        restart_count = None
-        try:
-            if insp.data.get("RestartCount") is not None:
-                restart_count = int(insp.data.get("RestartCount"))
-        except Exception:
-            restart_count = None
-
-        if restart_count is not None:
-            current_restart_counts[container_id] = restart_count
-
-        prev_count = prev.get(container_id)
-        restart_increase = None
-        if restart_count is not None and prev_count is not None:
-            try:
-                delta = int(restart_count) - int(prev_count)
-                if delta != 0:
-                    restart_increase = delta
-            except Exception:
-                restart_increase = None
-
-        # Decide if this container is in a bad state.
-        bad = False
-        if running is False:
-            bad = True
-        if isinstance(health_status, str) and health_status and health_status != "healthy":
-            bad = True
-        # Docker's State.OOMKilled can remain True long after a container has recovered
-        # (it reflects the last stop reason, not necessarily a current incident). We
-        # still surface the flag in alerts when another problem is present, but we
-        # do not treat it as a standalone, persistent failure condition.
-        if restart_increase is not None and restart_increase > 0:
-            bad = True
-        if exit_code is not None and exit_code != 0 and running is False:
-            bad = True
-
-        if not bad:
-            return None
-
-        return ContainerHealthIssue(
-            name=name,
-            container_id=container_id[:12],
-            running=running,
-            status=status,
-            restart_count=restart_count,
-            restart_increase=restart_increase,
-            oom_killed=oom,
-            health_status=health_status,
-            exit_code=exit_code,
-            error=None,
-        )
-
-    tasks: list[asyncio.Task[ContainerHealthIssue | None]] = []
-    for entry in listing.data:
+) -> Iterator[tuple[str, str, str | None]]:
+    for entry in listed_data:
         if not isinstance(entry, dict):
             continue
-        cid = str(entry.get("Id") or "").strip()
-        if not cid:
+        container_id = str(entry.get("Id") or "").strip()
+        if not container_id:
             continue
         names = entry.get("Names")
-        name = ""
-        if isinstance(names, list) and names:
-            name = str(names[0] or "").lstrip("/")
+        name = str(names[0] or "").lstrip("/") if isinstance(names, list) and names else ""
         if not name:
-            name = cid[:12]
+            name = container_id[:12]
         status = str(entry.get("Status") or "").strip() or None
+        if _matches_any(name, excluded):
+            continue
+        if not monitor_all and (not included or not _matches_any(name, included)):
+            continue
+        yield container_id, name, status
 
-        if _matches_any(name, exclude_p):
-            continue
-        if not monitor_all and include_p and not _matches_any(name, include_p):
-            continue
-        if not monitor_all and not include_p:
-            continue
 
-        tasks.append(asyncio.create_task(_inspect_one(cid, name, status)))
+async def check_container_health(
+    *, docker_socket_path: str, include_name_patterns: list[str] | None, exclude_name_patterns: list[str] | None,
+    monitor_all: bool, previous_restart_counts: dict[str, int] | None, **tuning: Unpack[InspectionTuning],
+) -> tuple[list[ContainerHealthIssue], dict[str, int]]:
+    """List and inspect selected containers through the unchanged native client.
+
+    Returns:
+        Sorted issues and available restart counts. Failed observations stay
+        unknown; worker cancellation and task ownership retain their old boundary.
+    """
+    _validate_tuning(tuning)
+    included = _compile_patterns(include_name_patterns or [])
+    excluded = _compile_patterns(exclude_name_patterns or [])
+    listing = await asyncio.to_thread(
+        docker_unix_get_json, socket_path=docker_socket_path, path="/containers/json?all=1",
+        timeout_seconds=float(tuning.get("timeout_seconds", 3.0)),
+    )
+    listed_data = cast("JsonValue", listing.data)
+    if not listing.ok or not isinstance(listed_data, list):
+        issue = ContainerHealthIssue.unavailable(name="docker", container_id="", status=None,
+                                                error=f"docker_list_failed: {listing.error or listing.status}")
+        return [issue], {}
+    inspector = ContainerInspector(docker_socket_path, tuning.get("timeout_seconds", 3.0),
+        asyncio.Semaphore(max(1, int(tuning.get("concurrency", 8)))),
+        previous_restart_counts if isinstance(previous_restart_counts, dict) else {})
+    tasks = inspector.schedule(_selected(listed_data, included, excluded, monitor_all=monitor_all))
 
     issues: list[ContainerHealthIssue] = []
-    for fut in asyncio.as_completed(tasks):
-        r = await fut
-        if r is not None:
-            issues.append(r)
-
-    issues.sort(key=lambda x: x.name)
-    return issues, current_restart_counts
+    for future in asyncio.as_completed(tasks):
+        issue = await future
+        if issue is not None:
+            issues.append(issue)
+    issues.sort(key=lambda item: item.name)
+    return issues, inspector.counts

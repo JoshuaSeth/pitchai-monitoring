@@ -159,18 +159,8 @@ class MessageContractTests(unittest.TestCase):
             exit_code=7,
             error="fixture",
         )
-        unknown = ContainerHealthIssue(
-            name="unknown",
-            container_id="fixture-unknown",
-            running=None,
-            status=None,
-            restart_count=None,
-            restart_increase=None,
-            oom_killed=None,
-            health_status=None,
-            exit_code=None,
-            error=None,
-        )
+        unknown = ContainerHealthIssue.unavailable(name="unknown", container_id="fixture-unknown",
+                                                   status=None, error=None)
         text = build_container_health_alert_message(issues=[issue, unknown], down_after_failures=1, fail_streak=0)
         require(
             condition="NOT_RUNNING,health=unhealthy,OOMKilled,restarted(+2),exit=7,error=fixture" in text,

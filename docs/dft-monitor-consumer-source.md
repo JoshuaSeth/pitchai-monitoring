@@ -1570,3 +1570,35 @@ declarations therefore needs coordinated review of that chain; an ad hoc install
 would not repair hosted execution. PR157 also touches the verifier, while PR156
 and PR157 both touch the E2E sandbox/registry surfaces. Their existing owners and
 stops remain intact.
+
+# Native container issue records (2026-10-03)
+
+The monitoring-owned container duplication now has one unavailable-observation
+constructor used by actual list, inspection and phase failures and the message
+fixture. `ContainerStatus` retains the first four public dataclass fields;
+`ContainerHealthIssue` retains the six inspection/history fields and the complete
+original positional order and flat JSON contract. Native Docker JSON assessment
+keeps malformed values unknown, historical OOM non-alerting, available restart
+counts and existing issue ordering. The Docker client itself is unchanged.
+
+`ContainerInspector` owns the current read semaphore and restart map. Tasks are
+created in listing order before completion is consumed; cancellation still
+releases the admitted slot without introducing blanket cleanup of other tasks.
+The existing keyword caller contract keeps its five required arguments and two
+typed optional tuning keywords/defaults. No other site's routing or probe
+configuration changed.
+
+Local proof is in
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/container-native-boundary-20261003/`.
+Eighteen focused tests pass (0.027s), including missing observations, sticky OOM,
+restart reset, literal-pattern fallback, exclusions and cancellation. A guarded
+545-case comparison with the actual parent native probe passes (0.269s), matching
+issue JSON, restart counts and native request order. It substitutes Docker
+responses, makes no socket call and does not establish installed behavior.
+Final runtime/test bytes are snapshotted before these tests; initial style/type
+and architectural failures remain in the packet.
+
+All six changed Python files pass scoped architecture, Ruff, BasedPyright,
+Pylint and Semgrep. The repository aggregate still rejects the existing 21
+anti-bypass findings. The complete ratchet, integrity-anchored dependencies and
+cross-E2E duplicate obligations remain separate from those file-scoped results.
