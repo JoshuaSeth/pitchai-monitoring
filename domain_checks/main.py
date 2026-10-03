@@ -58,8 +58,6 @@ from .heartbeat_message import (
     build_heartbeat_message as _build_heartbeat_message,
 )
 from .dispatch_domain_routes import dispatch_and_forward as _dispatch_and_forward
-from .dispatch_probe_routes import dispatch_synthetic_and_forward as _dispatch_synthetic_and_forward
-from .dispatch_probe_routes import dispatch_web_vitals_and_forward as _dispatch_web_vitals_and_forward
 from .dispatch_workflow import dispatch_prompt_and_forward as _dispatch_prompt_and_forward
 from .dispatch_state import (
     dispatch_state_reenable_if_due as _dispatch_state_reenable_if_due,
@@ -70,10 +68,6 @@ from .dispatch_state import (
 from .message_templates import build_dispatch_prompt as _build_dispatch_prompt
 from .message_templates import dispatch_read_only_rules as _dispatch_read_only_rules
 from .message_templates import build_meta_dispatch_prompt as _build_meta_dispatch_prompt
-from .message_browser import build_synthetic_alert_message as _build_synthetic_alert_message
-from .message_browser import build_synthetic_dispatch_prompt as _build_synthetic_dispatch_prompt
-from .message_browser import build_web_vitals_alert_message as _build_web_vitals_alert_message
-from .message_browser import build_web_vitals_dispatch_prompt as _build_web_vitals_dispatch_prompt
 from .message_container import build_container_health_dispatch_prompt as _build_container_health_dispatch_prompt
 from .message_proxy import build_proxy_dispatch_prompt as _build_proxy_dispatch_prompt
 from .host_readings import (
@@ -85,8 +79,8 @@ from .host_readings import (
 )
 from .inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from .metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
-from .metrics_synthetic import SyntheticTransactionResult, run_synthetic_transactions
-from .metrics_web_vitals import WebVitalsResult, measure_web_vitals
+from .metrics_synthetic import run_synthetic_transactions
+from .metrics_web_vitals import measure_web_vitals
 from .dispatch_client import (
     DispatchConfig,
     dispatch_job,
@@ -118,6 +112,9 @@ from .container_phase import ContainerPhase, ContainerObservations
 from .proxy_phase import ProxyPhase
 from .proxy_observation import ProxyReader
 from .meta_phase import MetaPhase, CycleTiming
+from .browser_phase_context import BrowserPhaseContext, BrowserProbeState
+from .synthetic_phase import SyntheticPhase
+from .vitals_phase import VitalsPhase
 from .cycle_channels import CycleChannels
 from .event_bus_delivery import JsonObject
 from .dispatch_records import DispatchRecords
@@ -843,6 +840,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
         container_phase = ContainerPhase(container_settings, container_health, container_schedule, container_observations)
         proxy_phase = ProxyPhase(ProxyReader(proxy_settings, dft_cycle, specs_by_domain), proxy_health)
         meta_phase = MetaPhase(meta_settings, meta_health)
+        synthetic_phase = SyntheticPhase(syn_settings, BrowserProbeState(
+            synthetic_last_ok, synthetic_fail_streak, synthetic_success_streak, synthetic_last_run_ts),
+            lambda inputs: run_synthetic_transactions(**inputs))
+        vitals_phase = VitalsPhase(wv_settings, BrowserProbeState(
+            web_vitals_last_ok, web_vitals_fail_streak, web_vitals_success_streak, web_vitals_last_run_ts),
+            lambda inputs: measure_web_vitals(**inputs))
         if event_bus_outbox is not None:
             _append_event(
                 "service_started",
@@ -1210,274 +1213,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # ------------------------------
                     # Synthetic transactions (Playwright step flows)
                     # ------------------------------
-                    syn_failures_for_dispatch: list[SyntheticTransactionResult] = []
-                    if syn_settings.alerts.enabled and enabled_specs and browser_admission.browser is not None and not browser_degraded:
-                        now_ts = time.time()
-                        candidates = [
-                            s
-                            for s in enabled_specs
-                            if s.synthetic_transactions
-                            and (now_ts - float(synthetic_last_run_ts.get(s.domain, 0.0))) >= float(syn_settings.interval_minutes * 60)
-                        ]
-                        candidates.sort(key=lambda s: float(synthetic_last_run_ts.get(s.domain, 0.0)))
-                        for spec in candidates[: int(syn_settings.max_domains_per_cycle)]:
-                            synthetic_last_run_ts[spec.domain] = now_ts
-                            results = await run_synthetic_transactions(
-                                domain=spec.domain,
-                                base_url=spec.url,
-                                browser=browser_admission.browser,
-                                transactions=spec.synthetic_transactions,
-                                timeout_seconds=float(syn_settings.timeout_seconds),
-                            )
-                            real_failures = [r for r in results if (not r.ok) and (not r.browser_infra_error)]
-                            observed_ok = not bool(real_failures)
-                            prev_effective = synthetic_last_ok.get(spec.domain, True)
-                            (
-                                next_effective,
-                                next_fail,
-                                next_success,
-                                alerted_down,
-                            ) = _update_effective_ok(
-                                prev_effective_ok=bool(prev_effective),
-                                observed_ok=observed_ok,
-                                fail_streak=int(synthetic_fail_streak.get(spec.domain, 0)),
-                                success_streak=int(synthetic_success_streak.get(spec.domain, 0)),
-                                down_after_failures=syn_settings.alerts.down_after_failures,
-                                up_after_successes=syn_settings.alerts.up_after_successes,
-                            )
-                            synthetic_last_ok[spec.domain] = next_effective
-                            synthetic_fail_streak[spec.domain] = next_fail
-                            synthetic_success_streak[spec.domain] = next_success
-
-                            if alerted_down and real_failures:
-                                domain_entry = entries_by_domain[spec.domain]
-                                _append_event(
-                                    "synthetic_degraded",
-                                    ts=float(cycle_started),
-                                    domain=spec.domain,
-                                    failures=int(len(real_failures)),
-                                    telegram_alert=domain_entry.routes_telegram,
-                                    alert_policy=domain_entry.alert_policy.telegram,
-                                )
-                                msg = _build_synthetic_alert_message(
-                                    failures=real_failures,
-                                    down_after_failures=syn_settings.alerts.down_after_failures,
-                                    fail_streak=int(next_fail),
-                                )
-                                routed = await _route_domain_telegram_alert(
-                                    http_client=http_client,
-                                    telegram_cfg=telegram_cfg,
-                                    entry=domain_entry,
-                                    message=msg,
-                                )
-                                if routed is not None:
-                                    ok_all, resps = routed
-                                    LOGGER.warning(
-                                        "Synthetic degraded domain=%s sent_ok=%s telegram_last=%s",
-                                        spec.domain,
-                                        ok_all,
-                                        redact_telegram_response(resps[-1] if resps else {}),
-                                    )
-                                    syn_failures_for_dispatch.extend(real_failures)
-                            else:
-                                recovered = (not prev_effective) and bool(next_effective)
-                                if recovered:
-                                    _append_event(
-                                        "synthetic_recovered",
-                                        ts=float(cycle_started),
-                                        domain=spec.domain,
-                                    )
-                                if (
-                                    recovered
-                                    and syn_settings.alerts.notify_on_recovery
-                                    and entries_by_domain[spec.domain].routes_telegram
-                                ):
-                                    ok, resp = await send_telegram_message(
-                                        http_client,
-                                        telegram_cfg,
-                                        f"Synthetic transactions recovered ✅ domain={spec.domain}",
-                                    )
-                                    LOGGER.info(
-                                        "Synthetic recovery notice sent_ok=%s telegram=%s domain=%s",
-                                        ok,
-                                        redact_telegram_response(resp),
-                                        spec.domain,
-                                    )
-
-                        if syn_failures_for_dispatch and syn_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                            if "synthetic" in active_dispatch_tasks and not active_dispatch_tasks["synthetic"].done():
-                                LOGGER.info("Dispatch already running for synthetic; skipping new dispatch")
-                            else:
-                                active_dispatch_tasks["synthetic"] = asyncio.create_task(
-                                    _dispatch_synthetic_and_forward(
-                                        http_client=http_client,
-                                        telegram_cfg=telegram_cfg,
-                                        dispatch_cfg=dispatch_cfg,
-                                        dispatch_state=dispatch_state,
-                                        failures=syn_failures_for_dispatch,
-                                        dispatch_history=dispatch_history,
-                                        dispatch_last=dispatch_last,
-                                        events=events,
-                                    )
-                                )
-
-                    # ------------------------------
-                    # Core Web Vitals (browser metrics)
-                    # ------------------------------
-                    wv_failures_for_dispatch: list[WebVitalsResult] = []
-                    if wv_settings.alerts.enabled and enabled_specs and browser_admission.browser is not None and not browser_degraded:
-                        now_ts = time.time()
-                        candidates = [
-                            s
-                            for s in enabled_specs
-                            if (now_ts - float(web_vitals_last_run_ts.get(s.domain, 0.0))) >= float(wv_settings.interval_minutes * 60)
-                        ]
-                        candidates.sort(key=lambda s: float(web_vitals_last_run_ts.get(s.domain, 0.0)))
-                        for spec in candidates[: int(wv_settings.max_domains_per_cycle)]:
-                            web_vitals_last_run_ts[spec.domain] = now_ts
-                            r = await measure_web_vitals(
-                                domain=spec.domain,
-                                url=spec.url,
-                                browser=browser_admission.browser,
-                                timeout_seconds=float(wv_settings.timeout_seconds),
-                                post_load_wait_ms=int(wv_settings.post_load_wait_ms),
-                            )
-
-                            # Skip infra-induced browser failures (handled by browser_degraded warnings).
-                            if (not r.ok) and bool(r.browser_infra_error):
-                                continue
-
-                            # Per-domain overrides via check.py (web_vitals: {...}).
-                            cfg = spec.web_vitals if isinstance(spec.web_vitals, dict) else {}
-                            lcp_max = _coerce_optional_float(cfg.get("lcp_ms_max", wv_settings.limits.lcp_ms_max))
-                            cls_max = _coerce_optional_float(cfg.get("cls_max", wv_settings.limits.cls_max))
-                            inp_max = _coerce_optional_float(cfg.get("inp_ms_max", wv_settings.limits.inp_ms_max))
-
-                            thresholds = {"lcp_ms_max": lcp_max, "cls_max": cls_max, "inp_ms_max": inp_max}
-
-                            evaluated = r
-                            if r.ok:
-                                m = r.metrics or {}
-                                lcp = m.get("lcp_ms")
-                                cls = m.get("cls")
-                                inp = m.get("inp_ms")
-                                violations = []
-                                try:
-                                    if lcp_max is not None and lcp is not None and float(lcp) > float(lcp_max):
-                                        violations.append(f"lcp_ms>{float(lcp_max):.0f}")
-                                except Exception:
-                                    pass
-                                try:
-                                    if cls_max is not None and cls is not None and float(cls) > float(cls_max):
-                                        violations.append(f"cls>{float(cls_max):.3f}")
-                                except Exception:
-                                    pass
-                                try:
-                                    if inp_max is not None and inp is not None and float(inp) > float(inp_max):
-                                        violations.append(f"inp_ms>{float(inp_max):.0f}")
-                                except Exception:
-                                    pass
-                                if violations:
-                                    evaluated = WebVitalsResult(
-                                        domain=r.domain,
-                                        ok=False,
-                                        metrics=r.metrics,
-                                        error="threshold_exceeded: " + ",".join(violations),
-                                        elapsed_ms=r.elapsed_ms,
-                                        browser_infra_error=r.browser_infra_error,
-                                    )
-
-                            observed_ok = bool(evaluated.ok)
-                            prev_effective = web_vitals_last_ok.get(spec.domain, True)
-                            (
-                                next_effective,
-                                next_fail,
-                                next_success,
-                                alerted_down,
-                            ) = _update_effective_ok(
-                                prev_effective_ok=bool(prev_effective),
-                                observed_ok=observed_ok,
-                                fail_streak=int(web_vitals_fail_streak.get(spec.domain, 0)),
-                                success_streak=int(web_vitals_success_streak.get(spec.domain, 0)),
-                                down_after_failures=wv_settings.alerts.down_after_failures,
-                                up_after_successes=wv_settings.alerts.up_after_successes,
-                            )
-                            web_vitals_last_ok[spec.domain] = next_effective
-                            web_vitals_fail_streak[spec.domain] = next_fail
-                            web_vitals_success_streak[spec.domain] = next_success
-
-                            if alerted_down and (not evaluated.ok):
-                                domain_entry = entries_by_domain[spec.domain]
-                                _append_event(
-                                    "web_vitals_degraded",
-                                    ts=float(cycle_started),
-                                    domain=spec.domain,
-                                    reason=str(evaluated.error or "threshold_exceeded")[:500],
-                                    telegram_alert=domain_entry.routes_telegram,
-                                    alert_policy=domain_entry.alert_policy.telegram,
-                                )
-                                msg = _build_web_vitals_alert_message(
-                                    failures=[evaluated],
-                                    thresholds=thresholds,
-                                    down_after_failures=wv_settings.alerts.down_after_failures,
-                                    fail_streak=int(next_fail),
-                                )
-                                routed = await _route_domain_telegram_alert(
-                                    http_client=http_client,
-                                    telegram_cfg=telegram_cfg,
-                                    entry=domain_entry,
-                                    message=msg,
-                                )
-                                if routed is not None:
-                                    ok_all, resps = routed
-                                    LOGGER.warning(
-                                        "Web vitals degraded domain=%s sent_ok=%s telegram_last=%s",
-                                        spec.domain,
-                                        ok_all,
-                                        redact_telegram_response(resps[-1] if resps else {}),
-                                    )
-                                    wv_failures_for_dispatch.append(evaluated)
-                            else:
-                                recovered = (not prev_effective) and bool(next_effective)
-                                if recovered:
-                                    _append_event(
-                                        "web_vitals_recovered",
-                                        ts=float(cycle_started),
-                                        domain=spec.domain,
-                                    )
-                                if (
-                                    recovered
-                                    and wv_settings.alerts.notify_on_recovery
-                                    and entries_by_domain[spec.domain].routes_telegram
-                                ):
-                                    ok, resp = await send_telegram_message(
-                                        http_client,
-                                        telegram_cfg,
-                                        f"Web vitals recovered ✅ domain={spec.domain}",
-                                    )
-                                    LOGGER.info(
-                                        "Web vitals recovery notice sent_ok=%s telegram=%s domain=%s",
-                                        ok,
-                                        redact_telegram_response(resp),
-                                        spec.domain,
-                                    )
-
-                        if wv_failures_for_dispatch and wv_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                            if "web_vitals" in active_dispatch_tasks and not active_dispatch_tasks["web_vitals"].done():
-                                LOGGER.info("Dispatch already running for web_vitals; skipping new dispatch")
-                            else:
-                                active_dispatch_tasks["web_vitals"] = asyncio.create_task(
-                                    _dispatch_web_vitals_and_forward(
-                                        http_client=http_client,
-                                        telegram_cfg=telegram_cfg,
-                                        dispatch_cfg=dispatch_cfg,
-                                        dispatch_state=dispatch_state,
-                                        failures=wv_failures_for_dispatch,
-                                        dispatch_history=dispatch_history,
-                                        dispatch_last=dispatch_last,
-                                        events=events,
-                                    )
-                                )
+                    browser_context = BrowserPhaseContext(probe_frame, entries_by_domain, browser_admission,
+                                                          browser_degraded)
+                    await synthetic_phase.run(browser_context)
+                    await vitals_phase.run(browser_context)
 
                     _append_signal_sample(
                         "browser",

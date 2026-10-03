@@ -1209,3 +1209,30 @@ Six modules pass scoped checks. Main is reduced to 1,723 lines but still has
 architecture/Semgrep debt. The 21 aggregate findings remain. Required whole-file
 repair continues. The fresh 624 read timed out; the retained additive binding
 request remains separate from acceptance and finite runtime admission.
+
+# Browser observation phases
+
+`SyntheticPhase` and `VitalsPhase` use the original per-domain maps and the
+native probes supplied by the real launcher. Typed input records preserve the
+keyword arguments, browser ownership, timestamps and least-recent attempt
+ordering. Infrastructure failures retain their different existing behavior:
+synthetic transactions filter them before evaluating health, whereas Vitals
+skips its health observation. Domain policy still governs warnings and
+dispatch, including unsent transport results. No additional route is created.
+
+The protected `browser-phases-extraction-20261003` directory alongside the
+preceding proof contains nine affected tests, 924 parent phase comparisons,
+2,160 metric/override comparisons and four actual launcher/config/restart runs.
+The launcher uses synthetic observations, enables both browser metric families
+and retains unrelated domain transitions. Its seventeen local text captures
+include four heartbeats; no network/subprocess attempts or delivery receipts
+exist. DFT is disabled in this launcher fixture; the preceding eight-run DFT
+proof remains separate. Initial interface/style findings and a fixture that
+expected recovery text without enabling recovery notifications are retained.
+
+Six new Python files pass all scoped checks; the aggregate 21 findings remain.
+Main still fails with 142 Ruff findings, 180 typing errors plus one warning,
+Pylint 8.88, fifteen Semgrep findings and architecture debt. PR43 and PR45 retain
+their original open heads and overlapping API-contract slices. Whole-cycle
+repair, required integration checks and the actual runtime bindings remain
+open. Neither this source result nor local captures establish delivery.
