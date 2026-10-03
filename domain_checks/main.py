@@ -35,6 +35,7 @@ from .cycle_channels import CycleChannels
 from .cycle_configuration import cycle_section
 from .cycle_health_state import CycleHealthState
 from .cycle_history import record_domain_results
+from .cycle_startup import ChannelStartup, CycleLimits, external_heartbeat
 from .cycle_values import coerce_float as _coerce_float
 from .cycle_values import required_int
 from .dft_cycle import DftCycle, parse_cycle_config
@@ -58,9 +59,9 @@ from .domain_polling import DomainPolling
 from .domain_result_phase import DomainHealth, DomainResultPhase
 from .domain_time import load_timezone as _load_timezone
 from .domain_time import parse_disabled_until_ts as _parse_disabled_until_ts
-from .event_bus import EventBusOutbox, load_event_bus_config
+from .event_bus import EventBusOutbox
 from .event_bus_delivery import JsonObject
-from .heartbeat_phase import ExternalHeartbeat, HeartbeatObservation, HeartbeatPhase, HeartbeatSchedule
+from .heartbeat_phase import HeartbeatObservation, HeartbeatPhase, HeartbeatSchedule
 from .heartbeat_settings import load_heartbeat_settings
 from .history import prune_history
 from .history_migration import migrate_effective_history
@@ -357,56 +358,23 @@ async def check_one_domain(
 async def run_loop(config_path: Path, once: bool) -> int:
     config = load_config(config_path)
     validate_domain_inventory(config)
-    interval_seconds = int(config.get("interval_seconds", 60))
-    tolerance_seconds = max(120, interval_seconds * 2)
-    browser_concurrency = max(1, int(config.get("browser_concurrency", 3)))
-    check_concurrency = max(1, int(config.get("check_concurrency", 25)))
-    alerting_cfg = config.get("alerting") or {}
-    if not isinstance(alerting_cfg, dict):
-        alerting_cfg = {}
-    down_after_failures = max(1, required_int(alerting_cfg.get("down_after_failures", 1)))
-    up_after_successes = max(1, required_int(alerting_cfg.get("up_after_successes", 1)))
+    limits = CycleLimits.read(config)
+    interval_seconds = limits.interval
+    tolerance_seconds = limits.tolerance
+    browser_concurrency = limits.browser_concurrency
+    check_concurrency = limits.check_concurrency
+    down_after_failures = limits.down_after_failures
+    up_after_successes = limits.up_after_successes
 
     domains_cfg = config.get("domains", [])
     if not isinstance(domains_cfg, list) or not domains_cfg:
         raise ValueError("Config must contain a non-empty 'domains' list")
 
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    if not bot_token or not chat_id:
-        raise RuntimeError("Missing TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID env vars")
-
-    telegram_cfg = TelegramConfig(bot_token=bot_token, chat_id=chat_id)
-    event_bus_config = load_event_bus_config()
-    if event_bus_config is None:
-        LOGGER.warning("PitchAI Events Bus delivery is not configured")
-    else:
-        LOGGER.info(
-            "PitchAI Events Bus delivery configured environment=%s instance=%s",
-            event_bus_config.environment,
-            event_bus_config.instance,
-        )
-
-    dispatch_base_url = os.getenv("PITCHAI_DISPATCH_BASE_URL", "https://dispatch.pitchai.net").strip()
-    dispatch_token = os.getenv("PITCHAI_DISPATCH_TOKEN")
-    dispatch_model = os.getenv("PITCHAI_DISPATCH_MODEL")
-    dispatch_cfg: DispatchConfig | None = None
-    dispatch_state: dict[str, Any] = {
-        "enabled": True,
-        "disabled_reason": None,
-        "disabled_until_monotonic": None,
-        "last_notify_monotonic": 0.0,
-    }
-    if dispatch_token and dispatch_token.strip():
-        dispatch_cfg = DispatchConfig(
-            base_url=dispatch_base_url,
-            token=dispatch_token,
-            model=(dispatch_model.strip() if dispatch_model and dispatch_model.strip() else None),
-        )
-    else:
-        LOGGER.warning("Missing PITCHAI_DISPATCH_TOKEN; dispatcher escalation disabled")
-        dispatch_state["enabled"] = False
-        dispatch_state["disabled_reason"] = "missing_token"
+    channels = ChannelStartup.read(os.environ)
+    telegram_cfg = channels.telegram
+    event_bus_config = channels.event_bus
+    dispatch_cfg = channels.dispatch
+    dispatch_state = channels.dispatch_state
 
     domain_entries = _normalize_domain_entries(domains_cfg)
     entries_by_domain = {entry.domain: entry for entry in domain_entries}
@@ -422,20 +390,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     started_at = datetime.now(tz)
     last_heartbeat_sent: dict[str, str] = {}  # HH:MM -> YYYY-MM-DD
 
-    external_e2e_cfg = cycle_section(config, "external_e2e")
-    external_e2e_enabled = bool(external_e2e_cfg.get("enabled", False))
-    external_e2e_base_url = str(
-        os.getenv("E2E_REGISTRY_BASE_URL", str(external_e2e_cfg.get("base_url") or ""))
-    ).strip()
-    external_e2e_token = (
-        os.getenv("E2E_REGISTRY_MONITOR_TOKEN", "").strip()
-        or os.getenv("E2E_REGISTRY_ADMIN_TOKEN", "").strip()
-        or str(external_e2e_cfg.get("monitor_token") or "").strip()
-    )
-    external_e2e_timeout_seconds = _coerce_float(
-        external_e2e_cfg.get("timeout_seconds", 8.0),
-        default=8.0,
-    )
+    registry_heartbeat = external_heartbeat(config, os.environ)
 
     host_settings = load_host_settings(config)
 
@@ -683,8 +638,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
         meta_phase = MetaPhase(meta_settings, meta_health)
         heartbeat_phase = HeartbeatPhase(heartbeat_settings,
             HeartbeatSchedule(tz, started_at, tolerance_seconds, last_heartbeat_sent),
-            ExternalHeartbeat(external_e2e_enabled, external_e2e_base_url, external_e2e_token,
-                              external_e2e_timeout_seconds))
+            registry_heartbeat)
         synthetic_phase = SyntheticPhase(syn_settings, BrowserProbeState(
             synthetic_last_ok, synthetic_fail_streak, synthetic_success_streak, synthetic_last_run_ts),
             lambda inputs: run_synthetic_transactions(**inputs))

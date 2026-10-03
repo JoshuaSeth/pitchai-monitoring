@@ -1378,3 +1378,20 @@ The four new files pass their scoped canonical gates. Whole-main still fails:
 findings and architecture debt. Aggregate 21 anti-bypass findings remain. The
 existing whole-cycle source repair and required runtime bindings continue;
 these restart proofs do not establish installed delivery or ingress admission.
+# Startup boundary follow-through (2026-10-03)
+
+The existing cycle now reads cadence/concurrency, channel configuration and the
+optional registry heartbeat through `cycle_startup`. Telegram validation still
+precedes Events configuration, and a missing dispatch token retains the same
+disabled state. Credentials, audience, environment precedence and empty registry
+overrides are unchanged. This loading path performs no delivery.
+
+Protected local proof is in
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/cycle-startup-20261003/`:
+seven focused tests pass; five actual isolated launcher/config/restart runs
+match the retained parent results (5.300 seconds). Nineteen local text captures
+include five heartbeats, all unsent; DFT is disabled and guarded outgoing
+attempts are zero. The two new files pass scoped static checks. The repository's
+21 anti-bypass findings and the remaining whole-main debt remain open. The
+initial assertion/typing fixture failures are retained. This is source proof;
+installed checker, journal, receiver and finite admission remain outstanding.
