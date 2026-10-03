@@ -26,6 +26,25 @@ from .common_check import (
     load_domain_spec_from_module_dict,
 )
 from .history import append_sample, prune_history
+from .dispatch_domain_routes import dispatch_and_forward as _dispatch_and_forward
+from .dispatch_domain_routes import dispatch_host_health_and_forward as _dispatch_host_health_and_forward
+from .dispatch_domain_routes import dispatch_performance_and_forward as _dispatch_performance_and_forward
+from .dispatch_domain_routes import dispatch_meta_and_forward as _dispatch_meta_and_forward
+from .dispatch_metric_routes import dispatch_tls_and_forward as _dispatch_tls_and_forward
+from .dispatch_metric_routes import dispatch_dns_and_forward as _dispatch_dns_and_forward
+from .dispatch_metric_routes import dispatch_slo_and_forward as _dispatch_slo_and_forward
+from .dispatch_metric_routes import dispatch_red_and_forward as _dispatch_red_and_forward
+from .dispatch_probe_routes import dispatch_synthetic_and_forward as _dispatch_synthetic_and_forward
+from .dispatch_probe_routes import dispatch_web_vitals_and_forward as _dispatch_web_vitals_and_forward
+from .dispatch_probe_routes import dispatch_container_health_and_forward as _dispatch_container_health_and_forward
+from .dispatch_probe_routes import dispatch_proxy_and_forward as _dispatch_proxy_and_forward
+from .dispatch_workflow import dispatch_prompt_and_forward as _dispatch_prompt_and_forward
+from .dispatch_state import (
+    dispatch_state_reenable_if_due as _dispatch_state_reenable_if_due,
+    dispatch_is_enabled as _dispatch_is_enabled,
+    dispatch_disable as _dispatch_disable,
+    dispatch_should_notify as _dispatch_should_notify,
+)
 from .performance import collect_performance_violations as _collect_performance_violations
 from .message_performance import (
     format_ms as _format_ms,
@@ -122,31 +141,8 @@ from .state_values import (
 
 LOGGER = logging.getLogger("service-monitoring")
 
-CODEX_CONFIG_TOML = """
-# Service Monitoring: Codex escalation config (runner container).
-approval_policy = "never"
-sandbox_mode = "danger-full-access"
-hide_agent_reasoning = true
-""".lstrip()
 
 
-def _docker_cli_install_pre_command() -> str:
-    return (
-        "command -v docker >/dev/null 2>&1 && exit 0\n"
-        "echo '[pre] docker CLI missing; attempting install' >&2\n"
-        "if command -v apt-get >/dev/null 2>&1; then\n"
-        "  apt-get update >&2\n"
-        "  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io >&2\n"
-        "  rm -rf /var/lib/apt/lists/*\n"
-        "  exit 0\n"
-        "fi\n"
-        "if command -v apk >/dev/null 2>&1; then\n"
-        "  apk add --no-cache docker-cli >&2\n"
-        "  exit 0\n"
-        "fi\n"
-        "echo '[pre] No supported package manager found to install docker CLI' >&2\n"
-        "exit 0\n"
-    )
 
 
 def load_config(path: Path) -> dict[str, Any]:
@@ -379,68 +375,14 @@ def _build_down_alert_message(result: DomainCheckResult) -> str:
     return "\n".join(lines).strip()
 
 
-def _dispatch_state_reenable_if_due(dispatch_state: dict[str, Any]) -> None:
-    if dispatch_state.get("enabled") is True:
-        return
-    disabled_until = dispatch_state.get("disabled_until_monotonic")
-    if disabled_until is None:
-        return  # permanently disabled
-    if time.monotonic() >= float(disabled_until):
-        dispatch_state["enabled"] = True
-        dispatch_state["disabled_until_monotonic"] = None
-        dispatch_state["disabled_reason"] = None
 
 
-def _dispatch_is_enabled(dispatch_cfg: DispatchConfig | None, dispatch_state: dict[str, Any]) -> bool:
-    if not dispatch_cfg:
-        return False
-    _dispatch_state_reenable_if_due(dispatch_state)
-    return bool(dispatch_state.get("enabled", True))
 
 
-def _dispatch_disable(
-    dispatch_state: dict[str, Any],
-    *,
-    reason: str,
-    cooldown_seconds: float | None = None,
-) -> None:
-    dispatch_state["enabled"] = False
-    dispatch_state["disabled_reason"] = reason
-    if cooldown_seconds is None:
-        dispatch_state["disabled_until_monotonic"] = None
-    else:
-        dispatch_state["disabled_until_monotonic"] = time.monotonic() + max(1.0, float(cooldown_seconds))
 
 
-def _dispatch_should_notify(dispatch_state: dict[str, Any], *, min_interval_seconds: float = 3600.0) -> bool:
-    last = float(dispatch_state.get("last_notify_monotonic") or 0.0)
-    now = time.monotonic()
-    if (now - last) >= float(min_interval_seconds):
-        dispatch_state["last_notify_monotonic"] = now
-        return True
-    return False
 
 
-async def _notify_dispatch_disabled(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_state: dict[str, Any],
-    details: str,
-) -> None:
-    reason = dispatch_state.get("disabled_reason") or "unknown"
-    until = dispatch_state.get("disabled_until_monotonic")
-    if until is None and dispatch_state.get("enabled") is False:
-        until_txt = "until token is fixed/restarted"
-    else:
-        until_txt = "temporarily"
-    msg = (
-        "Dispatcher escalation is disabled.\n"
-        f"Reason: {reason}\n"
-        f"Status: {until_txt}\n"
-        f"Details: {details}"
-    )
-    await send_telegram_message(http_client, telegram_cfg, msg)
 
 
 
@@ -748,434 +690,20 @@ def _build_api_contract_dispatch_prompt(*, failures: list[ApiContractCheckResult
 
 
 
-async def _dispatch_prompt_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    prompt: str,
-    state_key: str,
-    telegram_title: str,
-    dispatch_state: dict[str, Any],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    if not _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-        LOGGER.info("Dispatch disabled; skipping dispatch title=%s", telegram_title)
-        return
-
-    pre_commands = [_docker_cli_install_pre_command()]
-
-    def _record_dispatch(entry: dict[str, Any]) -> None:
-        """
-        Persist a small record of dispatcher triage runs into the monitor state.
-        Used by the monitoring dashboard to show the last agent conclusions.
-        """
-        try:
-            entry.setdefault("ts", time.time())
-        except Exception:
-            pass
-        entry.setdefault("state_key", state_key)
-        entry.setdefault("title", telegram_title)
-        if dispatch_history is not None:
-            dispatch_history.append(entry)
-            # Keep memory bounded even if pruning fails.
-            if len(dispatch_history) > 2000:
-                del dispatch_history[: max(0, len(dispatch_history) - 1500)]
-        if dispatch_last is not None:
-            try:
-                key = str(entry.get("state_key") or state_key).strip() or state_key
-            except Exception:
-                key = state_key
-            dispatch_last[key] = entry
-        if events is not None:
-            try:
-                events.append(
-                    {
-                        "ts": float(entry.get("ts") or time.time()),
-                        "kind": "dispatch_completed",
-                        "state_key": str(entry.get("state_key") or state_key),
-                        "title": str(entry.get("title") or telegram_title),
-                        "queue_state": str(entry.get("queue_state") or ""),
-                        "ok": bool(entry.get("ok", False)),
-                        "ui_url": str(entry.get("ui_url") or ""),
-                    }
-                )
-                if len(events) > 10_000:
-                    del events[: max(0, len(events) - 8000)]
-            except Exception:
-                pass
-
-    try:
-        started_ts = time.time()
-        bundle, runner = await dispatch_job(
-            http_client,
-            dispatch_cfg,
-            prompt=prompt,
-            config_toml=CODEX_CONFIG_TOML,
-            state_key=state_key,
-            pre_commands=pre_commands,
-        )
-        LOGGER.info("Dispatch queued title=%s bundle=%s runner=%s", telegram_title, bundle, runner)
-
-        status = await wait_for_terminal_status(http_client, dispatch_cfg, bundle=bundle)
-        queue_state = str(status.get("queue_state") or "")
-        ui = run_ui_url(dispatch_cfg.base_url, bundle)
-        tail = await get_run_log_tail(http_client, dispatch_cfg, bundle=bundle)
-        msg = extract_last_agent_message_from_exec_log(tail) or await get_last_agent_message(
-            http_client, dispatch_cfg, bundle=bundle
-        )
-        if not msg:
-            err = extract_last_error_message_from_exec_log(tail) or ""
-            err_txt = err.strip()
-            err_l = err_txt.lower()
-
-            # Disable dispatch on runner quota/billing errors to avoid spamming and wasting cycles.
-            if "quota exceeded" in err_l or "billing details" in err_l or "insufficient_quota" in err_l:
-                _dispatch_disable(dispatch_state, reason="runner_quota_exceeded", cooldown_seconds=None)
-                if _dispatch_should_notify(dispatch_state, min_interval_seconds=3600.0):
-                    await _notify_dispatch_disabled(
-                        http_client=http_client,
-                        telegram_cfg=telegram_cfg,
-                        dispatch_state=dispatch_state,
-                        details=f"Dispatcher runner quota exceeded. Update PITCHAI_DISPATCH_TOKEN secret and redeploy. {ui}",
-                    )
-                LOGGER.warning(
-                    "Dispatch disabled due to runner quota title=%s bundle=%s error=%s",
-                    telegram_title,
-                    bundle,
-                    err_txt[:500] if err_txt else None,
-                )
-                _record_dispatch(
-                    {
-                        "ts": time.time(),
-                        "started_ts": started_ts,
-                        "state_key": state_key,
-                        "title": telegram_title,
-                        "bundle": bundle,
-                        "runner": runner,
-                        "queue_state": queue_state,
-                        "ui_url": ui,
-                        "ok": False,
-                        "error": err_txt[:800] if err_txt else "runner_quota_exceeded",
-                        "agent_message": None,
-                    }
-                )
-                return
-
-            extra = f" Last error: {err_txt[:300]}" if err_txt else ""
-            ok, resp = await send_telegram_message(
-                http_client,
-                telegram_cfg,
-                f"{telegram_title} finished (bundle={bundle}) but no agent message was found.{extra} {ui}",
-            )
-            LOGGER.warning(
-                "Dispatch finished no_message title=%s bundle=%s sent_ok=%s telegram=%s",
-                telegram_title,
-                bundle,
-                ok,
-                redact_telegram_response(resp),
-            )
-            _record_dispatch(
-                {
-                    "ts": time.time(),
-                    "started_ts": started_ts,
-                    "state_key": state_key,
-                    "title": telegram_title,
-                    "bundle": bundle,
-                    "runner": runner,
-                    "queue_state": queue_state,
-                    "ui_url": ui,
-                    "ok": bool(queue_state == "processed"),
-                    "error": err_txt[:800] if err_txt else "no_agent_message",
-                    "agent_message": None,
-                }
-            )
-            return
-
-        header = f"{telegram_title} (bundle={bundle})\n{ui}\n\n"
-        ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, header + msg)
-        LOGGER.info(
-            "Dispatch finished title=%s bundle=%s telegram_ok=%s telegram_last=%s",
-            telegram_title,
-            bundle,
-            ok_all,
-            redact_telegram_response(resps[-1] if resps else {}),
-        )
-        _record_dispatch(
-            {
-                "ts": time.time(),
-                "started_ts": started_ts,
-                "state_key": state_key,
-                "title": telegram_title,
-                "bundle": bundle,
-                "runner": runner,
-                "queue_state": queue_state,
-                "ui_url": ui,
-                "ok": True,
-                "error": None,
-                "agent_message": msg[:12_000],
-            }
-        )
-    except httpx.HTTPStatusError as exc:
-        status_code = getattr(getattr(exc, "response", None), "status_code", None)
-        err = f"HTTPStatusError: {exc}"
-        suppress_notice = False
-
-        # Disable dispatch on auth/quota issues to avoid spamming and wasting cycles.
-        if status_code in {401, 403}:
-            _dispatch_disable(dispatch_state, reason=f"auth_error_{status_code}", cooldown_seconds=None)
-            suppress_notice = True
-            if _dispatch_should_notify(dispatch_state, min_interval_seconds=3600.0):
-                await _notify_dispatch_disabled(
-                    http_client=http_client,
-                    telegram_cfg=telegram_cfg,
-                    dispatch_state=dispatch_state,
-                    details=f"Dispatcher returned {status_code}. Update PITCHAI_DISPATCH_TOKEN secret and redeploy.",
-                )
-        elif status_code == 429:
-            _dispatch_disable(dispatch_state, reason="rate_limited_429", cooldown_seconds=30 * 60)
-            suppress_notice = True
-            if _dispatch_should_notify(dispatch_state, min_interval_seconds=1800.0):
-                await _notify_dispatch_disabled(
-                    http_client=http_client,
-                    telegram_cfg=telegram_cfg,
-                    dispatch_state=dispatch_state,
-                    details="Dispatcher rate-limited (429). Will retry automatically after cooldown.",
-                )
-
-        LOGGER.exception("Dispatch failed title=%s status_code=%s error=%s", telegram_title, status_code, err)
-        if not suppress_notice:
-            await send_telegram_message(
-                http_client,
-                telegram_cfg,
-                f"{telegram_title} dispatch escalation FAILED: {err}",
-            )
-        _record_dispatch(
-            {
-                "ts": time.time(),
-                "started_ts": time.time(),
-                "state_key": state_key,
-                "title": telegram_title,
-                "bundle": None,
-                "runner": None,
-                "queue_state": f"http_{status_code}" if status_code is not None else "http_error",
-                "ui_url": "",
-                "ok": False,
-                "error": err[:800],
-                "agent_message": None,
-            }
-        )
-    except Exception as exc:
-        err = f"{type(exc).__name__}: {exc}"
-        LOGGER.exception("Dispatch failed title=%s error=%s", telegram_title, err)
-        await send_telegram_message(
-            http_client,
-            telegram_cfg,
-            f"{telegram_title} dispatch escalation FAILED: {err}",
-        )
-        _record_dispatch(
-            {
-                "ts": time.time(),
-                "started_ts": time.time(),
-                "state_key": state_key,
-                "title": telegram_title,
-                "bundle": None,
-                "runner": None,
-                "queue_state": "exception",
-                "ui_url": "",
-                "ok": False,
-                "error": err[:800],
-                "agent_message": None,
-            }
-        )
 
 
-async def _dispatch_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    result: DomainCheckResult,
-    dispatch_state: dict[str, Any],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_dispatch_prompt(result)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key=f"service-monitoring.{result.domain}",
-        telegram_title=f"{result.domain} investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_host_health_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    violations: list[str],
-    snap: dict[str, Any],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_host_health_dispatch_prompt(violations=violations, snap=snap)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.host_health",
-        telegram_title="Host health investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_performance_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    slow: list[dict[str, Any]],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_performance_dispatch_prompt(slow=slow)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.performance",
-        telegram_title="Performance investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_tls_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    results: list[TlsCertCheckResult],
-    min_days_valid: float,
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_tls_dispatch_prompt(results=results, min_days_valid=min_days_valid)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.tls",
-        telegram_title="TLS investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_dns_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    results: list[DnsCheckResult],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_dns_dispatch_prompt(results=results)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.dns",
-        telegram_title="DNS investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_slo_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    violations: list[SloBurnViolation],
-    slo_target_percent: float,
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_slo_dispatch_prompt(violations=violations, slo_target_percent=slo_target_percent)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.slo",
-        telegram_title="SLO burn investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_red_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    violations: list[RedViolation],
-    window_minutes: int,
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_red_dispatch_prompt(violations=violations, window_minutes=window_minutes)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.red",
-        telegram_title="RED signals investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
 async def _dispatch_api_contract_and_forward(
@@ -1204,143 +732,14 @@ async def _dispatch_api_contract_and_forward(
     )
 
 
-async def _dispatch_synthetic_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    failures: list[SyntheticTransactionResult],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_synthetic_dispatch_prompt(failures=failures)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.synthetic",
-        telegram_title="Synthetic transactions investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_web_vitals_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    failures: list[WebVitalsResult],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_web_vitals_dispatch_prompt(failures=failures)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.web_vitals",
-        telegram_title="Web vitals investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_container_health_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    issues: list[ContainerHealthIssue],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_container_health_dispatch_prompt(issues=issues)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.container_health",
-        telegram_title="Container health investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_proxy_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    upstream_issues: list[ProxyIssue],
-    access_stats: NginxAccessWindowStats | None,
-    upstream_error_events: list[NginxUpstreamErrorEvent],
-    window_seconds: int,
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_proxy_dispatch_prompt(
-        upstream_issues=upstream_issues,
-        access_stats=access_stats,
-        upstream_error_events=upstream_error_events,
-        window_seconds=window_seconds,
-    )
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.proxy",
-        telegram_title="Proxy/upstream investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
-async def _dispatch_meta_and_forward(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    dispatch_cfg: DispatchConfig,
-    dispatch_state: dict[str, Any],
-    reasons: list[str],
-    context: dict[str, Any],
-    dispatch_history: list[dict[str, Any]] | None = None,
-    dispatch_last: dict[str, dict[str, Any]] | None = None,
-    events: list[dict[str, Any]] | None = None,
-) -> None:
-    prompt = _build_meta_dispatch_prompt(reasons=reasons, context=context)
-    await _dispatch_prompt_and_forward(
-        http_client=http_client,
-        telegram_cfg=telegram_cfg,
-        dispatch_cfg=dispatch_cfg,
-        prompt=prompt,
-        state_key="service-monitoring.meta",
-        telegram_title="Monitoring pipeline investigation",
-        dispatch_state=dispatch_state,
-        dispatch_history=dispatch_history,
-        dispatch_last=dispatch_last,
-        events=events,
-    )
 
 
 async def check_one_domain(

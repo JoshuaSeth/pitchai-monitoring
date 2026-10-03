@@ -680,3 +680,55 @@ Semgrep findings and architecture debt. The repository aggregate still has
 21 anti-bypass findings. Required gates remain binding; this is not runtime
 or integration acceptance. All previously listed operational dependencies
 and owner boundaries remain open and unchanged.
+
+# Dispatch lifecycle decomposition increment
+
+Twelve canonical-scope modules separate existing dispatch inputs, cooldowns,
+bounded records, runner payloads, transport bindings, notices, failures,
+results, workflow observation and domain/metric/probe callers. Main retains
+the existing caller names and keyword interfaces. The remaining main AST
+matches parent `f1b49cc4580c0ffac2afc0e89f384afe77c5cd16` after the declared
+extractions and imports; main falls from 4,140 to 3,539 lines. The API-readiness
+wrapper, its builders and PR43/45 scheduler interfaces remain unchanged.
+
+`dispatch_workflow` observes one explicit child operation, handles ordinary
+transport failures and propagates cancellation after child cleanup. Awaiting
+the cancelled task itself retains the original child cancellation message.
+The initial differential check caught that `gather` alone lost this message;
+the failure and corrected proof are retained. Existing payload bytes, client
+functions, audiences, quota/auth stops, 429 cooldown, notice intervals and
+bounded history/event shapes are preserved. No route or executor is added.
+Existing legacy `ok` records describe dispatch processing; even a returned
+agent message with failed forwarding can retain `ok=true`. They are not
+delivery evidence, and this extraction does not change the DFT outbox contract.
+
+Private proof:
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/dispatch-extraction-20261003/`.
+All 15 runtime/test files have retained pre-test bytes. Eight focused tests
+cover state, records, cancellation cleanup and failed notification handling.
+The 33-case differential tool uses actual HTTP clients with in-memory
+transports to compare parent/current requests, mutable records, errors,
+cooldowns and all 13 route callers, including the unchanged API wrapper.
+It separately checks runner payload bytes and the remaining main AST.
+
+Five actual isolated launcher invocations cover four restart cycles plus a
+continuous four-cycle dispatch-enabled run. They preserve independent domain
+and performance two-failure/two-success transitions, default config lookup,
+state and browser cleanup. The continuous run exercises the actual dispatch
+client through six in-memory HTTP requests, persists one simulated completion,
+and receives explicit no-delivery responses for both local notice requests.
+Synthetic clock and cycle-sleep controls bound this fixture; they do not prove
+real scheduling latency. DFT stays disabled, with no checker or journal.
+One separate replacement text capture, zero outgoing network/subprocess
+attempts and zero receiver receipts are recorded. The first launcher fixture
+omitted the default-false performance dispatch setting; its failed expectation
+and diagnostic run are retained before explicitly enabling the synthetic case.
+
+All 14 new files pass scoped architecture, Ruff, BasedPyright, Pylint 10 and
+Semgrep. Main-only checks still fail with 370 Ruff findings, 347 typing errors
+and one warning, Pylint 9.15/10, 46 Semgrep findings and architecture debt.
+The aggregate retains 21 anti-bypass findings. Initial test/gate iterations
+remain separate; required gates, policy and baselines are unchanged. Existing
+DFT/nginx campaigns were not repeated. The full cycle repair and previously
+listed runtime bindings, receiver/off-host proof, copy disposition, original
+adoption/drain coverage and finite Infrastructure624 admission remain open.
