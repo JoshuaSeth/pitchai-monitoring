@@ -732,3 +732,54 @@ remain separate; required gates, policy and baselines are unchanged. Existing
 DFT/nginx campaigns were not repeated. The full cycle repair and previously
 listed runtime bindings, receiver/off-host proof, copy disposition, original
 adoption/drain coverage and finite Infrastructure624 admission remain open.
+
+# Inventory and heartbeat decomposition increment
+
+`config_values`, `domain_time` and `domain_entries` provide typed YAML-valued
+inventory, expiry and timezone boundaries. They preserve raw mappings by
+reference, explicit stops, expiry equality, supplied UTC offsets, existing
+numeric/date distinctions, duplicate refusal and inventory-owned routing.
+`domain_alerts` retains warning text and uses the same configured transport
+callable. It introduces no audience or trigger. `heartbeat_message`,
+`heartbeat_sections` and `heartbeat_external` assemble already observed data
+with existing order, prefix limits, optional-value fallbacks and final newline.
+No new external status request or schedule is introduced.
+
+Main imports the existing helper names. Nine function removals and one class
+extraction account for the complete change to its AST, apart from four added
+imports; the rest matches parent `2bbbbf56ecc0628838ba0b0544b1927bf01f9b41`.
+Main shrinks by 347 lines to 3,192. Fresh PR43/45 source reads confirm the same
+retained heads and API readiness/event-persistence overlaps. Those sections,
+branches and owners are untouched by this increment.
+
+Private tools, original snapshots and raw logs are retained at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/inventory-heartbeat-extraction-20261003/`.
+Nine focused tests pass in 0.002 seconds, and all five existing domain-disable
+tests pass. The differential tool matches 612 parent outcomes, including
+77 matching exceptions across three classes, raw mapping identity, no input
+mutations, DST offsets, naive YAML dates, sorting and text prefixes. Two
+separate routing cases preserve critical versus dashboard-only decisions
+using a replacement local capture returning explicit no-delivery.
+
+Four actual isolated launcher/config/restart runs pass in 0.770 seconds.
+A timed-disabled domain begins checking exactly at expiry; an explicit stop
+persists despite its elapsed timestamp. Independent ordinary domains and
+performance retain two-failure/two-success transitions. Existing heartbeat
+scheduling emits four local text captures, alongside one critical-domain
+warning and one performance warning. All six are replacement-function
+captures with no receipt IDs. HTTP, browser, host and clock inputs are
+synthetic; outbound network, subprocess, Events, checker and dispatch paths
+are guarded. Default config resolution, state history and browser cleanup
+are exercised; DFT stays disabled and allocates no journal. This does not
+repeat or expand the accepted DFT/nginx component proof.
+
+Ten runtime/test files were snapshotted before final behavioral verification.
+A subsequent test-only range/comprehension style correction has its own
+before-run snapshot and focused rerun; all runtime bytes remain unchanged.
+All nine new files pass scoped architecture, Ruff, BasedPyright, Pylint 10
+and Semgrep. Initial source/test gate iterations remain retained. Whole-main
+checks still fail: 325 Ruff findings, 291 typing errors and one warning,
+Pylint 9.05/10, 37 Semgrep findings and architecture debt. The aggregate
+retains 21 anti-bypass findings. These component passes do not override
+required gates or finish the whole-cycle repair. Previously listed runtime,
+receiver/off-host, copy/coverage and finite-admission dependencies remain open.

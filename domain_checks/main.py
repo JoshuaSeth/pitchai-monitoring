@@ -26,6 +26,24 @@ from .common_check import (
     load_domain_spec_from_module_dict,
 )
 from .history import append_sample, prune_history
+from .domain_entries import (
+    DomainEntryConfig,
+    normalize_domain_entries as _normalize_domain_entries,
+    format_disabled_domain_line as _format_disabled_domain_line,
+)
+from .domain_time import (
+    parse_disabled_until_ts as _parse_disabled_until_ts,
+    parse_hhmm as _parse_hhmm,
+    load_timezone as _load_timezone,
+)
+from .domain_alerts import (
+    build_down_alert_message as _build_down_alert_message,
+    route_domain_telegram_alert as _route_domain_telegram_alert,
+)
+from .heartbeat_message import (
+    format_uptime as _format_uptime,
+    build_heartbeat_message as _build_heartbeat_message,
+)
 from .dispatch_domain_routes import dispatch_and_forward as _dispatch_and_forward
 from .dispatch_domain_routes import dispatch_host_health_and_forward as _dispatch_host_health_and_forward
 from .dispatch_domain_routes import dispatch_performance_and_forward as _dispatch_performance_and_forward
@@ -153,407 +171,42 @@ def load_config(path: Path) -> dict[str, Any]:
     return data
 
 
-@dataclass(frozen=True)
-class DomainEntryConfig:
-    domain: str
-    raw_entry: Any
-    alert_policy: DomainAlertPolicy = DomainAlertPolicy(telegram="critical")
-    disabled: bool = False
-    disabled_reason: str | None = None
-    disabled_until_ts: float | None = None
-
-    def is_disabled(self, now_ts: float) -> bool:
-        if self.disabled:
-            return True
-        if self.disabled_until_ts is not None and now_ts < float(self.disabled_until_ts):
-            return True
-        return False
-
-    @property
-    def routes_telegram(self) -> bool:
-        return self.alert_policy.telegram_enabled
-
-
-async def _route_domain_telegram_alert(
-    *,
-    http_client: httpx.AsyncClient,
-    telegram_cfg: TelegramConfig,
-    entry: DomainEntryConfig,
-    message: str,
-) -> tuple[bool, list[dict[str, Any]]] | None:
-    """Route a domain-scoped alert according to its inventory policy."""
-    if not entry.routes_telegram:
-        LOGGER.info(
-            "Telegram alert suppressed by inventory policy domain=%s mode=%s reason=%s",
-            entry.domain,
-            entry.alert_policy.telegram,
-            entry.alert_policy.reason,
-        )
-        return None
-    return await send_telegram_message_chunked(http_client, telegram_cfg, message)
-
-
-def _parse_disabled_until_ts(value: Any) -> float | None:
-    if value is None:
-        return None
-
-    if isinstance(value, (int, float)):
-        ts = float(value)
-        return ts if ts > 0 else None
-
-    s = str(value or "").strip()
-    if not s:
-        return None
-
-    try:
-        ts = float(s)
-        return ts if ts > 0 else None
-    except Exception:
-        pass
-
-    s_iso = s
-    if s_iso.endswith("Z"):
-        s_iso = s_iso[:-1] + "+00:00"
-
-    try:
-        dt = datetime.fromisoformat(s_iso)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.timestamp()
-    except ValueError:
-        try:
-            d = date.fromisoformat(s)
-        except Exception as exc:
-            raise ValueError(
-                f"Invalid disabled_until value {value!r}; expected unix timestamp or ISO-8601 datetime/date"
-            ) from exc
-        dt = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
-        return dt.timestamp()
-
-
-def _normalize_domain_entries(domains_cfg: list[Any]) -> list[DomainEntryConfig]:
-    entries: list[DomainEntryConfig] = []
-
-    for idx, entry in enumerate(domains_cfg):
-        if isinstance(entry, str):
-            domain = entry.strip()
-            if not domain:
-                raise ValueError(f"domains[{idx}] is empty")
-            entries.append(DomainEntryConfig(domain=domain, raw_entry=domain))
-            continue
-
-        if not isinstance(entry, dict):
-            raise ValueError(f"domains[{idx}] must be a string or mapping, got {type(entry).__name__}")
-
-        domain = str(entry.get("domain") or "").strip()
-        if not domain:
-            raise ValueError(f"domains[{idx}].domain is required")
-
-        disabled = bool(entry.get("disabled")) or (entry.get("enabled") is False)
-        disabled_reason = str(entry.get("disabled_reason") or "").strip() or None
-        disabled_until_ts = _parse_disabled_until_ts(entry.get("disabled_until"))
-        alert_policy = parse_domain_alert_policy(entry, path=f"domains[{idx}]")
-
-        entries.append(
-            DomainEntryConfig(
-                domain=domain,
-                raw_entry=entry,
-                alert_policy=alert_policy,
-                disabled=disabled,
-                disabled_reason=disabled_reason,
-                disabled_until_ts=disabled_until_ts,
-            )
-        )
-
-    seen: set[str] = set()
-    for entry in entries:
-        if entry.domain in seen:
-            raise ValueError(f"Duplicate domain entry: {entry.domain}")
-        seen.add(entry.domain)
-
-    return entries
-
-
-def _format_disabled_domain_line(entry: DomainEntryConfig, tz) -> str:
-    parts = ["DISABLED"]
-    if entry.disabled_until_ts is not None and float(entry.disabled_until_ts) > 0:
-        until = datetime.fromtimestamp(float(entry.disabled_until_ts), tz=tz)
-        parts.append(f"until {until.strftime('%Y-%m-%d %H:%M %Z')}")
-    if entry.disabled_reason:
-        parts.append(f"({entry.disabled_reason})")
-    return f"- {entry.domain}: {' '.join(parts)}"
 
 
-def _parse_hhmm(value: Any) -> dt_time:
-    s = str(value or "").strip()
-    if not s or ":" not in s:
-        raise ValueError(f"Invalid time (expected HH:MM): {value!r}")
-    hh_str, mm_str = s.split(":", 1)
-    hour = int(hh_str)
-    minute = int(mm_str)
-    if not (0 <= hour <= 23 and 0 <= minute <= 59):
-        raise ValueError(f"Invalid time (expected HH:MM): {value!r}")
-    return dt_time(hour=hour, minute=minute)
 
 
-def _load_timezone(name: str):
-    cleaned = (name or "").strip()
-    if not cleaned or cleaned.upper() == "UTC":
-        return timezone.utc
-    try:
-        return ZoneInfo(cleaned)
-    except ZoneInfoNotFoundError:
-        LOGGER.warning("Timezone not found; falling back to UTC tz=%s", cleaned)
-        return timezone.utc
 
 
 
 
-def _format_uptime(delta: timedelta) -> str:
-    seconds = max(0, int(delta.total_seconds()))
-    days, rem = divmod(seconds, 86400)
-    hours, rem = divmod(rem, 3600)
-    minutes, rem = divmod(rem, 60)
-    if days:
-        return f"{days}d {hours:02}h {minutes:02}m"
-    if hours:
-        return f"{hours}h {minutes:02}m"
-    return f"{minutes}m {rem:02}s"
 
 
-def _build_down_alert_message(result: DomainCheckResult) -> str:
-    d = result.details or {}
-    lines = [f"{result.domain} is DOWN ❌", f"Reason: {result.reason}"]
 
-    fail_streak = d.get("fail_streak")
-    down_after = d.get("down_after_failures")
-    if isinstance(fail_streak, int) and isinstance(down_after, int) and down_after > 1:
-        lines.append(f"Debounce: fail_streak={fail_streak}/{down_after}")
 
-    status_code = d.get("status_code")
-    http_ms = d.get("http_elapsed_ms")
-    if status_code is not None:
-        lines.append(f"HTTP: {status_code} ({_format_ms(http_ms)})")
 
-    browser_status = d.get("http_status")
-    browser_ms = d.get("browser_elapsed_ms")
-    if browser_status is not None:
-        lines.append(f"Browser: {browser_status} ({_format_ms(browser_ms)})")
-
-    final_url = d.get("final_url")
-    if isinstance(final_url, str) and final_url:
-        lines.append(f"Final URL: {final_url}")
-
-    if d.get("final_host_ok") is False:
-        final_host = d.get("final_host")
-        expected_suffix = d.get("expected_final_host_suffix")
-        lines.append(f"Final host mismatch: got={final_host} expected_suffix={expected_suffix}")
-
-    if d.get("title_ok") is False:
-        title = d.get("title")
-        lines.append(f"Title mismatch: {title!r}")
-
-    error = d.get("error")
-    if isinstance(error, str) and error.strip():
-        lines.append(f"Error: {error.strip()[:500]}")
-
-    forbidden_hits = d.get("forbidden_hits") or []
-    if isinstance(forbidden_hits, list) and forbidden_hits:
-        hits = ", ".join(str(x) for x in forbidden_hits[:8])
-        lines.append(f"Forbidden text hit: {hits}")
-
-    missing_all = d.get("missing_selectors_all") or []
-    if isinstance(missing_all, list) and missing_all:
-        missing = ", ".join(str(x) for x in missing_all[:5])
-        lines.append(f"Missing selectors: {missing}")
-
-    missing_text = d.get("missing_text") or []
-    if isinstance(missing_text, list) and missing_text:
-        missing = ", ".join(str(x) for x in missing_text[:5])
-        lines.append(f"Missing text: {missing}")
-
-    return "\n".join(lines).strip()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def _build_heartbeat_message(
-    *,
-    now: datetime,
-    scheduled_label: str,
-    started_at: datetime,
-    results: dict[str, DomainCheckResult],
-    domain_entries: dict[str, DomainEntryConfig] | None = None,
-    disabled_lines: list[str] | None = None,
-    host_snap: dict[str, Any] | None = None,
-    host_violations: list[str] | None = None,
-    perf_slow: list[dict[str, Any]] | None = None,
-    external_e2e: dict[str, Any] | None = None,
-) -> str:
-    lines = [
-        "Heartbeat: service-monitoring is running ✅",
-        f"Scheduled: {scheduled_label}",
-        f"Now: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}",
-        f"Uptime: {_format_uptime(now - started_at)}",
-    ]
-
-    if isinstance(host_snap, dict) and host_snap:
-        lines.append("")
-        lines.append("Host health:")
-        if host_violations:
-            lines.append(f"- Status: DEGRADED ({len(host_violations)} issue(s))")
-        else:
-            lines.append("- Status: OK")
-
-        disk = host_snap.get("disk") if isinstance(host_snap.get("disk"), dict) else {}
-        if disk:
-            worst_path = None
-            worst_pct = None
-            for path, info in disk.items():
-                if not isinstance(info, dict):
-                    continue
-                pct = info.get("used_percent")
-                try:
-                    pct_f = float(pct)
-                except Exception:
-                    continue
-                if worst_pct is None or pct_f > worst_pct:
-                    worst_pct = pct_f
-                    worst_path = str(path)
-            if worst_path and worst_pct is not None:
-                lines.append(f"- Disk: {worst_path} {_format_percent(worst_pct)}")
-        if host_snap.get("mem_used_percent") is not None:
-            lines.append(f"- Mem used: {_format_percent(host_snap.get('mem_used_percent'))}")
-        if host_snap.get("swap_used_percent") is not None:
-            lines.append(f"- Swap used: {_format_percent(host_snap.get('swap_used_percent'))}")
-        if host_snap.get("cpu_used_percent") is not None:
-            lines.append(f"- CPU used: {_format_percent(host_snap.get('cpu_used_percent'))}")
-        if host_snap.get("load1") is not None:
-            try:
-                l1 = float(host_snap.get("load1"))
-                lpc = host_snap.get("load1_per_cpu")
-                if lpc is not None:
-                    lines.append(f"- Load: {l1:.1f} (per_cpu={float(lpc):.2f})")
-                else:
-                    lines.append(f"- Load: {l1:.1f}")
-            except Exception:
-                pass
-
-        if host_violations:
-            lines.append("- Violations:")
-            lines.extend(f"  - {v}" for v in host_violations[:5])
-
-    if perf_slow is not None:
-        lines.append("")
-        if perf_slow:
-            lines.append(f"Performance: DEGRADED (slow_domains={len(perf_slow)})")
-            for entry in perf_slow[:5]:
-                domain = entry.get("domain")
-                http_ms = _format_ms(entry.get("http_ms"))
-                browser_ms = _format_ms(entry.get("browser_ms"))
-                lines.append(f"- {domain}: {http_ms} / {browser_ms}")
-        else:
-            lines.append("Performance: OK")
-
-    if external_e2e is not None:
-        lines.append("")
-        ok = bool(external_e2e.get("ok", True))
-        if not ok:
-            lines.append("External E2E tests: ERROR")
-            err = external_e2e.get("error")
-            if isinstance(err, str) and err.strip():
-                lines.append(f"- {err.strip()[:300]}")
-        else:
-            try:
-                total = int(external_e2e.get("total_tests") or 0)
-            except Exception:
-                total = 0
-            try:
-                failing = int(external_e2e.get("failing_tests") or 0)
-            except Exception:
-                failing = 0
-            status = "OK" if failing <= 0 else "DEGRADED"
-            lines.append(f"External E2E tests: {status} (failing={failing}/{total})")
-
-            tests = external_e2e.get("tests")
-            if isinstance(tests, list) and tests:
-                failing_tests: list[dict[str, Any]] = []
-                for t in tests:
-                    v = t.get("effective_ok")
-                    try:
-                        v_i = 1 if v is None else int(v)
-                    except Exception:
-                        v_i = 1
-                    if v_i == 0:
-                        failing_tests.append(t)
-                if failing_tests:
-                    lines.append("- Failing:")
-                    for t in failing_tests[:5]:
-                        name = t.get("test_name") or t.get("name") or t.get("test_id") or "test"
-                        last_status = t.get("last_status") or "?"
-                        ms = _format_ms(t.get("last_elapsed_ms"))
-                        lines.append(f"  - {name}: {last_status} ({ms})")
-                slow = sorted(
-                    [t for t in tests if t.get("last_elapsed_ms") is not None],
-                    key=lambda x: float(x.get("last_elapsed_ms") or 0.0),
-                    reverse=True,
-                )
-                if slow:
-                    lines.append("- Slowest:")
-                    for t in slow[:3]:
-                        name = t.get("test_name") or t.get("name") or t.get("test_id") or "test"
-                        ms = _format_ms(t.get("last_elapsed_ms"))
-                        lines.append(f"  - {name}: {ms}")
-
-    lines.append("")
-    lines.append("Domains (HTTP / Browser):")
-
-    for domain in sorted(results.keys()):
-        result = results[domain]
-        entry = (domain_entries or {}).get(domain)
-        dashboard_only = bool(entry is not None and not entry.routes_telegram)
-        details = result.details or {}
-        http_status = details.get("status_code")
-        http_ms = _format_ms(details.get("http_elapsed_ms"))
-        browser_ms = _format_ms(details.get("browser_elapsed_ms"))
-
-        if result.ok:
-            status_part = f"UP ({http_status})" if http_status is not None else "UP"
-            if dashboard_only:
-                status_part += " · dashboard only (no Telegram alerts)"
-            lines.append(f"- {domain}: {status_part} {http_ms} / {browser_ms}")
-            continue
-
-        reason = result.reason or "down"
-        if isinstance(details.get("error"), str) and details["error"].strip():
-            reason = f"{reason}: {details['error']}"
-        status_part = f"DOWN ({reason})"
-        if http_status is not None:
-            status_part = f"DOWN ({http_status}, {reason})"
-        if dashboard_only:
-            status_part += " · expected/dashboard only (no Telegram alert)"
-        lines.append(f"- {domain}: {status_part} {http_ms} / {browser_ms}")
-
-    if disabled_lines:
-        lines.append("")
-        lines.append("Disabled (skipped):")
-        lines.extend(disabled_lines)
-
-    return "\n".join(lines).strip() + "\n"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
