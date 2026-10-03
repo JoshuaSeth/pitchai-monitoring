@@ -1124,3 +1124,30 @@ source/config/clock/reader permissions, schema-two private journal, accepted
 internal receiver/off-host observer, throughput/copy disposition and a fresh
 finite 624 admission remain unbound. Producer `3c543bd`, original requests,
 existing owners and all human stops are unchanged.
+
+# Host phase and continuing release repair
+
+`HostPhase` owns the existing host observation, health transition, signal,
+event and dispatch order. `HostObservations` retains CPU baselines and the
+shallow dashboard snapshot. A failed second CPU conversion preserves the
+first assignment, as before. Send failures and cancellation retain state
+already observed; neither constitutes recovery. API-readiness, DFT, scheduling
+and cleanup remain unchanged by this extraction.
+
+Private evidence is in
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/host-phase-extraction-20261003/`.
+Seventeen focused/existing tests, 964 parent comparisons and four isolated
+launcher runs pass. Launcher results equal the retained parent baseline;
+eleven local texts (four heartbeats) are unsent, with DFT disabled and zero
+guarded network/subprocess attempts. Final snapshots precede final tests and
+launcher proof. Earlier differential proof is bound by unchanged runtime bytes.
+Three new files pass scoped checks. Main remains failed: 257 Ruff findings,
+229 typing errors and one warning, 25 Semgrep findings and architecture debt.
+The repository's 21 anti-bypass findings remain visible.
+
+The release objective includes deployed controls through the normal gates.
+Source evidence alone does not fulfill it. Remaining cycle repair and required
+checks, actual checker/config/clock/reader/journal, accepted internal receiver
+and off-host observation, copy disposition and a coordinated finite 624 host
+transaction remain necessary. Producer bytes and original request identities
+are preserved. No runtime activation occurred in this increment.

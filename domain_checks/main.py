@@ -58,7 +58,6 @@ from .heartbeat_message import (
     build_heartbeat_message as _build_heartbeat_message,
 )
 from .dispatch_domain_routes import dispatch_and_forward as _dispatch_and_forward
-from .dispatch_domain_routes import dispatch_host_health_and_forward as _dispatch_host_health_and_forward
 from .dispatch_domain_routes import dispatch_performance_and_forward as _dispatch_performance_and_forward
 from .dispatch_domain_routes import dispatch_meta_and_forward as _dispatch_meta_and_forward
 from .dispatch_metric_routes import dispatch_tls_and_forward as _dispatch_tls_and_forward
@@ -82,7 +81,6 @@ from .message_performance import (
 )
 from .message_templates import build_dispatch_prompt as _build_dispatch_prompt
 from .message_templates import dispatch_read_only_rules as _dispatch_read_only_rules
-from .message_templates import build_host_health_dispatch_prompt as _build_host_health_dispatch_prompt
 from .message_templates import build_meta_alert_message as _build_meta_alert_message
 from .message_templates import build_meta_dispatch_prompt as _build_meta_dispatch_prompt
 from .message_tls_dns import build_tls_alert_message as _build_tls_alert_message
@@ -103,12 +101,6 @@ from .host_readings import (
     format_browser_health_hint as _format_browser_health_hint,
     read_linux_meminfo_kb as _read_linux_meminfo_kb,
     read_linux_proc_stat_cpu_total_idle as _read_linux_proc_stat_cpu_total_idle,
-)
-from .host_snapshot import collect_host_snapshot as _collect_host_snapshot
-from .host_thresholds import (
-    build_host_health_alert_message as _build_host_health_alert_message,
-    collect_host_health_violations as _collect_host_health_violations,
-    format_percent as _format_percent,
 )
 from .inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from .metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
@@ -145,6 +137,8 @@ from .telegram import (
 from .cycle_configuration import cycle_section
 from .alert_transition import update_effective_ok as _update_effective_ok
 from .health_state import HealthState
+from .host_observations import HostObservations
+from .host_phase import HostPhase
 from .cycle_channels import CycleChannels
 from .event_bus_delivery import JsonObject
 from .dispatch_records import DispatchRecords
@@ -563,8 +557,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
     history_by_domain: dict[str, list[list[Any]]] = {}
     disk_state: dict[str, Any] = {}
     host_health = HealthState()
-    host_cpu_prev_total = 0
-    host_cpu_prev_idle = 0
+    host_observations = HostObservations()
     perf_health = HealthState()
     slo_health = HealthState()
     tls_health = HealthState()
@@ -595,7 +588,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
     dispatch_history: list[dict[str, Any]] = []
     dispatch_last: dict[str, dict[str, Any]] = {}
     events: list[dict[str, Any]] = []
-    host_last_snapshot: dict[str, Any] = {}
     browser_degraded_active = False
     browser_degraded_first_seen_ts = 0.0
     browser_launch_last_error: str | None = None
@@ -609,7 +601,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
         dispatch_history = disk_state.get("dispatch_history") if isinstance(disk_state.get("dispatch_history"), list) else []
         dispatch_last = disk_state.get("dispatch_last") if isinstance(disk_state.get("dispatch_last"), dict) else {}
         events = disk_state.get("events") if isinstance(disk_state.get("events"), list) else []
-        host_last_snapshot = disk_state.get("host_last_snapshot") if isinstance(disk_state.get("host_last_snapshot"), dict) else {}
+        host_observations.last_snapshot = disk_state.get("host_last_snapshot") if isinstance(disk_state.get("host_last_snapshot"), dict) else {}
         browser_degraded_active = bool(disk_state.get("browser_degraded_active", False))
         try:
             browser_degraded_first_seen_ts = float(disk_state.get("browser_degraded_first_seen_ts") or 0.0)
@@ -638,8 +630,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
         host_state = disk_state.get("host_health")
         if isinstance(host_state, dict):
             host_health = HealthState.from_section(host_state)
-            host_cpu_prev_total = _coerce_int(host_state.get("cpu_prev_total"), default=0)
-            host_cpu_prev_idle = _coerce_int(host_state.get("cpu_prev_idle"), default=0)
+            host_observations.cpu_prev_total = _coerce_int(host_state.get("cpu_prev_total"), default=0)
+            host_observations.cpu_prev_idle = _coerce_int(host_state.get("cpu_prev_idle"), default=0)
         perf_state = disk_state.get("performance")
         if isinstance(perf_state, dict):
             perf_health = HealthState.from_section(perf_state)
@@ -778,7 +770,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
             "events": events_capped,
             "event_bus_outbox": event_bus_outbox.to_state() if event_bus_outbox else [],
             "dft_web_access": dft_cycle.summary,
-            "host_last_snapshot": host_last_snapshot,
+            "host_last_snapshot": host_observations.last_snapshot,
             "browser_degraded_active": bool(monitor_state.get("browser_degraded_active", False)),
             "browser_degraded_first_seen_ts": float(monitor_state.get("browser_degraded_first_seen_ts") or 0.0),
             "browser_launch_last_error": (
@@ -789,8 +781,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
             "browser_degraded_last_notice_ts": float(monitor_state.get("browser_degraded_last_notice_ts") or 0.0),
             "host_health": {
                 **host_health.to_state(),
-                "cpu_prev_total": int(host_cpu_prev_total),
-                "cpu_prev_idle": int(host_cpu_prev_idle),
+                "cpu_prev_total": int(host_observations.cpu_prev_total),
+                "cpu_prev_idle": int(host_observations.cpu_prev_idle),
             },
             "performance": {
                 **perf_health.to_state(),
@@ -864,6 +856,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
             http_client, telegram_cfg, dispatch_cfg, dispatch_state,
             DispatchRecords(dispatch_history, dispatch_last, events), active_dispatch_tasks,
         )
+        host_phase = HostPhase(host_settings, host_health, host_observations, cycle_channels,
+                               _append_history_event, signal_series)
         if event_bus_outbox is not None:
             _append_event(
                 "service_started",
@@ -1090,129 +1084,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     await run_slo_phase(history_frame, slo_settings, slo_health)
                     await run_red_phase(history_frame, red_settings, red_health)
 
-                    host_snap: dict[str, Any] | None = None
-                    host_violations: list[str] | None = None
-                    if host_settings.alerts.enabled:
-                        host_snap = _collect_host_snapshot(
-                            disk_paths=host_settings.disk_paths,
-                            cpu_prev_total=host_cpu_prev_total,
-                            cpu_prev_idle=host_cpu_prev_idle,
-                        )
-                        host_violations = _collect_host_health_violations(
-                            host_snap,
-                            disk_used_percent_max=host_settings.disk_used_percent_max,
-                            mem_used_percent_max=host_settings.mem_used_percent_max,
-                            swap_used_percent_max=host_settings.swap_used_percent_max,
-                            cpu_used_percent_max=host_settings.cpu_used_percent_max,
-                            load1_per_cpu_max=host_settings.load1_per_cpu_max,
-                        )
-
-                        cpu_prev_total_next = host_snap.get("cpu_prev_total_next")
-                        cpu_prev_idle_next = host_snap.get("cpu_prev_idle_next")
-                        if cpu_prev_total_next is not None and cpu_prev_idle_next is not None:
-                            try:
-                                host_cpu_prev_total = int(cpu_prev_total_next)
-                                host_cpu_prev_idle = int(cpu_prev_idle_next)
-                            except Exception:
-                                pass
-
-                        host_observed_ok = not bool(host_violations)
-                        prev_effective = bool(host_health.last_ok)
-                        host_alerted_down = host_health.advance(
-                            observed_ok=host_observed_ok, thresholds=host_settings.alerts,
-                        )
-
-                        # Persist last host snapshot for dashboard visibility (and time-series history below).
-                        try:
-                            host_last_snapshot = dict(host_snap)
-                            host_last_snapshot.pop("cpu_prev_total_next", None)
-                            host_last_snapshot.pop("cpu_prev_idle_next", None)
-                        except Exception:
-                            host_last_snapshot = host_snap or {}
-
-                        disk_worst_used_percent = None
-                        disk = host_snap.get("disk") if isinstance(host_snap.get("disk"), dict) else {}
-                        for _path, info in disk.items():
-                            if not isinstance(info, dict):
-                                continue
-                            pct = info.get("used_percent")
-                            try:
-                                pct_f = float(pct)
-                            except Exception:
-                                continue
-                            if disk_worst_used_percent is None or pct_f > disk_worst_used_percent:
-                                disk_worst_used_percent = pct_f
-
-                        _append_signal_sample(
-                            "host_health",
-                            [
-                                float(cycle_started),
-                                1 if bool(host_health.last_ok) else 0,
-                                host_snap.get("mem_used_percent"),
-                                host_snap.get("swap_used_percent"),
-                                host_snap.get("cpu_used_percent"),
-                                host_snap.get("load1_per_cpu"),
-                                disk_worst_used_percent,
-                                int(len(host_violations or [])),
-                            ],
-                        )
-
-                        if host_alerted_down and host_violations:
-                            _append_event("host_health_degraded", ts=float(cycle_started), violations=host_violations[:20])
-                            msg = _build_host_health_alert_message(
-                                violations=host_violations,
-                                snap=host_snap,
-                                down_after_failures=host_settings.alerts.down_after_failures,
-                                fail_streak=int(host_health.fail_streak),
-                            )
-                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                            LOGGER.warning(
-                                "Host health degraded alert sent_ok=%s telegram_last=%s violations=%s",
-                                ok_all,
-                                redact_telegram_response(resps[-1] if resps else {}),
-                                host_violations[:5],
-                            )
-
-                            if (
-                                host_settings.alerts.dispatch_on_degraded
-                                and dispatch_cfg
-                                and _dispatch_is_enabled(dispatch_cfg, dispatch_state)
-                            ):
-                                if "host_health" in active_dispatch_tasks and not active_dispatch_tasks[
-                                    "host_health"
-                                ].done():
-                                    LOGGER.info(
-                                        "Dispatch already running for host_health; skipping new dispatch"
-                                    )
-                                else:
-                                    active_dispatch_tasks["host_health"] = asyncio.create_task(
-                                        _dispatch_host_health_and_forward(
-                                            http_client=http_client,
-                                            telegram_cfg=telegram_cfg,
-                                            dispatch_cfg=dispatch_cfg,
-                                            dispatch_state=dispatch_state,
-                                            violations=host_violations,
-                                            snap=host_snap,
-                                            dispatch_history=dispatch_history,
-                                            dispatch_last=dispatch_last,
-                                            events=events,
-                                        )
-                                    )
-
-                        host_recovered = (not prev_effective) and bool(host_health.last_ok)
-                        if host_recovered:
-                            _append_event("host_health_recovered", ts=float(cycle_started))
-                        if host_recovered and host_settings.alerts.notify_on_recovery:
-                            ok, resp = await send_telegram_message(
-                                http_client,
-                                telegram_cfg,
-                                "Host health recovered ✅ (threshold violations cleared).",
-                            )
-                            LOGGER.info(
-                                "Host health recovery notice sent_ok=%s telegram=%s",
-                                ok,
-                                redact_telegram_response(resp),
-                            )
+                    host_snap, host_violations = await host_phase.run(cycle_started)
 
                     perf_slow: list[dict[str, Any]] | None = None
                     if perf_settings.alerts.enabled and cycle_results:
