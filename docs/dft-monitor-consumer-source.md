@@ -1307,3 +1307,27 @@ Three component files pass the canonical scoped checks. Aggregate anti-bypass
 debt and the remaining whole-main failures remain release work. This increment
 does not establish installed checker/reader/journal, receiver, off-host coverage,
 or runtime admission.
+# Per-domain result phase
+
+`DomainResultPhase` owns the existing per-domain debounce edge, bounded event,
+inventory routing and investigation task reference. It updates the same three
+persisted mappings before effects. It preserves the distinction between an
+explicitly unsent response and a failed or cancelled transport, retains running
+investigation tasks, and leaves unknown inventory failures loud. Enrichment
+does not mutate the original observation. No route or audience was added.
+
+The protected `domain-result-phase-20261003` packet under the October 3
+`monitoring-dft-746` artifact root records seven final focused tests (0.149s),
+1,152 parent comparisons (1.964s, 224 matching failure/cancellation cases), and
+five real isolated launcher runs (2.724s). All complete launcher results equal
+the previous source. Inputs are synthetic; nineteen local text captures,
+including five heartbeats, are unsent. DFT is disabled in these launcher cases.
+The declared substitutions restore the complete remaining parent-main AST.
+The test-only keyword correction is separately snapshotted and rerun; prior
+proof and the initial strict-style finding remain recorded.
+
+Both new files pass scoped strict checks. Whole-main still fails with 120 Ruff
+findings, 180 typing errors plus one warning, Pylint 8.78, eleven Semgrep
+findings and architecture debt. Aggregate 21 findings remain. Existing source
+interface and runtime binding requests are retained; no integration, runtime
+admission, installed receiver or delivery is established by this source proof.

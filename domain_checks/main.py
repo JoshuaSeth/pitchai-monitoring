@@ -42,6 +42,7 @@ from .browser_admission import BrowserAdmission
 from .browser_recovery_phase import BrowserRecoveryPhase
 from .domain_observation import DomainProbes, observe_domain
 from .domain_polling import DomainPolling
+from .domain_result_phase import DomainHealth, DomainResultPhase
 from .domain_entries import (
     DomainEntryConfig,
     normalize_domain_entries as _normalize_domain_entries,
@@ -852,6 +853,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
         )
         host_phase = HostPhase(host_settings, host_health, host_observations, cycle_channels,
                                _append_history_event, signal_series)
+        domain_result_phase = DomainResultPhase(
+            DomainHealth(last_ok, fail_streak, success_streak, down_after_failures, up_after_successes),
+            entries_by_domain, cycle_channels, _append_history_event,
+        )
         performance_phase = PerformancePhase(perf_settings, perf_health)
         tls_phase = TlsPhase(tls_settings, tls_health, tls_schedule)
         dns_phase = DnsPhase(dns_settings, dns_health, dns_schedule, dns_last_ips)
@@ -940,119 +945,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         if bool((result.details or {}).get("browser_infra_error")):
                             browser_degraded = True
 
-                        domain = result.domain
-                        prev_effective = last_ok.get(domain)
-                        if prev_effective is None:
-                            prev_effective = True
-
-                        next_effective, next_fail, next_success, alerted_down = _update_effective_ok(
-                            prev_effective_ok=prev_effective,
-                            observed_ok=bool(result.ok),
-                            fail_streak=int(fail_streak.get(domain, 0)),
-                            success_streak=int(success_streak.get(domain, 0)),
-                            down_after_failures=down_after_failures,
-                            up_after_successes=up_after_successes,
-                        )
-                        last_ok[domain] = next_effective
-                        fail_streak[domain] = next_fail
-                        success_streak[domain] = next_success
-
-                        recovered = (not prev_effective) and bool(next_effective)
-
-                        if alerted_down:
-                            domain_entry = entries_by_domain[domain]
-                            det = result.details or {}
-                            _append_event(
-                                "domain_down",
-                                ts=float(cycle_started),
-                                domain=domain,
-                                reason=result.reason,
-                                status_code=det.get("status_code"),
-                                error=(det.get("error")[:800] if isinstance(det.get("error"), str) else None),
-                                fail_streak=int(next_fail),
-                                telegram_alert=domain_entry.routes_telegram,
-                                alert_policy=domain_entry.alert_policy.telegram,
-                            )
-                            # Transition UP -> DOWN (debounced), or startup DOWN after threshold.
-                            enriched = DomainCheckResult(
-                                domain=result.domain,
-                                ok=result.ok,
-                                reason=result.reason,
-                                details={
-                                    **(result.details or {}),
-                                    "fail_streak": next_fail,
-                                    "down_after_failures": down_after_failures,
-                                },
-                            )
-                            msg = _build_down_alert_message(enriched)
-                            routed = await _route_domain_telegram_alert(
-                                http_client=http_client,
-                                telegram_cfg=telegram_cfg,
-                                entry=domain_entry,
-                                message=msg,
-                            )
-                            if routed is not None:
-                                ok_all, resps = routed
-                                resp = resps[-1] if resps else {}
-                                LOGGER.warning(
-                                    "Alert attempt domain=%s sent_ok=%s reason=%s telegram=%s details=%s",
-                                    domain,
-                                    ok_all,
-                                    result.reason,
-                                    redact_telegram_response(resp),
-                                    enriched.details,
-                                )
-
-                            if (
-                                domain_entry.routes_telegram
-                                and dispatch_cfg
-                                and _dispatch_is_enabled(dispatch_cfg, dispatch_state)
-                            ):
-                                if domain in active_dispatch_tasks and not active_dispatch_tasks[domain].done():
-                                    LOGGER.info("Dispatch already running for domain=%s; skipping new dispatch", domain)
-                                else:
-                                    active_dispatch_tasks[domain] = asyncio.create_task(
-                                        _dispatch_and_forward(
-                                            http_client=http_client,
-                                            telegram_cfg=telegram_cfg,
-                                            dispatch_cfg=dispatch_cfg,
-                                            dispatch_state=dispatch_state,
-                                            result=enriched,
-                                            dispatch_history=dispatch_history,
-                                            dispatch_last=dispatch_last,
-                                            events=events,
-                                        )
-                                    )
-                            else:
-                                LOGGER.info(
-                                    "Dispatch not scheduled domain=%s alertable=%s enabled=%s reason=%s",
-                                    domain,
-                                    domain_entry.routes_telegram,
-                                    bool(dispatch_cfg and dispatch_state.get("enabled")),
-                                    dispatch_state.get("disabled_reason"),
-                                )
-                        else:
-                            if recovered:
-                                _append_event("domain_up", ts=float(cycle_started), domain=domain)
-                            if result.ok is False and prev_effective is True and next_effective is True:
-                                LOGGER.warning(
-                                    "Domain failing (alert suppressed) domain=%s fail_streak=%s/%s reason=%s details=%s",
-                                    domain,
-                                    next_fail,
-                                    down_after_failures,
-                                    result.reason,
-                                    result.details,
-                                )
-                            else:
-                                level = logging.INFO if result.ok else logging.WARNING
-                                LOGGER.log(
-                                    level,
-                                    "Domain result domain=%s ok=%s reason=%s details=%s",
-                                    domain,
-                                    result.ok,
-                                    result.reason,
-                                    result.details,
-                                )
+                        await domain_result_phase.observe(result, cycle_started)
 
                     # ------------------------------
                     # Rolling history (SLO/RED inputs)
