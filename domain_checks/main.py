@@ -23,7 +23,7 @@ from .message_api_contract import build_api_contract_dispatch_prompt as _build_a
 from .alert_transition import update_effective_ok as _update_effective_ok
 from .browser_admission import BrowserAdmission
 from .browser_launch import launch_options
-from .browser_phase_context import BrowserPhaseContext, BrowserProbeState
+from .browser_phase_context import BrowserPhaseContext
 from .browser_probe_settings import load_synthetic_settings, load_vitals_settings
 from .browser_recovery_phase import BrowserRecoveryPhase
 from .browser_state import restore_browser_state
@@ -39,7 +39,7 @@ from .container_phase import ContainerPhase
 from .cycle_channels import CycleChannels
 from .cycle_configuration import cycle_section
 from .cycle_health_state import CycleHealthState
-from .cycle_history import record_domain_results
+from .cycle_domain_phase import CycleDomainPhase, CycleInventory
 from .cycle_records import CycleRecords
 from .cycle_persistence import CyclePersistence, restore_outbox
 from .cycle_startup import ChannelStartup, CycleLimits, external_heartbeat
@@ -49,9 +49,6 @@ from .dispatch_records import DispatchRecords
 from .dns_phase import DnsPhase
 from .domain_entries import (
     DomainEntryConfig,
-)
-from .domain_entries import (
-    format_disabled_domain_line as _format_disabled_domain_line,
 )
 from .domain_entries import (
     normalize_domain_entries as _normalize_domain_entries,
@@ -64,7 +61,6 @@ from .domain_time import parse_disabled_until_ts as _parse_disabled_until_ts
 from .event_bus_delivery import JsonObject
 from .heartbeat_phase import HeartbeatObservation, HeartbeatPhase, HeartbeatSchedule
 from .heartbeat_settings import load_heartbeat_settings
-from .history import prune_history
 from .history_phase_context import HistoryFrame
 from .history_settings import load_red_settings, load_slo_settings
 from .host_phase import HostPhase
@@ -398,18 +394,6 @@ async def run_loop(config_path: Path, once: bool) -> int:
     container_observations = cycle_health.containers
     proxy_health = cycle_health.health["proxy"]
     meta_health = cycle_health.health["meta"]
-    synthetic_last_ok = cycle_health.probes["synthetic"].last_ok
-    synthetic_fail_streak = cycle_health.probes["synthetic"].fail_streak
-    synthetic_success_streak = cycle_health.probes["synthetic"].success_streak
-    synthetic_last_run_ts = cycle_health.probes["synthetic"].last_run_ts
-    web_vitals_last_ok = cycle_health.probes["web_vitals"].last_ok
-    web_vitals_fail_streak = cycle_health.probes["web_vitals"].fail_streak
-    web_vitals_success_streak = cycle_health.probes["web_vitals"].success_streak
-    web_vitals_last_run_ts = cycle_health.probes["web_vitals"].last_run_ts
-    api_contract_last_ok = cycle_health.probes["api_contract"].last_ok
-    api_contract_fail_streak = cycle_health.probes["api_contract"].fail_streak
-    api_contract_success_streak = cycle_health.probes["api_contract"].success_streak
-    api_contract_last_run_ts = cycle_health.probes["api_contract"].last_run_ts
     event_bus_outbox = restore_outbox(event_bus_config, disk_state)
     active_dispatch_tasks: dict[str, asyncio.Task[None]] = {}
     check_semaphore = asyncio.Semaphore(check_concurrency)
@@ -443,11 +427,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
         heartbeat_phase = HeartbeatPhase(heartbeat_settings,
             HeartbeatSchedule(tz, started_at, tolerance_seconds, last_heartbeat_sent),
             registry_heartbeat)
-        synthetic_phase = SyntheticPhase(syn_settings, BrowserProbeState(
-            synthetic_last_ok, synthetic_fail_streak, synthetic_success_streak, synthetic_last_run_ts),
+        synthetic_phase = SyntheticPhase(syn_settings, cycle_health.probes["synthetic"],
             lambda inputs: run_synthetic_transactions(**inputs))
-        vitals_phase = VitalsPhase(wv_settings, BrowserProbeState(
-            web_vitals_last_ok, web_vitals_fail_streak, web_vitals_success_streak, web_vitals_last_run_ts),
+        vitals_phase = VitalsPhase(wv_settings, cycle_health.probes["web_vitals"],
             lambda inputs: measure_web_vitals(**inputs))
         api_phase = ApiContractPhase(api_settings, cycle_health.probes["api_contract"], entries_by_domain,
                                      lambda inputs: run_api_contract_checks(**inputs))
@@ -475,72 +457,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
             domain_polling = DomainPolling(check_semaphore, browser_semaphore, http_client, browser_admission,
                                            lambda inputs: check_one_domain(**inputs))
+            domain_cycle = CycleDomainPhase(CycleInventory(domain_entries, specs_by_domain, tz), persistence,
+                                            browser_admission, domain_polling, domain_result_phase,
+                                            history_retention_seconds)
             await browser_admission.ensure(time.time())
             try:
                 while True:
                     cycle_started = time.time()
-                    cycle_results: dict[str, DomainCheckResult] = {}
                     LOGGER.info("Running check cycle")
-
-                    browser_degraded = False
-                    # Ensure the browser is alive at the start of each cycle. This prevents a single
-                    # between-cycle crash/close event from degrading *every* domain in the next cycle.
-                    await browser_admission.ensure(time.time())
-
-                    now_ts = time.time()
-                    disabled_entries = [entry for entry in domain_entries if entry.is_disabled(now_ts)]
-                    disabled_set = {entry.domain for entry in disabled_entries}
-                    for domain in disabled_set:
-                        last_ok.pop(domain, None)
-                        fail_streak.pop(domain, None)
-                        success_streak.pop(domain, None)
-                        history_by_domain.pop(domain, None)
-                        synthetic_last_ok.pop(domain, None)
-                        synthetic_fail_streak.pop(domain, None)
-                        synthetic_success_streak.pop(domain, None)
-                        synthetic_last_run_ts.pop(domain, None)
-                        web_vitals_last_ok.pop(domain, None)
-                        web_vitals_fail_streak.pop(domain, None)
-                        web_vitals_success_streak.pop(domain, None)
-                        web_vitals_last_run_ts.pop(domain, None)
-                        api_contract_last_ok.pop(domain, None)
-                        api_contract_fail_streak.pop(domain, None)
-                        api_contract_success_streak.pop(domain, None)
-                        api_contract_last_run_ts.pop(domain, None)
-                        dns_last_ips.pop(domain, None)
-                    disabled_lines = sorted(_format_disabled_domain_line(entry, tz) for entry in disabled_entries)
-                    enabled_specs = [
-                        specs_by_domain[entry.domain] for entry in domain_entries if entry.domain not in disabled_set
-                    ]
-
-                    tasks = [asyncio.create_task(domain_polling.run(spec)) for spec in enabled_specs]
-
-                    for fut in asyncio.as_completed(tasks):
-                        result = await fut
-                        cycle_results[result.domain] = result
-                        if bool((result.details or {}).get("browser_infra_error")):
-                            browser_degraded = True
-
-                        await domain_result_phase.observe(result, cycle_started)
-
-                    # ------------------------------
-                    # Rolling history (SLO/RED inputs)
-                    # ------------------------------
-                    if not isinstance(history_by_domain, dict):
-                        history_by_domain = {}
-                        records.history = history_by_domain
-                    for domain in disabled_set:
-                        history_by_domain.pop(domain, None)
-
-                    record_domain_results(history_by_domain, cycle_results, last_ok, ts=cycle_started)
-
-                    try:
-                        prune_history(
-                            history_by_domain,
-                            before_ts=time.time() - float(history_retention_seconds),
-                        )
-                    except Exception:
-                        LOGGER.exception("Failed to prune history")
+                    domain_observation = await domain_cycle.run(cycle_started)
+                    cycle_results = domain_observation.results
+                    enabled_specs = domain_observation.specs
+                    disabled_lines = domain_observation.disabled_lines
+                    browser_degraded = domain_observation.browser_degraded
 
                     history_frame = HistoryFrame(
                         history_by_domain, alertable_domains, cycle_started,

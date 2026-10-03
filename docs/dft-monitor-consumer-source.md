@@ -13,6 +13,16 @@ stopped. These historical observations do not establish a newer compute sample.
 
 ## Source contract and current implementation
 
+Domain-cycle extraction (October 3): stopped-domain counters are cleared before
+polling, enabled specs keep inventory order, and results are handled in completion
+order. A cancelled observation leaves started siblings under their existing loop
+ownership. Only a completed poll/result phase records history. CycleRecords'
+normalized dictionary contract removes the unreachable history-type fallback;
+ordinary prune failures retain the existing logged fallback. Three focused tests
+and five parent-equivalent launcher runs pass, plus three API-enabled launcher
+cycles. Two new files pass scoped gates; global21 and whole-main failures remain.
+Local proof: `/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/cycle-domain-phase-20261003/`.
+
 Cycle persistence extraction (October 3): schema-six snapshots, the existing
 outbox, event retention and write warnings now share an explicit typed owner.
 Enqueue still precedes local history mutation; write failures retain pending
