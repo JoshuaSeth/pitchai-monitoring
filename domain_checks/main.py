@@ -63,8 +63,6 @@ from .dispatch_domain_routes import dispatch_performance_and_forward as _dispatc
 from .dispatch_domain_routes import dispatch_meta_and_forward as _dispatch_meta_and_forward
 from .dispatch_metric_routes import dispatch_tls_and_forward as _dispatch_tls_and_forward
 from .dispatch_metric_routes import dispatch_dns_and_forward as _dispatch_dns_and_forward
-from .dispatch_metric_routes import dispatch_slo_and_forward as _dispatch_slo_and_forward
-from .dispatch_metric_routes import dispatch_red_and_forward as _dispatch_red_and_forward
 from .dispatch_probe_routes import dispatch_synthetic_and_forward as _dispatch_synthetic_and_forward
 from .dispatch_probe_routes import dispatch_web_vitals_and_forward as _dispatch_web_vitals_and_forward
 from .dispatch_probe_routes import dispatch_container_health_and_forward as _dispatch_container_health_and_forward
@@ -91,10 +89,6 @@ from .message_tls_dns import build_tls_alert_message as _build_tls_alert_message
 from .message_tls_dns import build_tls_dispatch_prompt as _build_tls_dispatch_prompt
 from .message_tls_dns import build_dns_alert_message as _build_dns_alert_message
 from .message_tls_dns import build_dns_dispatch_prompt as _build_dns_dispatch_prompt
-from .message_slo_red import build_slo_alert_message as _build_slo_alert_message
-from .message_slo_red import build_slo_dispatch_prompt as _build_slo_dispatch_prompt
-from .message_slo_red import build_red_alert_message as _build_red_alert_message
-from .message_slo_red import build_red_dispatch_prompt as _build_red_dispatch_prompt
 from .message_browser import build_synthetic_alert_message as _build_synthetic_alert_message
 from .message_browser import build_synthetic_dispatch_prompt as _build_synthetic_dispatch_prompt
 from .message_browser import build_web_vitals_alert_message as _build_web_vitals_alert_message
@@ -127,8 +121,6 @@ from .metrics_nginx import (
     summarize_upstream_errors,
 )
 from .metrics_proxy import ProxyIssue, check_upstream_header_expectations
-from .metrics_red import RedViolation, compute_red_violations
-from .metrics_slo import SloBurnViolation, compute_slo_burn_violations
 from .metrics_synthetic import SyntheticTransactionResult, run_synthetic_transactions
 from .metrics_tls import TlsCertCheckResult, check_tls_certs
 from .metrics_web_vitals import WebVitalsResult, measure_web_vitals
@@ -153,6 +145,12 @@ from .telegram import (
 from .cycle_configuration import cycle_section
 from .alert_transition import update_effective_ok as _update_effective_ok
 from .health_state import HealthState
+from .cycle_channels import CycleChannels
+from .event_bus_delivery import JsonObject
+from .dispatch_records import DispatchRecords
+from .history_phase_context import HistoryFrame
+from .slo_phase import run_slo_phase
+from .red_phase import run_red_phase
 from .cycle_values import (
     coerce_float as _coerce_float,
     coerce_int as _coerce_int,
@@ -754,6 +752,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     exc,
                 )
 
+    def _append_history_event(kind: str, timestamp: float, fields: JsonObject) -> None:
+        _append_event(kind, ts=timestamp, **fields)
+
     signal_series = SignalHistory(signal_history)
     _append_signal_sample = signal_series.append
     _prune_signal_history = signal_series.prune
@@ -859,6 +860,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
             )
 
     async with httpx.AsyncClient(headers={"User-Agent": "PitchAI Service Monitoring Bot"}) as http_client:
+        cycle_channels = CycleChannels(
+            http_client, telegram_cfg, dispatch_cfg, dispatch_state,
+            DispatchRecords(dispatch_history, dispatch_last, events), active_dispatch_tasks,
+        )
         if event_bus_outbox is not None:
             _append_event(
                 "service_started",
@@ -1078,191 +1083,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     except Exception:
                         LOGGER.exception("Failed to prune history")
 
-                    # ------------------------------
-                    # SLO burn-rate monitoring
-                    # ------------------------------
-                    slo_violations: list[SloBurnViolation] = []
-                    if slo_settings.alerts.enabled and isinstance(history_by_domain, dict) and history_by_domain:
-                        try:
-                            slo_violations = compute_slo_burn_violations(
-                                history_by_domain=history_by_domain,
-                                now_ts=time.time(),
-                                slo_target_percent=float(slo_settings.target_percent),
-                                burn_rate_rules=slo_settings.rules,
-                                min_total_samples=int(slo_settings.min_total_samples),
-                            )
-                        except Exception:
-                            LOGGER.exception("SLO burn computation failed")
-                            slo_violations = []
-
-                        suppressed_slo_domains = sorted(
-                            {v.domain for v in slo_violations if v.domain not in alertable_domains}
-                        )
-                        if suppressed_slo_domains:
-                            LOGGER.info(
-                                "SLO violations retained in domain history but excluded from Telegram routing domains=%s",
-                                suppressed_slo_domains,
-                            )
-                        slo_violations = [v for v in slo_violations if v.domain in alertable_domains]
-
-                        slo_observed_ok = not bool(slo_violations)
-                        prev_effective = bool(slo_health.last_ok)
-                        slo_alerted_down = slo_health.advance(
-                            observed_ok=slo_observed_ok, thresholds=slo_settings.alerts,
-                        )
-                        _append_signal_sample(
-                            "slo",
-                            [float(cycle_started), 1 if bool(slo_health.last_ok) else 0,
-                             int(len(slo_violations or []))],
-                        )
-
-                        if slo_alerted_down and slo_violations:
-                            _append_event(
-                                "slo_degraded",
-                                ts=float(cycle_started),
-                                violations=int(len(slo_violations)),
-                                domains=[v.domain for v in slo_violations[:20]],
-                            )
-                            msg = _build_slo_alert_message(
-                                violations=slo_violations,
-                                slo_target_percent=float(slo_settings.target_percent),
-                                down_after_failures=slo_settings.alerts.down_after_failures,
-                                fail_streak=int(slo_health.fail_streak),
-                            )
-                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                            LOGGER.warning(
-                                "SLO burn alert sent_ok=%s telegram_last=%s violations=%s",
-                                ok_all,
-                                redact_telegram_response(resps[-1] if resps else {}),
-                                [v.domain for v in slo_violations[:5]],
-                            )
-
-                            if slo_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                                if "slo" in active_dispatch_tasks and not active_dispatch_tasks["slo"].done():
-                                    LOGGER.info("Dispatch already running for SLO; skipping new dispatch")
-                                else:
-                                    active_dispatch_tasks["slo"] = asyncio.create_task(
-                                        _dispatch_slo_and_forward(
-                                            http_client=http_client,
-                                            telegram_cfg=telegram_cfg,
-                                            dispatch_cfg=dispatch_cfg,
-                                            dispatch_state=dispatch_state,
-                                            violations=slo_violations,
-                                            slo_target_percent=float(slo_settings.target_percent),
-                                            dispatch_history=dispatch_history,
-                                            dispatch_last=dispatch_last,
-                                            events=events,
-                                        )
-                                    )
-
-                        slo_recovered = (not prev_effective) and bool(slo_health.last_ok)
-                        if slo_recovered:
-                            _append_event("slo_recovered", ts=float(cycle_started))
-                        if slo_recovered and slo_settings.alerts.notify_on_recovery:
-                            ok, resp = await send_telegram_message(
-                                http_client,
-                                telegram_cfg,
-                                "SLO burn recovered ✅ (burn-rate violations cleared).",
-                            )
-                            LOGGER.info(
-                                "SLO burn recovery notice sent_ok=%s telegram=%s",
-                                ok,
-                                redact_telegram_response(resp),
-                            )
-
-                    # ------------------------------
-                    # RED / golden signals
-                    # ------------------------------
-                    red_violations: list[RedViolation] = []
-                    if red_settings.alerts.enabled and isinstance(history_by_domain, dict) and history_by_domain:
-                        try:
-                            red_violations = compute_red_violations(
-                                history_by_domain=history_by_domain,
-                                now_ts=time.time(),
-                                window_minutes=int(red_settings.window_minutes),
-                                min_samples=int(red_settings.min_samples),
-                                error_rate_max_percent=red_settings.error_rate_max_percent,
-                                http_p95_ms_max=red_settings.http_p95_ms_max,
-                                browser_p95_ms_max=red_settings.browser_p95_ms_max,
-                            )
-                        except Exception:
-                            LOGGER.exception("RED computation failed")
-                            red_violations = []
-
-                        suppressed_red_domains = sorted(
-                            {v.domain for v in red_violations if v.domain not in alertable_domains}
-                        )
-                        if suppressed_red_domains:
-                            LOGGER.info(
-                                "RED violations retained in domain history but excluded from Telegram routing domains=%s",
-                                suppressed_red_domains,
-                            )
-                        red_violations = [v for v in red_violations if v.domain in alertable_domains]
-
-                        red_observed_ok = not bool(red_violations)
-                        prev_effective = bool(red_health.last_ok)
-                        red_alerted_down = red_health.advance(
-                            observed_ok=red_observed_ok, thresholds=red_settings.alerts,
-                        )
-                        _append_signal_sample(
-                            "red",
-                            [float(cycle_started), 1 if bool(red_health.last_ok) else 0,
-                             int(len(red_violations or []))],
-                        )
-
-                        if red_alerted_down and red_violations:
-                            _append_event(
-                                "red_degraded",
-                                ts=float(cycle_started),
-                                violations=int(len(red_violations)),
-                                domains=[v.domain for v in red_violations[:20]],
-                            )
-                            msg = _build_red_alert_message(
-                                violations=red_violations,
-                                window_minutes=int(red_settings.window_minutes),
-                                down_after_failures=red_settings.alerts.down_after_failures,
-                                fail_streak=int(red_health.fail_streak),
-                            )
-                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                            LOGGER.warning(
-                                "RED degraded alert sent_ok=%s telegram_last=%s domains=%s",
-                                ok_all,
-                                redact_telegram_response(resps[-1] if resps else {}),
-                                [v.domain for v in red_violations[:5]],
-                            )
-
-                            if red_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                                if "red" in active_dispatch_tasks and not active_dispatch_tasks["red"].done():
-                                    LOGGER.info("Dispatch already running for RED; skipping new dispatch")
-                                else:
-                                    active_dispatch_tasks["red"] = asyncio.create_task(
-                                        _dispatch_red_and_forward(
-                                            http_client=http_client,
-                                            telegram_cfg=telegram_cfg,
-                                            dispatch_cfg=dispatch_cfg,
-                                            dispatch_state=dispatch_state,
-                                            violations=red_violations,
-                                            window_minutes=int(red_settings.window_minutes),
-                                            dispatch_history=dispatch_history,
-                                            dispatch_last=dispatch_last,
-                                            events=events,
-                                        )
-                                    )
-
-                        red_recovered = (not prev_effective) and bool(red_health.last_ok)
-                        if red_recovered:
-                            _append_event("red_recovered", ts=float(cycle_started))
-                        if red_recovered and red_settings.alerts.notify_on_recovery:
-                            ok, resp = await send_telegram_message(
-                                http_client,
-                                telegram_cfg,
-                                "RED signals recovered ✅ (error-rate/latency back under thresholds).",
-                            )
-                            LOGGER.info(
-                                "RED recovery notice sent_ok=%s telegram=%s",
-                                ok,
-                                redact_telegram_response(resp),
-                            )
+                    history_frame = HistoryFrame(
+                        history_by_domain, alertable_domains, cycle_started,
+                        cycle_channels, _append_history_event, signal_series,
+                    )
+                    await run_slo_phase(history_frame, slo_settings, slo_health)
+                    await run_red_phase(history_frame, red_settings, red_health)
 
                     host_snap: dict[str, Any] | None = None
                     host_violations: list[str] | None = None

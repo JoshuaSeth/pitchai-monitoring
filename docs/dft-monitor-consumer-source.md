@@ -1052,3 +1052,75 @@ Pylint 8.91, 30 Semgrep findings and architecture debt; aggregate 21 anti-bypass
 findings remain. Required checks and existing runtime/receiver/copy/admission
 dependencies remain open. Validator 6f97's bounded `70157b1` acceptance is
 retained separately; it does not extend to this newer increment.
+
+# SLO and RED phase increment
+
+`slo_phase` and `red_phase` now own their complete history-observation phases.
+`HistoryFrame` carries the current history, original cycle time, event sink and
+signal series. `HistoryHealth` preserves alertable-domain filtering, duplicate
+violations, independent debounce and sample ordering. `CycleChannels` references
+the existing client, configuration, records and active tasks; it preserves
+message selection, response redaction and running-task ownership. It allocates
+no route or replacement client. Calculation modules now expose typed inputs and
+outcomes under the same strict scope, including original threshold equality,
+window boundaries, sorting and caller-owned RED reason lists.
+
+The ordinary computation-error path still logs the exception and evaluates the
+existing empty result fallback. This preservation is not a new guarantee that
+an SLO/RED calculation failure cannot advance recovery. Cancellation and other
+base exceptions propagate. DFT's separate failure latch, owner acknowledgement,
+fresh access token and checker requirements are unchanged.
+
+Against parent `e49423903bdac0609120a74f861fd9cabc99622f`, AST reversal accounts
+for two phase substitutions, one channel construction, an explicit event
+argument adapter, eight removed imports and six added imports. Remaining main
+AST is identical, including API-readiness, DFT, scheduling and cleanup. Main is
+2,550 lines, 174 fewer than its parent.
+
+Private tools, source snapshots and raw proof are at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/history-phase-extraction-20261003/`.
+Eight focused/existing tests pass. Exact-parent algorithm comparisons pass 720
+SLO and 1,620 RED cases in 0.049s, including 60 matching exception classes.
+Malformed JSON numeric minima compare exception classes, not exception text;
+the supported contract is persisted sample rows and JSON rules. Full old/new
+phase comparison passes 488 cases in 1.677s: state, signal/event ordering,
+unsent message bytes, dispatch arguments and object identity, active-task
+retention, logs, ordinary exceptions and cancellation.
+
+Four real isolated launcher/config/state runs pass in 2.732s. Their complete
+recorded results match the retained parent launcher results, including six
+metric families, per-domain state, DOWN/two-success recovery, default config
+resolution and final browser cleanup. Eleven local text captures include four
+heartbeats; all are unsent. HTTP/browser/host/TLS/DNS/clock inputs are synthetic,
+DFT is disabled, no journal is allocated and guarded network/subprocess attempts
+are zero. Phase and launcher proof preceded the final snapshot; final focused
+and algorithm proof followed it. The byte manifest binds both to the committed
+increment; this is not a second post-commit execution campaign.
+
+Eight changed/new Python modules pass scoped architecture, Ruff, BasedPyright,
+Pylint 10 and Semgrep. Initial typing, interface, test-style and redundant numeric
+conversion findings remain in their original logs. Whole-main and aggregate
+gates remain failed; no policy, suppression, baseline or exclusion was changed.
+Required hosted gates and whole-cycle repair remain outstanding.
+
+The additive 624 transition condition is already implemented by the retained
+`dft_handoff.DftHandoff` path. A request for segments starts with shared
+authority. Each successful shared read supplies one bounded candidate-read
+intent to the existing checker observation. Candidate parsing advances durable
+device/inode/byte cursors over multiple cycles; incomplete coverage leaves the
+shared feed authoritative. Selection requires a complete original interval of
+at least 300 seconds starting after both writer adoption and natural old-worker
+drain, plus the bound healthy checker and fresh access token. The journal records
+selection before the in-memory switch. The selecting observation still has
+shared counters; the next successful selected read establishes segment parsing
+and shared-DFT exclusion. No separate warm-up command, forced drain, empty-hour
+coverage assumption, automatic fallback or incident acknowledgement is added.
+
+Reuse the original `cutover-handoff-20261002` proof and eight-run
+`launcher-cycle-20261002` proof beneath the October 2 owner artifact root.
+Elapsed time alone is insufficient. Shared production raw-log output remains
+a separate retention/copy-lineage residual after selection. Actual checker,
+source/config/clock/reader permissions, schema-two private journal, accepted
+internal receiver/off-host observer, throughput/copy disposition and a fresh
+finite 624 admission remain unbound. Producer `3c543bd`, original requests,
+existing owners and all human stops are unchanged.
