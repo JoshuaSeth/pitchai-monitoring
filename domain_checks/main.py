@@ -58,10 +58,7 @@ from .heartbeat_message import (
     build_heartbeat_message as _build_heartbeat_message,
 )
 from .dispatch_domain_routes import dispatch_and_forward as _dispatch_and_forward
-from .dispatch_domain_routes import dispatch_performance_and_forward as _dispatch_performance_and_forward
 from .dispatch_domain_routes import dispatch_meta_and_forward as _dispatch_meta_and_forward
-from .dispatch_metric_routes import dispatch_tls_and_forward as _dispatch_tls_and_forward
-from .dispatch_metric_routes import dispatch_dns_and_forward as _dispatch_dns_and_forward
 from .dispatch_probe_routes import dispatch_synthetic_and_forward as _dispatch_synthetic_and_forward
 from .dispatch_probe_routes import dispatch_web_vitals_and_forward as _dispatch_web_vitals_and_forward
 from .dispatch_probe_routes import dispatch_container_health_and_forward as _dispatch_container_health_and_forward
@@ -73,20 +70,10 @@ from .dispatch_state import (
     dispatch_disable as _dispatch_disable,
     dispatch_should_notify as _dispatch_should_notify,
 )
-from .performance import collect_performance_violations as _collect_performance_violations
-from .message_performance import (
-    format_ms as _format_ms,
-    build_performance_alert_message as _build_performance_alert_message,
-    build_performance_dispatch_prompt as _build_performance_dispatch_prompt,
-)
 from .message_templates import build_dispatch_prompt as _build_dispatch_prompt
 from .message_templates import dispatch_read_only_rules as _dispatch_read_only_rules
 from .message_templates import build_meta_alert_message as _build_meta_alert_message
 from .message_templates import build_meta_dispatch_prompt as _build_meta_dispatch_prompt
-from .message_tls_dns import build_tls_alert_message as _build_tls_alert_message
-from .message_tls_dns import build_tls_dispatch_prompt as _build_tls_dispatch_prompt
-from .message_tls_dns import build_dns_alert_message as _build_dns_alert_message
-from .message_tls_dns import build_dns_dispatch_prompt as _build_dns_dispatch_prompt
 from .message_browser import build_synthetic_alert_message as _build_synthetic_alert_message
 from .message_browser import build_synthetic_dispatch_prompt as _build_synthetic_dispatch_prompt
 from .message_browser import build_web_vitals_alert_message as _build_web_vitals_alert_message
@@ -105,7 +92,6 @@ from .host_readings import (
 from .inventory import DomainAlertPolicy, parse_domain_alert_policy, validate_domain_inventory
 from .metrics_api_contract import ApiContractCheckResult, run_api_contract_checks
 from .metrics_container_health import ContainerHealthIssue, check_container_health
-from .metrics_dns import DnsCheckResult, check_dns
 from .metrics_nginx import (
     NginxAccessWindowStats,
     NginxUpstreamErrorEvent,
@@ -114,7 +100,6 @@ from .metrics_nginx import (
 )
 from .metrics_proxy import ProxyIssue, check_upstream_header_expectations
 from .metrics_synthetic import SyntheticTransactionResult, run_synthetic_transactions
-from .metrics_tls import TlsCertCheckResult, check_tls_certs
 from .metrics_web_vitals import WebVitalsResult, measure_web_vitals
 from .dispatch_client import (
     DispatchConfig,
@@ -139,6 +124,10 @@ from .alert_transition import update_effective_ok as _update_effective_ok
 from .health_state import HealthState
 from .host_observations import HostObservations
 from .host_phase import HostPhase
+from .probe_frame import ProbeDomains, ProbeFrame, ProbeSchedule
+from .tls_phase import TlsPhase
+from .dns_phase import DnsPhase
+from .performance_phase import PerformancePhase
 from .cycle_channels import CycleChannels
 from .event_bus_delivery import JsonObject
 from .dispatch_records import DispatchRecords
@@ -561,9 +550,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
     perf_health = HealthState()
     slo_health = HealthState()
     tls_health = HealthState()
-    tls_last_run_ts = 0.0
+    tls_schedule = ProbeSchedule()
     dns_health = HealthState()
-    dns_last_run_ts = 0.0
+    dns_schedule = ProbeSchedule()
     dns_last_ips: dict[str, list[str]] = {}
     red_health = HealthState()
     synthetic_last_ok: dict[str, bool] = {}
@@ -642,12 +631,12 @@ async def run_loop(config_path: Path, once: bool) -> int:
         tls_state = disk_state.get("tls")
         if isinstance(tls_state, dict):
             tls_health = HealthState.from_section(tls_state)
-            tls_last_run_ts = _coerce_float(tls_state.get("last_run_ts"), default=0.0)
+            tls_schedule.last_run_ts = _coerce_float(tls_state.get("last_run_ts"), default=0.0)
 
         dns_state = disk_state.get("dns")
         if isinstance(dns_state, dict):
             dns_health = HealthState.from_section(dns_state)
-            dns_last_run_ts = _coerce_float(dns_state.get("last_run_ts"), default=0.0)
+            dns_schedule.last_run_ts = _coerce_float(dns_state.get("last_run_ts"), default=0.0)
             dns_last_ips = _coerce_str_list_dict(dns_state.get("last_ips"))
 
         red_state = disk_state.get("red")
@@ -792,11 +781,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
             },
             "tls": {
                 **tls_health.to_state(),
-                "last_run_ts": float(tls_last_run_ts),
+                "last_run_ts": float(tls_schedule.last_run_ts),
             },
             "dns": {
                 **dns_health.to_state(),
-                "last_run_ts": float(dns_last_run_ts),
+                "last_run_ts": float(dns_schedule.last_run_ts),
                 "last_ips": dns_last_ips,
             },
             "red": {
@@ -858,6 +847,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
         )
         host_phase = HostPhase(host_settings, host_health, host_observations, cycle_channels,
                                _append_history_event, signal_series)
+        performance_phase = PerformancePhase(perf_settings, perf_health)
+        tls_phase = TlsPhase(tls_settings, tls_health, tls_schedule)
+        dns_phase = DnsPhase(dns_settings, dns_health, dns_schedule, dns_last_ips)
         if event_bus_outbox is not None:
             _append_event(
                 "service_started",
@@ -1086,360 +1078,13 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                     host_snap, host_violations = await host_phase.run(cycle_started)
 
-                    perf_slow: list[dict[str, Any]] | None = None
-                    if perf_settings.alerts.enabled and cycle_results:
-                        perf_slow = _collect_performance_violations(
-                            cycle_results,
-                            http_elapsed_ms_max=perf_settings.http_elapsed_ms_max,
-                            browser_elapsed_ms_max=perf_settings.browser_elapsed_ms_max,
-                            per_domain_overrides=perf_settings.overrides,
-                        )
-                        suppressed_perf_domains = sorted(
-                            {
-                                str(item.get("domain"))
-                                for item in perf_slow
-                                if str(item.get("domain")) not in alertable_domains
-                            }
-                        )
-                        if suppressed_perf_domains:
-                            LOGGER.info(
-                                "Performance violations retained in domain history but excluded from Telegram routing domains=%s",
-                                suppressed_perf_domains,
-                            )
-                        perf_slow = [
-                            item for item in perf_slow if str(item.get("domain")) in alertable_domains
-                        ]
-                        perf_observed_ok = not bool(perf_slow)
-                        prev_effective = bool(perf_health.last_ok)
-                        perf_alerted_down = perf_health.advance(
-                            observed_ok=perf_observed_ok, thresholds=perf_settings.alerts,
-                        )
-                        _append_signal_sample(
-                            "performance",
-                            [float(cycle_started), 1 if bool(perf_health.last_ok) else 0, int(len(perf_slow or []))],
-                        )
-
-                        if perf_alerted_down and perf_slow:
-                            _append_event(
-                                "performance_degraded",
-                                ts=float(cycle_started),
-                                slow_domains=[e.get("domain") for e in perf_slow[:20]],
-                            )
-                            msg = _build_performance_alert_message(
-                                slow=perf_slow,
-                                down_after_failures=perf_settings.alerts.down_after_failures,
-                                fail_streak=int(perf_health.fail_streak),
-                            )
-                            ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                            LOGGER.warning(
-                                "Performance degraded alert sent_ok=%s telegram_last=%s slow_domains=%s",
-                                ok_all,
-                                redact_telegram_response(resps[-1] if resps else {}),
-                                [e.get("domain") for e in perf_slow[:5]],
-                            )
-
-                            if (
-                                perf_settings.alerts.dispatch_on_degraded
-                                and dispatch_cfg
-                                and _dispatch_is_enabled(dispatch_cfg, dispatch_state)
-                            ):
-                                if "performance" in active_dispatch_tasks and not active_dispatch_tasks[
-                                    "performance"
-                                ].done():
-                                    LOGGER.info(
-                                        "Dispatch already running for performance; skipping new dispatch"
-                                    )
-                                else:
-                                    active_dispatch_tasks["performance"] = asyncio.create_task(
-                                        _dispatch_performance_and_forward(
-                                            http_client=http_client,
-                                            telegram_cfg=telegram_cfg,
-                                            dispatch_cfg=dispatch_cfg,
-                                            dispatch_state=dispatch_state,
-                                            slow=perf_slow,
-                                            dispatch_history=dispatch_history,
-                                            dispatch_last=dispatch_last,
-                                            events=events,
-                                        )
-                                    )
-
-                        perf_recovered = (not prev_effective) and bool(perf_health.last_ok)
-                        if perf_recovered:
-                            _append_event("performance_recovered", ts=float(cycle_started))
-                        if perf_recovered and perf_settings.alerts.notify_on_recovery:
-                            ok, resp = await send_telegram_message(
-                                http_client,
-                                telegram_cfg,
-                                "Performance recovered ✅ (response times back under thresholds).",
-                            )
-                            LOGGER.info(
-                                "Performance recovery notice sent_ok=%s telegram=%s",
-                                ok,
-                                redact_telegram_response(resp),
-                            )
-
-                    # ------------------------------
-                    # TLS certificate checks (expiry / handshake)
-                    # ------------------------------
-                    tls_results: list[TlsCertCheckResult] | None = None
-                    if tls_settings.alerts.enabled:
-                        now_ts = time.time()
-                        due = (now_ts - float(tls_last_run_ts or 0.0)) >= float(tls_settings.interval_minutes * 60)
-                        if due and enabled_specs:
-                            tls_last_run_ts = now_ts
-                            urls_by_domain = {s.domain: s.url for s in enabled_specs}
-                            try:
-                                tls_results = await check_tls_certs(
-                                    urls_by_domain=urls_by_domain,
-                                    min_days_valid=float(tls_settings.min_days_valid),
-                                    timeout_seconds=float(tls_settings.timeout_seconds),
-                                    concurrency=min(50, max(5, len(urls_by_domain))),
-                                )
-                            except Exception:
-                                LOGGER.exception("TLS cert checks crashed")
-                                tls_results = [
-                                    TlsCertCheckResult(
-                                        domain="tls",
-                                        ok=False,
-                                        host=None,
-                                        port=None,
-                                        not_after_iso=None,
-                                        days_remaining=None,
-                                        error="tls_check_crashed",
-                                        details={},
-                                    )
-                                ]
-
-                            suppressed_tls_domains = sorted(
-                                {
-                                    r.domain
-                                    for r in (tls_results or [])
-                                    if not r.ok and r.domain in entries_by_domain and r.domain not in alertable_domains
-                                }
-                            )
-                            if suppressed_tls_domains:
-                                LOGGER.info(
-                                    "TLS failures excluded from Telegram routing domains=%s",
-                                    suppressed_tls_domains,
-                                )
-                            tls_alert_results = [
-                                r
-                                for r in (tls_results or [])
-                                if r.domain not in entries_by_domain or r.domain in alertable_domains
-                            ]
-                            tls_observed_ok = all(r.ok for r in tls_alert_results)
-                            prev_effective = bool(tls_health.last_ok)
-                            tls_alerted_down = tls_health.advance(
-                                observed_ok=tls_observed_ok, thresholds=tls_settings.alerts,
-                            )
-                            tls_fail_count = 0
-                            try:
-                                tls_fail_count = sum(
-                                    1 for r in tls_alert_results if not bool(getattr(r, "ok", False))
-                                )
-                            except Exception:
-                                tls_fail_count = 0
-                            _append_signal_sample(
-                                "tls",
-                                [float(cycle_started), 1 if bool(tls_health.last_ok) else 0, int(tls_fail_count)],
-                            )
-
-                            if tls_alerted_down and tls_alert_results and (not tls_observed_ok):
-                                _append_event(
-                                    "tls_degraded",
-                                    ts=float(cycle_started),
-                                    failures=int(tls_fail_count),
-                                    domains=[r.domain for r in tls_alert_results if not r.ok][:20],
-                                )
-                                msg = _build_tls_alert_message(
-                                    results=tls_alert_results,
-                                    min_days_valid=float(tls_settings.min_days_valid),
-                                    down_after_failures=tls_settings.alerts.down_after_failures,
-                                    fail_streak=int(tls_health.fail_streak),
-                                )
-                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                                LOGGER.warning(
-                                    "TLS degraded alert sent_ok=%s telegram_last=%s",
-                                    ok_all,
-                                    redact_telegram_response(resps[-1] if resps else {}),
-                                )
-
-                                if tls_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                                    if "tls" in active_dispatch_tasks and not active_dispatch_tasks["tls"].done():
-                                        LOGGER.info("Dispatch already running for TLS; skipping new dispatch")
-                                    else:
-                                        active_dispatch_tasks["tls"] = asyncio.create_task(
-                                            _dispatch_tls_and_forward(
-                                                http_client=http_client,
-                                                telegram_cfg=telegram_cfg,
-                                                dispatch_cfg=dispatch_cfg,
-                                                dispatch_state=dispatch_state,
-                                                results=tls_alert_results,
-                                                min_days_valid=float(tls_settings.min_days_valid),
-                                                dispatch_history=dispatch_history,
-                                                dispatch_last=dispatch_last,
-                                                events=events,
-                                            )
-                                        )
-
-                            tls_recovered = (not prev_effective) and bool(tls_health.last_ok)
-                            if tls_recovered:
-                                _append_event("tls_recovered", ts=float(cycle_started))
-                            if tls_recovered and tls_settings.alerts.notify_on_recovery:
-                                ok, resp = await send_telegram_message(
-                                    http_client,
-                                    telegram_cfg,
-                                    "TLS checks recovered ✅ (certificate issues cleared).",
-                                )
-                                LOGGER.info(
-                                    "TLS recovery notice sent_ok=%s telegram=%s",
-                                    ok,
-                                    redact_telegram_response(resp),
-                                )
-
-                    # ------------------------------
-                    # DNS checks (resolution / drift)
-                    # ------------------------------
-                    dns_results: list[DnsCheckResult] | None = None
-                    if dns_settings.alerts.enabled:
-                        now_ts = time.time()
-                        due = (now_ts - float(dns_last_run_ts or 0.0)) >= float(dns_settings.interval_minutes * 60)
-                        if due and enabled_specs:
-                            dns_last_run_ts = now_ts
-                            enabled_domains = [s.domain for s in enabled_specs]
-
-                            # Normalize per-domain configs to lowercase keys.
-                            expected_ips_norm: dict[str, list[str]] = {}
-                            if isinstance(dns_settings.drift.expected_ips_by_domain, dict):
-                                for k, v in dns_settings.drift.expected_ips_by_domain.items():
-                                    kk = str(k or "").strip().lower()
-                                    if not kk:
-                                        continue
-                                    expected_ips_norm[kk] = v if isinstance(v, list) else [v]
-
-                            drift_norm: dict[str, bool] = {d.lower(): bool(dns_settings.drift.alert_on_drift_default) for d in enabled_domains}
-                            if isinstance(dns_settings.drift.alert_on_drift_by_domain, dict):
-                                for k, v in dns_settings.drift.alert_on_drift_by_domain.items():
-                                    kk = str(k or "").strip().lower()
-                                    if not kk:
-                                        continue
-                                    drift_norm[kk] = bool(v)
-
-                            try:
-                                dns_results = await check_dns(
-                                    domains=enabled_domains,
-                                    resolvers=dns_settings.resolvers,
-                                    timeout_seconds=float(dns_settings.timeout_seconds),
-                                    require_ipv4=bool(dns_settings.require_ipv4),
-                                    require_ipv6=bool(dns_settings.require_ipv6),
-                                    previous_ips_by_domain=dns_last_ips,
-                                    expected_ips_by_domain=expected_ips_norm,
-                                    alert_on_drift_by_domain=drift_norm,
-                                )
-                            except Exception:
-                                LOGGER.exception("DNS checks crashed")
-                                dns_results = [
-                                    DnsCheckResult(
-                                        domain="dns",
-                                        ok=False,
-                                        a_records=[],
-                                        aaaa_records=[],
-                                        error="dns_check_crashed",
-                                        drift_detected=False,
-                                        expected_ips=None,
-                                    )
-                                ]
-
-                            # Update baseline for drift checks.
-                            if dns_results:
-                                for r in dns_results:
-                                    cur = sorted(set((r.a_records or []) + (r.aaaa_records or [])))
-                                    dns_last_ips[r.domain] = cur
-
-                            suppressed_dns_domains = sorted(
-                                {
-                                    r.domain
-                                    for r in (dns_results or [])
-                                    if not r.ok and r.domain in entries_by_domain and r.domain not in alertable_domains
-                                }
-                            )
-                            if suppressed_dns_domains:
-                                LOGGER.info(
-                                    "DNS failures excluded from Telegram routing domains=%s",
-                                    suppressed_dns_domains,
-                                )
-                            dns_alert_results = [
-                                r
-                                for r in (dns_results or [])
-                                if r.domain not in entries_by_domain or r.domain in alertable_domains
-                            ]
-                            dns_observed_ok = all(r.ok for r in dns_alert_results)
-                            prev_effective = bool(dns_health.last_ok)
-                            dns_alerted_down = dns_health.advance(
-                                observed_ok=dns_observed_ok, thresholds=dns_settings.alerts,
-                            )
-                            dns_fail_count = 0
-                            try:
-                                dns_fail_count = sum(
-                                    1 for r in dns_alert_results if not bool(getattr(r, "ok", False))
-                                )
-                            except Exception:
-                                dns_fail_count = 0
-                            _append_signal_sample(
-                                "dns",
-                                [float(cycle_started), 1 if bool(dns_health.last_ok) else 0, int(dns_fail_count)],
-                            )
-
-                            if dns_alerted_down and dns_alert_results and (not dns_observed_ok):
-                                _append_event(
-                                    "dns_degraded",
-                                    ts=float(cycle_started),
-                                    failures=int(dns_fail_count),
-                                    domains=[r.domain for r in dns_alert_results if not r.ok][:20],
-                                )
-                                msg = _build_dns_alert_message(
-                                    results=dns_alert_results,
-                                    down_after_failures=dns_settings.alerts.down_after_failures,
-                                    fail_streak=int(dns_health.fail_streak),
-                                )
-                                ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
-                                LOGGER.warning(
-                                    "DNS degraded alert sent_ok=%s telegram_last=%s",
-                                    ok_all,
-                                    redact_telegram_response(resps[-1] if resps else {}),
-                                )
-
-                                if dns_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
-                                    if "dns" in active_dispatch_tasks and not active_dispatch_tasks["dns"].done():
-                                        LOGGER.info("Dispatch already running for DNS; skipping new dispatch")
-                                    else:
-                                        active_dispatch_tasks["dns"] = asyncio.create_task(
-                                            _dispatch_dns_and_forward(
-                                                http_client=http_client,
-                                                telegram_cfg=telegram_cfg,
-                                                dispatch_cfg=dispatch_cfg,
-                                                dispatch_state=dispatch_state,
-                                                results=dns_alert_results,
-                                                dispatch_history=dispatch_history,
-                                                dispatch_last=dispatch_last,
-                                                events=events,
-                                            )
-                                        )
-
-                            dns_recovered = (not prev_effective) and bool(dns_health.last_ok)
-                            if dns_recovered:
-                                _append_event("dns_recovered", ts=float(cycle_started))
-                            if dns_recovered and dns_settings.alerts.notify_on_recovery:
-                                ok, resp = await send_telegram_message(
-                                    http_client,
-                                    telegram_cfg,
-                                    "DNS checks recovered ✅ (resolution issues cleared).",
-                                )
-                                LOGGER.info(
-                                    "DNS recovery notice sent_ok=%s telegram=%s",
-                                    ok,
-                                    redact_telegram_response(resp),
-                                )
+                    probe_frame = ProbeFrame(
+                        cycle_started, ProbeDomains(enabled_specs, set(entries_by_domain), alertable_domains),
+                        cycle_channels, _append_history_event, signal_series,
+                    )
+                    perf_slow = await performance_phase.run(probe_frame, cycle_results)
+                    tls_results = await tls_phase.run(probe_frame)
+                    dns_results = await dns_phase.run(probe_frame)
 
                     # ------------------------------
                     # API contract checks (per-domain)

@@ -1151,3 +1151,27 @@ checks, actual checker/config/clock/reader/journal, accepted internal receiver
 and off-host observation, copy disposition and a coordinated finite 624 host
 transaction remain necessary. Producer bytes and original request identities
 are preserved. No runtime activation occurred in this increment.
+
+# Performance, TLS and DNS cycle phases
+
+`PerformancePhase`, `TlsPhase` and `DnsPhase` now own their observations and
+health transitions. `ProbeFrame` shares the existing channels, inventory policy,
+event sink and signal history; `ProbeSchedule` preserves attempt timestamps
+before asynchronous work. DNS baseline updates precede routing, including muted
+domains. Failure and cancellation retain the same state and effect ordering.
+The remaining main AST is unchanged after the recorded substitutions.
+
+Evidence is retained at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/network-phases-extraction-20261003/`.
+Thirteen affected tests and 1,392 parent comparisons pass. Four real isolated
+launcher runs match the parent's complete recorded results, including default
+configuration, persisted restart state and two-success recovery. Eleven local
+texts, including four heartbeats, are unsent. DFT is disabled; no journal,
+receiver or deployed permission is exercised. Initial fixture and gate failures
+remain in the packet. The final protocol declaration follows the launcher run;
+its implementation-independent declarations do not alter probe algorithms.
+
+Six changed/new modules pass scoped gates. Main remains failed: 220 Ruff,
+213 typing errors and one warning, Pylint 8.83, architecture and Semgrep debt.
+The aggregate 21 anti-bypass findings and required whole-file ratchet remain
+visible. This work continues the release repair; it is not installed delivery.

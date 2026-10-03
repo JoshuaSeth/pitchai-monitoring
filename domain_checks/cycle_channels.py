@@ -12,13 +12,14 @@ from .dispatch_transport import redact_telegram_response, send_telegram_message,
 
 if TYPE_CHECKING:
     import asyncio
+    from collections.abc import Sequence
 
     from httpx import AsyncClient
 
     from .dispatch_client import DispatchConfig
     from .dispatch_context import DispatchInputs
     from .dispatch_records import DispatchRecords
-    from .event_bus_delivery import JsonObject
+    from .event_bus_delivery import JsonObject, JsonValue
     from .telegram import TelegramConfig
 
 LOGGER = logging.getLogger("service-monitoring")
@@ -67,10 +68,15 @@ class CycleChannels:
             "events": self.records.events,
         }
 
-    async def warning(self, message: str, log_template: str, domains: list[str]) -> None:
+    async def warning(self, message: str, log_template: str, domains: Sequence[JsonValue]) -> None:
         """Retain chunked delivery, response redaction and the existing warning log."""
         ok_all, responses = await send_telegram_message_chunked(self.client, self.telegram, message)
         LOGGER.warning(log_template, ok_all, redact_telegram_response(responses[-1] if responses else {}), domains[:5])
+
+    async def notice(self, message: str, log_template: str) -> None:
+        """Keep chunked warnings whose original log has no domain diagnostic."""
+        ok_all, responses = await send_telegram_message_chunked(self.client, self.telegram, message)
+        LOGGER.warning(log_template, ok_all, redact_telegram_response(responses[-1] if responses else {}))
 
     async def recovery(self, message: str, log_template: str) -> None:
         """Retain single-message delivery and its observed result without retries."""
