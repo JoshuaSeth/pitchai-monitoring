@@ -96,6 +96,9 @@ async def _run_observation(
 
     Returns:
         The original result or a content-free ordinary browser-error result.
+
+    Raises:
+        RuntimeError: An inconsistent failure boundary returns without an exception.
     """
     with BrowserFailure() as failure:
         return await observation.run(spec, timeout_ms)
