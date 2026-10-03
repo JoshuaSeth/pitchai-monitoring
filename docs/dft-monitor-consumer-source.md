@@ -913,3 +913,51 @@ still fails with 312 Ruff findings, 277 typing errors and one warning, Pylint
 9.01, 33 Semgrep findings and architecture debt. Aggregate 21 anti-bypass
 findings remain. Required checks and the whole-cycle repair stay incomplete;
 all existing runtime, receiver/off-host, coverage/copy and admission gaps remain.
+
+# Probe and heartbeat configuration increment
+
+`browser_probe_settings` decodes synthetic and Web Vitals settings;
+`service_settings` owns container and pipeline-health settings. `proxy_settings`
+retains shared-feed paths, window/byte minima and proxy thresholds without
+selecting a DFT source. `heartbeat_settings` validates enabled schedules and
+preserves ordered duplicate times. Timezone resolution and clock sampling stay
+in the cycle. Disabled malformed schedules remain ignored, while disabled
+probes still parse their required numeric fields in the original order.
+Container pattern lists retain identity and values for the existing matcher.
+Whitespace path behavior, optional nonfinite limits and debounce defaults stay
+unchanged. These settings modules perform no I/O.
+
+Against parent `360719f3d24e777a4cb3c8a899432ffb2a9e9f77`, six configuration
+blocks, 69 subsequent name reads and four imports account for the complete
+main AST change. All remaining AST is identical. Main is 2,882 lines, 55 fewer.
+API-readiness sections, DFT source selection, incident/outbox handling and
+other domains' control flow retain their existing implementation.
+
+Private proof tools and raw results are at
+`/mnt/pitchai-dev-data/artifacts/monitoring-dft-746-20261003/probe-settings-extraction-20261003/`.
+Sixteen tests pass in 0.002s: ten new settings tests and six existing section
+and scalar contracts. Exact-parent comparison passes 2,328 JSON configuration
+cases in 0.080s, including 937 matching exception classes and messages. Enabled
+and disabled schedules, competing invalid numeric fields, list identity and
+original nonfinite semantics are covered; arbitrary Python objects are not.
+
+Four isolated real launcher/config/state runs pass in 1.226s. Each runs the
+continuous cycle through post-meta persistence, then exits at a substituted
+final sleep. Synthetic, Web Vitals, container, proxy and pipeline health all
+retain their debounced failure and two-success recovery across restarts. The
+proof checks parsed probe arguments, bounded shared-parser arguments, default
+config resolution, heartbeat scheduling and browser cleanup. An unrelated
+healthy domain remains healthy; a separate HTTP domain degrades and recovers.
+HTTP/browser/container/log/clock inputs are synthetic. Ten local text captures,
+including four heartbeats, are unsent. DFT stays disabled, no journal is
+allocated and network/subprocess guards record zero attempts. Existing DFT
+and nginx proof was not repeated.
+
+All six runtime/test files match their pretest snapshots. Five new files pass
+scoped architecture, Ruff, BasedPyright, Pylint 10 and Semgrep (five targets).
+Initial type and test-format findings remain in the raw logs. Whole-main
+still fails with 311 Ruff findings, 281 typing errors and one warning,
+Pylint 8.95, 33 Semgrep findings and architecture debt. Aggregate 21 anti-bypass
+findings remain. Whole-cycle repair and required checks remain unfinished;
+existing checker/config/clock/reader/journal/receiver/off-host, original-window,
+throughput/copy and finite-admission dependencies remain unchanged.

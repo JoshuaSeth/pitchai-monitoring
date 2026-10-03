@@ -26,6 +26,10 @@ from .common_check import (
     load_domain_spec_from_module_dict,
 )
 from .history import prune_history
+from .browser_probe_settings import load_synthetic_settings, load_vitals_settings
+from .service_settings import load_container_settings, load_meta_settings
+from .proxy_settings import load_proxy_settings
+from .heartbeat_settings import load_heartbeat_settings
 from .history_settings import load_slo_settings, load_red_settings
 from .network_settings import load_tls_settings, load_dns_settings
 from .resource_settings import load_host_settings, load_performance_settings
@@ -478,16 +482,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
     }
     all_domains = [entry.domain for entry in domain_entries]
 
-    heartbeat_cfg = cycle_section(config, "heartbeat")
-    heartbeat_enabled = bool(heartbeat_cfg.get("enabled", False))
-    heartbeat_timezone = str(heartbeat_cfg.get("timezone") or "UTC")
-    heartbeat_times_raw = heartbeat_cfg.get("times") or []
-    heartbeat_times: list[dt_time] = []
-    if heartbeat_enabled:
-        if not isinstance(heartbeat_times_raw, list) or not heartbeat_times_raw:
-            raise ValueError("heartbeat.times must be a non-empty list of HH:MM strings when heartbeat.enabled=true")
-        heartbeat_times = [_parse_hhmm(t) for t in heartbeat_times_raw]
-    tz = _load_timezone(heartbeat_timezone)
+    heartbeat_settings = load_heartbeat_settings(config)
+
+    tz = _load_timezone(heartbeat_settings.timezone)
     started_at = datetime.now(tz)
     last_heartbeat_sent: dict[str, str] = {}  # HH:MM -> YYYY-MM-DD
 
@@ -523,29 +520,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
     red_settings = load_red_settings(config)
 
-    syn_cfg = cycle_section(config, "synthetic")
-    syn_enabled = bool(syn_cfg.get("enabled", False))
-    syn_interval_minutes = max(1, required_int(syn_cfg.get("interval_minutes", 15)))
-    syn_max_domains_per_cycle = max(1, required_int(syn_cfg.get("max_domains_per_cycle", 1)))
-    syn_timeout_seconds = _coerce_float(syn_cfg.get("timeout_seconds", 35.0), default=35.0)
-    syn_down_after_failures = max(1, required_int(syn_cfg.get("down_after_failures", 2)))
-    syn_up_after_successes = max(1, required_int(syn_cfg.get("up_after_successes", 2)))
-    syn_dispatch_on_degraded = bool(syn_cfg.get("dispatch_on_degraded", False))
-    syn_notify_on_recovery = bool(syn_cfg.get("notify_on_recovery", False))
+    syn_settings = load_synthetic_settings(config)
 
-    wv_cfg = cycle_section(config, "web_vitals")
-    wv_enabled = bool(wv_cfg.get("enabled", False))
-    wv_interval_minutes = max(1, required_int(wv_cfg.get("interval_minutes", 60)))
-    wv_max_domains_per_cycle = max(1, required_int(wv_cfg.get("max_domains_per_cycle", 1)))
-    wv_timeout_seconds = _coerce_float(wv_cfg.get("timeout_seconds", 45.0), default=45.0)
-    wv_post_load_wait_ms = _coerce_int(wv_cfg.get("post_load_wait_ms", 4500), default=4500)
-    wv_lcp_ms_max = _coerce_optional_float(wv_cfg.get("lcp_ms_max"))
-    wv_cls_max = _coerce_optional_float(wv_cfg.get("cls_max"))
-    wv_inp_ms_max = _coerce_optional_float(wv_cfg.get("inp_ms_max"))
-    wv_down_after_failures = max(1, required_int(wv_cfg.get("down_after_failures", 2)))
-    wv_up_after_successes = max(1, required_int(wv_cfg.get("up_after_successes", 2)))
-    wv_dispatch_on_degraded = bool(wv_cfg.get("dispatch_on_degraded", False))
-    wv_notify_on_recovery = bool(wv_cfg.get("notify_on_recovery", False))
+    wv_settings = load_vitals_settings(config)
 
     api_cfg = cycle_section(config, "api_contract")
     api_enabled = bool(api_cfg.get("enabled", False))
@@ -556,43 +533,11 @@ async def run_loop(config_path: Path, once: bool) -> int:
     api_dispatch_on_degraded = bool(api_cfg.get("dispatch_on_degraded", False))
     api_notify_on_recovery = bool(api_cfg.get("notify_on_recovery", False))
 
-    container_cfg = cycle_section(config, "container_health")
-    container_enabled = bool(container_cfg.get("enabled", False))
-    container_interval_minutes = max(1, required_int(container_cfg.get("interval_minutes", 1)))
-    docker_socket_path = str(container_cfg.get("docker_socket_path") or "/var/run/docker.sock").strip()
-    container_monitor_all = bool(container_cfg.get("monitor_all", False))
-    container_include_patterns = container_cfg.get("include_name_patterns") if isinstance(container_cfg.get("include_name_patterns"), list) else []
-    container_exclude_patterns = container_cfg.get("exclude_name_patterns") if isinstance(container_cfg.get("exclude_name_patterns"), list) else []
-    container_timeout_seconds = _coerce_float(container_cfg.get("timeout_seconds", 3.0), default=3.0)
-    container_down_after_failures = max(1, required_int(container_cfg.get("down_after_failures", 2)))
-    container_up_after_successes = max(1, required_int(container_cfg.get("up_after_successes", 1)))
-    container_dispatch_on_degraded = bool(container_cfg.get("dispatch_on_degraded", False))
-    container_notify_on_recovery = bool(container_cfg.get("notify_on_recovery", False))
+    container_settings = load_container_settings(config)
 
-    proxy_cfg = cycle_section(config, "proxy")
-    proxy_enabled = bool(proxy_cfg.get("enabled", False))
-    proxy_access_log_path = str(proxy_cfg.get("access_log_path") or "/var/log/nginx/access.log").strip()
-    proxy_error_log_path = str(proxy_cfg.get("error_log_path") or "/var/log/nginx/error.log").strip()
-    proxy_timezone_name = str(proxy_cfg.get("timezone") or "Europe/Amsterdam").strip() or "Europe/Amsterdam"
-    proxy_window_seconds = max(60, required_int(proxy_cfg.get("window_seconds", 300)))
-    proxy_access_max_bytes = max(10_000, required_int(proxy_cfg.get("access_log_max_bytes", 1_000_000)))
-    proxy_error_max_bytes = max(10_000, required_int(proxy_cfg.get("error_log_max_bytes", 1_000_000)))
-    proxy_min_total_requests = max(0, required_int(proxy_cfg.get("min_total_requests", 50)))
-    proxy_max_502_504_percent = _coerce_optional_float(proxy_cfg.get("max_502_504_percent"))
-    proxy_max_upstream_errors_per_domain = max(0, required_int(proxy_cfg.get("max_upstream_errors_per_domain", 5)))
-    proxy_down_after_failures = max(1, required_int(proxy_cfg.get("down_after_failures", 2)))
-    proxy_up_after_successes = max(1, required_int(proxy_cfg.get("up_after_successes", 2)))
-    proxy_dispatch_on_degraded = bool(proxy_cfg.get("dispatch_on_degraded", False))
-    proxy_notify_on_recovery = bool(proxy_cfg.get("notify_on_recovery", False))
+    proxy_settings = load_proxy_settings(config)
 
-    meta_cfg = cycle_section(config, "meta_monitoring")
-    meta_enabled = bool(meta_cfg.get("enabled", False))
-    meta_cycle_overrun_factor = _coerce_float(meta_cfg.get("cycle_overrun_factor", 1.25), default=1.25)
-    meta_state_write_failures_max = max(1, required_int(meta_cfg.get("state_write_failures_max", 3)))
-    meta_down_after_failures = max(1, required_int(meta_cfg.get("down_after_failures", 2)))
-    meta_up_after_successes = max(1, required_int(meta_cfg.get("up_after_successes", 2)))
-    meta_dispatch_on_degraded = bool(meta_cfg.get("dispatch_on_degraded", False))
-    meta_notify_on_recovery = bool(meta_cfg.get("notify_on_recovery", False))
+    meta_settings = load_meta_settings(config)
 
     chromium_path = find_chromium_executable()
     if not chromium_path:
@@ -2059,19 +2004,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # Docker container health checks
                     # ------------------------------
                     container_issues: list[ContainerHealthIssue] | None = None
-                    if container_enabled:
+                    if container_settings.alerts.enabled:
                         now_ts = time.time()
-                        due = (now_ts - float(container_last_run_ts or 0.0)) >= float(container_interval_minutes * 60)
+                        due = (now_ts - float(container_last_run_ts or 0.0)) >= float(container_settings.interval_minutes * 60)
                         if due:
                             container_last_run_ts = now_ts
                             try:
                                 container_issues, container_restart_counts_next = await check_container_health(
-                                    docker_socket_path=docker_socket_path,
-                                    include_name_patterns=container_include_patterns,
-                                    exclude_name_patterns=container_exclude_patterns,
-                                    monitor_all=bool(container_monitor_all),
+                                    docker_socket_path=container_settings.docker_socket_path,
+                                    include_name_patterns=container_settings.selection.include_patterns,
+                                    exclude_name_patterns=container_settings.selection.exclude_patterns,
+                                    monitor_all=bool(container_settings.selection.monitor_all),
                                     previous_restart_counts=container_restart_counts,
-                                    timeout_seconds=float(container_timeout_seconds),
+                                    timeout_seconds=float(container_settings.timeout_seconds),
                                 )
                                 container_restart_counts = container_restart_counts_next
                             except Exception:
@@ -2103,8 +2048,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 observed_ok=container_observed_ok,
                                 fail_streak=int(container_fail_streak),
                                 success_streak=int(container_success_streak),
-                                down_after_failures=container_down_after_failures,
-                                up_after_successes=container_up_after_successes,
+                                down_after_failures=container_settings.alerts.down_after_failures,
+                                up_after_successes=container_settings.alerts.up_after_successes,
                             )
                             container_issue_count = int(len(container_issues or []))
                             _append_signal_sample(
@@ -2120,7 +2065,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 )
                                 msg = _build_container_health_alert_message(
                                     issues=container_issues,
-                                    down_after_failures=container_down_after_failures,
+                                    down_after_failures=container_settings.alerts.down_after_failures,
                                     fail_streak=int(container_fail_streak),
                                 )
                                 ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
@@ -2131,7 +2076,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     [it.name for it in container_issues[:5]],
                                 )
 
-                                if container_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                                if container_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                                     if "container_health" in active_dispatch_tasks and not active_dispatch_tasks["container_health"].done():
                                         LOGGER.info("Dispatch already running for container_health; skipping new dispatch")
                                     else:
@@ -2151,7 +2096,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             container_recovered = (not prev_effective) and bool(container_last_ok)
                             if container_recovered:
                                 _append_event("container_health_recovered", ts=float(cycle_started))
-                            if container_recovered and container_notify_on_recovery:
+                            if container_recovered and container_settings.alerts.notify_on_recovery:
                                 ok, resp = await send_telegram_message(
                                     http_client,
                                     telegram_cfg,
@@ -2166,8 +2111,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # ------------------------------
                     # Reverse proxy upstream/failover checks
                     # ------------------------------
-                    if proxy_enabled and cycle_results:
-                        proxy_tz = _load_timezone(proxy_timezone_name)
+                    if proxy_settings.alerts.enabled and cycle_results:
+                        proxy_tz = _load_timezone(proxy_settings.feed.timezone_name)
                         all_upstream_issues = check_upstream_header_expectations(
                             specs_by_domain=specs_by_domain, cycle_results=cycle_results
                         )
@@ -2189,28 +2134,28 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                         access_stats = None
                         access_violation = False
-                        if proxy_max_502_504_percent is not None and proxy_access_log_path:
+                        if proxy_settings.max_502_504_percent is not None and proxy_settings.feed.access_log_path:
                             access_stats = dft_cycle.read_access(
-                                access_log_path=proxy_access_log_path,
+                                access_log_path=proxy_settings.feed.access_log_path,
                                 now=datetime.now(timezone.utc),
-                                window_seconds=int(proxy_window_seconds),
-                                max_bytes=int(proxy_access_max_bytes),
+                                window_seconds=int(proxy_settings.feed.window_seconds),
+                                max_bytes=int(proxy_settings.feed.access_max_bytes),
                             )
-                            if access_stats is not None and access_stats.total >= int(proxy_min_total_requests):
+                            if access_stats is not None and access_stats.total >= int(proxy_settings.min_total_requests):
                                 pct = (int(access_stats.status_502_504) / float(access_stats.total or 1)) * 100.0
-                                if float(pct) > float(proxy_max_502_504_percent):
+                                if float(pct) > float(proxy_settings.max_502_504_percent):
                                     access_violation = True
 
                         upstream_events = []
                         upstream_summary = None
                         upstream_violation = False
-                        if proxy_error_log_path and proxy_max_upstream_errors_per_domain > 0:
+                        if proxy_settings.feed.error_log_path and proxy_settings.max_upstream_errors_per_domain > 0:
                             all_upstream_events = parse_recent_upstream_errors(
-                                error_log_path=proxy_error_log_path,
+                                error_log_path=proxy_settings.feed.error_log_path,
                                 now=datetime.now(timezone.utc),
-                                window_seconds=int(proxy_window_seconds),
+                                window_seconds=int(proxy_settings.feed.window_seconds),
                                 local_tz=proxy_tz,
-                                max_bytes=int(proxy_error_max_bytes),
+                                max_bytes=int(proxy_settings.feed.error_max_bytes),
                             )
                             upstream_events = [
                                 event
@@ -2226,7 +2171,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 for server, count in counts.items():
                                     if server not in enabled_domains:
                                         continue
-                                    if int(count) >= int(proxy_max_upstream_errors_per_domain):
+                                    if int(count) >= int(proxy_settings.max_upstream_errors_per_domain):
                                         upstream_violation = True
                                         break
 
@@ -2245,8 +2190,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             observed_ok=proxy_observed_ok,
                             fail_streak=int(proxy_fail_streak),
                             success_streak=int(proxy_success_streak),
-                            down_after_failures=proxy_down_after_failures,
-                            up_after_successes=proxy_up_after_successes,
+                            down_after_failures=proxy_settings.alerts.down_after_failures,
+                            up_after_successes=proxy_settings.alerts.up_after_successes,
                         )
                         pct_502_504 = None
                         access_total = 0
@@ -2285,8 +2230,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 upstream_issues=upstream_issues,
                                 access_stats=access_stats,
                                 upstream_errors_summary=upstream_summary,
-                                window_seconds=int(proxy_window_seconds),
-                                down_after_failures=proxy_down_after_failures,
+                                window_seconds=int(proxy_settings.feed.window_seconds),
+                                down_after_failures=proxy_settings.alerts.down_after_failures,
                                 fail_streak=int(proxy_fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
@@ -2296,7 +2241,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 redact_telegram_response(resps[-1] if resps else {}),
                             )
 
-                            if proxy_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                            if proxy_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                                 if "proxy" in active_dispatch_tasks and not active_dispatch_tasks["proxy"].done():
                                     LOGGER.info("Dispatch already running for proxy; skipping new dispatch")
                                 else:
@@ -2309,7 +2254,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                             upstream_issues=upstream_issues,
                                             access_stats=access_stats,
                                             upstream_error_events=upstream_events,
-                                            window_seconds=int(proxy_window_seconds),
+                                            window_seconds=int(proxy_settings.feed.window_seconds),
                                             dispatch_history=dispatch_history,
                                             dispatch_last=dispatch_last,
                                             events=events,
@@ -2319,7 +2264,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         proxy_recovered = (not prev_effective) and bool(proxy_last_ok)
                         if proxy_recovered:
                             _append_event("proxy_recovered", ts=float(cycle_started))
-                        if proxy_recovered and proxy_notify_on_recovery:
+                        if proxy_recovered and proxy_settings.alerts.notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
                                 telegram_cfg,
@@ -2335,23 +2280,23 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # Synthetic transactions (Playwright step flows)
                     # ------------------------------
                     syn_failures_for_dispatch: list[SyntheticTransactionResult] = []
-                    if syn_enabled and enabled_specs and browser is not None and not browser_degraded:
+                    if syn_settings.alerts.enabled and enabled_specs and browser is not None and not browser_degraded:
                         now_ts = time.time()
                         candidates = [
                             s
                             for s in enabled_specs
                             if s.synthetic_transactions
-                            and (now_ts - float(synthetic_last_run_ts.get(s.domain, 0.0))) >= float(syn_interval_minutes * 60)
+                            and (now_ts - float(synthetic_last_run_ts.get(s.domain, 0.0))) >= float(syn_settings.interval_minutes * 60)
                         ]
                         candidates.sort(key=lambda s: float(synthetic_last_run_ts.get(s.domain, 0.0)))
-                        for spec in candidates[: int(syn_max_domains_per_cycle)]:
+                        for spec in candidates[: int(syn_settings.max_domains_per_cycle)]:
                             synthetic_last_run_ts[spec.domain] = now_ts
                             results = await run_synthetic_transactions(
                                 domain=spec.domain,
                                 base_url=spec.url,
                                 browser=browser,
                                 transactions=spec.synthetic_transactions,
-                                timeout_seconds=float(syn_timeout_seconds),
+                                timeout_seconds=float(syn_settings.timeout_seconds),
                             )
                             real_failures = [r for r in results if (not r.ok) and (not r.browser_infra_error)]
                             observed_ok = not bool(real_failures)
@@ -2366,8 +2311,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 observed_ok=observed_ok,
                                 fail_streak=int(synthetic_fail_streak.get(spec.domain, 0)),
                                 success_streak=int(synthetic_success_streak.get(spec.domain, 0)),
-                                down_after_failures=syn_down_after_failures,
-                                up_after_successes=syn_up_after_successes,
+                                down_after_failures=syn_settings.alerts.down_after_failures,
+                                up_after_successes=syn_settings.alerts.up_after_successes,
                             )
                             synthetic_last_ok[spec.domain] = next_effective
                             synthetic_fail_streak[spec.domain] = next_fail
@@ -2385,7 +2330,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 )
                                 msg = _build_synthetic_alert_message(
                                     failures=real_failures,
-                                    down_after_failures=syn_down_after_failures,
+                                    down_after_failures=syn_settings.alerts.down_after_failures,
                                     fail_streak=int(next_fail),
                                 )
                                 routed = await _route_domain_telegram_alert(
@@ -2413,7 +2358,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     )
                                 if (
                                     recovered
-                                    and syn_notify_on_recovery
+                                    and syn_settings.alerts.notify_on_recovery
                                     and entries_by_domain[spec.domain].routes_telegram
                                 ):
                                     ok, resp = await send_telegram_message(
@@ -2428,7 +2373,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         spec.domain,
                                     )
 
-                        if syn_failures_for_dispatch and syn_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                        if syn_failures_for_dispatch and syn_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                             if "synthetic" in active_dispatch_tasks and not active_dispatch_tasks["synthetic"].done():
                                 LOGGER.info("Dispatch already running for synthetic; skipping new dispatch")
                             else:
@@ -2449,22 +2394,22 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # Core Web Vitals (browser metrics)
                     # ------------------------------
                     wv_failures_for_dispatch: list[WebVitalsResult] = []
-                    if wv_enabled and enabled_specs and browser is not None and not browser_degraded:
+                    if wv_settings.alerts.enabled and enabled_specs and browser is not None and not browser_degraded:
                         now_ts = time.time()
                         candidates = [
                             s
                             for s in enabled_specs
-                            if (now_ts - float(web_vitals_last_run_ts.get(s.domain, 0.0))) >= float(wv_interval_minutes * 60)
+                            if (now_ts - float(web_vitals_last_run_ts.get(s.domain, 0.0))) >= float(wv_settings.interval_minutes * 60)
                         ]
                         candidates.sort(key=lambda s: float(web_vitals_last_run_ts.get(s.domain, 0.0)))
-                        for spec in candidates[: int(wv_max_domains_per_cycle)]:
+                        for spec in candidates[: int(wv_settings.max_domains_per_cycle)]:
                             web_vitals_last_run_ts[spec.domain] = now_ts
                             r = await measure_web_vitals(
                                 domain=spec.domain,
                                 url=spec.url,
                                 browser=browser,
-                                timeout_seconds=float(wv_timeout_seconds),
-                                post_load_wait_ms=int(wv_post_load_wait_ms),
+                                timeout_seconds=float(wv_settings.timeout_seconds),
+                                post_load_wait_ms=int(wv_settings.post_load_wait_ms),
                             )
 
                             # Skip infra-induced browser failures (handled by browser_degraded warnings).
@@ -2473,9 +2418,9 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                             # Per-domain overrides via check.py (web_vitals: {...}).
                             cfg = spec.web_vitals if isinstance(spec.web_vitals, dict) else {}
-                            lcp_max = _coerce_optional_float(cfg.get("lcp_ms_max", wv_lcp_ms_max))
-                            cls_max = _coerce_optional_float(cfg.get("cls_max", wv_cls_max))
-                            inp_max = _coerce_optional_float(cfg.get("inp_ms_max", wv_inp_ms_max))
+                            lcp_max = _coerce_optional_float(cfg.get("lcp_ms_max", wv_settings.limits.lcp_ms_max))
+                            cls_max = _coerce_optional_float(cfg.get("cls_max", wv_settings.limits.cls_max))
+                            inp_max = _coerce_optional_float(cfg.get("inp_ms_max", wv_settings.limits.inp_ms_max))
 
                             thresholds = {"lcp_ms_max": lcp_max, "cls_max": cls_max, "inp_ms_max": inp_max}
 
@@ -2523,8 +2468,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 observed_ok=observed_ok,
                                 fail_streak=int(web_vitals_fail_streak.get(spec.domain, 0)),
                                 success_streak=int(web_vitals_success_streak.get(spec.domain, 0)),
-                                down_after_failures=wv_down_after_failures,
-                                up_after_successes=wv_up_after_successes,
+                                down_after_failures=wv_settings.alerts.down_after_failures,
+                                up_after_successes=wv_settings.alerts.up_after_successes,
                             )
                             web_vitals_last_ok[spec.domain] = next_effective
                             web_vitals_fail_streak[spec.domain] = next_fail
@@ -2543,7 +2488,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 msg = _build_web_vitals_alert_message(
                                     failures=[evaluated],
                                     thresholds=thresholds,
-                                    down_after_failures=wv_down_after_failures,
+                                    down_after_failures=wv_settings.alerts.down_after_failures,
                                     fail_streak=int(next_fail),
                                 )
                                 routed = await _route_domain_telegram_alert(
@@ -2571,7 +2516,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                     )
                                 if (
                                     recovered
-                                    and wv_notify_on_recovery
+                                    and wv_settings.alerts.notify_on_recovery
                                     and entries_by_domain[spec.domain].routes_telegram
                                 ):
                                     ok, resp = await send_telegram_message(
@@ -2586,7 +2531,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                         spec.domain,
                                     )
 
-                        if wv_failures_for_dispatch and wv_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                        if wv_failures_for_dispatch and wv_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                             if "web_vitals" in active_dispatch_tasks and not active_dispatch_tasks["web_vitals"].done():
                                 LOGGER.info("Dispatch already running for web_vitals; skipping new dispatch")
                             else:
@@ -2698,10 +2643,10 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             LOGGER.exception("Dispatch task crashed domain=%s", domain)
                         del active_dispatch_tasks[domain]
 
-                    if heartbeat_enabled and (cycle_results or disabled_lines):
+                    if heartbeat_settings.enabled and (cycle_results or disabled_lines):
                         now = datetime.now(tz)
                         today = now.date().isoformat()
-                        for t in heartbeat_times:
+                        for t in heartbeat_settings.times:
                             hhmm = t.strftime("%H:%M")
                             if last_heartbeat_sent.get(hhmm) == today:
                                 continue
@@ -2740,7 +2685,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
 
                                 msg = _build_heartbeat_message(
                                     now=now,
-                                    scheduled_label=f"{hhmm} {heartbeat_timezone}",
+                                    scheduled_label=f"{hhmm} {heartbeat_settings.timezone}",
                                     started_at=started_at,
                                     results=cycle_results,
                                     domain_entries=entries_by_domain,
@@ -2785,19 +2730,19 @@ async def run_loop(config_path: Path, once: bool) -> int:
                     # ------------------------------
                     # Meta-monitoring (monitor pipeline health)
                     # ------------------------------
-                    if meta_enabled:
+                    if meta_settings.alerts.enabled:
                         meta_reasons: list[str] = []
                         try:
-                            overrun_threshold = float(interval_seconds) * float(meta_cycle_overrun_factor)
+                            overrun_threshold = float(interval_seconds) * float(meta_settings.cycle_overrun_factor)
                         except Exception:
                             overrun_threshold = float(interval_seconds) * 1.25
                         if float(elapsed) > float(overrun_threshold):
                             meta_reasons.append(
                                 f"cycle_overrun: elapsed={round(float(elapsed), 3)}s > threshold={round(float(overrun_threshold), 3)}s interval={int(interval_seconds)}s"
                             )
-                        if int(state_write_fail_streak) >= int(meta_state_write_failures_max):
+                        if int(state_write_fail_streak) >= int(meta_settings.state_write_failures_max):
                             meta_reasons.append(
-                                f"state_write_failures: streak={int(state_write_fail_streak)} >= {int(meta_state_write_failures_max)}"
+                                f"state_write_failures: streak={int(state_write_fail_streak)} >= {int(meta_settings.state_write_failures_max)}"
                             )
 
                         meta_observed_ok = not bool(meta_reasons)
@@ -2807,8 +2752,8 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             observed_ok=meta_observed_ok,
                             fail_streak=int(meta_fail_streak),
                             success_streak=int(meta_success_streak),
-                            down_after_failures=meta_down_after_failures,
-                            up_after_successes=meta_up_after_successes,
+                            down_after_failures=meta_settings.alerts.down_after_failures,
+                            up_after_successes=meta_settings.alerts.up_after_successes,
                         )
                         _append_signal_sample(
                             "meta",
@@ -2825,7 +2770,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                             _append_event("meta_degraded", ts=float(cycle_started), reasons=meta_reasons[:20])
                             msg = _build_meta_alert_message(
                                 reasons=meta_reasons,
-                                down_after_failures=meta_down_after_failures,
+                                down_after_failures=meta_settings.alerts.down_after_failures,
                                 fail_streak=int(meta_fail_streak),
                             )
                             ok_all, resps = await send_telegram_message_chunked(http_client, telegram_cfg, msg)
@@ -2836,7 +2781,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                                 meta_reasons[:3],
                             )
 
-                            if meta_dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
+                            if meta_settings.alerts.dispatch_on_degraded and dispatch_cfg and _dispatch_is_enabled(dispatch_cfg, dispatch_state):
                                 if "meta" in active_dispatch_tasks and not active_dispatch_tasks["meta"].done():
                                     LOGGER.info("Dispatch already running for meta; skipping new dispatch")
                                 else:
@@ -2868,7 +2813,7 @@ async def run_loop(config_path: Path, once: bool) -> int:
                         meta_recovered = (not prev_effective) and bool(meta_last_ok)
                         if meta_recovered:
                             _append_event("meta_recovered", ts=float(cycle_started))
-                        if meta_recovered and meta_notify_on_recovery:
+                        if meta_recovered and meta_settings.alerts.notify_on_recovery:
                             ok, resp = await send_telegram_message(
                                 http_client,
                                 telegram_cfg,
