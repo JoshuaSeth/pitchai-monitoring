@@ -62,7 +62,7 @@ def check_upstream_header_expectations(
         primary = set(_as_str_list(proxy_cfg.get("primary_upstreams")))
         backup = set(_as_str_list(proxy_cfg.get("backup_upstreams")))
 
-        details = cast("JsonObject", result.details)
+        details = result.details
         captured = (details or {}).get("captured_headers")
         captured = captured if isinstance(captured, dict) else {}
         value = captured.get(header)

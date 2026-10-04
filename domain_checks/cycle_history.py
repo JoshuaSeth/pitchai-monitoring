@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from .cycle_values import coerce_optional_float, required_int
 from .history import append_sample
@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from .common_check import DomainCheckResult
-    from .event_bus_delivery import JsonObject
     from .history_decode import Sample
 
 
@@ -23,7 +22,7 @@ def record_domain_results(
 ) -> None:
     """Append each result using the debounced state and legacy optional numbers."""
     for domain, result in results.items():
-        details = cast("JsonObject", result.details or {})
+        details = result.details or {}
         http_ms = coerce_optional_float(details.get("http_elapsed_ms"))
         browser_ms = coerce_optional_float(details.get("browser_elapsed_ms"))
         status_code = None

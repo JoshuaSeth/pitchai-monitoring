@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 from httpx import AsyncClient
@@ -46,7 +46,7 @@ class DomainObservationTests(unittest.IsolatedAsyncioTestCase):
             called = http_ok and enabled and available
             require(condition=check.await_count == int(called), message="browser admission changed")
             if called:
-                require(condition=cast("JsonObject", result.details)["error"] == "browser marker",
+                require(condition=result.details["error"] == "browser marker",
                         message="merge precedence changed")
             if not http_ok:
                 require(condition=result.details is http_details, message="HTTP failure mapping copied")

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import unittest
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from .common_check import DomainCheckResult
 from .dft_test_support import require, require_error
@@ -47,7 +47,7 @@ class PerformanceTests(unittest.TestCase):
         expected_browser_ms = 2500
         require(condition=slow[0]["http_ms"] is None and slow[0]["browser_ms"] == expected_browser_ms,
                 message="malformed independent metric changed valid evidence")
-        retained_http = cast("JsonValue", result.details["http_elapsed_ms"])
+        retained_http = result.details["http_elapsed_ms"]
         require(condition=retained_http == "bad", message="evaluation mutated caller data")
 
     @staticmethod

@@ -37,7 +37,7 @@ def evaluate_vitals(result: WebVitalsResult, thresholds: dict[str, float | None]
     """
     if not result.ok:
         return result
-    metrics = cast("JsonObject", result.metrics or {})
+    metrics = result.metrics or {}
     violations: list[str] = []
     for key, threshold, label, precision in (("lcp_ms", "lcp_ms_max", "lcp_ms", 0),
                                             ("cls", "cls_max", "cls", 3),

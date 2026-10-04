@@ -4,13 +4,12 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from .cycle_values import required_float
 from .message_templates import dispatch_read_only_rules as _dispatch_read_only_rules
 
 if TYPE_CHECKING:
-    from .event_bus_delivery import JsonObject
     from .metrics_synthetic import SyntheticTransactionResult
     from .metrics_web_vitals import WebVitalsResult
 
@@ -83,7 +82,7 @@ def build_web_vitals_alert_message(
     lines.append("")
     for r in failures[:15]:
         # Browser evaluation returns JSON-valued metric fields.
-        m = cast("JsonObject", r.metrics or {})
+        m = r.metrics or {}
         lcp = m.get("lcp_ms")
         cls = m.get("cls")
         inp = m.get("inp_ms")

@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from .browser_admission import BrowserConnection
 from .dispatch_probe_routes import dispatch_synthetic_and_forward
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from .browser_phase_context import BrowserPhaseContext, BrowserProbeState, BrowserProbeTransition
     from .browser_probe_contracts import SyntheticProbe
     from .browser_probe_settings import SyntheticSettings
-    from .event_bus_delivery import JsonObject
     from .metrics_synthetic import SyntheticTransactionResult
 
 
@@ -43,7 +42,7 @@ class SyntheticPhase[BrowserT: BrowserConnection]:
             # The owning sequential cycle retains the admitted native Browser.
             results = await self.probe({"domain": spec.domain, "base_url": spec.url,
                 "browser": context.admission.browser,
-                "transactions": cast("list[JsonObject]", spec.synthetic_transactions),
+                "transactions": spec.synthetic_transactions,
                 "timeout_seconds": float(self.settings.timeout_seconds)})
             failed = [result for result in results if not result.ok]
             failures = [result for result in failed if not result.browser_infra_error]

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from .dispatch_transport import send_telegram_message_chunked
 from .message_performance import format_ms as _format_ms
@@ -22,7 +22,7 @@ LOGGER = logging.getLogger("service-monitoring")
 
 def build_down_alert_message(result: DomainCheckResult) -> str:
     """Return the existing bounded domain warning without choosing an audience."""
-    d = cast("JsonObject", result.details or {})
+    d = result.details or {}
     lines = [f"{result.domain} is DOWN ❌", f"Reason: {result.reason}"]
 
     fail_streak = d.get("fail_streak")

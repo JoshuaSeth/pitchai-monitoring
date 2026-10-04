@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NotRequired, TypedDict, Unpack, cast
+from typing import TYPE_CHECKING, NotRequired, TypedDict, Unpack
 
 from .heartbeat_external import external_lines
 from .heartbeat_sections import host_lines, performance_lines
@@ -76,7 +76,7 @@ def build_heartbeat_message(**inputs: Unpack[HeartbeatInputs]) -> str:
 
 def _domain_line(domain: str, result: DomainCheckResult, entry: DomainEntryConfig | None) -> str:
     dashboard_only = bool(entry is not None and not entry.routes_telegram)
-    details = cast("JsonObject", result.details or {})
+    details = result.details or {}
     http_status = details.get("status_code")
     http_ms = format_ms(details.get("http_elapsed_ms"))
     browser_ms = format_ms(details.get("browser_elapsed_ms"))

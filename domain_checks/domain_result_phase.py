@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from .alert_transition import update_effective_ok
 from .common_check import DomainCheckResult
@@ -18,7 +18,6 @@ from .domain_alerts import build_down_alert_message, route_domain_telegram_alert
 if TYPE_CHECKING:
     from .cycle_channels import CycleChannels
     from .domain_entries import DomainEntryConfig
-    from .event_bus_delivery import JsonObject
     from .history_phase_context import EventSink
 
 LOGGER = logging.getLogger("service-monitoring")
@@ -96,7 +95,7 @@ class DomainResultPhase:
     async def _down(self, result: DomainCheckResult, started: float, failed: int) -> None:
         """Persist the edge before routing the enriched, separately owned message."""
         entry = self.entries[result.domain]
-        details = cast("JsonObject", result.details or {})
+        details = result.details or {}
         error = details.get("error")
         self.event("domain_down", float(started), {
             "domain": result.domain, "reason": result.reason, "status_code": details.get("status_code"),

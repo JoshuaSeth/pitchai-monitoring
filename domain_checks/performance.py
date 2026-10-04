@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from .cycle_values import coerce_optional_float, required_float
 
@@ -64,7 +64,7 @@ def evaluate_domain(
     Returns:
         An entry when a measurement exceeds its threshold, otherwise None.
     """
-    details = cast("JsonObject", result.details or {})
+    details = result.details or {}
     override = override_value if isinstance(override_value, dict) else {}
     http_max = required_float(override.get("http_elapsed_ms_max", defaults[0]))
     browser_max = required_float(override.get("browser_elapsed_ms_max", defaults[1]))
