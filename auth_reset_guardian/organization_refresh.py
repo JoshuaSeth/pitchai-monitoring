@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import html
+from dataclasses import replace
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
@@ -51,7 +52,7 @@ def refresh_organization(
     descriptors = cast("list[AccountDescriptor]", raw_descriptors)
     observations: dict[str, AccountObservation] = {}
     failures: set[str] = set()
-    for descriptor in descriptors:
+    for index, descriptor in enumerate(descriptors):
         if not descriptor.enabled:
             continue
         refreshed = capture_io(partial(context.source.refresh_account, descriptor))
@@ -63,6 +64,21 @@ def refresh_organization(
                 phase=phase,
                 selection=selection,
             )
+            if (
+                isinstance(refreshed.error, AccountScanError)
+                and refreshed.error.error_code == "broker_auth_invalid"
+                and refreshed.error.broker_state.get("availability") == "auth_invalid"
+            ):
+                # Exclude from this pass only. Preserve broker configuration and retry
+                # authentication on every future inventory refresh, including recheck.
+                descriptors[index] = replace(descriptor, enabled=False)
+                context.audit.record_event(
+                    run_id=context.run_id, now=context.clock(),
+                    event_type="organization_account_auth_unavailable", severity="warning",
+                    account_ref=descriptor.account_ref, account_label=descriptor.label,
+                    details={"phase": phase, "reason": "confirmed invalid authentication; excluded for this pass"},
+                )
+                continue
             failures.add(descriptor.account_ref)
             continue
         raw_observation = refreshed.value

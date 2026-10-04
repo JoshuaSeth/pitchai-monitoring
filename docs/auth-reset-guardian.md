@@ -181,3 +181,12 @@ balance exists, and both overage and spend-control blocks are explicitly false.
 Missing or mixed model permission retains the generic quota denial. An unavailable
 model with `credits_would_enable=true` describes hypothetical purchased capacity,
 not existing funding; zero actual credits can therefore establish exhaustion.
+
+
+Authentication isolation (2026-10-04): a fresh `broker_auth_invalid` error accompanied
+by broker availability `auth_invalid` excludes only that account from the current
+reset inventory. The account remains enabled in the broker and is retried on every
+scan and final recheck. The error remains audited and alerted. Unknown refresh
+errors, stale inventory and a selected account losing authentication still block
+consumption. A broken unrelated login no longer prevents a verified exhausted
+account from using its own banked reset.

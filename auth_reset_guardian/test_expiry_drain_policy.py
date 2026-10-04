@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from .clients import AccountScanError
 from .models import ConsumeResult
 from .test_organization_expiry import with_end
 from .test_organization_reset_policy import evaluate
@@ -160,3 +161,27 @@ def test_stale_inventory_prevents_expiry_redemption() -> None:
         captured_at=NOW - timedelta(minutes=3),
     )
     require_equal(evaluate(target, stale).state, "indeterminate")
+
+
+@pytest.mark.parametrize("confirmed_auth_failure", [True, False])
+def test_invalid_auth_isolated_but_unknown_refresh_failure_blocks(
+    tmp_path: Path, *, confirmed_auth_failure: bool,
+) -> None:
+    """Confirmed unusable auth cannot veto another account; unknown failures can."""
+    first = ending_account("first", expiry_hours=72)
+    broken = ending_account("broken", expiry_hours=48)
+    restored = replace(ending_account("first", expiry_hours=72, used=0), credits=(), available_count=0)
+    error = AccountScanError(
+        descriptor=broken.descriptor,
+        error_code="broker_auth_invalid" if confirmed_auth_failure else "network_error",
+        broker_state={"availability": "auth_invalid" if confirmed_auth_failure else "unknown"},
+    )
+    source = SequencedSource(
+        (first.descriptor, broken.descriptor),
+        {first.descriptor.account_ref: [first, first, restored, restored], broken.descriptor.account_ref: [error]},
+        [ConsumeResult(code="reset", windows_reset=1)],
+    )
+    summary = run_guardian(tmp_path / "audit.sqlite3", source=source, now=NOW)
+    require_equal(summary.redemption_count, int(confirmed_auth_failure))
+    require_equal(len(source.consume_calls), int(confirmed_auth_failure))
+    require_equal(int(broken.descriptor.enabled), 1)
