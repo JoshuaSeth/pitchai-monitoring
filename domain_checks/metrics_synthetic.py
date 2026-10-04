@@ -11,7 +11,7 @@ from urllib.parse import urljoin
 
 from playwright.async_api import Browser, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
 
-from domain_checks.common_check import _is_browser_infra_error  # noqa: SLF001
+from domain_checks.browser_errors import is_browser_infra_error
 
 
 @dataclass(frozen=True)
@@ -265,7 +265,7 @@ async def run_synthetic_transactions(
                 except Exception:
                     pass
         except PlaywrightTimeoutError as exc:
-            browser_infra_error = _is_browser_infra_error(exc)
+            browser_infra_error = is_browser_infra_error(exc)
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             title = None
             if page is not None:
@@ -329,7 +329,7 @@ async def run_synthetic_transactions(
                 )
             )
         except PlaywrightError as exc:
-            browser_infra_error = _is_browser_infra_error(exc)
+            browser_infra_error = is_browser_infra_error(exc)
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             title = None
             if page is not None:
@@ -389,7 +389,7 @@ async def run_synthetic_transactions(
                 )
             )
         except Exception as exc:
-            browser_infra_error = _is_browser_infra_error(exc)
+            browser_infra_error = is_browser_infra_error(exc)
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             if artifacts_dir and page is not None:
                 try:

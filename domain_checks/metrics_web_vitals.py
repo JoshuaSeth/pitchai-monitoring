@@ -7,7 +7,7 @@ from typing import Any
 
 from playwright.async_api import Browser, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
 
-from domain_checks.common_check import _is_browser_infra_error  # noqa: SLF001
+from domain_checks.browser_errors import is_browser_infra_error
 
 
 @dataclass(frozen=True)
@@ -156,7 +156,7 @@ async def measure_web_vitals(
             browser_infra_error=False,
         )
     except PlaywrightTimeoutError as exc:
-        browser_infra_error = _is_browser_infra_error(exc)
+        browser_infra_error = is_browser_infra_error(exc)
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         return WebVitalsResult(
             domain=cleaned_domain,
@@ -167,7 +167,7 @@ async def measure_web_vitals(
             browser_infra_error=browser_infra_error,
         )
     except PlaywrightError as exc:
-        browser_infra_error = _is_browser_infra_error(exc)
+        browser_infra_error = is_browser_infra_error(exc)
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         return WebVitalsResult(
             domain=cleaned_domain,
@@ -178,7 +178,7 @@ async def measure_web_vitals(
             browser_infra_error=browser_infra_error,
         )
     except Exception as exc:
-        browser_infra_error = _is_browser_infra_error(exc)
+        browser_infra_error = is_browser_infra_error(exc)
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         return WebVitalsResult(
             domain=cleaned_domain,

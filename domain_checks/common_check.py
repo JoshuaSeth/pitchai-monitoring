@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from .browser_check import browser_check
-from .browser_errors import is_browser_infra_error as _is_browser_infra_error
+from .browser_errors import is_browser_infra_error
 from .check_text import html_to_visible_text as _html_to_visible_text
 from .check_text import normalize_text as _normalize_text
 from .check_text import safe_url as _safe_url
@@ -25,8 +25,11 @@ __all__ = [
     "DEFAULT_MAINTENANCE_TEXT", "DomainCheckResult", "DomainCheckSpec", "SelectorCheck",
     "_compile_selector_list", "_default_selector_state", "_html_to_visible_text", "_is_browser_infra_error",
     "_normalize_text", "_safe_url", "browser_check", "find_chromium_executable", "http_get_check",
+    "is_browser_infra_error",
     "load_domain_spec_from_module_dict",
 ]
+
+_is_browser_infra_error = is_browser_infra_error
 
 DEFAULT_MAINTENANCE_TEXT = [
     "maintenance", "temporarily unavailable", "we'll be back", "bad gateway", "service unavailable", "gateway timeout",
