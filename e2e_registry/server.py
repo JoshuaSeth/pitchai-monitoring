@@ -11,6 +11,7 @@ import uvicorn
 from .monitoring_v2_runtime import (
     install_hotpath_monitoring,
     install_monitoring_v2,
+    install_registry_completions,
     production_registry_app,
 )
 
@@ -22,6 +23,7 @@ def main() -> None:
     app = production_registry_app()
     install_monitoring_v2(app)
     install_hotpath_monitoring(app)
+    install_registry_completions(app)
     uvicorn.run(cast("str", cast("object", app)), host=host, port=port, log_level="info")
 
 
