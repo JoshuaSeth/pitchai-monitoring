@@ -11,11 +11,11 @@ from typing import TYPE_CHECKING
 from domain_checks.cycle_values import required_float, required_int
 
 if TYPE_CHECKING:
-    from domain_checks.config_values import ConfigValue
+    from domain_checks.cycle_values import NumericInput
     from domain_checks.history import Sample
 
 
-def safe_float(value: ConfigValue) -> float | None:
+def safe_float(value: NumericInput) -> float | None:
     """Convert accepted scalars, preserving None for failed conversions.
 
     Returns:
@@ -26,7 +26,7 @@ def safe_float(value: ConfigValue) -> float | None:
     return None
 
 
-def safe_int(value: ConfigValue) -> int | None:
+def safe_int(value: NumericInput) -> int | None:
     """Apply integer conversion without inventing zero for invalid input.
 
     Returns:
@@ -37,7 +37,7 @@ def safe_int(value: ConfigValue) -> int | None:
     return None
 
 
-def safe_timestamp(value: ConfigValue) -> float | None:
+def safe_timestamp(value: NumericInput) -> float | None:
     """Interpret positive numeric or ISO times with naive values in UTC.
 
     Returns:
