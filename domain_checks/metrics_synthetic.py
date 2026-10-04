@@ -1,87 +1,168 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Sequential synthetic browser transactions with explicit resource/error ownership."""
+
 from __future__ import annotations
 
-import asyncio
-import json
-import os
-import re
 import time
+from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any
-from urllib.parse import urljoin
+from typing import TYPE_CHECKING, Self, TypedDict, Unpack
 
-from playwright.async_api import Browser, Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import Error as PlaywrightError
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-from domain_checks.browser_errors import is_browser_infra_error
+from .browser_check import route_filter
+from .browser_errors import is_browser_infra_error
+from .browser_failure import BrowserFailure
+from .synthetic_artifacts import SyntheticArtifacts
+from .synthetic_steps import SyntheticSteps
+from .synthetic_values import safe_str
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from playwright.async_api import Browser, BrowserContext, Page
+
+    from .event_bus_delivery import JsonObject, JsonValue
 
 
 @dataclass(frozen=True)
 class SyntheticTransactionResult:
+    """The unchanged public result fields for one attempted transaction."""
+
     domain: str
     name: str
     ok: bool
     elapsed_ms: float | None
     error: str | None
-    details: dict[str, Any]
+    details: JsonObject
     browser_infra_error: bool
 
 
-def _safe_str(x: Any, *, max_len: int = 500) -> str:
-    s = str(x or "")
-    return s if len(s) <= max_len else s[:max_len]
+@dataclass(frozen=True)
+class SyntheticRequest:
+    """Normalized shared inputs, computed before any transaction timing begins."""
+
+    domain: str
+    base: str
+    timeout_ms: int
+    trace_on_failure: bool
+
+    @classmethod
+    def from_options(cls, domain: str, base_url: str, options: SyntheticOptions) -> Self:
+        """Preserve the existing keyword set and normalization order before browser IO.
+
+        Returns:
+            The original shared input values with native conversion failures retained.
+
+        Raises:
+            TypeError: An unexpected keyword is supplied.
+        """
+        unexpected = options.keys() - {"timeout_seconds", "artifacts_dir", "trace_on_failure"}
+        if unexpected:
+            first = next(key for key in options if key in unexpected)
+            message = f"run_synthetic_transactions() got an unexpected keyword argument '{first}'"
+            raise TypeError(message)
+        return cls(str(domain or "").strip().lower(), str(base_url or "").strip(),
+                   int(max(1.0, float(options.get("timeout_seconds", 35.0))) * 1000),
+                   options.get("trace_on_failure", False))
 
 
-_ENV_REF_RE = re.compile(r"\$\{([A-Z0-9_]{1,64})\}")
+@dataclass(frozen=True)
+class SyntheticTransaction:
+    """The original normalized name and retained nonempty step list."""
+
+    name: str
+    steps: list[JsonValue]
 
 
-def _substitute_env_refs(text: str) -> str:
-    """
-    Replace ${VAR} with os.environ['VAR'].
-    - If a placeholder exists but the env var is missing, raise ValueError.
-    """
-    s = str(text or "")
-    if "${" not in s:
-        return s
+@dataclass
+class SyntheticSession:
+    """Own admitted resources and artifacts for exactly one transaction."""
 
-    missing: list[str] = []
+    started: float
+    artifacts: SyntheticArtifacts
+    context: BrowserContext | None = None
+    page: Page | None = None
 
-    def _repl(m: re.Match[str]) -> str:
-        key = m.group(1)
-        val = os.getenv(key)
-        if val is None:
-            missing.append(key)
-            return ""
-        return val
+    async def run(self, browser: Browser, request: SyntheticRequest,
+                  transaction: SyntheticTransaction) -> SyntheticTransactionResult:
+        """Execute a transaction and classify only ordinary browser/API failures.
 
-    out = _ENV_REF_RE.sub(_repl, s)
-    if missing:
-        raise ValueError(f"missing_env_secrets: {sorted(set(missing))}")
-    return out
+        Returns:
+            The original transaction result, before the caller releases resources.
+        """
+        with BrowserFailure() as failure:
+            self.context = await browser.new_context(viewport={"width": 1280, "height": 720})
+            with suppress(Exception):
+                await self.context.route("**/*", route_filter)
+            self.page = await self.context.new_page()
+            await self.artifacts.start(self.context, enabled=request.trace_on_failure)
+            actions = SyntheticSteps(self.page, request.base, request.timeout_ms, self.artifacts)
+            for step in transaction.steps[:60]:
+                await actions.run(step)
+            elapsed_ms = (time.perf_counter() - self.started) * 1000.0
+            result = SyntheticTransactionResult(domain=request.domain, name=transaction.name, ok=True,
+                elapsed_ms=round(elapsed_ms, 3), error=None,
+                details={"final_url": safe_str(self.page.url) if self.page else None, **self.artifacts.names},
+                browser_infra_error=False)
+            await self.artifacts.finish(self.context)
+            return result
+        return await self.failed(request.domain, transaction.name, failure)
+
+    async def failed(self, domain: str, name: str, failure: BrowserFailure) -> SyntheticTransactionResult:
+        """Preserve classification, clock, title and artifact ordering for failures.
+
+        Returns:
+            The same failure shape, including title only for Playwright failures.
+
+        Raises:
+            RuntimeError: The ordinary-error boundary did not retain an exception.
+        """
+        error = failure.error
+        if error is None:
+            message = "Synthetic failure boundary returned without an exception"
+            raise RuntimeError(message)
+        infrastructure = is_browser_infra_error(error)
+        elapsed_ms = (time.perf_counter() - self.started) * 1000.0
+        title = None
+        has_title = isinstance(error, PlaywrightError)
+        if has_title and self.page is not None:
+            with suppress(Exception):
+                title = await self.page.title()
+        await self.artifacts.failure(self.page, self.context)
+        kind = "TimeoutError" if isinstance(error, PlaywrightTimeoutError) else type(error).__name__
+        error_text = f"{kind}: {error}"
+        if self.artifacts.directory:
+            fields: JsonObject = {"error": error_text,
+                "final_url": safe_str(self.page.url) if self.page else None,
+                "browser_infra_error": bool(infrastructure)}
+            if has_title:
+                fields["title"] = safe_str(title) if title else None
+            self.artifacts.write_failure(fields)
+        details: JsonObject = {"final_url": safe_str(self.page.url) if self.page else None}
+        if has_title:
+            details["title"] = safe_str(title) if title is not None else None
+        details.update(self.artifacts.names)
+        return SyntheticTransactionResult(domain=domain, name=name, ok=False,
+            elapsed_ms=round(elapsed_ms, 3), error=error_text, details=details, browser_infra_error=infrastructure)
+
+    async def close(self) -> None:
+        """Close page then context, retaining cancellation and fatal cleanup errors."""
+        if self.page is not None:
+            with suppress(Exception):
+                await self.page.close()
+        if self.context is not None:
+            with suppress(Exception):
+                await self.context.close()
 
 
-def _write_artifact(path: str, content: str) -> None:
-    try:
-        p = os.path.abspath(path)
-        os.makedirs(os.path.dirname(p), exist_ok=True)
-        with open(p, "w", encoding="utf-8") as f:
-            f.write(content)
-    except Exception:
-        pass
+class SyntheticOptions(TypedDict, total=False):
+    """The existing optional public transaction keywords and their concrete types."""
 
-
-async def _apply_route_filter(context) -> None:
-    try:
-        async def _route_filter(route):
-            try:
-                if route.request.resource_type in {"image", "media", "font"}:
-                    await route.abort()
-                    return
-            except Exception:
-                pass
-            await route.continue_()
-
-        await context.route("**/*", _route_filter)
-    except Exception:
-        pass
+    timeout_seconds: float
+    artifacts_dir: str | None
+    trace_on_failure: bool
 
 
 async def run_synthetic_transactions(
@@ -89,364 +170,29 @@ async def run_synthetic_transactions(
     domain: str,
     base_url: str,
     browser: Browser,
-    transactions: list[dict[str, Any]],
-    timeout_seconds: float = 35.0,
-    artifacts_dir: str | None = None,
-    trace_on_failure: bool = False,
+    transactions: Sequence[JsonValue],
+    **options: Unpack[SyntheticOptions],
 ) -> list[SyntheticTransactionResult]:
-    out: list[SyntheticTransactionResult] = []
-    cleaned_domain = str(domain or "").strip().lower()
-    base = str(base_url or "").strip()
-    timeout_ms = int(max(1.0, float(timeout_seconds)) * 1000)
+    """Run configured transactions sequentially, keeping the original skip and step limits.
 
-    for tx in transactions:
-        if not isinstance(tx, dict):
+    Returns:
+        One result for each transaction with a nonempty list of steps.
+
+    """
+    artifacts_dir = options.get("artifacts_dir")
+    results: list[SyntheticTransactionResult] = []
+    request = SyntheticRequest.from_options(domain, base_url, options)
+    for value in transactions:
+        if not isinstance(value, dict):
             continue
-        name = str(tx.get("name") or "transaction").strip()[:120]
-        steps = tx.get("steps") or []
+        name = str(value.get("name") or "transaction").strip()[:120]
+        steps = value.get("steps") or []
         if not isinstance(steps, list) or not steps:
             continue
-
-        started = time.perf_counter()
-        context = None
-        page = None
-        browser_infra_error = False
-        tracing_started = False
-        artifact_names: dict[str, str] = {}
+        transaction = SyntheticTransaction(name, steps)
+        session = SyntheticSession(time.perf_counter(), SyntheticArtifacts(artifacts_dir))
         try:
-            context = await browser.new_context(viewport={"width": 1280, "height": 720})
-            await _apply_route_filter(context)
-            page = await context.new_page()
-
-            if trace_on_failure and artifacts_dir:
-                try:
-                    await context.tracing.start(screenshots=True, snapshots=True, sources=False)
-                    tracing_started = True
-                except Exception:
-                    tracing_started = False
-
-            for raw_step in steps[:60]:
-                if not isinstance(raw_step, dict):
-                    raise ValueError(f"Invalid step: {raw_step!r}")
-                typ = str(raw_step.get("type") or "").strip().lower()
-                if not typ:
-                    raise ValueError(f"Missing step.type: {raw_step!r}")
-
-                if typ == "goto":
-                    url = str(raw_step.get("url") or "").strip()
-                    if not url:
-                        url = base
-                    if url.startswith("/"):
-                        url = urljoin(base.rstrip("/") + "/", url.lstrip("/"))
-                    url = _substitute_env_refs(url)
-                    await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-                    continue
-
-                if typ == "click":
-                    sel = str(raw_step.get("selector") or "").strip()
-                    if not sel:
-                        raise ValueError("click requires selector")
-                    await page.click(sel, timeout=timeout_ms)
-                    continue
-
-                if typ == "fill":
-                    sel = str(raw_step.get("selector") or "").strip()
-                    txt = _substitute_env_refs(str(raw_step.get("text") or ""))
-                    if not sel:
-                        raise ValueError("fill requires selector")
-                    await page.fill(sel, txt, timeout=timeout_ms)
-                    continue
-
-                if typ == "press":
-                    sel = str(raw_step.get("selector") or "").strip()
-                    key = str(raw_step.get("key") or "").strip() or "Enter"
-                    if sel:
-                        await page.press(sel, key, timeout=timeout_ms)
-                    else:
-                        await page.keyboard.press(key)
-                    continue
-
-                if typ == "wait_for_selector":
-                    sel = str(raw_step.get("selector") or "").strip()
-                    state = str(raw_step.get("state") or "visible").strip()
-                    if not sel:
-                        raise ValueError("wait_for_selector requires selector")
-                    await page.wait_for_selector(sel, state=state, timeout=timeout_ms)
-                    continue
-
-                if typ == "expect_url_contains":
-                    value = str(raw_step.get("value") or "").strip()
-                    if not value:
-                        raise ValueError("expect_url_contains requires value")
-                    if value not in (page.url or ""):
-                        raise AssertionError(f"url_missing_substring: {value!r} not in {page.url!r}")
-                    continue
-
-                if typ == "expect_text":
-                    value = str(raw_step.get("text") or "").strip()
-                    if not value:
-                        raise ValueError("expect_text requires text")
-                    body = await page.evaluate("() => document.body?.innerText || ''")
-                    if value.lower() not in str(body or "").lower():
-                        raise AssertionError(f"text_missing: {value!r}")
-                    continue
-
-                if typ == "expect_title_contains":
-                    value = str(raw_step.get("text") or raw_step.get("value") or "").strip()
-                    if not value:
-                        raise ValueError("expect_title_contains requires text/value")
-                    title = await page.title()
-                    if value.lower() not in str(title or "").lower():
-                        raise AssertionError(f"title_missing_substring: {value!r} not in {title!r}")
-                    continue
-
-                if typ == "expect_selector_count":
-                    sel = str(raw_step.get("selector") or "").strip()
-                    if not sel:
-                        raise ValueError("expect_selector_count requires selector")
-                    try:
-                        expected = int(raw_step.get("count"))
-                    except Exception as exc:
-                        raise ValueError("expect_selector_count requires integer count") from exc
-                    got = await page.locator(sel).count()
-                    if int(got) != int(expected):
-                        raise AssertionError(f"selector_count_mismatch: selector={sel!r} got={got} expected={expected}")
-                    continue
-
-                if typ == "set_viewport":
-                    try:
-                        w = int(raw_step.get("width"))
-                        h = int(raw_step.get("height"))
-                    except Exception as exc:
-                        raise ValueError("set_viewport requires width,height ints") from exc
-                    await page.set_viewport_size({"width": w, "height": h})
-                    continue
-
-                if typ == "screenshot":
-                    if artifacts_dir and page is not None:
-                        nm = str(raw_step.get("name") or "screenshot").strip() or "screenshot"
-                        safe = "".join(ch for ch in nm if ch.isalnum() or ch in ("-", "_"))[:60] or "screenshot"
-                        filename = f"{safe}.png"
-                        path = os.path.join(str(artifacts_dir), filename)
-                        try:
-                            await page.screenshot(path=path, full_page=True)
-                            artifact_names[f"screenshot_{safe}"] = filename
-                        except Exception:
-                            pass
-                    continue
-
-                if typ in {"sleep", "sleep_ms"}:
-                    ms = raw_step.get("ms")
-                    try:
-                        ms_i = int(ms)
-                    except Exception:
-                        ms_i = 250
-                    await asyncio.sleep(max(0.0, ms_i / 1000.0))
-                    continue
-
-                raise ValueError(f"Unknown step.type: {typ!r}")
-
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
-            out.append(
-                SyntheticTransactionResult(
-                    domain=cleaned_domain,
-                    name=name,
-                    ok=True,
-                    elapsed_ms=round(elapsed_ms, 3),
-                    error=None,
-                    details={"final_url": _safe_str(page.url) if page else None, **artifact_names},
-                    browser_infra_error=False,
-                )
-            )
-            # Success: stop tracing without exporting (keep overhead low).
-            if tracing_started and context is not None:
-                try:
-                    await context.tracing.stop()
-                except Exception:
-                    pass
-        except PlaywrightTimeoutError as exc:
-            browser_infra_error = is_browser_infra_error(exc)
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
-            title = None
-            if page is not None:
-                try:
-                    title = await page.title()
-                except Exception:
-                    title = None
-            # Failure artifacts.
-            if artifacts_dir and page is not None:
-                try:
-                    failure_name = "failure.png"
-                    await page.screenshot(path=os.path.join(str(artifacts_dir), failure_name), full_page=True)
-                    artifact_names["failure_screenshot"] = failure_name
-                except Exception:
-                    pass
-            if tracing_started and context is not None and artifacts_dir:
-                try:
-                    trace_name = "trace.zip"
-                    await context.tracing.stop(path=os.path.join(str(artifacts_dir), trace_name))
-                    artifact_names["trace_zip"] = trace_name
-                except Exception:
-                    try:
-                        await context.tracing.stop()
-                    except Exception:
-                        pass
-            if artifacts_dir:
-                _write_artifact(
-                    os.path.join(str(artifacts_dir), "run.log"),
-                    _safe_str(
-                        _safe_str(
-                            json.dumps(
-                                {
-                                    "error": f"TimeoutError: {exc}",
-                                    "final_url": _safe_str(page.url) if page else None,
-                                    "title": _safe_str(title) if title else None,
-                                    "browser_infra_error": bool(browser_infra_error),
-                                },
-                                ensure_ascii=False,
-                                sort_keys=True,
-                                indent=2,
-                            ),
-                            max_len=50_000,
-                        ),
-                        max_len=50_000,
-                    ),
-                )
-                artifact_names.setdefault("run_log", "run.log")
-            out.append(
-                SyntheticTransactionResult(
-                    domain=cleaned_domain,
-                    name=name,
-                    ok=False,
-                    elapsed_ms=round(elapsed_ms, 3),
-                    error=f"TimeoutError: {exc}",
-                    details={
-                        "final_url": _safe_str(page.url) if page else None,
-                        "title": _safe_str(title) if title is not None else None,
-                        **artifact_names,
-                    },
-                    browser_infra_error=browser_infra_error,
-                )
-            )
-        except PlaywrightError as exc:
-            browser_infra_error = is_browser_infra_error(exc)
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
-            title = None
-            if page is not None:
-                try:
-                    title = await page.title()
-                except Exception:
-                    title = None
-            if artifacts_dir and page is not None:
-                try:
-                    failure_name = "failure.png"
-                    await page.screenshot(path=os.path.join(str(artifacts_dir), failure_name), full_page=True)
-                    artifact_names["failure_screenshot"] = failure_name
-                except Exception:
-                    pass
-            if tracing_started and context is not None and artifacts_dir:
-                try:
-                    trace_name = "trace.zip"
-                    await context.tracing.stop(path=os.path.join(str(artifacts_dir), trace_name))
-                    artifact_names["trace_zip"] = trace_name
-                except Exception:
-                    try:
-                        await context.tracing.stop()
-                    except Exception:
-                        pass
-            if artifacts_dir:
-                _write_artifact(
-                    os.path.join(str(artifacts_dir), "run.log"),
-                    _safe_str(
-                        json.dumps(
-                            {
-                                "error": f"{type(exc).__name__}: {exc}",
-                                "final_url": _safe_str(page.url) if page else None,
-                                "title": _safe_str(title) if title else None,
-                                "browser_infra_error": bool(browser_infra_error),
-                            },
-                            ensure_ascii=False,
-                            sort_keys=True,
-                            indent=2,
-                        ),
-                        max_len=50_000,
-                    ),
-                )
-                artifact_names.setdefault("run_log", "run.log")
-            out.append(
-                SyntheticTransactionResult(
-                    domain=cleaned_domain,
-                    name=name,
-                    ok=False,
-                    elapsed_ms=round(elapsed_ms, 3),
-                    error=f"{type(exc).__name__}: {exc}",
-                    details={
-                        "final_url": _safe_str(page.url) if page else None,
-                        "title": _safe_str(title) if title is not None else None,
-                        **artifact_names,
-                    },
-                    browser_infra_error=browser_infra_error,
-                )
-            )
-        except Exception as exc:
-            browser_infra_error = is_browser_infra_error(exc)
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
-            if artifacts_dir and page is not None:
-                try:
-                    failure_name = "failure.png"
-                    await page.screenshot(path=os.path.join(str(artifacts_dir), failure_name), full_page=True)
-                    artifact_names["failure_screenshot"] = failure_name
-                except Exception:
-                    pass
-            if tracing_started and context is not None and artifacts_dir:
-                try:
-                    trace_name = "trace.zip"
-                    await context.tracing.stop(path=os.path.join(str(artifacts_dir), trace_name))
-                    artifact_names["trace_zip"] = trace_name
-                except Exception:
-                    try:
-                        await context.tracing.stop()
-                    except Exception:
-                        pass
-            if artifacts_dir:
-                _write_artifact(
-                    os.path.join(str(artifacts_dir), "run.log"),
-                    _safe_str(
-                        json.dumps(
-                            {
-                                "error": f"{type(exc).__name__}: {exc}",
-                                "final_url": _safe_str(page.url) if page else None,
-                                "browser_infra_error": bool(browser_infra_error),
-                            },
-                            ensure_ascii=False,
-                            sort_keys=True,
-                            indent=2,
-                        ),
-                        max_len=50_000,
-                    ),
-                )
-                artifact_names.setdefault("run_log", "run.log")
-            out.append(
-                SyntheticTransactionResult(
-                    domain=cleaned_domain,
-                    name=name,
-                    ok=False,
-                    elapsed_ms=round(elapsed_ms, 3),
-                    error=f"{type(exc).__name__}: {exc}",
-                    details={"final_url": _safe_str(page.url) if page else None, **artifact_names},
-                    browser_infra_error=browser_infra_error,
-                )
-            )
+            results.append(await session.run(browser, request, transaction))
         finally:
-            if page is not None:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-            if context is not None:
-                try:
-                    await context.close()
-                except Exception:
-                    pass
-
-    return out
+            await session.close()
+    return results
