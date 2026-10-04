@@ -185,3 +185,26 @@ def test_invalid_auth_isolated_but_unknown_refresh_failure_blocks(
     require_equal(summary.redemption_count, int(confirmed_auth_failure))
     require_equal(len(source.consume_calls), int(confirmed_auth_failure))
     require_equal(int(broken.descriptor.enabled), 1)
+
+
+@pytest.mark.parametrize("drift_seconds", [-1, 1, 2, 3, 3600])
+def test_reset_timestamp_jitter_at_final_recheck(tmp_path: Path, drift_seconds: int) -> None:
+    """Tiny provider timestamp drift preserves an otherwise exact reset decision."""
+    first = ending_account("first", expiry_hours=72)
+    fresh = first
+    usage = dict(first.usage_state)
+    window = dict(usage["primary_window"])
+    window["reset_at"] += drift_seconds
+    window["reset_after_seconds"] += drift_seconds
+    usage["primary_window"] = window
+    fresh = replace(first, usage_state=usage)
+    restored = replace(ending_account("first", expiry_hours=72, used=0), credits=(), available_count=0)
+    source = SequencedSource(
+        (first.descriptor,),
+        {first.descriptor.account_ref: [first, fresh, restored, restored]},
+        [ConsumeResult(code="reset", windows_reset=1)],
+    )
+    summary = run_guardian(tmp_path / "audit.sqlite3", source=source, now=NOW)
+    expected = int(abs(drift_seconds) <= 2)
+    require_equal(summary.redemption_count, expected)
+    require_equal(len(source.consume_calls), expected)
