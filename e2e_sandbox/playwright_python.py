@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from contextlib import suppress
@@ -22,6 +21,7 @@ from domain_checks.common_check import find_chromium_executable
 from .python_browser import BrowserSession
 from .python_browser import route_filter as _route_filter
 from .python_execution import PreparedSubmission
+from .python_home import invocation_home
 from .python_module import load_module_from_path as _load_module_from_path
 from .python_module import pick_entry as _pick_entry
 from .python_result import RESULT_PREFIX, RunFailureBoundary, RunResult
@@ -142,10 +142,9 @@ def fatal_result(error: Exception, trace: str, directory: Path) -> RunResult:
 
 
 def main() -> None:
-    """Use the asyncio backend while preserving HOME default and CLI exit behavior."""
-    os.environ.setdefault("HOME", "/tmp")
+    """Run the existing CLI with a private fallback when HOME is not configured."""
     rc = 130
-    with suppress(KeyboardInterrupt):
+    with invocation_home(), suppress(KeyboardInterrupt):
         rc = anyio.run(_amain, sys.argv[1:], backend="asyncio")
     sys.exit(int(rc))
 
