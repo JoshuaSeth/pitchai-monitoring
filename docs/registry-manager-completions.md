@@ -68,3 +68,14 @@ Keep those acceptance stages separate in reports.
   unrelated suppression sites. No suppression, rule or threshold was changed.
 - Receiver and manager-rule acceptance are separate companion changes. No live
   configuration or original source event was changed by these tests.
+
+The first hosted ratchet exposed an environment mismatch in the local static
+proof: the locked quality environment lacked pytest and repository-root import
+resolution. The companion quality configuration now pins pytest and resolves
+the existing source root explicitly. Both lockfiles and the manifest/verifier/
+workflow digest chain are updated together. No baseline, diagnostic severity,
+exclusion, gate or threshold is relaxed. The corrected locked environment
+reports zero type errors or warnings for the changed sources and passes all
+eight ratchet contract tests. Full hosted ratchet acceptance remains separate
+from these scoped results; this PR must not be treated as merge-ready from the
+earlier enriched-environment proof alone.
