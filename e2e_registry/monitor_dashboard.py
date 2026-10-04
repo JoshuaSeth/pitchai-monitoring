@@ -1,255 +1,31 @@
 from __future__ import annotations
 
-import json
-import math
-import time
-from dataclasses import dataclass
-from datetime import date, datetime, timezone
-from pathlib import Path
 from typing import Any
 
-import yaml
 
 from domain_checks.history import (
     Sample,
-    coerce_history,
     compute_availability,
     latency_percentile_ms,
     window_samples,
 )
-from domain_checks.inventory import parse_domain_alert_policy
-from e2e_registry.disablement import parse_disabled_until
 
+from .dashboard_data import MonitorData, load_monitor_data
+from .dashboard_data import load_json as _load_json
+from .dashboard_data import load_yaml as _load_yaml
+from .dashboard_inventory import normalize_domain_entries as _normalize_domain_entries
+from .dashboard_inventory import normalize_domain_groups as _normalize_domain_groups
+from .dashboard_values import downsample as _downsample
+from .dashboard_values import history_range_utc as _history_range_utc
+from .dashboard_values import parse_range_to_seconds as _parse_range_to_seconds
+from .dashboard_values import safe_float as _safe_float
+from .dashboard_values import safe_int as _safe_int
+from .dashboard_values import safe_timestamp as _safe_timestamp
 
-def _safe_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except Exception:
-        return None
-
-
-def _safe_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except Exception:
-        return None
-
-
-def _safe_timestamp(value: Any) -> float | None:
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        timestamp = float(value)
-        return timestamp if timestamp > 0 else None
-    raw = str(value).strip()
-    if not raw:
-        return None
-    try:
-        timestamp = float(raw)
-    except ValueError:
-        iso_value = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
-        try:
-            parsed = datetime.fromisoformat(iso_value)
-        except ValueError:
-            return None
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        timestamp = parsed.timestamp()
-    return timestamp if timestamp > 0 else None
-
-
-def _downsample(items: list[Any], *, max_points: int) -> list[Any]:
-    max_points = max(1, int(max_points))
-    n = len(items)
-    if n <= max_points:
-        return items
-    step = int(math.ceil(n / float(max_points)))
-    if step <= 1:
-        return items
-    out = items[::step]
-    # Always include last point.
-    if out and out[-1] is not items[-1]:
-        out.append(items[-1])
-    return out
-
-
-def _load_yaml(path: Path) -> dict[str, Any]:
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except FileNotFoundError:
-        return {}
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _load_json(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {}
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _normalize_domain_entries(domains_cfg: Any) -> list[dict[str, Any]]:
-    """
-    Minimal replica of domain_checks.main._normalize_domain_entries (without disabled_until parsing).
-    Used for dashboard display only.
-    """
-    if not isinstance(domains_cfg, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for index, entry in enumerate(domains_cfg):
-        if isinstance(entry, str):
-            d = entry.strip()
-            if not d:
-                continue
-            out.append(
-                {
-                    "domain": d,
-                    "label": d,
-                    "group": "ungrouped",
-                    "environment": "unspecified",
-                    "kind": "application",
-                    "disabled": False,
-                    "disabled_reason": None,
-                    "disabled_until_ts": None,
-                    "alert_policy": parse_domain_alert_policy(entry).to_dashboard_dict(),
-                }
-            )
-            continue
-        if isinstance(entry, dict):
-            d = str(entry.get("domain") or "").strip()
-            if not d:
-                continue
-            disabled = bool(entry.get("disabled")) or (entry.get("enabled") is False)
-            alert_policy = parse_domain_alert_policy(entry, path=f"domains[{index}]")
-
-            out.append(
-                {
-                    "domain": d,
-                    "label": str(entry.get("label") or d).strip(),
-                    "group": str(entry.get("group") or "ungrouped").strip(),
-                    "environment": str(entry.get("environment") or "unspecified").strip(),
-                    "kind": str(entry.get("kind") or "application").strip(),
-                    "disabled": disabled,
-                    "disabled_reason": str(entry.get("disabled_reason") or "").strip() or None,
-                    "disabled_until_ts": parse_disabled_until(entry.get("disabled_until")),
-                    "alert_policy": alert_policy.to_dashboard_dict(),
-                }
-            )
-            continue
-    # De-dupe while preserving order.
-    seen: set[str] = set()
-    deduped: list[dict[str, Any]] = []
-    for it in out:
-        d = str(it.get("domain") or "").strip()
-        if not d or d in seen:
-            continue
-        seen.add(d)
-        deduped.append(it)
-    return deduped
-
-
-def _normalize_domain_groups(groups_cfg: Any) -> list[dict[str, Any]]:
-    if not isinstance(groups_cfg, dict):
-        return []
-    groups: list[dict[str, Any]] = []
-    for group_id, raw in groups_cfg.items():
-        cleaned_id = str(group_id or "").strip()
-        if not cleaned_id or not isinstance(raw, dict):
-            continue
-        try:
-            order = int(raw.get("order", 1000))
-        except (TypeError, ValueError):
-            order = 1000
-        groups.append(
-            {
-                "id": cleaned_id,
-                "label": str(raw.get("label") or cleaned_id.replace("-", " ").title()).strip(),
-                "description": str(raw.get("description") or "").strip() or None,
-                "order": order,
-            }
-        )
-    return sorted(groups, key=lambda group: (int(group["order"]), str(group["label"]).lower()))
-
-
-@dataclass(frozen=True)
-class MonitorData:
-    state: dict[str, Any]
-    config: dict[str, Any]
-    state_path: str
-    config_path: str
-    loaded_at_ts: float
-    state_error: str | None
-
-
-def load_monitor_data(*, state_path: str, config_path: str) -> MonitorData:
-    sp = Path(str(state_path or "").strip())
-    cp = Path(str(config_path or "").strip())
-    state_raw = _load_json(sp) if str(sp) else {}
-    cfg_raw = _load_yaml(cp) if str(cp) else {}
-
-    history = coerce_history(state_raw.get("history"))
-    state_raw["history"] = history
-
-    state_error = None
-    if not state_raw:
-        state_error = f"missing_or_invalid_state: {sp}"
-    if not cfg_raw:
-        # Keep dashboard usable even if config missing; just surface the message.
-        state_error = (state_error + "; " if state_error else "") + f"missing_or_invalid_config: {cp}"
-
-    return MonitorData(
-        state=state_raw,
-        config=cfg_raw,
-        state_path=str(sp),
-        config_path=str(cp),
-        loaded_at_ts=time.time(),
-        state_error=state_error,
-    )
-
-
-def _parse_range_to_seconds(rng: str) -> float:
-    s = str(rng or "").strip().lower()
-    if s in {"6h", "6hr", "6hrs"}:
-        return 6 * 3600.0
-    if s in {"12h", "12hr", "12hrs"}:
-        return 12 * 3600.0
-    if s in {"24h", "1d", "day"}:
-        return 24 * 3600.0
-    if s in {"48h", "2d"}:
-        return 48 * 3600.0
-    if s in {"7d", "week"}:
-        return 7 * 86400.0
-    if s in {"14d", "2w", "two_weeks"}:
-        return 14 * 86400.0
-    if s in {"30d", "month"}:
-        return 30 * 86400.0
-    # default
-    return 24 * 3600.0
-
-
-def _history_range_utc(history_by_domain: dict[str, list[Sample]]) -> tuple[float | None, float | None]:
-    min_ts = None
-    max_ts = None
-    for _dom, items in history_by_domain.items():
-        if not items:
-            continue
-        try:
-            t0 = float(items[0][0])
-            t1 = float(items[-1][0])
-        except Exception:
-            continue
-        min_ts = t0 if min_ts is None else min(min_ts, t0)
-        max_ts = t1 if max_ts is None else max(max_ts, t1)
-    return min_ts, max_ts
+__all__ = ["MonitorData", "_downsample", "_history_range_utc", "_load_json", "_load_yaml",
+           "_normalize_domain_entries", "_normalize_domain_groups", "_parse_range_to_seconds",
+           "_safe_float", "_safe_int", "_safe_timestamp", "build_dashboard_summary", "domain_timeseries",
+           "load_monitor_data", "resolve_range", "signal_timeseries", "summarize_domains", "summarize_signals"]
 
 
 def summarize_domains(
