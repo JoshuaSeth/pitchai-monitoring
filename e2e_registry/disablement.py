@@ -10,10 +10,6 @@ from typing import Final
 _EMPTY: Final[str] = ""
 
 
-class InvalidDisablementError(ValueError):
-    """A populated disabled-until value cannot be converted to UTC epoch seconds."""
-
-
 type DisablementValue = str | int | float | None
 
 
@@ -23,8 +19,6 @@ def parse_disabled_until(value: DisablementValue) -> float | None:
     Returns:
         A positive Unix timestamp or ``None`` for empty/nonpositive values.
 
-    Raises:
-        InvalidDisablementError: The populated value is not a valid numeric/date value.
     """
     if value is None:
         return None
@@ -45,12 +39,9 @@ def parse_disabled_until(value: DisablementValue) -> float | None:
     with suppress(ValueError):
         parsed = datetime.fromisoformat(iso_text)
     if parsed is None:
-        parsed_date: date | None = None
-        with suppress(ValueError):
-            parsed_date = date.fromisoformat(text)
-        if parsed_date is None:
-            message = f"Invalid isoformat value: {text}"
-            raise InvalidDisablementError(message)
+        # Let the standard parser raise its historical ValueError text.  The
+        # app endpoint prefixes that message with ``invalid_until:``.
+        parsed_date = date.fromisoformat(text)
         parsed = datetime(parsed_date.year, parsed_date.month, parsed_date.day, tzinfo=UTC)
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)

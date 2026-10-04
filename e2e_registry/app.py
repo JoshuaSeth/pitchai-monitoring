@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from e2e_registry import db as dbm
-from e2e_registry.disablement import InvalidDisablementError, parse_disabled_until
+from e2e_registry.disablement import parse_disabled_until
 from e2e_registry import monitor_dashboard as md
 from e2e_registry.alerts import (
     build_dispatch_prompt_for_failure,
@@ -114,7 +114,7 @@ def _sha256_hex(data: bytes) -> str:
 def _parse_until(value: Any) -> float | None:
     try:
         return parse_disabled_until(value)
-    except InvalidDisablementError as exc:
+    except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"invalid_until: {exc}") from exc
 
 
