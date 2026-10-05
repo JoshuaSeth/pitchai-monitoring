@@ -21,6 +21,7 @@ from .service import CapacityService
 from .settings import DashboardSettings
 from .source import BrokerStateSource
 from .subscription_routes import register_subscription_route
+from .token_usage_routes import register_token_usage_route
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -148,6 +149,12 @@ def create_scheduling_app(
         require_operator=_require_operator,
     )
     register_claude_route(
+        application,
+        settings=selected_settings,
+        identity_default=identity_header,
+        require_operator=_require_operator,
+    )
+    register_token_usage_route(
         application,
         settings=selected_settings,
         identity_default=identity_header,

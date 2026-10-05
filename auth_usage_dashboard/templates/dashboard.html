@@ -162,6 +162,24 @@
         </div>
       </section>
 
+      <section class="token-usage-section" id="token-usage" aria-labelledby="token-usage-title" data-testid="token-usage">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Fleet token ledger · all providers</div>
+            <h2 id="token-usage-title">Tokens used by provider, model and project</h2>
+          </div>
+          <div class="token-usage-heading-tools">
+            <span class="section-aside" id="token-usage-freshness">Ledger pending</span>
+            <button class="token-usage-toggle" id="token-usage-toggle" type="button" aria-expanded="true" aria-controls="token-usage-body">Hide ledger</button>
+          </div>
+        </div>
+        <div id="token-usage-body">
+          <div class="token-usage-controls" id="token-usage-controls"></div>
+          <div class="token-usage-panels" id="token-usage-panels" aria-live="polite"></div>
+          <p class="token-usage-note" id="token-usage-note">Hourly totals from the engine's own per-turn token records.</p>
+        </div>
+      </section>
+
       <section class="reset-bank-section" aria-labelledby="reset-bank-title">
         <div class="section-heading">
           <div>
@@ -258,5 +276,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="/static/dashboard.js" defer></script>
+    <script src="/static/token_usage.js" defer></script>
   </body>
 </html>

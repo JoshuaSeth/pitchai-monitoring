@@ -1,0 +1,30 @@
+[Unit]
+Description=Export fleet token usage for codexusage (read-only rollout tail)
+Documentation=file:/usr/local/lib/pitchai-token-ledger/README
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+Environment=PYTHONPATH=/usr/local/lib/pitchai-token-ledger
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 -m token_ledger run
+Nice=15
+IOSchedulingClass=idle
+CPUWeight=10
+CPUQuota=50%
+MemoryMax=512M
+TimeoutStartSec=300
+NoNewPrivileges=yes
+# Everything is read-only except the exporter's own state and (on master) the fleet store.
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/pitchai-token-ledger -/srv/codex-usage-dashboard
+StateDirectory=pitchai-token-ledger
+StateDirectoryMode=0700
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+LockPersonality=yes

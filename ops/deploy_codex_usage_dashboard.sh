@@ -10,6 +10,9 @@ readonly DASHBOARD_DATA="/srv/codex-usage-dashboard"
 readonly HISTORY_DB="${DASHBOARD_DATA}/usage-history.sqlite3"
 readonly HISTORY_BACKUPS="${DASHBOARD_DATA}/backups"
 readonly SUBSCRIPTIONS_FILE="${DASHBOARD_DATA}/codex-subscriptions.json"
+readonly TOKEN_LEDGER_DB="${DASHBOARD_DATA}/token-ledger.sqlite3"
+readonly TOKEN_LEDGER_LIB="/usr/local/lib/pitchai-token-ledger"
+readonly TOKEN_LEDGER_NODES="master,jeff-dev,fsn1"
 readonly PROD_PORT="8124"
 readonly CANARY_PORT="18124"
 readonly MOBILE_APP_ID_PREFIX="ZM6568G5FX"
@@ -90,6 +93,26 @@ systemctl daemon-reload
 systemctl enable --now claude-usage-export.timer >/dev/null
 systemctl start claude-usage-export.service
 
+# Fleet token ledger: master tails its own rollouts read-only and ingests worker
+# batches (see ops/install_token_ledger_node.sh); the dashboard only reads it.
+install -d -m 755 "${TOKEN_LEDGER_LIB}"
+rm -rf "${TOKEN_LEDGER_LIB}/token_ledger.new"
+cp -R "${REPO_ROOT}/auth_usage_dashboard/token_ledger" "${TOKEN_LEDGER_LIB}/token_ledger.new"
+find "${TOKEN_LEDGER_LIB}/token_ledger.new" -name __pycache__ -prune -exec rm -rf {} +
+printf '%s\n' "${git_full_sha}" > "${TOKEN_LEDGER_LIB}/token_ledger.new/VERSION"
+chmod -R u=rwX,go=rX "${TOKEN_LEDGER_LIB}/token_ledger.new"
+rm -rf "${TOKEN_LEDGER_LIB}/token_ledger.old"
+if [[ -d "${TOKEN_LEDGER_LIB}/token_ledger" ]]; then
+  mv "${TOKEN_LEDGER_LIB}/token_ledger" "${TOKEN_LEDGER_LIB}/token_ledger.old"
+fi
+mv "${TOKEN_LEDGER_LIB}/token_ledger.new" "${TOKEN_LEDGER_LIB}/token_ledger"
+rm -rf "${TOKEN_LEDGER_LIB}/token_ledger.old"
+install -m 644 "${REPO_ROOT}/ops/token-ledger-export.service" /etc/systemd/system/token-ledger-export.service
+install -m 644 "${REPO_ROOT}/ops/token-ledger-export.timer" /etc/systemd/system/token-ledger-export.timer
+systemctl daemon-reload
+systemctl enable --now token-ledger-export.timer >/dev/null
+systemctl start token-ledger-export.service || printf 'Token ledger first run failed; the timer retries.\n' >&2
+
 # The curated subscription snapshot lives outside this public repository; the
 # deployment only installs an already reviewed file and never invents states.
 if [[ -f "${subscriptions_source}" ]]; then
@@ -136,6 +159,9 @@ run_dashboard() {
     if [[ -f "${SUBSCRIPTIONS_FILE}" ]]; then
       history_args+=(--mount "type=bind,src=${SUBSCRIPTIONS_FILE},dst=/dashboard-data/codex-subscriptions.json,readonly")
     fi
+    if [[ -f "${TOKEN_LEDGER_DB}" ]]; then
+      history_args+=(--mount "type=bind,src=${TOKEN_LEDGER_DB},dst=/dashboard-data/token-ledger.sqlite3,readonly")
+    fi
   else
     history_args+=(--mount "type=bind,src=${DASHBOARD_DATA},dst=/dashboard-data")
   fi
@@ -171,6 +197,8 @@ run_dashboard() {
     --env AUTH_USAGE_TIMESERIES_DB=/dashboard-data/usage-history.sqlite3 \
     --env AUTH_USAGE_TIMESERIES_SAMPLE_INTERVAL_SECONDS=300 \
     --env AUTH_USAGE_TIMESERIES_STARTUP_DELAY_SECONDS=30 \
+    --env AUTH_USAGE_TOKEN_LEDGER_DB=/dashboard-data/token-ledger.sqlite3 \
+    --env "AUTH_USAGE_TOKEN_LEDGER_NODES=${TOKEN_LEDGER_NODES}" \
     --env "AUTH_USAGE_COLLECTOR_VERSION=${git_full_sha}" \
     --env AUTH_USAGE_REQUIRE_PROXY_AUTH=1 \
     --env AUTH_USAGE_MOBILE_ENABLED=1 \
@@ -267,7 +295,7 @@ check_dashboard() {
               "http://127.0.0.1:${port}/api/v1/claude-accounts")" && \
               python3 -c 'import json,sys; p=json.load(sys.stdin); expected=json.load(open(sys.argv[1])); assert p["schema_version"] == 1 and not p["stale"] and not p["error"]; assert len(p["accounts"]) == len(expected["accounts"])' \
               "${DASHBOARD_DATA}/claude-accounts.json" <<<"${claude_output}"; then
-              if check_subscriptions "${port}" "${name}"; then
+              if check_token_usage "${port}" && check_subscriptions "${port}" "${name}"; then
                 return 0
               fi
             fi
@@ -279,6 +307,25 @@ check_dashboard() {
     sleep 0.25
   done
   return 1
+}
+
+check_token_usage() {
+  local port="$1"
+  local output
+  output="$(curl --fail --silent --max-time 10 \
+    --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
+    "http://127.0.0.1:${port}/api/v1/token-usage?span=24h" 2>/dev/null)" || return 1
+  python3 -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+assert payload["schema_version"] == 1 and payload["range"] == "24h"
+assert payload["dimensions"] is not None or payload["error"]
+if payload["dimensions"] is not None:
+    assert len(payload["buckets"]) == 24
+    assert set(payload["dimensions"]) == {"provider", "model", "project"}
+' <<<"${output}"
 }
 
 check_subscriptions() {
