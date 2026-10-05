@@ -86,7 +86,13 @@ PY
 )"
 # Export only redacted owner status; login homes are never mounted in the dashboard.
 install -d -m 755 /usr/local/lib/pitchai-codex-usage
-install -m 644 "${REPO_ROOT}/auth_usage_dashboard/claude_accounts.py" /usr/local/lib/pitchai-codex-usage/claude_accounts.py
+install -d -m 755 /usr/local/lib/pitchai-codex-usage/claude_usage_export
+install -m 644 /dev/null /usr/local/lib/pitchai-codex-usage/claude_usage_export/__init__.py
+for module in claude_accounts claude_probe claude_quota; do
+  install -m 644 "${REPO_ROOT}/auth_usage_dashboard/${module}.py" \
+    "/usr/local/lib/pitchai-codex-usage/claude_usage_export/${module}.py"
+done
+rm -f /usr/local/lib/pitchai-codex-usage/claude_accounts.py
 install -m 644 "${REPO_ROOT}/ops/claude-usage-export.service" /etc/systemd/system/claude-usage-export.service
 install -m 644 "${REPO_ROOT}/ops/claude-usage-export.timer" /etc/systemd/system/claude-usage-export.timer
 systemctl daemon-reload

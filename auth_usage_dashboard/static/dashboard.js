@@ -849,12 +849,72 @@
     }
   }
 
+  const claudeQuotaReasons = {
+    probe_failed: "The latest usage readout failed",
+    probe_timeout: "The latest usage readout timed out",
+    no_limits_reported: "Claude reported no plan limits for this login",
+    probe_guard_tripped: "Usage readouts were stopped by the safety guard; operator review needed",
+    probe_disabled: "Usage readouts are paused by the safety guard",
+    binary_unavailable: "The pinned Claude binary could not start",
+  };
+
+  function claudeUsed(reading) {
+    const used = reading ? finiteNumber(reading.used_percent) : null;
+    return used === null ? null : Math.max(0, Math.min(100, used));
+  }
+
+  function claudeRemaining(reading, used) {
+    const remaining = finiteNumber(reading.remaining_percent);
+    return remaining === null ? Math.max(0, 100 - used) : Math.max(0, Math.min(100, remaining));
+  }
+
+  function claudeReset(reading) {
+    const date = parseDate(reading.resets_at);
+    if (!date) return null;
+    return `${formatTime(reading.resets_at, false)} · ${formatDuration((date.getTime() - Date.now()) / 1000)}`;
+  }
+
+  function claudeWindowMeter(label, reading) {
+    const wrapper = element("div", "claude-window");
+    wrapper.appendChild(element("div", "claude-window-label", label));
+    const used = claudeUsed(reading);
+    if (used === null) {
+      wrapper.appendChild(element("div", "claude-window-reset", "Not reported"));
+      return wrapper;
+    }
+    const remaining = claudeRemaining(reading, used);
+    const line = element("div", "capacity-number");
+    line.append(element("strong", "", `${number(remaining, 0)}% left`), element("span", "", `${number(used, 0)}% used`));
+    const reset = claudeReset(reading);
+    const limited = used >= 100;
+    let resetText = reset ? `Resets ${reset}` : used === 0 ? "Starts with the next request" : "No reset reported";
+    if (limited) resetText = `Limit reached · ${reset ? `resets ${reset}` : "no reset reported"}`;
+    wrapper.append(line, meter(remaining, "capacity-meter"), element("div", `claude-window-reset${limited ? " is-limited" : ""}`, resetText));
+    return wrapper;
+  }
+
+  function claudeScopedLine(label, reading) {
+    const used = claudeUsed(reading);
+    if (used === null) return null;
+    const reset = claudeReset(reading);
+    const level = used >= 100 ? "limit reached" : `${number(claudeRemaining(reading, used), 0)}% left`;
+    return element("p", `claude-scoped${used >= 100 ? " is-limited" : ""}`, `${label} week: ${level}${reset ? ` · resets ${reset}` : ""}`);
+  }
+
+  function claudeQuotaNote(account) {
+    const parts = ["Official usage readout"];
+    if (claudeQuotaReasons[account.quota_error]) parts.push(claudeQuotaReasons[account.quota_error]);
+    const age = ageFromIso(account.quota_observed_at);
+    parts.push(account.quota_stale ? `last reading ${age}` : `checked ${age}`);
+    return parts.join(" · ");
+  }
+
   function renderClaudeAccounts(snapshot) {
     if (!snapshot) return;
     const accounts = snapshot.accounts || [];
     const labels = { ready: "Ready", cooldown: "Cooling down", sign_in_required: "Sign-in needed", unavailable: "Status unavailable" };
     const classes = { ready: "available", cooldown: "weekly_limited", sign_in_required: "auth_invalid", unavailable: "unknown" };
-    const windows = { five_hour: "5-hour window", seven_day: "Weekly window", seven_day_opus: "Opus weekly window", seven_day_sonnet: "Sonnet weekly window" };
+    const windowNames = { five_hour: "5-hour window", seven_day: "Weekly window", seven_day_opus: "Opus weekly window", seven_day_sonnet: "Sonnet weekly window" };
     byId("claude-freshness").textContent = snapshot.generated_at
       ? `${accounts.length} accounts · ${snapshot.stale ? "Status is stale · " : ""}Checked ${ageFromIso(snapshot.generated_at)}`
       : "Status unavailable";
@@ -869,14 +929,23 @@
         account.role,
         account.rotation_enabled ? "Automatic rotation enabled" : "Single account",
       ].join(" · ")));
-      const used = finiteNumber(account.used_percent);
-      if (used !== null) {
-        card.append(element("strong", "claude-usage", `${number(100 - used, 0)}% remaining${account.usage_stale ? " · Last reported" : ""}`));
-        card.append(meter(100 - used));
-        card.append(element("p", "claude-account-meta", `${windows[account.window] || "Reported usage window"} · ${ageFromIso(account.usage_observed_at)}`));
+      const windows = account.windows && typeof account.windows === "object" ? account.windows : {};
+      const scoped = Array.isArray(account.scoped_windows) ? account.scoped_windows : [];
+      const scopedLines = [
+        windows.seven_day_sonnet ? claudeScopedLine("Sonnet", windows.seven_day_sonnet) : null,
+        ...scoped.map((reading) => claudeScopedLine(text(reading.label), reading)),
+      ].filter(Boolean);
+      if (windows.five_hour || windows.seven_day || scopedLines.length) {
+        const meters = element("div", "claude-windows");
+        meters.append(claudeWindowMeter("5-hour window", windows.five_hour), claudeWindowMeter("Weekly window", windows.seven_day));
+        card.append(meters, ...scopedLines, element("p", "claude-account-meta", claudeQuotaNote(account)));
       } else {
-        card.append(element("strong", "claude-usage", "No usage reported yet"));
-        card.append(element("p", "claude-account-meta", "Quota readings appear after the account runs a lane."));
+        card.append(element("strong", "claude-usage", "Quota not reported yet"));
+        card.append(element("p", "claude-account-meta", `${claudeQuotaReasons[account.quota_error] || "The first usage readout runs within 5 minutes"}.`));
+        const used = finiteNumber(account.used_percent);
+        if (used !== null) {
+          card.append(element("p", "claude-account-meta", `Last rate-limit event: ${number(used, 0)}% used of the ${(windowNames[account.window] || "reported window").toLowerCase()} · ${ageFromIso(account.usage_observed_at)}`));
+        }
       }
       if (account.status === "cooldown" && account.cooldown_until) {
         card.append(element("p", "claude-reset", `Eligible again ${formatTime(account.cooldown_until, false)}`));
@@ -886,8 +955,8 @@
     if (!cards.length) cards.push(element("p", "claude-note", snapshot.error || "No Claude accounts are configured."));
     setChildren(byId("claude-accounts"), cards);
     byId("claude-note").textContent = snapshot.error || (snapshot.stale
-      ? "Account status has stopped updating. Last reported usage is retained until a fresh reading arrives."
-      : "Ready means signed in and eligible for rotation. Usage updates when lanes report it; old readings are marked. Claude quotas are shown separately from Codex capacity.");
+      ? "Account status has stopped updating. Last readings are kept and marked with their age until fresh ones arrive."
+      : "Limits come from the official Claude usage readout every 5 minutes; no prompts are sent. Ready means signed in and eligible for rotation. Claude quotas are shown separately from Codex capacity.");
   }
   function subscriptionDay(value) {
     const date = parseDate(value);

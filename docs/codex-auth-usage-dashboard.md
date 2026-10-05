@@ -293,25 +293,82 @@ The browser also reads the SSO-protected `/api/v1/claude-accounts` endpoint.
 Claude accounts appear in their own section and never enter Codex pool totals,
 capacity forecasts, usage history, or the native mobile API.
 
-`claude-usage-export.timer` runs once per minute on the owner host. Its Python
-collector reads only `owner.json`, `accounts.json`, and `health.json`, and asks
-the pinned official Claude binary for `auth status` with each profile's private
-HOME. It never opens login files or calls a generation/usage endpoint. Only
-allowlisted identity, plan, availability, and usage-event fields are written
-atomically to `/srv/codex-usage-dashboard/claude-accounts.json` (0600). The
-dashboard reads that snapshot through its existing data mount; no Claude home,
-credential, bearer token, or owner SQLite database is mounted in the container.
+`claude-usage-export.timer` runs once per minute on the owner host (master).
+The exporter is a stdlib-only package (`claude_accounts`, `claude_probe`,
+`claude_quota`) installed side by side under
+`/usr/local/lib/pitchai-codex-usage/claude_usage_export/` and started as
+`python3 -m claude_usage_export.claude_accounts`; it must stay compatible with
+the host's Python 3.10. It reads only `owner.json`, `accounts.json`, and
+`health.json`, and runs the pinned official Claude binary with each profile's
+private HOME. The exporter never opens login files; only the binary does.
+Allowlisted fields are written atomically to
+`/srv/codex-usage-dashboard/claude-accounts.json` (0600, `schema_version` 1
+with additive fields). The dashboard reads that snapshot through its existing
+data mount; no Claude home, credential, bearer token, or owner SQLite database
+is mounted in the container.
 
-“Ready” means signed in and eligible under the engine's cooldown state, not a
-guarantee of unused quota. Usage is the most recent official lane rate-limit
-event. Missing utilization remains unknown, readings older than ten minutes
-are labeled last reported, and status becomes unavailable if the exporter or
-owner heartbeat is stale. A profile without a reported usage window never
-appears as zero usage or unlimited capacity. Cooldowns show the engine's next
-eligible time, which can be a conservative retry time if no provider reset was
-reported. The dashboard does not switch accounts or alter cooldowns.
+### Plan limits (5-hour and weekly)
 
-Deployment installs the exporter and timer, then checks the same read-only
-status file in the loopback canary. Run `systemctl start claude-usage-export`
-to refresh identity/status immediately; normal refresh never submits a model
+For each profile, at most every 5 minutes (`--quota-interval 300`), the
+exporter runs the binary's local usage command **before** `auth status` (an
+expired token's `auth status` leaves a fresh `.oauth_refresh.lock` that stalls
+the next refresh):
+
+```sh
+claude -p /usage --output-format json --no-session-persistence \
+  --strict-mcp-config --setting-sources user
+```
+
+- The environment is replaced by `HOME=<profile>`, a fixed `PATH`,
+  `LANG=C.UTF-8`, `TZ=UTC`, `DISABLE_AUTOUPDATER=1` and, on the first attempt,
+  `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`. The working directory is a
+  fresh empty temporary directory that is removed afterwards. Each call is
+  killed after 60 s (`--probe-timeout`), and no new probe starts after 120 s of
+  probing in one run (`--probe-budget`); skipped profiles are probed next run.
+- With the traffic flag an expired access token is not refreshed and the
+  readout has no limit lines. The exporter then retries once without the flag,
+  so the binary refreshes the token itself under its own lock.
+- **Fail-closed guard.** A result counts as safe only when it is a JSON
+  `result` with `local_command: "usage"`, `num_turns: 0`, zero input, output,
+  cache and other `*_tokens` counts, and zero cost. Anything else writes
+  `/var/lib/pitchai-codex-usage/claude-usage-probe.disabled` (`--probe-guard`)
+  with the reason and time, and no profile is probed while that file exists.
+  Review the binary (an owner release may have changed `/usage`), then delete
+  the file to resume. A non-zero exit, timeout or unreadable output is an
+  ordinary error, not a guard trip.
+- The parser reads `Current session` (5-hour window), `Current week (all
+  models)` (weekly), `Current week (Sonnet only)` and any other
+  `Current week (<model>)` line (model-scoped weekly limit, e.g. Fable). Each
+  becomes `{used_percent, resets_at}`; reset texts such as `Oct 10, 3:59am
+  (UTC)` resolve to the nearest such date. Unknown lines are ignored, and a
+  missing window stays unknown, never 0% or 100%.
+- Between probes the reading is carried from the previous snapshot by the
+  row's stable id, with its original `quota_observed_at`. A failed probe keeps
+  the last reading and records `quota_error` (`probe_failed`, `probe_timeout`,
+  `no_limits_reported`, `probe_guard_tripped`, `probe_disabled`,
+  `binary_unavailable`).
+- `used_percent`/`window` show the tighter of the 5-hour and weekly windows
+  while the reading is fresh, and otherwise fall back to the engine's latest
+  rate-limit event. A ready profile whose 5-hour or weekly window is at 100%
+  is shown as cooling down until that window resets.
+
+The route passes each window through with `remaining_percent` and an ISO reset
+time, flags `quota_stale` when the reading is missing or older than 15
+minutes, and drops non-finite or out-of-range numbers, unknown windows, long
+labels and unlisted error codes. Each card shows a 5-hour and a weekly meter
+(“N% left”, reset time and countdown; “Limit reached” at 100%), one line per
+model-scoped week, and the reading's age. jeff-dev and fsn1 are not probed:
+their credential copies are separate, stale logins.
+
+“Ready” means signed in and eligible under the engine's cooldown state.
+Status becomes unavailable if the exporter or owner heartbeat is stale.
+Cooldowns show the engine's next eligible time, which can be a conservative
+retry time if no provider reset was reported. The dashboard does not switch
+accounts or alter cooldowns.
+
+Deployment installs the exporter package and timer, then checks the same
+read-only status file in the loopback canary. Run
+`systemctl start claude-usage-export` to refresh immediately; it is due-aware,
+so plan limits refresh only for profiles whose last probe is at least 5
+minutes old. Neither the status call nor the usage readout submits a model
 prompt.
