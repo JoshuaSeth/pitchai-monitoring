@@ -3,15 +3,12 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
-import ipaddress
 import logging
-import os
 import secrets
 import time
 import uuid
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -20,6 +17,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from e2e_registry import db as dbm
+from e2e_registry.app_access import RegistryAccess
+from e2e_registry.app_access import TENANT_COOKIE_NAME as COOKIE_TOKEN_HASH
+from e2e_registry.app_context import RegistryContext
+from e2e_registry.app_host_policy import RegistryHostPolicy
+from e2e_registry.app_host_policy import host_is_reserved_or_non_public as _host_is_reserved_or_non_public
+from e2e_registry.app_host_policy import load_monitored_allowlist_hosts as _load_monitored_allowlist_hosts
+from e2e_registry.app_host_policy import url_host as _url_host
+from e2e_registry.app_inputs import normalize_pitchai_email as _normalize_pitchai_email
+from e2e_registry.app_inputs import normalize_test_kind as _normalize_test_kind
+from e2e_registry.app_inputs import safe_filename as _safe_filename
 from e2e_registry.disablement import parse_disabled_until
 from e2e_registry import monitor_dashboard as md
 from e2e_registry.alerts import (
@@ -40,128 +47,14 @@ from e2e_registry.schema import (
     RunnerCompleteRequest,
 )
 from e2e_registry.settings import RegistrySettings
-from e2e_registry.stepflow import StepFlowValidationError, parse_definition_bytes, validate_base_url, validate_definition
+from e2e_registry.stepflow import StepFlowValidationError, parse_definition_bytes, validate_definition
 
 
-COOKIE_TOKEN_HASH = "e2e_token_hash"
+__all__ = ["_host_is_reserved_or_non_public", "_load_monitored_allowlist_hosts", "_normalize_pitchai_email",
+           "_normalize_test_kind", "_safe_filename", "_url_host", "app", "create_app"]
 LOGGER = logging.getLogger("e2e-registry")
-_ALLOWED_IDENTITY_DOMAIN = "pitchai.net"
-_MAX_EMAIL_LENGTH = 254
-
-
-_ALLOWED_TEST_KINDS = {"stepflow", "playwright_python", "puppeteer_js"}
-_RESERVED_BASE_URL_HOSTS = {
-    "example.com",
-    "example.org",
-    "example.net",
-    "localhost",
-    "127.0.0.1",
-    "0.0.0.0",
-    "::1",
-}
-_RESERVED_BASE_URL_SUFFIXES = (
-    ".example.com",
-    ".example.org",
-    ".example.net",
-    ".localhost",
-    ".local",
-    ".internal",
-    ".invalid",
-    ".test",
-)
-
-
-def _normalize_pitchai_email(raw_email: str | None) -> str | None:
-    if raw_email is None or raw_email != raw_email.strip() or len(raw_email) > _MAX_EMAIL_LENGTH:
-        return None
-    email = raw_email.lower()
-    local_part, separator, domain = email.rpartition("@")
-    if email.count("@") != 1 or separator != "@" or not local_part or domain != _ALLOWED_IDENTITY_DOMAIN:
-        return None
-    if any(ord(character) < 33 or ord(character) > 126 for character in email):
-        return None
-    return email
-
-
-def _normalize_test_kind(kind: str) -> str:
-    s = str(kind or "").strip().lower()
-    # Backwards compatible aliases.
-    aliases = {
-        "stepflow": "stepflow",
-        "yaml": "stepflow",
-        "yml": "stepflow",
-        "playwright-python": "playwright_python",
-        "playwright_python": "playwright_python",
-        "pw_python": "playwright_python",
-        "puppeteer-js": "puppeteer_js",
-        "puppeteer_js": "puppeteer_js",
-        "pptr": "puppeteer_js",
-    }
-    out = aliases.get(s, s)
-    return out if out in _ALLOWED_TEST_KINDS else ""
-
-
-def _safe_filename(name: str, *, default: str) -> str:
-    base = Path(str(name or "")).name
-    cleaned = "".join(ch for ch in base if ch.isalnum() or ch in ("-", "_", ".", "+"))[:120].strip(".")
-    return cleaned or default
-
-
 def _sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def _parse_until(value: Any) -> float | None:
-    try:
-        return parse_disabled_until(value)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"invalid_until: {exc}") from exc
-
-
-def _url_host(base_url: str) -> str:
-    try:
-        host = (urlsplit(str(base_url or "").strip()).hostname or "").strip().lower()
-    except Exception:
-        host = ""
-    return host.rstrip(".")
-
-
-def _host_is_reserved_or_non_public(host: str) -> bool:
-    h = str(host or "").strip().lower().rstrip(".")
-    if not h:
-        return True
-    if h in _RESERVED_BASE_URL_HOSTS:
-        return True
-    if any(h.endswith(sfx) for sfx in _RESERVED_BASE_URL_SUFFIXES):
-        return True
-
-    try:
-        ip = ipaddress.ip_address(h)
-    except ValueError:
-        ip = None
-
-    if ip is not None:
-        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
-            return True
-        return False
-
-    # Strict mode should reject bare internal names (e.g. "my-service").
-    if "." not in h:
-        return True
-    return False
-
-
-def _load_monitored_allowlist_hosts(settings: RegistrySettings) -> set[str]:
-    if not settings.base_url_allow_monitored_domains:
-        return set()
-    cfg = md._load_yaml(Path(str(settings.monitor_config_path or "").strip()))
-    entries = md._normalize_domain_entries(cfg.get("domains"))
-    hosts: set[str] = set()
-    for entry in entries:
-        d = str((entry or {}).get("domain") or "").strip().lower().rstrip(".")
-        if d:
-            hosts.add(d)
-    return hosts
 
 
 def create_app(settings: RegistrySettings | None = None) -> FastAPI:
@@ -179,90 +72,31 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         name="dashboard-assets",
     )
 
+    context = RegistryContext(app)
+    access = RegistryAccess(context)
+    host_policy = RegistryHostPolicy(context)
+
     @app.on_event("startup")
     def _startup() -> None:
-        dbm.ensure_schema(app.state.settings)
+        dbm.ensure_schema(context.settings)
         # Ensure storage locations exist (single-host deployment).
         try:
-            Path(app.state.settings.artifacts_dir).mkdir(parents=True, exist_ok=True)
+            Path(context.settings.artifacts_dir).mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
         try:
-            Path(app.state.settings.tests_dir).mkdir(parents=True, exist_ok=True)
+            Path(context.settings.tests_dir).mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
 
         # Defensive cleanup: quarantine tests with disallowed hosts so they cannot keep firing.
         try:
-            quarantined = _quarantine_disallowed_tests()
+            quarantined = host_policy.quarantine_disallowed_tests()
             if quarantined > 0:
                 LOGGER.warning("Quarantined disallowed e2e tests count=%s", quarantined)
         except Exception:
             LOGGER.exception("Failed to quarantine disallowed e2e tests")
 
-    def _strict_allowed_hosts() -> set[str]:
-        settings2: RegistrySettings = app.state.settings
-        allowed = {h.strip().lower().rstrip(".") for h in settings2.base_url_allowed_hosts if str(h).strip()}
-        if not allowed:
-            allowed = _load_monitored_allowlist_hosts(settings2)
-        return allowed
-
-    def _is_disallowed_host(host: str) -> bool:
-        settings2: RegistrySettings = app.state.settings
-        if not settings2.strict_base_url_policy:
-            return False
-        if _host_is_reserved_or_non_public(host):
-            return True
-        allowed = _strict_allowed_hosts()
-        if allowed and host not in allowed:
-            return True
-        return False
-
-    def _quarantine_disallowed_tests() -> int:
-        settings2: RegistrySettings = app.state.settings
-        if not settings2.strict_base_url_policy:
-            return 0
-        summary = dbm.status_summary(settings2)
-        tests = summary.get("tests") if isinstance(summary, dict) else None
-        if not isinstance(tests, list):
-            return 0
-        changed = 0
-        for item in tests:
-            if not isinstance(item, dict):
-                continue
-            host = _url_host(str(item.get("base_url") or ""))
-            if not _is_disallowed_host(host):
-                continue
-            tenant_id = str(item.get("tenant_id") or "").strip()
-            test_id = str(item.get("test_id") or "").strip()
-            if not tenant_id or not test_id:
-                continue
-            ok = dbm.set_test_disabled(
-                settings2,
-                tenant_id=tenant_id,
-                test_id=test_id,
-                disabled=True,
-                reason=f"auto-disabled disallowed base_url host: {host or 'unknown'}",
-                until_ts=None,
-            )
-            if ok:
-                changed += 1
-        return changed
-
-    def _validate_and_enforce_base_url(raw_base_url: str) -> str:
-        base = validate_base_url(raw_base_url)
-        settings2: RegistrySettings = app.state.settings
-        if not settings2.strict_base_url_policy:
-            return base
-
-        host = _url_host(base)
-        if _host_is_reserved_or_non_public(host):
-            raise HTTPException(status_code=400, detail="base_url_not_allowed_host")
-
-        allowed = _strict_allowed_hosts()
-        if allowed and host not in allowed:
-            raise HTTPException(status_code=400, detail="base_url_not_monitored_domain")
-        return base
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -276,17 +110,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     # -----------------
     # UI auth helpers
     # -----------------
-    async def _ui_get_auth(req: Request) -> dbm.AuthedTenant | None:
-        th = (req.cookies.get(COOKIE_TOKEN_HASH) or "").strip()
-        if not th:
-            return None
-        return await asyncio.to_thread(dbm.get_api_key_by_hash, app.state.settings, token_hash=th)
 
-    async def _ui_require_auth(req: Request) -> dbm.AuthedTenant:
-        authed = await _ui_get_auth(req)
-        if authed is None:
-            raise HTTPException(status_code=401, detail="ui_not_authenticated")
-        return authed
 
     def _redirect_to_login() -> RedirectResponse:
         return RedirectResponse(url="/ui/login", status_code=303)
@@ -294,90 +118,26 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     # -----------------
     # Monitoring operator auth (separate from tenant UI authorization)
     # -----------------
-    def _dashboard_identity(req: Request) -> str:
-        settings2: RegistrySettings = app.state.settings
-        email = _normalize_pitchai_email(req.headers.get(settings2.dashboard_identity_header))
-        if email is None:
-            raise HTTPException(status_code=401, detail="PitchAI Entra SSO identity required")
-        return email
 
-    def _require_monitoring_machine_token(req: Request) -> None:
-        settings2: RegistrySettings = app.state.settings
-        token = (req.headers.get("authorization") or "").strip()
-        if token.lower().startswith("bearer "):
-            provided = token.split(None, 1)[1].strip()
-            if settings2.admin_token and hmac.compare_digest(provided, settings2.admin_token.strip()):
-                return
-            if settings2.monitor_token and hmac.compare_digest(provided, settings2.monitor_token.strip()):
-                return
-        raise HTTPException(status_code=401, detail="monitoring bearer token required")
-
-    def _require_monitoring_access(req: Request) -> None:
-        if req.url.path.startswith("/dashboard/api/"):
-            _dashboard_identity(req)
-            return
-        _require_monitoring_machine_token(req)
-
-    async def _get_monitor_data() -> md.MonitorData:
-        settings2: RegistrySettings = app.state.settings
-        cache = getattr(app.state, "monitor_cache", None)
-        if not isinstance(cache, dict):
-            cache = {"loaded_at_ts": 0.0, "state_mtime": None, "config_mtime": None, "data": None}
-            app.state.monitor_cache = cache
-
-        def _mtime(path: str) -> float | None:
-            try:
-                return float(os.stat(path).st_mtime)
-            except Exception:
-                return None
-
-        now_ts = time.time()
-        ttl_seconds = 5.0
-        state_mtime = _mtime(settings2.monitor_state_path)
-        config_mtime = _mtime(settings2.monitor_config_path)
-
-        data = cache.get("data")
-        try:
-            loaded_at = float(cache.get("loaded_at_ts") or 0.0)
-        except Exception:
-            loaded_at = 0.0
-
-        if (
-            isinstance(data, md.MonitorData)
-            and cache.get("state_mtime") == state_mtime
-            and cache.get("config_mtime") == config_mtime
-            and (now_ts - loaded_at) < ttl_seconds
-        ):
-            return data
-
-        data2 = md.load_monitor_data(
-            state_path=settings2.monitor_state_path,
-            config_path=settings2.monitor_config_path,
-        )
-        cache["data"] = data2
-        cache["loaded_at_ts"] = now_ts
-        cache["state_mtime"] = state_mtime
-        cache["config_mtime"] = config_mtime
-        return data2
 
     # -----------------
     # UI routes
     # -----------------
     @app.get("/ui/login", response_class=HTMLResponse)
     async def ui_login(req: Request) -> HTMLResponse:
-        return app.state.templates.TemplateResponse("login.html", {"request": req, "error": None})
+        return context.templates.TemplateResponse("login.html", {"request": req, "error": None})
 
     @app.post("/ui/login")
     async def ui_login_post(req: Request, api_key: str = Form("")):
         token = (api_key or "").strip()
         if not token:
-            return app.state.templates.TemplateResponse(
+            return context.templates.TemplateResponse(
                 "login.html", {"request": req, "error": "Missing API key"}
             )
         th = hash_token(token)
-        authed = await asyncio.to_thread(dbm.get_api_key_by_hash, app.state.settings, token_hash=th)
+        authed = await asyncio.to_thread(dbm.get_api_key_by_hash, context.settings, token_hash=th)
         if authed is None:
-            return app.state.templates.TemplateResponse(
+            return context.templates.TemplateResponse(
                 "login.html", {"request": req, "error": "Invalid API key"}
             )
         resp = RedirectResponse(url="/ui/tests", status_code=303)
@@ -395,18 +155,18 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     # -----------------
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard(req: Request) -> HTMLResponse:
-        actor = _dashboard_identity(req)
-        return app.state.templates.TemplateResponse(
+        actor = access.dashboard_identity(req)
+        return context.templates.TemplateResponse(
             "dashboard.html",
             {"request": req, "title": "Monitoring", "operator_identity": actor},
         )
 
     @app.get("/ui/tests", response_class=HTMLResponse)
     async def ui_tests(req: Request) -> HTMLResponse:
-        authed = await _ui_get_auth(req)
+        authed = await access.ui_get_auth(req)
         if authed is None:
             return _redirect_to_login()
-        tests = await asyncio.to_thread(dbm.list_tests, app.state.settings, tenant_id=authed.tenant_id)
+        tests = await asyncio.to_thread(dbm.list_tests, context.settings, tenant_id=authed.tenant_id)
         # Normalize sqlite rows (ints) into something templates can use.
         for t in tests:
             for k in ("effective_ok", "fail_streak", "success_streak"):
@@ -415,20 +175,20 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                         t[k] = int(t[k])
                 except Exception:
                     pass
-        return app.state.templates.TemplateResponse(
+        return context.templates.TemplateResponse(
             "tests.html",
             {"request": req, "tenant_id": authed.tenant_id, "tests": tests},
         )
 
     @app.get("/ui/tests/{test_id}", response_class=HTMLResponse)
     async def ui_test_detail(req: Request, test_id: str, msg: str | None = None) -> HTMLResponse:
-        authed = await _ui_get_auth(req)
+        authed = await access.ui_get_auth(req)
         if authed is None:
             return _redirect_to_login()
-        test = await asyncio.to_thread(dbm.get_test, app.state.settings, tenant_id=authed.tenant_id, test_id=test_id)
+        test = await asyncio.to_thread(dbm.get_test, context.settings, tenant_id=authed.tenant_id, test_id=test_id)
         if not test:
             raise HTTPException(status_code=404, detail="test_not_found")
-        runs = await asyncio.to_thread(dbm.list_runs, app.state.settings, tenant_id=authed.tenant_id, test_id=test_id, limit=50)
+        runs = await asyncio.to_thread(dbm.list_runs, context.settings, tenant_id=authed.tenant_id, test_id=test_id, limit=50)
         kind = str(test.get("test_kind") or "stepflow").strip().lower() or "stepflow"
         definition_json = test.get("definition_json") or ""
         source_text: str | None = None
@@ -436,7 +196,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         source_relpath = str(test.get("source_relpath") or "").strip()
         if kind != "stepflow" and source_relpath:
             try:
-                base = Path(app.state.settings.tests_dir).resolve()
+                base = Path(context.settings.tests_dir).resolve()
                 fp = (base / source_relpath).resolve()
                 if base in fp.parents and fp.exists() and fp.is_file():
                     source_filename = fp.name
@@ -445,7 +205,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                         source_text = source_text[:80_000] + "\n...truncated..."
             except Exception:
                 source_text = None
-        return app.state.templates.TemplateResponse(
+        return context.templates.TemplateResponse(
             "test_detail.html",
             {
                 "request": req,
@@ -460,8 +220,8 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
     @app.post("/ui/tests/{test_id}/run")
     async def ui_test_run_now(req: Request, test_id: str) -> RedirectResponse:
-        authed = await _ui_require_auth(req)
-        ok = await asyncio.to_thread(dbm.trigger_run_now, app.state.settings, tenant_id=authed.tenant_id, test_id=test_id)
+        authed = await access.ui_require_auth(req)
+        ok = await asyncio.to_thread(dbm.trigger_run_now, context.settings, tenant_id=authed.tenant_id, test_id=test_id)
         msg = "Run triggered" if ok else "Failed to trigger run"
         return RedirectResponse(url=f"/ui/tests/{test_id}?msg={msg}", status_code=303)
 
@@ -472,14 +232,14 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         reason: str = Form("temporary disable"),
         until: str = Form(""),
     ) -> RedirectResponse:
-        authed = await _ui_require_auth(req)
+        authed = await access.ui_require_auth(req)
         try:
-            until_ts = _parse_until(until)
-        except HTTPException:
+            until_ts = parse_disabled_until(until)
+        except ValueError:
             return RedirectResponse(url=f"/ui/tests/{test_id}?msg=Invalid+until+value", status_code=303)
         ok = await asyncio.to_thread(
             dbm.set_test_disabled,
-            app.state.settings,
+            context.settings,
             tenant_id=authed.tenant_id,
             test_id=test_id,
             disabled=True,
@@ -491,10 +251,10 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
     @app.post("/ui/tests/{test_id}/enable")
     async def ui_test_enable(req: Request, test_id: str) -> RedirectResponse:
-        authed = await _ui_require_auth(req)
+        authed = await access.ui_require_auth(req)
         ok = await asyncio.to_thread(
             dbm.set_test_disabled,
-            app.state.settings,
+            context.settings,
             tenant_id=authed.tenant_id,
             test_id=test_id,
             disabled=False,
@@ -513,8 +273,8 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         """
         Replace the stored source for a code-based test via UI (multipart file upload).
         """
-        authed = await _ui_require_auth(req)
-        settings2: RegistrySettings = app.state.settings
+        authed = await access.ui_require_auth(req)
+        settings2: RegistrySettings = context.settings
 
         test = await asyncio.to_thread(dbm.get_test, settings2, tenant_id=authed.tenant_id, test_id=test_id)
         if not test:
@@ -571,10 +331,10 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
     @app.get("/ui/runs/{run_id}", response_class=HTMLResponse)
     async def ui_run_detail(req: Request, run_id: str) -> HTMLResponse:
-        authed = await _ui_get_auth(req)
+        authed = await access.ui_get_auth(req)
         if authed is None:
             return _redirect_to_login()
-        run = await asyncio.to_thread(dbm.get_run, app.state.settings, tenant_id=authed.tenant_id, run_id=run_id)
+        run = await asyncio.to_thread(dbm.get_run, context.settings, tenant_id=authed.tenant_id, run_id=run_id)
         if not run:
             raise HTTPException(status_code=404, detail="run_not_found")
         artifacts = {}
@@ -582,17 +342,17 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             artifacts = (dbm._json_loads(run.get("artifacts_json")) or {}) if isinstance(run.get("artifacts_json"), (str, dict)) else {}
         except Exception:
             artifacts = {}
-        return app.state.templates.TemplateResponse(
+        return context.templates.TemplateResponse(
             "run_detail.html",
             {"request": req, "run": run, "artifacts": artifacts},
         )
 
     @app.get("/ui/upload", response_class=HTMLResponse)
     async def ui_upload(req: Request) -> HTMLResponse:
-        authed = await _ui_get_auth(req)
+        authed = await access.ui_get_auth(req)
         if authed is None:
             return _redirect_to_login()
-        return app.state.templates.TemplateResponse("upload.html", {"request": req, "error": None, "msg": None})
+        return context.templates.TemplateResponse("upload.html", {"request": req, "error": None, "msg": None})
 
     @app.post("/ui/upload", response_class=HTMLResponse)
     async def ui_upload_post(
@@ -603,25 +363,25 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         interval_seconds: int = Form(300),
         file: UploadFile = File(...),
     ) -> HTMLResponse:
-        authed = await _ui_get_auth(req)
+        authed = await access.ui_get_auth(req)
         if authed is None:
             return _redirect_to_login()
 
         raw = await file.read()
-        settings2: RegistrySettings = app.state.settings
+        settings2: RegistrySettings = context.settings
         kind2 = _normalize_test_kind(kind)
         if not kind2:
-            return app.state.templates.TemplateResponse(
+            return context.templates.TemplateResponse(
                 "upload.html", {"request": req, "error": "invalid_kind", "msg": None}
             )
         if int(settings2.max_upload_bytes) > 0 and len(raw) > int(settings2.max_upload_bytes):
-            return app.state.templates.TemplateResponse(
+            return context.templates.TemplateResponse(
                 "upload.html", {"request": req, "error": "file_too_large", "msg": None}
             )
         try:
-            base = _validate_and_enforce_base_url(base_url)
+            base = host_policy.validate_base_url(base_url)
         except HTTPException as exc:
-            return app.state.templates.TemplateResponse(
+            return context.templates.TemplateResponse(
                 "upload.html", {"request": req, "error": str(exc.detail), "msg": None}
             )
 
@@ -638,7 +398,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                 defn_raw = parse_definition_bytes(raw, content_type=file.content_type)
                 defn = validate_definition(defn_raw)
             except StepFlowValidationError as exc:
-                return app.state.templates.TemplateResponse(
+                return context.templates.TemplateResponse(
                     "upload.html", {"request": req, "error": str(exc), "msg": None}
                 )
             tname = tname or str(defn.get("name") or "test")
@@ -647,11 +407,11 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             default_fn = "test.py" if kind2 == "playwright_python" else "test.js"
             source_filename = _safe_filename(file.filename or "", default=default_fn)
             if kind2 == "playwright_python" and not source_filename.endswith(".py"):
-                return app.state.templates.TemplateResponse(
+                return context.templates.TemplateResponse(
                     "upload.html", {"request": req, "error": "python_test_must_be_.py", "msg": None}
                 )
             if kind2 == "puppeteer_js" and not (source_filename.endswith(".js") or source_filename.endswith(".mjs")):
-                return app.state.templates.TemplateResponse(
+                return context.templates.TemplateResponse(
                     "upload.html", {"request": req, "error": "puppeteer_test_must_be_.js", "msg": None}
                 )
             tname = tname or source_filename
@@ -661,14 +421,14 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             rel = Path(authed.tenant_id) / test_id / source_filename
             fp = (base_dir / rel).resolve()
             if base_dir not in fp.parents:
-                return app.state.templates.TemplateResponse(
+                return context.templates.TemplateResponse(
                     "upload.html", {"request": req, "error": "invalid_upload_path", "msg": None}
                 )
             try:
                 fp.parent.mkdir(parents=True, exist_ok=True)
                 fp.write_bytes(raw)
             except Exception as exc:
-                return app.state.templates.TemplateResponse(
+                return context.templates.TemplateResponse(
                     "upload.html", {"request": req, "error": f"write_failed: {exc}", "msg": None}
                 )
             source_relpath = str(rel)
@@ -678,7 +438,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         try:
             created = await asyncio.to_thread(
                 dbm.insert_test,
-                app.state.settings,
+                context.settings,
                 tenant_id=authed.tenant_id,
                 name=tname,
                 base_url=base,
@@ -698,12 +458,12 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                 dispatch_on_failure=False,
             )
         except Exception as exc:
-            return app.state.templates.TemplateResponse(
+            return context.templates.TemplateResponse(
                 "upload.html", {"request": req, "error": f"db_error: {exc}", "msg": None}
             )
 
         msg = f"Created test {created.get('id')}"
-        return app.state.templates.TemplateResponse(
+        return context.templates.TemplateResponse(
             "upload.html", {"request": req, "error": None, "msg": msg}
         )
 
@@ -713,12 +473,12 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     @app.get("/dashboard/api/v1/monitoring/summary")
     @app.get("/api/v1/monitoring/summary")
     async def api_monitoring_summary(req: Request, range: str = "24h") -> dict[str, Any]:  # noqa: A002
-        _require_monitoring_access(req)
-        settings2: RegistrySettings = app.state.settings
+        access.require_monitoring_access(req)
+        settings2: RegistrySettings = context.settings
         now_ts = time.time()
         since_ts, until_ts = md.resolve_range(now_ts=now_ts, range_label=range)
 
-        data = await _get_monitor_data()
+        data = await context.monitor_data()
         e2e_status = await asyncio.to_thread(dbm.status_summary, settings2)
         e2e_dispatch = await asyncio.to_thread(dbm.list_dispatch_runs, settings2, limit=80)
 
@@ -771,8 +531,8 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         since_ts: float | None = None,
         until_ts: float | None = None,
     ) -> dict[str, Any]:
-        _require_monitoring_access(req)
-        settings2: RegistrySettings = app.state.settings
+        access.require_monitoring_access(req)
+        settings2: RegistrySettings = context.settings
         now_ts = time.time()
         if since_ts is None or until_ts is None:
             s, u = md.resolve_range(now_ts=now_ts, range_label=range)
@@ -780,7 +540,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             until_ts = float(u) if until_ts is None else float(until_ts)
         if float(until_ts) < float(since_ts):
             raise HTTPException(status_code=400, detail="invalid_range")
-        data = await _get_monitor_data()
+        data = await context.monitor_data()
         return md.domain_timeseries(
             data=data,
             domain=domain,
@@ -798,8 +558,8 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         since_ts: float | None = None,
         until_ts: float | None = None,
     ) -> dict[str, Any]:
-        _require_monitoring_access(req)
-        settings2: RegistrySettings = app.state.settings
+        access.require_monitoring_access(req)
+        settings2: RegistrySettings = context.settings
         now_ts = time.time()
         if since_ts is None or until_ts is None:
             s, u = md.resolve_range(now_ts=now_ts, range_label=range)
@@ -807,7 +567,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             until_ts = float(u) if until_ts is None else float(until_ts)
         if float(until_ts) < float(since_ts):
             raise HTTPException(status_code=400, detail="invalid_range")
-        data = await _get_monitor_data()
+        data = await context.monitor_data()
         return md.signal_timeseries(
             data=data,
             signal=signal,
@@ -820,7 +580,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     async def api_create_tenant(_auth: None = Depends(require_admin), req: CreateTenantRequest | None = None) -> dict[str, Any]:
         if req is None:
             raise HTTPException(status_code=400, detail="missing_body")
-        tenant = await asyncio.to_thread(dbm.create_tenant, app.state.settings, name=req.name)
+        tenant = await asyncio.to_thread(dbm.create_tenant, context.settings, name=req.name)
         return {"ok": True, "tenant": tenant}
 
     @app.post("/api/v1/admin/api_keys")
@@ -831,7 +591,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         th = hash_token(token)
         rec = await asyncio.to_thread(
             dbm.create_api_key,
-            app.state.settings,
+            context.settings,
             tenant_id=req.tenant_id,
             name=req.name,
             token_hash=th,
@@ -843,14 +603,14 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         if req is None:
             raise HTTPException(status_code=400, detail="missing_body")
         try:
-            base = _validate_and_enforce_base_url(req.base_url)
+            base = host_policy.validate_base_url(req.base_url)
             defn = validate_definition(req.definition)
         except StepFlowValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         created = await asyncio.to_thread(
             dbm.insert_test,
-            app.state.settings,
+            context.settings,
             tenant_id=auth.tenant_id,
             name=req.name,
             base_url=base,
@@ -889,7 +649,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
         This is the main "external devs submit files via API" workflow.
         """
-        settings2: RegistrySettings = app.state.settings
+        settings2: RegistrySettings = context.settings
         kind2 = _normalize_test_kind(kind)
         if not kind2:
             raise HTTPException(status_code=400, detail="invalid_kind")
@@ -897,7 +657,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         if int(settings2.max_upload_bytes) > 0 and len(raw) > int(settings2.max_upload_bytes):
             raise HTTPException(status_code=413, detail="file_too_large")
 
-        base = _validate_and_enforce_base_url(base_url)
+        base = host_policy.validate_base_url(base_url)
         notify = str(notify_on_recovery or "").strip().lower() in {"1", "true", "yes", "y", "on"}
         dispatch = str(dispatch_on_failure or "").strip().lower() in {"1", "true", "yes", "y", "on"}
 
@@ -938,7 +698,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
         created = await asyncio.to_thread(
             dbm.insert_test,
-            app.state.settings,
+            context.settings,
             tenant_id=auth.tenant_id,
             name=tname,
             base_url=base,
@@ -961,26 +721,26 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
     @app.get("/api/v1/tests")
     async def api_list_tests(auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        tests = await asyncio.to_thread(dbm.list_tests, app.state.settings, tenant_id=auth.tenant_id)
+        tests = await asyncio.to_thread(dbm.list_tests, context.settings, tenant_id=auth.tenant_id)
         return {"ok": True, "tests": tests}
 
     @app.get("/api/v1/tests/{test_id}")
     async def api_get_test(test_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        test = await asyncio.to_thread(dbm.get_test, app.state.settings, tenant_id=auth.tenant_id, test_id=test_id)
+        test = await asyncio.to_thread(dbm.get_test, context.settings, tenant_id=auth.tenant_id, test_id=test_id)
         if not test:
             raise HTTPException(status_code=404, detail="not_found")
         return {"ok": True, "test": test}
 
     @app.get("/api/v1/tests/{test_id}/source")
     async def api_get_test_source(test_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> FileResponse:
-        test = await asyncio.to_thread(dbm.get_test, app.state.settings, tenant_id=auth.tenant_id, test_id=test_id)
+        test = await asyncio.to_thread(dbm.get_test, context.settings, tenant_id=auth.tenant_id, test_id=test_id)
         if not test:
             raise HTTPException(status_code=404, detail="not_found")
         kind = str(test.get("test_kind") or "stepflow").strip().lower() or "stepflow"
         if kind == "stepflow":
             # Return definition JSON as a small downloadable artifact.
             txt = str(test.get("definition_json") or "").strip() or "{}"
-            base = Path(app.state.settings.tests_dir).resolve()
+            base = Path(context.settings.tests_dir).resolve()
             tmp = (base / auth.tenant_id / test_id / "definition.json").resolve()
             if base not in tmp.parents:
                 raise HTTPException(status_code=400, detail="invalid_path")
@@ -991,7 +751,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         rel = str(test.get("source_relpath") or "").strip()
         if not rel:
             raise HTTPException(status_code=404, detail="source_missing")
-        base = Path(app.state.settings.tests_dir).resolve()
+        base = Path(context.settings.tests_dir).resolve()
         fp = (base / rel).resolve()
         if base not in fp.parents:
             raise HTTPException(status_code=400, detail="invalid_path")
@@ -1008,7 +768,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         """
         Replace the stored test source for a code-based test.
         """
-        settings2: RegistrySettings = app.state.settings
+        settings2: RegistrySettings = context.settings
         test = await asyncio.to_thread(dbm.get_test, settings2, tenant_id=auth.tenant_id, test_id=test_id)
         if not test:
             raise HTTPException(status_code=404, detail="not_found")
@@ -1065,23 +825,26 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="missing_body")
         patch: dict[str, Any] = req.model_dump(exclude_unset=True)
         if "base_url" in patch and patch["base_url"] is not None:
-            patch["base_url"] = _validate_and_enforce_base_url(patch["base_url"])
+            patch["base_url"] = host_policy.validate_base_url(patch["base_url"])
         if "definition" in patch and patch["definition"] is not None:
             patch["definition"] = validate_definition(patch["definition"])
-        ok = await asyncio.to_thread(dbm.patch_test, app.state.settings, tenant_id=auth.tenant_id, test_id=test_id, patch=patch)
+        ok = await asyncio.to_thread(dbm.patch_test, context.settings, tenant_id=auth.tenant_id, test_id=test_id, patch=patch)
         if not ok:
             raise HTTPException(status_code=404, detail="not_found")
-        test = await asyncio.to_thread(dbm.get_test, app.state.settings, tenant_id=auth.tenant_id, test_id=test_id)
+        test = await asyncio.to_thread(dbm.get_test, context.settings, tenant_id=auth.tenant_id, test_id=test_id)
         return {"ok": True, "test": test}
 
     @app.post("/api/v1/tests/{test_id}/disable")
     async def api_disable_test(test_id: str, auth: RequestAuth = Depends(require_tenant_auth), req: DisableTestRequest | None = None) -> dict[str, Any]:
         if req is None:
             raise HTTPException(status_code=400, detail="missing_body")
-        until_ts = _parse_until(req.until)
+        try:
+            until_ts = parse_disabled_until(req.until)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"invalid_until: {exc}") from exc
         ok = await asyncio.to_thread(
             dbm.set_test_disabled,
-            app.state.settings,
+            context.settings,
             tenant_id=auth.tenant_id,
             test_id=test_id,
             disabled=True,
@@ -1096,7 +859,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     async def api_enable_test(test_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
         ok = await asyncio.to_thread(
             dbm.set_test_disabled,
-            app.state.settings,
+            context.settings,
             tenant_id=auth.tenant_id,
             test_id=test_id,
             disabled=False,
@@ -1109,26 +872,26 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
     @app.post("/api/v1/tests/{test_id}/run")
     async def api_run_now(test_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        ok = await asyncio.to_thread(dbm.trigger_run_now, app.state.settings, tenant_id=auth.tenant_id, test_id=test_id)
+        ok = await asyncio.to_thread(dbm.trigger_run_now, context.settings, tenant_id=auth.tenant_id, test_id=test_id)
         if not ok:
             raise HTTPException(status_code=404, detail="not_found")
         return {"ok": True}
 
     @app.get("/api/v1/tests/{test_id}/runs")
     async def api_list_runs(test_id: str, limit: int = 50, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        runs = await asyncio.to_thread(dbm.list_runs, app.state.settings, tenant_id=auth.tenant_id, test_id=test_id, limit=limit)
+        runs = await asyncio.to_thread(dbm.list_runs, context.settings, tenant_id=auth.tenant_id, test_id=test_id, limit=limit)
         return {"ok": True, "runs": runs}
 
     @app.get("/api/v1/runs/{run_id}")
     async def api_get_run(run_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        run = await asyncio.to_thread(dbm.get_run, app.state.settings, tenant_id=auth.tenant_id, run_id=run_id)
+        run = await asyncio.to_thread(dbm.get_run, context.settings, tenant_id=auth.tenant_id, run_id=run_id)
         if not run:
             raise HTTPException(status_code=404, detail="not_found")
         return {"ok": True, "run": run}
 
     @app.get("/api/v1/runs/{run_id}/artifacts/{name}")
     async def api_get_artifact(run_id: str, name: str, auth: RequestAuth = Depends(require_tenant_auth)) -> FileResponse:
-        run = await asyncio.to_thread(dbm.get_run, app.state.settings, tenant_id=auth.tenant_id, run_id=run_id)
+        run = await asyncio.to_thread(dbm.get_run, context.settings, tenant_id=auth.tenant_id, run_id=run_id)
         if not run:
             raise HTTPException(status_code=404, detail="run_not_found")
         # Artifacts are stored on disk under {artifacts_dir}/{tenant}/{test}/{run}/...
@@ -1136,7 +899,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         test_id = str(run.get("test_id") or "").strip()
         if not test_id:
             raise HTTPException(status_code=404, detail="test_not_found")
-        base = Path(app.state.settings.artifacts_dir).resolve()
+        base = Path(context.settings.artifacts_dir).resolve()
         file_path = (base / tenant_id / test_id / run_id / name).resolve()
         if base not in file_path.parents:
             raise HTTPException(status_code=400, detail="invalid_artifact_path")
@@ -1153,7 +916,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         - tenant-only summary (valid tenant token)
         """
         token = (req.headers.get("authorization") or "").strip()
-        settings2: RegistrySettings = app.state.settings
+        settings2: RegistrySettings = context.settings
 
         # Admin/monitor path
         if token.lower().startswith("bearer "):
@@ -1188,7 +951,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     @app.post("/api/v1/runner/claim")
     async def runner_claim(_auth: None = Depends(require_runner), req: RunnerClaimRequest | None = None) -> dict[str, Any]:
         max_runs = int(req.max_runs) if req is not None else 1
-        claimed = await asyncio.to_thread(dbm.claim_due_runs, app.state.settings, max_runs=max_runs)
+        claimed = await asyncio.to_thread(dbm.claim_due_runs, context.settings, max_runs=max_runs)
         jobs = [
             {
                 "run_id": c.run_id,
@@ -1230,18 +993,18 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             started_at_ts=req.started_at_ts,
             finished_at_ts=req.finished_at_ts,
         )
-        outcome = await asyncio.to_thread(dbm.complete_run, app.state.settings, run_id=run_id, completion=completion)
+        outcome = await asyncio.to_thread(dbm.complete_run, context.settings, run_id=run_id, completion=completion)
 
         # Send alerts out-of-band (after DB commit).
         async with httpx.AsyncClient(headers={"User-Agent": "PitchAI E2E Registry"}) as http_client:
             if outcome.alerted_down and outcome.updated and outcome.tenant_id and outcome.test_id and outcome.test_name:
                 cfg = await asyncio.to_thread(
-                    dbm.get_test_config_internal, app.state.settings, test_id=outcome.test_id
+                    dbm.get_test_config_internal, context.settings, test_id=outcome.test_id
                 )
                 down_after = int(cfg.get("down_after_failures") or 2) if isinstance(cfg, dict) else 2
                 test_kind = str(cfg.get("test_kind") or "stepflow") if isinstance(cfg, dict) else "stepflow"
                 msg = build_failure_telegram_message(
-                    settings=app.state.settings,
+                    settings=context.settings,
                     tenant_id=outcome.tenant_id,
                     test_id=outcome.test_id,
                     test_name=outcome.test_name,
@@ -1254,7 +1017,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                     final_url=req.final_url,
                     artifacts=req.artifacts,
                 )
-                await maybe_send_failure_alert(http_client=http_client, settings=app.state.settings, msg=msg)
+                await maybe_send_failure_alert(http_client=http_client, settings=context.settings, msg=msg)
 
                 # Optional dispatcher escalation.
                 if isinstance(cfg, dict) and bool(int(cfg.get("dispatch_on_failure") or 0)):
@@ -1270,7 +1033,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
                     )
                     await maybe_dispatch_failure_investigation(
                         http_client=http_client,
-                        settings=app.state.settings,
+                        settings=context.settings,
                         prompt=prompt,
                         context={
                             "tenant_id": outcome.tenant_id,
@@ -1284,16 +1047,16 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
             if outcome.recovered_up and outcome.updated and outcome.test_id and outcome.test_name:
                 cfg = await asyncio.to_thread(
-                    dbm.get_test_config_internal, app.state.settings, test_id=outcome.test_id
+                    dbm.get_test_config_internal, context.settings, test_id=outcome.test_id
                 )
                 if isinstance(cfg, dict) and bool(int(cfg.get("notify_on_recovery") or 0)):
                     msg = build_recovery_telegram_message(
-                        settings=app.state.settings,
+                        settings=context.settings,
                         test_id=outcome.test_id,
                         test_name=outcome.test_name,
                         run_id=run_id,
                     )
-                    await maybe_send_failure_alert(http_client=http_client, settings=app.state.settings, msg=msg)
+                    await maybe_send_failure_alert(http_client=http_client, settings=context.settings, msg=msg)
 
         return {"ok": True, "outcome": outcome.__dict__}
 
