@@ -63,11 +63,6 @@ MODEL_SHADES = {
 }
 
 
-def provider_color(provider: str) -> str:
-    """Return the representative color of one provider family."""
-    return PROVIDER_COLORS.get(provider, OTHER_COLOR)
-
-
 def model_shade(model: str, provider: str) -> ModelShade:
     """Return the family shade of one model; unlisted models get the family middle."""
     listed = MODEL_SHADES.get(model)

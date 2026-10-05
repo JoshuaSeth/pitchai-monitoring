@@ -18,7 +18,7 @@ from typing import IO, TYPE_CHECKING, cast
 from .node_store import LANE_COLUMNS_SQL, ROW_KEY, ROW_VALUES
 
 if TYPE_CHECKING:
-    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue, SqlValue
+    from .json_types import JsonObject, JsonValue, SqlValue
 
 DEFAULT_FLEET_DB = Path("/srv/codex-usage-dashboard/token-ledger.sqlite3")
 SCHEMA_VERSION = 1

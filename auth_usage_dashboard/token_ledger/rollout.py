@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import BinaryIO
 
-    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue
+    from .json_types import JsonObject, JsonValue
 
 USAGE_FIELDS = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens")
 _HEAD_BYTES = 200

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
     from types import TracebackType
 
-    from auth_usage_dashboard.timeseries_types import SqlValue
+    from .json_types import SqlValue
 
 DEFAULT_STATE = Path("/var/lib/pitchai-token-ledger/ledger.sqlite3")
 ROW_KEY = ("hour_epoch", "cell", "project", "agent", "provider", "model", "route")

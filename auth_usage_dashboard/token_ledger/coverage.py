@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     import sqlite3
     from collections.abc import Iterator
 
-    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue, SqlValue
+    from .json_types import JsonObject, JsonValue, SqlValue
 
 NODE_STALE_SECONDS = 1_200
 

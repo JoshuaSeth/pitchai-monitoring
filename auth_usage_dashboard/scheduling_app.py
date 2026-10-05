@@ -7,6 +7,7 @@ from asyncio import to_thread
 from functools import partial
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
+from .burn_factor_routes import BurnFactorCache, register_burn_factor_route
 from .claude_routes import register_claude_route
 from .history import UsageSampleStore
 from .luna_reserve_gateway import read_luna_reserve_snapshot
@@ -24,7 +25,7 @@ from .subscription_routes import register_subscription_route
 from .token_usage_routes import register_token_usage_route
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from .scheduling_web_runtime import Application, Response
     from .service import StateSource
@@ -82,9 +83,7 @@ def create_scheduling_app(
         service=selected_service,
     )
     source_object = cast("object", selected_source)
-    raw_account_reader = (
-        source_object if isinstance(source_object, _RawAccountReader) else None
-    )
+    raw_account_reader = source_object if isinstance(source_object, _RawAccountReader) else None
     sample_store = (
         UsageSampleStore(
             selected_settings.history_file,
@@ -160,6 +159,16 @@ def create_scheduling_app(
         identity_default=identity_header,
         require_operator=_require_operator,
     )
+    register_burn_factor_route(
+        application,
+        settings=selected_settings,
+        identity_default=identity_header,
+        require_operator=_require_operator,
+        cache=BurnFactorCache(
+            cast("Callable[[], Awaitable[JsonObject]]", selected_service.snapshot),
+            sample_store.read if sample_store is not None else None,
+        ),
+    )
     return application
 
 
@@ -179,26 +188,15 @@ def _require_operator(settings: DashboardSettings, raw_email: str | None) -> Non
 
 
 def _normalize_pitchai_email(raw_email: str | None) -> str | None:
-    if (
-        raw_email is None
-        or raw_email != raw_email.strip()
-        or len(raw_email) > _MAX_EMAIL_LENGTH
-    ):
+    if raw_email is None or raw_email != raw_email.strip() or len(raw_email) > _MAX_EMAIL_LENGTH:
         return None
     email = raw_email.lower()
     local_part, separator, domain = email.rpartition("@")
     valid_structure = (
-        email.count("@") == 1
-        and separator == "@"
-        and bool(local_part)
-        and domain == _ALLOWED_IDENTITY_DOMAIN
+        email.count("@") == 1 and separator == "@" and bool(local_part) and domain == _ALLOWED_IDENTITY_DOMAIN
     )
     if not valid_structure:
         return None
-    if any(
-        ord(character) < _VISIBLE_ASCII_MINIMUM
-        or ord(character) > _VISIBLE_ASCII_MAXIMUM
-        for character in email
-    ):
+    if any(ord(character) < _VISIBLE_ASCII_MINIMUM or ord(character) > _VISIBLE_ASCII_MAXIMUM for character in email):
         return None
     return email

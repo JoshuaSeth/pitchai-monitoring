@@ -20,11 +20,13 @@ class ExpectedFailure:
 
     expected: tuple[type[Exception], ...]
     name: str | None
+    message: str | None
 
     def __init__(self, *expected: type[Exception]) -> None:
         """Expect any of the given exception types."""
         self.expected = expected
         self.name = None
+        self.message = None
 
     def __enter__(self) -> ExpectedFailure:
         """Return this recorder so the caller can read ``name`` after the block."""
@@ -33,7 +35,7 @@ class ExpectedFailure:
     def __exit__(
         self,
         kind: type[BaseException] | None,
-        _value: BaseException | None,
+        value: BaseException | None,
         _traceback: TracebackType | None,
     ) -> bool:
         """Swallow an expected exception and remember its type name; let anything else propagate.
@@ -44,4 +46,5 @@ class ExpectedFailure:
         if kind is None or not issubclass(kind, self.expected):
             return False
         self.name = kind.__name__
+        self.message = str(value) if value is not None else ""
         return True

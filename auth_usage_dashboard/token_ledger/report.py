@@ -16,12 +16,12 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 from .coverage import iso_utc, node_coverage
 from .fleet_store import connect_fleet
 from .labels import PROVIDER_LABELS, model_label, project_label
-from .model_palette import model_shade, provider_color
+from .model_palette import OTHER_COLOR, PROVIDER_COLORS, model_shade
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue
+    from .json_types import JsonObject, JsonValue
 
 SCHEMA_VERSION = 1
 RANGES = {"24h": (86_400, 3_600), "7d": (7 * 86_400, 10_800), "30d": (30 * 86_400, 86_400)}
@@ -163,7 +163,7 @@ def _layer_keys(row: _CubeRow) -> dict[str, _SeriesKey]:
     shade = model_shade(model, provider)
     model_detail = provider_name if shade.intelligence is None else f"{provider_name} · AA {shade.intelligence:g}"
     return {
-        "provider": _SeriesKey(provider, provider_name, None, _Style(provider_color(provider))),
+        "provider": _SeriesKey(provider, provider_name, None, _Style(PROVIDER_COLORS.get(provider, OTHER_COLOR))),
         "model": _SeriesKey(model, model_label(model), model_detail, _Style(shade.color, provider, shade.order)),
         "project": _SeriesKey(project, project_label(project, title), None, _NO_STYLE),
     }

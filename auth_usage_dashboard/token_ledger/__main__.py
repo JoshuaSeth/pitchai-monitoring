@@ -20,8 +20,7 @@ from .node_store import DEFAULT_STATE, NodeStore
 from .sources import DEFAULT_CONFIG, load_config
 
 if TYPE_CHECKING:
-    from auth_usage_dashboard.timeseries_types import JsonObject, SqlValue
-
+    from .json_types import JsonObject, SqlValue
     from .sources import NodeConfig
 
 _VERSION_FILE = Path(__file__).resolve().parent / "VERSION"

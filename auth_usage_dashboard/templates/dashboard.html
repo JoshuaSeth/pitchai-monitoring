@@ -59,6 +59,27 @@
         </div>
       </section>
 
+      <section class="burn-section" aria-labelledby="burn-factor-title" data-testid="burn-factor">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Moving burn vs. horizon capacity</div>
+            <h2 id="burn-factor-title">Burn factor</h2>
+          </div>
+          <div class="section-aside" id="burn-factor-basis">Reading capacity basis</div>
+        </div>
+        <div class="burn-grid" id="burn-factor-grid" aria-live="polite"></div>
+        <form class="burn-custom" id="burn-custom-form">
+          <label for="burn-custom-rolling">Rolling burn</label>
+          <input id="burn-custom-rolling" name="rolling" inputmode="text" autocomplete="off" placeholder="30m" maxlength="7" />
+          <label for="burn-custom-horizon">Future window</label>
+          <input id="burn-custom-horizon" name="horizon" inputmode="text" autocomplete="off" placeholder="24h" maxlength="7" />
+          <button type="submit">Calculate</button>
+          <div class="burn-presets" id="burn-presets" aria-label="Presets"></div>
+          <span class="burn-custom-message" id="burn-custom-message" role="status"></span>
+        </form>
+        <p class="burn-explainer">Factor = burn rate over the rolling window × future window ÷ capacity available in that window (points left now + resets − leftovers lost at resets or subscription ends). Below 1.0 is margin; 1.0 or more means the pool runs short. 0.5 over 24 h ≈ 48 h of runway.</p>
+      </section>
+
       <section class="claude-section" aria-labelledby="claude-title" data-testid="claude-accounts">
         <div class="section-heading">
           <div>
@@ -277,5 +298,6 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="/static/dashboard.js" defer></script>
     <script src="/static/token_usage.js" defer></script>
+    <script src="/static/burn_factor.js" defer></script>
   </body>
 </html>

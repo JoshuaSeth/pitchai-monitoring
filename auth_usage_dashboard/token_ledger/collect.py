@@ -19,8 +19,7 @@ from .sources import discover_homes, list_rollouts, load_lane_index
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from auth_usage_dashboard.timeseries_types import JsonObject
-
+    from .json_types import JsonObject
     from .node_store import NodeStore, RowKey, RowValues
     from .rollout import ReadResult, UsageEvent
     from .sources import Home, Lane, LaneIndex, NodeConfig

@@ -7,9 +7,8 @@ import io
 import json
 from typing import TYPE_CHECKING
 
-import pytest
-
 from ._timeseries_test_fixtures import check, check_equal, require_array
+from ._token_ledger_test_fixtures import value_error_text
 from .timeseries_types import require_object
 from .token_ledger.fleet_store import connect_fleet, ingest
 from .token_ledger.report import build_report
@@ -97,8 +96,9 @@ def test_report_without_store_is_explicitly_unavailable(tmp_path: Path) -> None:
     report = build_report(tmp_path / "missing.sqlite3", "7d", expected_nodes=("master",), now=BASE)
     check(report["dimensions"] is None, "no dimensions without a store")
     check(bool(report["error"]), "the missing store is explained")
-    with pytest.raises(ValueError, match="range"):
-        build_report(tmp_path / "missing.sqlite3", "1y", expected_nodes=(), now=BASE)
+    missing = tmp_path / "missing.sqlite3"
+    error = value_error_text(lambda: build_report(missing, "1y", expected_nodes=(), now=BASE))
+    check("range" in error, "an unknown range is rejected")
 
 
 def test_model_layer_groups_provider_families_with_darker_heavier_models(tmp_path: Path) -> None:

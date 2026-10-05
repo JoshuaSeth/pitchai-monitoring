@@ -21,7 +21,7 @@ from .failures import ExpectedFailure
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue, SqlValue
+    from .json_types import JsonObject, JsonValue, SqlValue
 
 DEFAULT_CONFIG = Path("/etc/pitchai-token-ledger/config.json")
 _PAAS_ROOT = Path("/", "tmp")  # The engine's own launch manifests, only ever read.

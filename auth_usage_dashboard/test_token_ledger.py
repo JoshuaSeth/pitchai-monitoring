@@ -8,10 +8,10 @@ import json
 import os
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
-
-import pytest
+from unittest.mock import patch
 
 from ._timeseries_test_fixtures import check, check_equal
+from ._token_ledger_test_fixtures import value_error_text
 from .token_ledger import rollout as rollout_module
 from .token_ledger.collect import CollectHooks, collect
 from .token_ledger.deliver import deliver
@@ -187,22 +187,30 @@ def test_local_delivery_is_idempotent_and_pins_the_node(tmp_path: Path) -> None:
     cursor = connection.execute("select node, total from token_usage_hourly order by node")
     nodes = cast("list[tuple[str, int]]", cursor.fetchall())
     check_equal(nodes, [("jeff-dev", 11), ("master", 11)], "a replayed batch overwrites its own node's row")
-    with pytest.raises(ValueError, match="aligned"):
-        ingest(connection, "jeff-dev", io.StringIO('{"hour_epoch": 5, "cell": "x"}\n'))
-    with pytest.raises(ValueError, match="node"):
-        ingest(connection, "../evil", io.StringIO(""))
+    misaligned = io.StringIO('{"hour_epoch": 5, "cell": "x"}\n')
+    check(
+        "aligned" in value_error_text(lambda: ingest(connection, "jeff-dev", misaligned)),
+        "unaligned hours are rejected",
+    )
+    check(
+        "node" in value_error_text(lambda: ingest(connection, "../evil", io.StringIO(""))),
+        "unsafe node names are rejected",
+    )
     connection.close()
     store.close()
 
 
-def test_horizon_seek_counts_only_window_deltas_with_restored_model(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_horizon_seek_counts_only_window_deltas_with_restored_model(tmp_path: Path) -> None:
     """Prove horizon seek counts only window deltas with restored model."""
-    monkeypatch.setattr(rollout_module, "_SEEK_MIN_BYTES", 1_000)
-    monkeypatch.setattr(rollout_module, "_SEEK_PRECISION", 256)
-    monkeypatch.setattr(rollout_module, "_PRIMER_BYTES", 3_000)
+    with (
+        patch.object(rollout_module, "_SEEK_MIN_BYTES", 1_000),
+        patch.object(rollout_module, "_SEEK_PRECISION", 256),
+        patch.object(rollout_module, "_PRIMER_BYTES", 3_000),
+    ):
+        _check_horizon_seek(tmp_path)
+
+
+def _check_horizon_seek(tmp_path: Path) -> None:
     start = BASE - 10 * 86_400
     indexes = range(400)
     events = [_cumulative(start + index * 2_000, 1_000 * (index + 1), 0, index + 1) for index in indexes]

@@ -1804,3 +1804,47 @@ footer {
 .claude-scoped + .claude-account-meta { margin-top: 10px; }
 @media (max-width: 420px) { .claude-windows { grid-template-columns: 1fr; gap: 14px; } }
 /* end Claude quota meters */
+
+/* Burn factor (burn_factor.js) */
+.burn-section { margin-top: 28px; }
+.burn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; transition: opacity 0.15s ease; }
+.burn-grid.is-refreshing { opacity: 0.6; }
+.burn-empty { margin: 0; padding: 22px; border: 1px dashed var(--line); border-radius: 7px; background: var(--surface); color: var(--muted); font-size: 12px; }
+.burn-card { display: grid; gap: 10px; padding: 18px; border: 1px solid var(--line); border-left-width: 4px; border-radius: 7px; background: var(--surface); }
+.burn-card.burn-good { border-left-color: var(--green); }
+.burn-card.burn-tight, .burn-card.burn-limited { border-left-color: var(--amber); }
+.burn-card.burn-short { border-left-color: var(--red); }
+.burn-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.burn-card-title { display: grid; gap: 3px; }
+.burn-card-title strong { font-size: 14px; }
+.burn-card-label { color: var(--muted); font-size: 10px; font-weight: 750; text-transform: uppercase; }
+.burn-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 750; white-space: nowrap; }
+.burn-badge-icon { font-size: 10px; }
+.burn-badge.burn-good { background: var(--green-soft); color: var(--green); }
+.burn-badge.burn-tight, .burn-badge.burn-limited { background: var(--amber-soft); color: var(--amber); }
+.burn-badge.burn-short { background: var(--red-soft); color: var(--red); }
+.burn-badge.burn-unknown { background: var(--surface-muted); color: var(--muted); }
+.burn-factor-value { display: flex; align-items: baseline; gap: 8px; }
+.burn-factor-value strong { font-family: var(--mono); font-size: 34px; line-height: 1; }
+.burn-factor-value span { color: var(--muted); font-size: 12px; }
+.burn-meter { position: relative; height: 8px; border-radius: 999px; background: var(--surface-muted); overflow: visible; }
+.burn-meter span { position: absolute; inset: 0 auto 0 0; width: var(--value, 0%); border-radius: 999px; background: var(--cyan); }
+.burn-good .burn-meter span { background: var(--green); }
+.burn-tight .burn-meter span, .burn-limited .burn-meter span { background: var(--amber); }
+.burn-short .burn-meter span { background: var(--red); }
+.burn-meter-one { position: absolute; top: -3px; bottom: -3px; left: 50%; width: 2px; background: var(--ink); opacity: 0.55; }
+.burn-summary { margin: 0; font-size: 13px; font-weight: 650; }
+.burn-breakdown { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 12px; }
+.burn-breakdown dt { color: var(--muted); font-weight: 700; }
+.burn-breakdown dd { margin: 0; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+.burn-note { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--surface-muted); color: var(--muted); font-size: 11px; line-height: 1.5; }
+.burn-custom { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; }
+.burn-custom label { color: var(--muted); font-weight: 700; }
+.burn-custom input { width: 76px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-family: var(--mono); }
+.burn-custom button[type=submit] { height: 34px; padding: 0 14px; border: 1px solid var(--ink); border-radius: 6px; background: var(--ink); color: var(--surface); font-weight: 700; cursor: pointer; }
+.burn-presets { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.burn-preset { height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-family: var(--mono); font-size: 11px; cursor: pointer; }
+.burn-preset:hover { border-color: var(--line-strong); }
+.burn-custom-message { color: var(--red); }
+.burn-explainer { margin: 10px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+@media (max-width: 720px) { .burn-grid { grid-template-columns: 1fr; } .burn-factor-value strong { font-size: 28px; } }
