@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import hmac
 import logging
-import secrets
 import time
 import uuid
 from pathlib import Path
@@ -18,6 +16,8 @@ from fastapi.templating import Jinja2Templates
 
 from e2e_registry import db as dbm
 from e2e_registry.app_access import RegistryAccess
+from e2e_registry.app_admin_routes import router as admin_router
+from e2e_registry.app_read_routes import router as read_router
 from e2e_registry.app_access import TENANT_COOKIE_NAME as COOKIE_TOKEN_HASH
 from e2e_registry.app_context import RegistryContext
 from e2e_registry.app_host_policy import RegistryHostPolicy
@@ -38,8 +38,6 @@ from e2e_registry.alerts import (
 )
 from e2e_registry.auth import RequestAuth, hash_token, require_admin, require_runner, require_tenant_auth
 from e2e_registry.schema import (
-    CreateApiKeyRequest,
-    CreateTenantRequest,
     CreateTestRequest,
     DisableTestRequest,
     PatchTestRequest,
@@ -473,27 +471,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     install_monitoring_routes(context, access)
 
 
-    @app.post("/api/v1/admin/tenants")
-    async def api_create_tenant(_auth: None = Depends(require_admin), req: CreateTenantRequest | None = None) -> dict[str, Any]:
-        if req is None:
-            raise HTTPException(status_code=400, detail="missing_body")
-        tenant = await asyncio.to_thread(dbm.create_tenant, context.settings, name=req.name)
-        return {"ok": True, "tenant": tenant}
-
-    @app.post("/api/v1/admin/api_keys")
-    async def api_create_api_key(_auth: None = Depends(require_admin), req: CreateApiKeyRequest | None = None) -> dict[str, Any]:
-        if req is None:
-            raise HTTPException(status_code=400, detail="missing_body")
-        token = secrets.token_urlsafe(32)
-        th = hash_token(token)
-        rec = await asyncio.to_thread(
-            dbm.create_api_key,
-            context.settings,
-            tenant_id=req.tenant_id,
-            name=req.name,
-            token_hash=th,
-        )
-        return {"ok": True, "api_key": rec, "token": token}
+    app.include_router(admin_router)
 
     @app.post("/api/v1/tests")
     async def api_create_test(auth: RequestAuth = Depends(require_tenant_auth), req: CreateTestRequest | None = None) -> dict[str, Any]:
@@ -774,73 +752,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="not_found")
         return {"ok": True}
 
-    @app.get("/api/v1/tests/{test_id}/runs")
-    async def api_list_runs(test_id: str, limit: int = 50, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        runs = await asyncio.to_thread(dbm.list_runs, context.settings, tenant_id=auth.tenant_id, test_id=test_id, limit=limit)
-        return {"ok": True, "runs": runs}
-
-    @app.get("/api/v1/runs/{run_id}")
-    async def api_get_run(run_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        run = await asyncio.to_thread(dbm.get_run, context.settings, tenant_id=auth.tenant_id, run_id=run_id)
-        if not run:
-            raise HTTPException(status_code=404, detail="not_found")
-        return {"ok": True, "run": run}
-
-    @app.get("/api/v1/runs/{run_id}/artifacts/{name}")
-    async def api_get_artifact(run_id: str, name: str, auth: RequestAuth = Depends(require_tenant_auth)) -> FileResponse:
-        run = await asyncio.to_thread(dbm.get_run, context.settings, tenant_id=auth.tenant_id, run_id=run_id)
-        if not run:
-            raise HTTPException(status_code=404, detail="run_not_found")
-        # Artifacts are stored on disk under {artifacts_dir}/{tenant}/{test}/{run}/...
-        tenant_id = auth.tenant_id
-        test_id = str(run.get("test_id") or "").strip()
-        if not test_id:
-            raise HTTPException(status_code=404, detail="test_not_found")
-        base = Path(context.settings.artifacts_dir).resolve()
-        file_path = (base / tenant_id / test_id / run_id / name).resolve()
-        if base not in file_path.parents:
-            raise HTTPException(status_code=400, detail="invalid_artifact_path")
-        if not file_path.exists() or not file_path.is_file():
-            raise HTTPException(status_code=404, detail="artifact_not_found")
-        return FileResponse(str(file_path))
-
-    @app.get("/api/v1/status/summary")
-    async def api_status_summary(req: Request) -> dict[str, Any]:
-        """
-        Returns either:
-        - global summary (admin token), or
-        - global summary (monitor token), or
-        - tenant-only summary (valid tenant token)
-        """
-        token = (req.headers.get("authorization") or "").strip()
-        settings2: RegistrySettings = context.settings
-
-        # Admin/monitor path
-        if token.lower().startswith("bearer "):
-            provided = token.split(None, 1)[1].strip()
-            if settings2.admin_token and hmac.compare_digest(provided, settings2.admin_token.strip()):
-                return await asyncio.to_thread(dbm.status_summary, settings2)
-            if settings2.monitor_token and hmac.compare_digest(provided, settings2.monitor_token.strip()):
-                return await asyncio.to_thread(dbm.status_summary, settings2)
-
-        # Tenant path
-        try:
-            auth = require_tenant_auth(req, settings2)
-        except HTTPException as exc:
-            raise HTTPException(status_code=401, detail="unauthorized") from exc
-        summary = await asyncio.to_thread(dbm.status_summary, settings2)
-        tests = summary.get("tests") if isinstance(summary.get("tests"), list) else []
-        tests2 = [t for t in tests if str(t.get("tenant_id") or "") == auth.tenant_id]
-        failing: list[dict[str, Any]] = []
-        for t in tests2:
-            v = t.get("effective_ok")
-            try:
-                v_i = 1 if v is None else int(v)
-            except Exception:
-                v_i = 1
-            if v_i == 0:
-                failing.append(t)
-        return {"ok": True, "total_tests": len(tests2), "failing_tests": len(failing), "tests": tests2}
+    app.include_router(read_router)
 
     # -----------------
     # Runner API
