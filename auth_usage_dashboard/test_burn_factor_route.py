@@ -44,3 +44,12 @@ def test_burn_factor_route_requires_identity_validates_pairs_and_defaults_to_two
         custom_results = custom.get("results")
         first = require_object(custom_results[0] if isinstance(custom_results, list) else None, description="first")
         check_equal((first.get("rolling"), first.get("horizon")), ("2h", "3d"), "any custom pair is answered")
+        bogus = client.get("/api/v1/burn-factor?pool=bogus", headers=OPERATOR)
+        check_equal(bogus.status_code, int(HTTPStatus.BAD_REQUEST), "an unknown pool is a client error")
+        for pool in ("anthropic", "opencode"):
+            pooled = require_object(
+                client.get(f"/api/v1/burn-factor?pool={pool}", headers=OPERATOR).json(), description=pool,
+            )
+            pool_results = pooled.get("results")
+            check_equal(pooled.get("pool"), pool, "the pool is echoed")
+            check(isinstance(pool_results, list) and len(pool_results) == DEFAULT_VIEWS, "both default views per pool")

@@ -1,0 +1,13 @@
+[Unit]
+Description=Export redacted OpenCode Go subscription-pool usage for the usage dashboard
+ConditionPathExists=/var/lib/pitchai-opencode-isolated/keyring.json
+
+[Service]
+Type=oneshot
+# The exporter reads the bridge keyring in-process and writes labels and numbers only; keys never leave it.
+WorkingDirectory=/usr/local/lib/pitchai-codex-usage
+ExecStart=/usr/bin/python3 -B -m claude_usage_export.opencode_accounts
+User=root
+UMask=0077
+TimeoutStartSec=120
+NoNewPrivileges=true
