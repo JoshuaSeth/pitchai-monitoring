@@ -13,15 +13,15 @@ from contextlib import closing
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple, cast
 
+from .coverage import iso_utc, node_coverage
 from .fleet_store import connect_fleet
-from .labels import PROVIDER_LABELS, PROVIDER_SLOTS, model_label, project_label
+from .labels import PROVIDER_LABELS, model_label, project_label
+from .model_palette import model_shade, provider_color
 
 if TYPE_CHECKING:
-    import sqlite3
-    from collections.abc import Iterator
     from pathlib import Path
 
-    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue, SqlValue
+    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue
 
 SCHEMA_VERSION = 1
 RANGES = {"24h": (86_400, 3_600), "7d": (7 * 86_400, 10_800), "30d": (30 * 86_400, 86_400)}
@@ -31,7 +31,6 @@ METRICS: tuple[JsonObject, ...] = (
     {"key": "output", "label": "Output tokens"},
 )
 TOP_SERIES = 7
-NODE_STALE_SECONDS = 1_200
 OTHER_KEY = "_other"
 METHOD = (
     "Hourly totals from each runtime's own per-request token records (rollout token counts), "
@@ -49,6 +48,17 @@ GROUP BY bucket, provider, model, project
 _CubeRow = tuple[int, str, str, str, "str | None", int, int, int, int, int, int]
 
 
+class _Style(NamedTuple):
+    """Family color, provider family and capability order of one series."""
+
+    color: str | None = None
+    family: str | None = None
+    strength: float = 0.0
+
+
+_NO_STYLE = _Style()
+
+
 @dataclass
 class _Series:
     key: str
@@ -56,16 +66,16 @@ class _Series:
     points: dict[str, list[int]]
     totals: dict[str, int]
     detail: str | None = None
-    color_slot: int | None = None
+    style: _Style = _NO_STYLE
 
 
 class _SeriesKey(NamedTuple):
-    """Identity and labels of one series within a layer."""
+    """Identity, labels and style of one series within a layer."""
 
     key: str
     label: str
     detail: str | None
-    slot: int | None
+    style: _Style
 
 
 class _Window(NamedTuple):
@@ -110,14 +120,26 @@ def _other(rest: list[_Series], count: int) -> _Series:
     return other
 
 
+def _family_order(named: list[_Series]) -> list[_Series]:
+    """Keep each provider family together (largest first), heaviest model at the base.
+
+    Returns:
+        The named series in stacking order.
+    """
+    family_totals: dict[str, int] = {}
+    for item in named:
+        family = item.style.family or item.key
+        family_totals[family] = family_totals.get(family, 0) + item.totals.get("total", 0)
+    return sorted(named, key=lambda item: (-family_totals[item.style.family or item.key], -item.style.strength))
+
+
 def _fold(series: dict[str, _Series], count: int) -> list[JsonValue]:
     ranked = sorted(series.values(), key=lambda item: item.totals.get("total", 0), reverse=True)
-    named, rest = ranked[:TOP_SERIES], ranked[TOP_SERIES:]
+    named, rest = _family_order(ranked[:TOP_SERIES]), ranked[TOP_SERIES:]
     if rest:
         named.append(_other(rest, count))
     output: list[JsonValue] = []
     for rank, item in enumerate(named):
-        slot = item.color_slot if item.color_slot is not None else rank
         point_items = item.points.items()
         point_lists: JsonObject = {metric: list(values) for metric, values in point_items}
         output.append(
@@ -126,7 +148,8 @@ def _fold(series: dict[str, _Series], count: int) -> list[JsonValue]:
                 "label": item.label,
                 "detail": item.detail,
                 "other": item.key == OTHER_KEY,
-                "color_slot": None if item.key == OTHER_KEY else slot,
+                "color_slot": None if item.key == OTHER_KEY else rank,
+                "color": item.style.color,
                 "totals": dict(item.totals),
                 "points": point_lists,
             },
@@ -134,55 +157,15 @@ def _fold(series: dict[str, _Series], count: int) -> list[JsonValue]:
     return output
 
 
-def _coverage(connection: sqlite3.Connection, expected: tuple[str, ...], now: float) -> JsonObject:
-    query = "select node, last_ingest_at, last_collect_at, backlog_bytes from ledger_nodes"
-    rows: dict[str, tuple[float | None, float | None, int]] = {}
-    for node, last_ingest, last_collect, backlog in cast("Iterator[tuple[SqlValue, ...]]", connection.execute(query)):
-        rows[str(node)] = (_number(last_ingest), _number(last_collect), int(backlog or 0))
-    sources: list[JsonValue] = []
-    stale_flags: list[bool] = []
-    ingests: list[float] = []
-    backlog_total = 0
-    for node in sorted(set(expected) | set(rows)):
-        last_ingest, last_collect, backlog = rows.get(node, (None, None, 0))
-        if last_ingest is not None:
-            ingests.append(last_ingest)
-        backlog_total += backlog
-        stale = last_ingest is None or now - last_ingest > NODE_STALE_SECONDS
-        stale_flags.append(stale)
-        sources.append(
-            {
-                "name": node,
-                "label": node,
-                "last_ingest_at": _iso(last_ingest) if last_ingest is not None else None,
-                "last_collect_at": _iso(last_collect) if last_collect is not None else None,
-                "backlog_bytes": backlog,
-                "stale": stale,
-            },
-        )
-    return {
-        "sources": sources,
-        "stale": any(stale_flags),
-        "last_collected_at": _iso(max(ingests)) if ingests else None,
-        "backlog_bytes": backlog_total,
-    }
-
-
-def _number(value: SqlValue) -> float | None:
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
-
-
-def _iso(epoch: float) -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
-
-
 def _layer_keys(row: _CubeRow) -> dict[str, _SeriesKey]:
     _, provider, model, project, title = row[:5]
     provider_name = PROVIDER_LABELS.get(provider, provider)
+    shade = model_shade(model, provider)
+    model_detail = provider_name if shade.intelligence is None else f"{provider_name} · AA {shade.intelligence:g}"
     return {
-        "provider": _SeriesKey(provider, provider_name, None, PROVIDER_SLOTS.get(provider)),
-        "model": _SeriesKey(model, model_label(model), provider_name, None),
-        "project": _SeriesKey(project, project_label(project, title), None, None),
+        "provider": _SeriesKey(provider, provider_name, None, _Style(provider_color(provider))),
+        "model": _SeriesKey(model, model_label(model), model_detail, _Style(shade.color, provider, shade.order)),
+        "project": _SeriesKey(project, project_label(project, title), None, _NO_STYLE),
     }
 
 
@@ -195,7 +178,7 @@ def _dimensions(cube: list[_CubeRow], window: _Window) -> JsonObject:
             continue
         numbers = tuple(int(value or 0) for value in row[5:])
         for layer, spec in _layer_keys(row).items():
-            blank = _Series(spec.key, spec.label, _blank(window.size), {}, spec.detail, spec.slot)
+            blank = _Series(spec.key, spec.label, _blank(window.size), {}, spec.detail, spec.style)
             _add(layers[layer].setdefault(spec.key, blank), index, numbers)
     dimensions: JsonObject = {}
     for layer, series_by_key in layers.items():
@@ -222,7 +205,7 @@ def build_report(
     window = _window(range_key, current)
     base: JsonObject = {
         "schema_version": SCHEMA_VERSION,
-        "generated_at": _iso(current),
+        "generated_at": iso_utc(current),
         "range": range_key,
         "bucket_seconds": window.bucket,
         "metrics": list(METRICS),
@@ -240,7 +223,7 @@ def build_report(
     with closing(connect_fleet(path, read_only=True)) as connection:
         bounds = {"bucket": window.bucket, "start": window.first_bucket, "end": end}
         cube = cast("list[_CubeRow]", connection.execute(_QUERY, bounds).fetchall())
-        coverage = _coverage(connection, expected_nodes, current)
+        coverage = node_coverage(connection, expected_nodes, current)
     positions = range(window.size)
-    buckets: list[JsonValue] = [_iso(window.first_bucket + position * window.bucket) for position in positions]
+    buckets: list[JsonValue] = [iso_utc(window.first_bucket + position * window.bucket) for position in positions]
     return {**base, "error": None, "buckets": buckets, "dimensions": _dimensions(cube, window), "coverage": coverage}

@@ -18,17 +18,6 @@ PROVIDER_LABELS = {
     "moonshot": "Moonshot",
     "other": "Other provider",
 }
-# Fixed categorical slot per provider so a provider keeps its color in every range.
-PROVIDER_SLOTS = {
-    "openai": 0,
-    "anthropic": 1,
-    "deepseek": 2,
-    "zhipu": 3,
-    "xiaomi": 4,
-    "google": 5,
-    "moonshot": 6,
-    "other": 6,
-}
 ROUTE_LABELS = {
     "codex_account": "Codex account broker",
     "astra": "Astra owner",

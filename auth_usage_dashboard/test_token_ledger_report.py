@@ -80,8 +80,8 @@ def test_report_layers_fold_into_top_series_and_other(tmp_path: Path) -> None:
     check_equal(projects[-1]["label"], "Other (2)", "Other counts the folded series")
     provider_series = _objects(require_object(dimensions["provider"], description="provider layer")["series"], "p")
     providers = {str(item["key"]): item for item in provider_series}
-    check_equal(providers["openai"]["color_slot"], 0, "OpenAI keeps its fixed color slot")
-    check_equal(providers["anthropic"]["color_slot"], 1, "Anthropic keeps its fixed color slot")
+    check_equal(providers["openai"]["color"], "#2a6fdb", "OpenAI keeps its family color")
+    check_equal(providers["anthropic"]["color"], "#f07a24", "Anthropic keeps its family color")
     check_equal(len(require_array(report["buckets"], "buckets")), 24, "a day has 24 hourly buckets")
     point_totals = [_point_total(item) for item in projects]
     expected_total = sum(int(str(row["total"])) for row in rows)
@@ -99,3 +99,42 @@ def test_report_without_store_is_explicitly_unavailable(tmp_path: Path) -> None:
     check(bool(report["error"]), "the missing store is explained")
     with pytest.raises(ValueError, match="range"):
         build_report(tmp_path / "missing.sqlite3", "1y", expected_nodes=(), now=BASE)
+
+
+def test_model_layer_groups_provider_families_with_darker_heavier_models(tmp_path: Path) -> None:
+    """Prove models are colored by provider family and ordered heaviest-first within a family."""
+    usage = (
+        ("gpt-5.6-luna", "openai", 900),
+        ("gpt-6-astra", "openai", 300),
+        ("claude-opus", "anthropic", 500),
+        ("claude-fable", "anthropic", 100),
+        ("mystery-model", "openai", 50),
+    )
+    rows: list[JsonObject] = [
+        {
+            "hour_epoch": BASE,
+            "project": "p",
+            "provider": provider,
+            "model": model,
+            "input": total,
+            "cached_input": 0,
+            "output": 0,
+            "total": total,
+        }
+        for model, provider, total in usage
+    ]
+    report = build_report(_fleet_with(tmp_path, rows), "24h", expected_nodes=("master",), now=BASE + 60)
+    dimensions = require_object(report["dimensions"], description="dimensions")
+    models = _objects(require_object(dimensions["model"], description="model layer")["series"], "models")
+    check_equal(
+        [item["key"] for item in models],
+        ["gpt-6-astra", "gpt-5.6-luna", "mystery-model", "claude-fable", "claude-opus"],
+        "families stay together, largest family first, heaviest model at the base",
+    )
+    colors = {str(item["key"]): item["color"] for item in models}
+    check_equal(colors["gpt-6-astra"], "#1d3a8f", "Astra is the dark navy shade")
+    check_equal(colors["gpt-5.6-luna"], "#38c6d6", "Luna is the light cyan shade")
+    check_equal(colors["claude-fable"], "#8a4b1a", "Fable is brown")
+    check_equal(colors["claude-opus"], "#d03a2f", "Opus is red")
+    check_equal(colors["mystery-model"], "#5b8fd9", "an unlisted model takes its family middle shade")
+    check_equal(models[0]["detail"], "OpenAI · AA 53", "the AA index is shown with the provider")

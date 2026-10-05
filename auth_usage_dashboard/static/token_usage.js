@@ -167,6 +167,8 @@
 
   function seriesColor(series, index) {
     if (series.other) return OTHER_COLOR;
+    // Provider and model series carry their family shade (darker = heavier model).
+    if (typeof series.color === "string" && /^#[0-9a-f]{6}$/i.test(series.color)) return series.color;
     const slot = finite(series.color_slot);
     const position = slot !== null && slot >= 0 && slot < SLOT_COLORS.length ? slot : index;
     return SLOT_COLORS[position % SLOT_COLORS.length];
