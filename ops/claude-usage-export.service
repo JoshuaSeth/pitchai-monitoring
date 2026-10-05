@@ -7,6 +7,8 @@ Type=oneshot
 # The exporter package (claude_accounts, claude_probe, claude_quota) is installed side by side here.
 WorkingDirectory=/usr/local/lib/pitchai-codex-usage
 ExecStart=/usr/bin/python3 -B -m claude_usage_export.claude_accounts
+# Append one quota sample for the Anthropic burn factor (skipped when the reading is not newer).
+ExecStartPost=/usr/bin/python3 -B -m claude_usage_export.pool_samples
 User=root
 UMask=0077
 # Plan-limit probes stop starting after 120 s per run; each official CLI call is killed after 60 s.
