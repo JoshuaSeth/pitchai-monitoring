@@ -1,8 +1,9 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
 """Redacted Claude owner inventory for the usage dashboard.
 
-Only the official Claude CLI reads credentials; this collector asks it for one
-allowlisted identity summary per owner home and writes a redacted snapshot.
+Only the official Claude CLI reads credentials; this collector asks it for each
+profile's plan-limit readout and allowlisted identity summary, then writes a
+redacted snapshot.
 """
 
 from __future__ import annotations
@@ -10,15 +11,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
-import os
 import sys
-import tempfile
 import time
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
+
+from .claude_probe import QuotaProbe, QuotaSettings, run_cli
+from .claude_quota import apply_quota, number_value, object_value
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -34,25 +35,12 @@ BUNDLED_BINARY_GLOB = ".venv/lib/python*/site-packages/claude_agent_sdk/_bundled
 MINIMUM_UTILIZATION, MAXIMUM_UTILIZATION, FRESH_SECONDS = 0.0, 1.0, 60.0
 MAX_EMAIL_LENGTH, MAX_SNAPSHOT_BYTES = 254, 262_144
 MINIMUM_PROFILES, MAXIMUM_PROFILES, FIRST_VISIBLE_ORDINAL, LAST_VISIBLE_ORDINAL = 1, 8, 33, 126
-FINGERPRINT_LENGTH, SNAPSHOT_DIRECTORY_MODE, SNAPSHOT_SUFFIX = 16, 0o700, ".partial"
+FINGERPRINT_LENGTH, SNAPSHOT_DIRECTORY_MODE, SNAPSHOT_SUFFIX, AUTH_TIMEOUT_SECONDS = 16, 0o700, ".partial", 60.0
 WINDOWS = frozenset({"five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet"})
 PLANS = frozenset({"max", "pro", "team", "enterprise"})
 OWNER_UNAVAILABLE_ERROR = "owner_inventory_unavailable"
 MISSING_BINARY_MESSAGE = "Pinned Claude binary unavailable; previous snapshot will become stale\n"
 FALLBACK_PROFILES: list[JsonValue] = [{"id": "primary", "home": "home"}]
-
-
-def number_value(value: JsonValue) -> float | None:
-    """Return one finite JSON number, excluding booleans."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    number = float(value)
-    return number if math.isfinite(number) else None
-
-
-def object_value(value: JsonValue) -> JsonObject:
-    """Return one JSON object, or an empty object for any other value."""
-    return value if isinstance(value, dict) else {}
 
 
 def member_value(value: JsonValue, allowed: frozenset[str]) -> str | None:
@@ -84,31 +72,10 @@ def load_json_object(path: Path) -> JsonObject | None:
     return None if text is None else _decode_object(text)
 
 
-def _cli_status_text(executable: Path, home: Path) -> str | None:
-    arguments = (str(executable), "auth", "status")
-    environment = {"HOME": str(home), "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8"}
-    previous_directory = Path.cwd()
-    text: str | None = None
-    with suppress(OSError):
-        os.chdir(home)
-    with tempfile.TemporaryFile() as capture:
-        actions = ((os.POSIX_SPAWN_DUP2, capture.fileno(), 1), (os.POSIX_SPAWN_DUP2, capture.fileno(), 2))
-        process_id: int | None = None
-        with suppress(OSError):
-            process_id = os.posix_spawn(str(executable), arguments, environment, file_actions=actions)
-        if process_id is not None:
-            _, wait_status = os.waitpid(process_id, 0)
-            if os.waitstatus_to_exitcode(wait_status) == 0:
-                capture.seek(0)
-                text = capture.read().decode("utf-8", errors="replace")
-    with suppress(OSError):
-        os.chdir(previous_directory)
-    return text
-
-
 def auth_status(cli: Path, home: Path) -> JsonObject:
     """Return the official CLI's allowlisted identity summary for one owner home."""
-    document = _decode_object(_cli_status_text(cli, home))
+    environment = {"HOME": str(home), "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8"}
+    document = _decode_object(run_cli((str(cli), "auth", "status"), environment, home, AUTH_TIMEOUT_SECONDS).stdout)
     key_source = document.get("apiKeySource")
     signed_in = (
         document.get("loggedIn") is True
@@ -160,17 +127,22 @@ class _Context:
     rotation: bool
     stale: bool
     now: float
+    cli: Path
+    probe: QuotaProbe | None
+
+
+def _row_id(state_name: str, identifier: str) -> str:
+    return hashlib.sha256(f"{state_name}:{identifier}".encode()).hexdigest()[:FINGERPRINT_LENGTH]
 
 
 def _account_row(context: _Context, identifier: str, auth: JsonObject, usage: JsonObject, index: int) -> JsonObject:
     reset_at = number_value(usage.get("limitedUntil"))
-    source = f"{context.state_name}:{identifier}"
     utilization = number_value(usage.get("utilization"))
     used_percent = None
     if utilization is not None and MINIMUM_UTILIZATION <= utilization <= MAXIMUM_UTILIZATION:
         used_percent = round(utilization * 100.0, 1)
     return {
-        "id": hashlib.sha256(source.encode()).hexdigest()[:FINGERPRINT_LENGTH],
+        "id": _row_id(context.state_name, identifier),
         "signed_in": auth.get("signed_in") is True,
         "email": email_value(auth.get("email")),
         "plan": member_value(auth.get("plan"), PLANS),
@@ -185,7 +157,17 @@ def _account_row(context: _Context, identifier: str, auth: JsonObject, usage: Js
     }
 
 
-def _owner_rows(state: Path, cli: Path, *, now: float) -> list[JsonValue] | None:
+def _profile_row(context: _Context, health: JsonObject, index: int, profile: tuple[str, Path]) -> JsonValue:
+    identifier, home = profile
+    quota: JsonObject | None = None
+    if context.probe is not None:  # Before `auth status`: an expired token's status call leaves a refresh lock.
+        quota = context.probe.reading(_row_id(context.state_name, identifier), home, now=context.now)
+    usage = _usage_limit(health, identifier, index)
+    row = _account_row(context, identifier, auth_status(context.cli, home), usage, index)
+    return row if quota is None else apply_quota(row, quota, now=context.now)
+
+
+def _owner_rows(state: Path, cli: Path, probe: QuotaProbe | None, *, now: float) -> list[JsonValue] | None:
     owner = load_json_object(state)
     if owner is None or owner.get("provider") != "claude_code":
         return None
@@ -196,21 +178,19 @@ def _owner_rows(state: Path, cli: Path, *, now: float) -> list[JsonValue] | None
         return None
     health = load_json_object(state.parent / "health.json") or {}
     observed = number_value(health.get("writtenAt")) or 0.0
-    context = _Context(state.parent.name, observed, len(entries) > 1, not 0 <= now - observed <= FRESH_SECONDS, now)
-    rows: list[JsonValue] = []
-    for index, (identifier, home) in enumerate(entries):
-        usage = _usage_limit(health, identifier, index)
-        rows.append(_account_row(context, identifier, auth_status(cli, home), usage, index))
-    return rows
+    stale = not 0 <= now - observed <= FRESH_SECONDS
+    context = _Context(state.parent.name, observed, len(entries) > 1, stale, now, cli, probe)
+    return [_profile_row(context, health, index, entry) for index, entry in enumerate(entries)]
 
 
-def collect(owner_root: Path, cli: Path, *, now: float | None = None) -> JsonObject:
-    """Return the redacted Claude inventory from every owner directory."""
+def collect(owner_root: Path, cli: Path, *, now: float | None = None, quota: QuotaSettings | None = None) -> JsonObject:
+    """Return the redacted Claude inventory from every owner directory, with plan limits when configured."""
     current = time.time() if now is None else now
+    probe = None if quota is None else QuotaProbe(cli, quota)
     rows: list[JsonValue] = []
     failures = 0
     for state in sorted(owner_root.glob("*/owner.json")):
-        owner_rows = _owner_rows(state, cli, now=current)
+        owner_rows = _owner_rows(state, cli, probe, now=current)
         if owner_rows is None:
             failures += 1
             continue
@@ -219,19 +199,39 @@ def collect(owner_root: Path, cli: Path, *, now: float | None = None) -> JsonObj
     return {"schema_version": SCHEMA_VERSION, "generated_at": current, "accounts": rows, "errors": errors}
 
 
+def previous_rows(path: Path) -> dict[str, JsonValue]:
+    """Return the rows of this exporter's previous snapshot by stable id, to carry quota readings forward."""
+    document = load_json_object(path) or {}
+    rows = document.get("accounts") if document.get("schema_version") == SCHEMA_VERSION else None
+    previous: dict[str, JsonValue] = {}
+    for row in rows if isinstance(rows, list) else []:
+        identifier = object_value(row).get("id")
+        if isinstance(identifier, str):
+            previous[identifier] = row
+    return previous
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Return zero after writing one redacted Claude inventory snapshot."""
     parser = argparse.ArgumentParser(description="Export redacted Claude account status for the usage dashboard")
     parser.add_argument("--owners", type=Path, default=DEFAULT_OWNERS_ROOT)
     parser.add_argument("--runtime", type=Path, default=DEFAULT_RUNTIME_ROOT)
     parser.add_argument("--output", type=Path, default=COLLECTOR_OUTPUT_FILE)
+    defaults = QuotaSettings({})
+    parser.add_argument("--quota-interval", type=float, default=defaults.interval)
+    parser.add_argument("--probe-guard", type=Path, default=defaults.guard)
+    parser.add_argument("--probe-timeout", type=float, default=defaults.timeout)
+    parser.add_argument("--probe-budget", type=float, default=defaults.budget)
     arguments = parser.parse_args(list(argv) if argv is not None else None)
     binaries = sorted(cast("Path", arguments.runtime).glob(BUNDLED_BINARY_GLOB))
     if len(binaries) != 1:
         sys.stderr.write(MISSING_BINARY_MESSAGE)
         return 1
-    document = collect(cast("Path", arguments.owners), binaries[0])
     output = cast("Path", arguments.output)
+    guard, interval = cast("Path", arguments.probe_guard), cast("float", arguments.quota_interval)
+    timeout, budget = cast("float", arguments.probe_timeout), cast("float", arguments.probe_budget)
+    quota = QuotaSettings(previous_rows(output), guard=guard, interval=interval, timeout=timeout, budget=budget)
+    document = collect(cast("Path", arguments.owners), binaries[0], quota=quota)
     output.parent.mkdir(parents=True, exist_ok=True, mode=SNAPSHOT_DIRECTORY_MODE)
     temporary = output.with_name(output.name + SNAPSHOT_SUFFIX)
     temporary.write_text(json.dumps(document, allow_nan=False), encoding="utf-8")

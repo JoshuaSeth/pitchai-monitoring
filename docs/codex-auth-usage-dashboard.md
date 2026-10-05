@@ -293,25 +293,185 @@ The browser also reads the SSO-protected `/api/v1/claude-accounts` endpoint.
 Claude accounts appear in their own section and never enter Codex pool totals,
 capacity forecasts, usage history, or the native mobile API.
 
-`claude-usage-export.timer` runs once per minute on the owner host. Its Python
-collector reads only `owner.json`, `accounts.json`, and `health.json`, and asks
-the pinned official Claude binary for `auth status` with each profile's private
-HOME. It never opens login files or calls a generation/usage endpoint. Only
-allowlisted identity, plan, availability, and usage-event fields are written
-atomically to `/srv/codex-usage-dashboard/claude-accounts.json` (0600). The
-dashboard reads that snapshot through its existing data mount; no Claude home,
-credential, bearer token, or owner SQLite database is mounted in the container.
+`claude-usage-export.timer` runs once per minute on the owner host (master).
+The exporter is a stdlib-only package (`claude_accounts`, `claude_probe`,
+`claude_quota`) installed side by side under
+`/usr/local/lib/pitchai-codex-usage/claude_usage_export/` and started as
+`python3 -m claude_usage_export.claude_accounts`; it must stay compatible with
+the host's Python 3.10. It reads only `owner.json`, `accounts.json`, and
+`health.json`, and runs the pinned official Claude binary with each profile's
+private HOME. The exporter never opens login files; only the binary does.
+Allowlisted fields are written atomically to
+`/srv/codex-usage-dashboard/claude-accounts.json` (0600, `schema_version` 1
+with additive fields). The dashboard reads that snapshot through its existing
+data mount; no Claude home, credential, bearer token, or owner SQLite database
+is mounted in the container.
 
-“Ready” means signed in and eligible under the engine's cooldown state, not a
-guarantee of unused quota. Usage is the most recent official lane rate-limit
-event. Missing utilization remains unknown, readings older than ten minutes
-are labeled last reported, and status becomes unavailable if the exporter or
-owner heartbeat is stale. A profile without a reported usage window never
-appears as zero usage or unlimited capacity. Cooldowns show the engine's next
-eligible time, which can be a conservative retry time if no provider reset was
-reported. The dashboard does not switch accounts or alter cooldowns.
+### Plan limits (5-hour and weekly)
 
-Deployment installs the exporter and timer, then checks the same read-only
-status file in the loopback canary. Run `systemctl start claude-usage-export`
-to refresh identity/status immediately; normal refresh never submits a model
+For each profile, at most every 5 minutes (`--quota-interval 300`), the
+exporter runs the binary's local usage command **before** `auth status` (an
+expired token's `auth status` leaves a fresh `.oauth_refresh.lock` that stalls
+the next refresh):
+
+```sh
+claude -p /usage --output-format json --no-session-persistence \
+  --strict-mcp-config --setting-sources user
+```
+
+- The environment is replaced by `HOME=<profile>`, a fixed `PATH`,
+  `LANG=C.UTF-8`, `TZ=UTC`, `DISABLE_AUTOUPDATER=1` and, on the first attempt,
+  `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`. The working directory is a
+  fresh empty temporary directory that is removed afterwards. Each call is
+  killed after 60 s (`--probe-timeout`), and no new probe starts after 120 s of
+  probing in one run (`--probe-budget`); skipped profiles are probed next run.
+- With the traffic flag an expired access token is not refreshed and the
+  readout has no limit lines. The exporter then retries once without the flag,
+  so the binary refreshes the token itself under its own lock.
+- **Fail-closed guard.** A result counts as safe only when it is a JSON
+  `result` with `local_command: "usage"`, `num_turns: 0`, zero input, output,
+  cache and other `*_tokens` counts, and zero cost. Anything else writes
+  `/var/lib/pitchai-codex-usage/claude-usage-probe.disabled` (`--probe-guard`)
+  with the reason and time, and no profile is probed while that file exists.
+  Review the binary (an owner release may have changed `/usage`), then delete
+  the file to resume. A non-zero exit, timeout or unreadable output is an
+  ordinary error, not a guard trip.
+- The parser reads `Current session` (5-hour window), `Current week (all
+  models)` (weekly), `Current week (Sonnet only)` and any other
+  `Current week (<model>)` line (model-scoped weekly limit, e.g. Fable). Each
+  becomes `{used_percent, resets_at}`; reset texts such as `Oct 10, 3:59am
+  (UTC)` resolve to the nearest such date. Unknown lines are ignored, and a
+  missing window stays unknown, never 0% or 100%.
+- Between probes the reading is carried from the previous snapshot by the
+  row's stable id, with its original `quota_observed_at`. A failed probe keeps
+  the last reading and records `quota_error` (`probe_failed`, `probe_timeout`,
+  `no_limits_reported`, `probe_guard_tripped`, `probe_disabled`,
+  `binary_unavailable`).
+- `used_percent`/`window` show the tighter of the 5-hour and weekly windows
+  while the reading is fresh, and otherwise fall back to the engine's latest
+  rate-limit event. A ready profile whose 5-hour or weekly window is at 100%
+  is shown as cooling down until that window resets.
+
+The route passes each window through with `remaining_percent` and an ISO reset
+time, flags `quota_stale` when the reading is missing or older than 15
+minutes, and drops non-finite or out-of-range numbers, unknown windows, long
+labels and unlisted error codes. Each card shows a 5-hour and a weekly meter
+(“N% left”, reset time and countdown; “Limit reached” at 100%), one line per
+model-scoped week, and the reading's age. jeff-dev and fsn1 are not probed:
+their credential copies are separate, stale logins.
+
+“Ready” means signed in and eligible under the engine's cooldown state.
+Status becomes unavailable if the exporter or owner heartbeat is stale.
+Cooldowns show the engine's next eligible time, which can be a conservative
+retry time if no provider reset was reported. The dashboard does not switch
+accounts or alter cooldowns.
+
+Deployment installs the exporter package and timer, then checks the same
+read-only status file in the loopback canary. Run
+`systemctl start claude-usage-export` to refresh immediately; it is due-aware,
+so plan limits refresh only for profiles whose last probe is at least 5
+minutes old. Neither the status call nor the usage readout submits a model
 prompt.
+
+## Fleet token ledger
+
+The section **Tokens used by provider, model and project** charts token usage of the whole
+engine fleet (master, jeff-dev, fsn1; every runtime) in three layers:
+
+- by provider: OpenAI, Anthropic, DeepSeek, Zhipu GLM, Xiaomi MiMo, … derived from the model id;
+- by model: the model each turn reported, with Claude aliases shown as `Claude Opus (alias)`;
+- by project: the lane's engine project; threads that belong to no lane are `(non-lane)`.
+
+Every layer can be switched off. Every series in a layer can be hidden from its legend chip,
+and that series keeps its color. **Hide ledger** collapses the section and stops all ledger
+requests. These preferences live in the viewer's browser only. Ranges are 24 hours (hourly),
+7 days (3-hour buckets) and 30 days (daily). The measure is one of all tokens, uncached input
+plus output, or output tokens. Cached input is part of input.
+
+### Data flow
+
+1. `token-ledger-export.timer` runs `python3 -m token_ledger run` every five minutes on each
+   node. The code is the stdlib-only package `auth_usage_dashboard/token_ledger`, installed in
+   `/usr/local/lib/pitchai-token-ledger`.
+2. The exporter finds every CODEX_HOME: managed app-server launch manifests, the
+   `*-owners/*/codex-home` directories, and master's ORI voice home. It tails new bytes of the
+   rollout JSONL files from durable byte cursors.
+3. Only three line types are decoded: `session_meta`, `turn_context` and `token_count`.
+   - Codex-family runtimes report cumulative totals, so the usage is the delta. A repeated total
+     is skipped and a counter reset starts again from zero.
+   - The Claude owner reports per-turn usage, which is summed as is.
+4. A cursor advance and its hourly increments commit together. Every request is therefore
+   counted once, even when a run is killed.
+5. Threads map to lanes and projects through each cell's control-plane database, opened
+   read-only with a busy timeout.
+6. Hourly rows reach master's fleet store `/srv/codex-usage-dashboard/token-ledger.sqlite3`.
+   - Master ingests its own rows in-process.
+   - Workers pipe NDJSON over ssh with their own key. On master that key is a `restrict`ed
+     forced command (`python3 -m token_ledger ingest --node <node>`), so the node identity
+     cannot be spoofed.
+   - Rows carry absolute hourly values, so a retried batch is idempotent.
+7. `GET /api/v1/token-usage?span=24h|7d|30d` is SSO-protected like every other account route.
+   It aggregates the requested range with one read-only query and caches the result for
+   60 seconds per range.
+
+### Cost controls
+
+- Each run reads at most 1.5 GiB of rollout bytes and runs for at most 150 seconds.
+- The process runs at `Nice=15`, `IOSchedulingClass=idle`, `CPUQuota=50%` and `MemoryMax=512M`.
+- Every read is dropped from the page cache, so engine hot data is not evicted.
+- A large file that started before the 30-day backfill horizon is entered by a timestamp binary
+  search, not read from byte 0.
+- After the first backfill (about one hour per node), a run reads only the few MB appended since
+  the previous run.
+- The unit uses `ProtectSystem=strict`. Only the exporter state and (on master) the dashboard
+  data directory are writable, so it cannot write to any engine path.
+
+### Operations
+
+```bash
+# master (installed by ops/deploy_codex_usage_dashboard.sh)
+PYTHONPATH=/usr/local/lib/pitchai-token-ledger python3 -m token_ledger status
+journalctl -u token-ledger-export.service -n 5 --no-pager
+# install or update a worker (run where you can ssh to both the worker and master)
+ops/install_token_ledger_node.sh jeff-dev root@94.130.17.246
+ops/install_token_ledger_node.sh fsn1 root@144.76.61.162
+```
+
+`status` reports cursors, backlog bytes and the last collect/push times. On master it also
+reports every node's last ingest. The dashboard marks a node *not current* after 20 minutes
+without an ingest; that node's already-collected hours stay visible. Rollouts that hibernation
+moved off a host before collection are not counted.
+
+**Rollback**:
+1. Stop and disable `token-ledger-export.timer` on each node.
+2. Remove the `token-ledger-<node>` lines from master's `/root/.ssh/authorized_keys`.
+3. Delete `/var/lib/pitchai-token-ledger` and the fleet store.
+
+The dashboard then shows the ledger as unavailable. No other section depends on it.
+
+## Burn factor
+
+The **Burn factor** section, directly below "Capacity now", answers one question: at the current burn, does the pool's
+capacity over a future window cover it? (Spec: `specs/usage-dashboard-burn-factor.md`.)
+
+```
+factor = burn rate over the rolling window × future window ÷ capacity available in that window
+capacity = points left now + 100 per window reset inside the window − leftovers lost at resets or subscription ends
+```
+
+- **Reading it:** below 1.0 is margin and 1.0 or more is shortage. Statuses are `good` (< 0.85), `tight`, `short`
+  and `limited`. 0.5 over 24 h means roughly 48 h of runway; the card also shows the simulated runway and the margin or
+  shortage in points.
+- **Burn:** measured from the dashboard's own 5-minute broker samples (8-day retention), using the same reset-aware
+  delta measurement as the scheduler burn windows. It is flagged as a lower bound when eligible accounts sit at their
+  limit, because their work then runs on credits and no longer shows up as quota burn.
+- **Capacity:** the eligible pool (enabled, auth-valid, fresh) on the declared capacity basis, currently weekly. The
+  pool is simulated at the measured burn, earliest-expiring account first:
+  - leftover still unused at an account's reset is replaced by the fresh window, not added to it;
+  - a verified non-renewing subscription stops contributing at its end (`access_ends_at`, or the start of the next
+    local day after `access_ends_on`).
+- **Excluded:** spendable credits and banked resets. Credit accounts are only counted and shown as a note.
+- **Defaults and custom views:** the defaults are 30 m → 24 h and 24 h → 6 d. The custom row accepts any rolling window
+  from 5 m to 7 d and any horizon from 1 h to 14 d, typed as `45m`, `3h` or `2d`.
+- **API:** `GET /api/v1/burn-factor?pairs=30m:24h,24h:6d` (1–6 pairs; SSO-protected; cached for 30 s per request). A
+  malformed or out-of-range pair returns HTTP 400 with the reason.

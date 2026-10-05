@@ -59,6 +59,27 @@
         </div>
       </section>
 
+      <section class="burn-section" aria-labelledby="burn-factor-title" data-testid="burn-factor">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Moving burn vs. horizon capacity</div>
+            <h2 id="burn-factor-title">Burn factor</h2>
+          </div>
+          <div class="section-aside" id="burn-factor-basis">Reading capacity basis</div>
+        </div>
+        <div class="burn-grid" id="burn-factor-grid" aria-live="polite"></div>
+        <form class="burn-custom" id="burn-custom-form">
+          <label for="burn-custom-rolling">Rolling burn</label>
+          <input id="burn-custom-rolling" name="rolling" inputmode="text" autocomplete="off" placeholder="30m" maxlength="7" />
+          <label for="burn-custom-horizon">Future window</label>
+          <input id="burn-custom-horizon" name="horizon" inputmode="text" autocomplete="off" placeholder="24h" maxlength="7" />
+          <button type="submit">Calculate</button>
+          <div class="burn-presets" id="burn-presets" aria-label="Presets"></div>
+          <span class="burn-custom-message" id="burn-custom-message" role="status"></span>
+        </form>
+        <p class="burn-explainer">Factor = burn rate over the rolling window × future window ÷ capacity available in that window (points left now + resets − leftovers lost at resets or subscription ends). Below 1.0 is margin; 1.0 or more means the pool runs short. 0.5 over 24 h ≈ 48 h of runway.</p>
+      </section>
+
       <section class="claude-section" aria-labelledby="claude-title" data-testid="claude-accounts">
         <div class="section-heading">
           <div>
@@ -68,7 +89,7 @@
           <div class="section-aside" id="claude-freshness">Reading account status</div>
         </div>
         <div class="claude-grid" id="claude-accounts" aria-live="polite"></div>
-        <p class="claude-note" id="claude-note">Account status refreshes every minute. Usage readings update when Claude lanes report them.</p>
+        <p class="claude-note" id="claude-note">Account status refreshes every minute. 5-hour and weekly limits come from the official Claude usage readout every 5 minutes; no prompts are sent.</p>
       </section>
 
       <section class="luna-section" aria-labelledby="luna-title" data-testid="luna-reserve">
@@ -118,10 +139,11 @@
         <div class="section-heading">
           <div>
             <div class="section-label">Burn-adjusted outlook</div>
-            <h2 id="runout-title">Probability of full reported-capacity runout</h2>
+            <h2 id="runout-title">Probability of included-usage runout</h2>
           </div>
           <div class="section-aside burn-rate-aside" id="burn-rate">Burn estimate pending</div>
         </div>
+        <p class="section-aside">Credit balances extend usage beyond included limits and are shown per account. This forecast covers included usage only.</p>
         <div class="runout-grid" id="runout-grid"></div>
         <div class="runout-drivers" id="runout-drivers"></div>
       </section>
@@ -158,6 +180,24 @@
             <span id="history-method">Hourly reconstruction pending</span>
             <span id="history-coverage">Current hour is partial</span>
           </div>
+        </div>
+      </section>
+
+      <section class="token-usage-section" id="token-usage" aria-labelledby="token-usage-title" data-testid="token-usage">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">Fleet token ledger · all providers</div>
+            <h2 id="token-usage-title">Tokens used by provider, model and project</h2>
+          </div>
+          <div class="token-usage-heading-tools">
+            <span class="section-aside" id="token-usage-freshness">Ledger pending</span>
+            <button class="token-usage-toggle" id="token-usage-toggle" type="button" aria-expanded="true" aria-controls="token-usage-body">Hide ledger</button>
+          </div>
+        </div>
+        <div id="token-usage-body">
+          <div class="token-usage-controls" id="token-usage-controls"></div>
+          <div class="token-usage-panels" id="token-usage-panels" aria-live="polite"></div>
+          <p class="token-usage-note" id="token-usage-note">Hourly totals from the engine's own per-turn token records.</p>
         </div>
       </section>
 
@@ -224,6 +264,7 @@
                 <th scope="col">5-hour reset</th>
                 <th scope="col">Weekly capacity</th>
                 <th scope="col">Weekly reset</th>
+                <th scope="col">Usage credits</th>
                 <th scope="col">Banked resets</th>
                 <th scope="col">Freshness</th>
               </tr>
@@ -256,5 +297,7 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="/static/dashboard.js" defer></script>
+    <script src="/static/token_usage.js" defer></script>
+    <script src="/static/burn_factor.js" defer></script>
   </body>
 </html>

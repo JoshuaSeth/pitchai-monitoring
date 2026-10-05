@@ -18,8 +18,16 @@ from .claude_accounts import (
     email_value,
     load_json_object,
     member_value,
+)
+from .claude_quota import (
+    EPOCH_MAXIMUM_SECONDS,
+    FULL_PERCENT,
+    QUOTA_ERRORS,
+    QUOTA_FRESH_SECONDS,
     number_value,
     object_value,
+    scoped_values,
+    windows_value,
 )
 from .scheduling_web_runtime import json_response_factory
 
@@ -35,7 +43,6 @@ STATUSES = frozenset({"ready", "cooldown", "sign_in_required", "unavailable"})
 ROLES = frozenset({"Primary", "Fallback"})
 UNAVAILABLE_ERROR = "Claude account status is unavailable"
 PARTIAL_ERROR = "Some Claude account status could not be read"
-EPOCH_MAXIMUM_SECONDS = 253_402_300_799.0
 MAX_ACCOUNTS, MINIMUM_PERCENT, MAXIMUM_PERCENT = 128, 0.0, 100.0
 SNAPSHOT_FRESHNESS_SECONDS, USAGE_FRESHNESS_SECONDS = 180.0, 600.0
 
@@ -45,6 +52,34 @@ def _iso_timestamp(value: JsonValue) -> str | None:
     if number is None or not 0 < number < EPOCH_MAXIMUM_SECONDS:
         return None
     return datetime.fromtimestamp(number, UTC).isoformat()
+
+
+def _public_window(reading: JsonValue) -> JsonValue:
+    window = object_value(reading)
+    used = number_value(window.get("used_percent")) or 0.0
+    public: JsonObject = {
+        "used_percent": used,
+        "remaining_percent": min(FULL_PERCENT, max(0.0, FULL_PERCENT - used)),
+        "resets_at": _iso_timestamp(window.get("resets_at")),
+    }
+    return {"label": window["label"], **public} if "label" in window else public
+
+
+def _quota_fields(row: JsonObject, *, now: float) -> JsonObject:
+    observed_at = number_value(row.get("quota_observed_at"))
+    windows = windows_value(row.get("windows"))
+    public_windows: JsonObject = {}
+    for key, reading in windows.items():
+        public_windows[key] = _public_window(reading)
+    stored_scoped = scoped_values(row.get("scoped_windows"))
+    scoped: list[JsonValue] = [_public_window(reading) for reading in stored_scoped]
+    return {
+        "windows": public_windows,
+        "scoped_windows": scoped,
+        "quota_observed_at": _iso_timestamp(observed_at),
+        "quota_stale": observed_at is None or not 0 <= now - observed_at <= QUOTA_FRESH_SECONDS,
+        "quota_error": member_value(row.get("quota_error"), QUOTA_ERRORS),
+    }
 
 
 def _public_row(raw: JsonValue, *, stale: bool, now: float) -> JsonObject:
@@ -68,6 +103,7 @@ def _public_row(raw: JsonValue, *, stale: bool, now: float) -> JsonObject:
         "usage_observed_at": _iso_timestamp(observed_at),
         "usage_stale": observed_at is None or not 0 <= now - observed_at <= USAGE_FRESHNESS_SECONDS,
         "cooldown_until": _iso_timestamp(row.get("cooldown_until")),
+        **_quota_fields(row, now=now),
     }
 
 
