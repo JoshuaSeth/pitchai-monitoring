@@ -105,9 +105,12 @@
     meter.append(fill, element("i", "burn-meter-one"));
 
     const margin = finite(result.margin_points);
+    const limited = status === "limited";
+    // While most accounts sit at their limit their burn is invisible, so neither runway nor spare is knowable.
     const summary = element("p", "burn-summary", [
-      runwayText(result.runway_hours),
-      margin === null ? null : margin >= 0 ? `${points(margin)} spare over the horizon` : `${points(-margin)} short over the horizon`,
+      limited ? "Runway not measurable while accounts sit at their limit" : runwayText(result.runway_hours),
+      limited ? `${points((result.capacity || {}).effective_points)} available over the horizon`
+        : margin === null ? null : margin >= 0 ? `${points(margin)} spare over the horizon` : `${points(-margin)} short over the horizon`,
     ].filter(Boolean).join(" · "));
 
     const burn = result.burn || {};
