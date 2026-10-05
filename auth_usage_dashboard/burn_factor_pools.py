@@ -31,6 +31,7 @@ POOL_LABELS: JsonObject = {
     "openai": "OpenAI · Codex account broker",
     "anthropic": "Anthropic · Claude Code accounts",
     "opencode": "OpenCode Go · MiMo/GLM subscription pool",
+    "deepseek": "DeepSeek API · prepaid balance",
 }
 
 

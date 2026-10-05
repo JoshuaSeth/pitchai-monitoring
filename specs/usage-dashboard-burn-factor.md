@@ -95,6 +95,30 @@ basis:    {key, label}
   It adds a third card and remembers the last custom pair in the browser.
 - The section refreshes with the capacity snapshot, which polls every 30 s. The server cache keeps the cost flat.
 
+## DeepSeek API pool (prepaid money, added 2026-10-05)
+
+Request (verbatim): "finally ideally also integrate in the dashboard the api burn rate we have for deepseek (api based
+not account) and the amount left on the deepseek dashboard."
+
+DeepSeek is not an account pool. One prepaid API account is billed per token, and every DeepSeek owner on master,
+jeff-dev and fsn1 uses the same key. So:
+
+- **Capacity** is the remaining balance: `total_balance` from `GET https://api.deepseek.com/user/balance`, USD row.
+  `deepseek-balance-export.timer` reads the owners' `0600` `api-key` files in-process every 5 minutes and writes
+  numbers only to `deepseek-balance.json`.
+- **Burn** is dollars per hour, estimated from the fleet token ledger. It covers every `provider = deepseek` hour
+  (`deepseek-*` models), whichever owner route ran it. The engine's price snapshot `deepseek-flash-2026-09-16`
+  (`pitchai_cli_new.deepseek_usage`) sets the rates: $0.003/M cached input, $0.15/M uncached input and $0.60/M
+  output, x2 on weekdays 01-04 and 06-10 UTC. Ledger buckets are hourly. Buckets that straddle the rolling window are
+  prorated by overlap. The current hour counts only up to the ledger's last delivery (`MAX(received_at)`).
+- **Factor** = burn per hour x horizon hours / balance. Runway is balance / burn. An empty balance is a shortage,
+  even at zero current burn, because DeepSeek refuses requests (402).
+- Each result also reports the **7-day pace** (average dollars per hour over the last week) and what the horizon
+  costs at that pace, so a top-up can be sized while the account is empty.
+- API: `pool=deepseek` returns `unit: "usd"`, `balance {total_usd, granted_usd, topped_up_usd, is_available,
+  observed_at, stale}`, `price {snapshot, source, peak}` and results with `burn.usd_per_hour`, `demand_usd`,
+  `available_usd`, `margin_usd`, `runway_hours` and `typical`.
+
 ## Non-goals
 
 - Claude accounts are left out: there is no Claude history store yet, and these are Codex broker capacity points.
