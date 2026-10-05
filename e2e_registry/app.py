@@ -27,8 +27,8 @@ from e2e_registry.app_host_policy import url_host as _url_host
 from e2e_registry.app_inputs import normalize_pitchai_email as _normalize_pitchai_email
 from e2e_registry.app_inputs import normalize_test_kind as _normalize_test_kind
 from e2e_registry.app_inputs import safe_filename as _safe_filename
+from e2e_registry.app_monitoring_routes import install_monitoring_routes
 from e2e_registry.disablement import parse_disabled_until
-from e2e_registry import monitor_dashboard as md
 from e2e_registry.alerts import (
     build_dispatch_prompt_for_failure,
     build_failure_telegram_message,
@@ -470,111 +470,8 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     # -----------------
     # API routes
     # -----------------
-    @app.get("/dashboard/api/v1/monitoring/summary")
-    @app.get("/api/v1/monitoring/summary")
-    async def api_monitoring_summary(req: Request, range: str = "24h") -> dict[str, Any]:  # noqa: A002
-        access.require_monitoring_access(req)
-        settings2: RegistrySettings = context.settings
-        now_ts = time.time()
-        since_ts, until_ts = md.resolve_range(now_ts=now_ts, range_label=range)
+    install_monitoring_routes(context, access)
 
-        data = await context.monitor_data()
-        e2e_status = await asyncio.to_thread(dbm.status_summary, settings2)
-        e2e_dispatch = await asyncio.to_thread(dbm.list_dispatch_runs, settings2, limit=80)
-
-        summary = md.build_dashboard_summary(
-            data=data,
-            now_ts=now_ts,
-            e2e_status_summary=e2e_status,
-            e2e_dispatch_runs=e2e_dispatch,
-        )
-
-        # Filter events/dispatch to the selected range for a smaller, more relevant payload.
-        events = summary.get("events") if isinstance(summary.get("events"), list) else []
-        events2: list[dict[str, Any]] = []
-        for e in events:
-            if not isinstance(e, dict):
-                continue
-            try:
-                ts = float(e.get("ts") or 0.0)
-            except Exception:
-                continue
-            if ts < float(since_ts) or ts > float(until_ts):
-                continue
-            events2.append(e)
-        summary["events"] = events2
-
-        dispatch = summary.get("dispatch") if isinstance(summary.get("dispatch"), dict) else {}
-        recent = dispatch.get("recent") if isinstance(dispatch.get("recent"), list) else []
-        recent2: list[dict[str, Any]] = []
-        for r in recent:
-            if not isinstance(r, dict):
-                continue
-            try:
-                ts = float(r.get("ts") or 0.0)
-            except Exception:
-                ts = 0.0
-            if ts and (ts < float(since_ts) or ts > float(until_ts)):
-                continue
-            recent2.append(r)
-        dispatch["recent"] = recent2
-        summary["dispatch"] = dispatch
-
-        return summary
-
-    @app.get("/dashboard/api/v1/monitoring/domains/{domain}/series")
-    @app.get("/api/v1/monitoring/domains/{domain}/series")
-    async def api_domain_series(
-        domain: str,
-        req: Request,
-        range: str = "24h",  # noqa: A002
-        since_ts: float | None = None,
-        until_ts: float | None = None,
-    ) -> dict[str, Any]:
-        access.require_monitoring_access(req)
-        settings2: RegistrySettings = context.settings
-        now_ts = time.time()
-        if since_ts is None or until_ts is None:
-            s, u = md.resolve_range(now_ts=now_ts, range_label=range)
-            since_ts = float(s) if since_ts is None else float(since_ts)
-            until_ts = float(u) if until_ts is None else float(until_ts)
-        if float(until_ts) < float(since_ts):
-            raise HTTPException(status_code=400, detail="invalid_range")
-        data = await context.monitor_data()
-        return md.domain_timeseries(
-            data=data,
-            domain=domain,
-            since_ts=float(since_ts),
-            until_ts=float(until_ts),
-            max_points=int(settings2.dashboard_max_points),
-        )
-
-    @app.get("/dashboard/api/v1/monitoring/signals/{signal}/series")
-    @app.get("/api/v1/monitoring/signals/{signal}/series")
-    async def api_signal_series(
-        signal: str,
-        req: Request,
-        range: str = "24h",  # noqa: A002
-        since_ts: float | None = None,
-        until_ts: float | None = None,
-    ) -> dict[str, Any]:
-        access.require_monitoring_access(req)
-        settings2: RegistrySettings = context.settings
-        now_ts = time.time()
-        if since_ts is None or until_ts is None:
-            s, u = md.resolve_range(now_ts=now_ts, range_label=range)
-            since_ts = float(s) if since_ts is None else float(since_ts)
-            until_ts = float(u) if until_ts is None else float(until_ts)
-        if float(until_ts) < float(since_ts):
-            raise HTTPException(status_code=400, detail="invalid_range")
-        data = await context.monitor_data()
-        return md.signal_timeseries(
-            data=data,
-            signal=signal,
-            since_ts=float(since_ts),
-            until_ts=float(until_ts),
-            max_points=int(settings2.dashboard_max_points),
-        )
 
     @app.post("/api/v1/admin/tenants")
     async def api_create_tenant(_auth: None = Depends(require_admin), req: CreateTenantRequest | None = None) -> dict[str, Any]:
