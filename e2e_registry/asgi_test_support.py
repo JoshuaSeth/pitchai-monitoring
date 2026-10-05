@@ -16,6 +16,24 @@ if TYPE_CHECKING:
     from .dashboard_records import Record
 
 
+def multipart(fields: dict[str, str], filename: str, content: bytes, *,
+              content_type: str = "text/plain") -> tuple[dict[str, str], bytes]:
+    """Encode fixed synthetic form fields and one file without opening a network client.
+
+    Returns:
+        The multipart content header and exact body for the native ASGI request.
+    """
+    boundary = "registry-isolated-form-boundary"
+    parts: list[bytes] = []
+    for name, value in fields.items():
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    parts.extend([
+        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{filename}"\r\n'.encode(),
+        f"Content-Type: {content_type}\r\n\r\n".encode(), content, f"\r\n--{boundary}--\r\n".encode(),
+    ])
+    return {"content-type": f"multipart/form-data; boundary={boundary}"}, b"".join(parts)
+
+
 @dataclass
 class Response:
     """Capture an ASGI response stream and signal its final body message."""
