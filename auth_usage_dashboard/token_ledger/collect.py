@@ -6,18 +6,23 @@ from __future__ import annotations
 import os
 import re
 import time
+from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, NamedTuple
 
 from .labels import NON_LANE_PROJECT, normalize_model, provider_for
+from .node_store import FileCursor
 from .rollout import FileState, prime_for_horizon, read_new_lines
 from .sources import discover_homes, list_rollouts, load_lane_index
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from auth_usage_dashboard.timeseries_types import JsonObject
+
     from .node_store import NodeStore, RowKey, RowValues
-    from .rollout import UsageEvent
+    from .rollout import ReadResult, UsageEvent
     from .sources import Home, Lane, LaneIndex, NodeConfig
 
 _THREAD_IN_NAME = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$")
@@ -34,17 +39,40 @@ class CollectHooks:
     lane_loader: Callable[[NodeConfig], tuple[LaneIndex, list[str]]] = load_lane_index
 
 
-@dataclass
-class CollectSummary:
+class CollectSummary(NamedTuple):
     """What one pass did; persisted for status and freshness reporting."""
 
-    homes: int = 0
-    files_tracked: int = 0
+    homes: int
+    files_tracked: int
+    files_read: int
+    bytes_read: int
+    events: int
+    backlog_bytes: int
+    forgotten: int
+    lane_errors: list[str]
+
+    def as_json(self) -> JsonObject:
+        """Return the summary in the exporter's JSON ``collect`` report shape."""
+        return {
+            "homes": self.homes,
+            "files_tracked": self.files_tracked,
+            "files_read": self.files_read,
+            "bytes_read": self.bytes_read,
+            "events": self.events,
+            "backlog_bytes": self.backlog_bytes,
+            "forgotten": self.forgotten,
+            "lane_errors": [*self.lane_errors],
+        }
+
+
+@dataclass
+class _Progress:
+    """Mutable counters of the read loop, folded into the summary afterwards."""
+
     files_read: int = 0
     bytes_read: int = 0
     events: int = 0
     backlog_bytes: int = 0
-    forgotten: int = 0
     lane_errors: list[str] = field(default_factory=list)
 
 
@@ -134,6 +162,40 @@ def _candidates(
     return found, present
 
 
+def _read_candidates(
+    config: NodeConfig,
+    store: NodeStore,
+    candidates: list[_Candidate],
+    seams: CollectHooks,
+    started: float,
+) -> _Progress:
+    """Return the progress of tailing candidates in order, committing each file, until a budget runs out."""
+    progress = _Progress()
+    index: LaneIndex | None = None
+    remaining = config.max_bytes
+    for position, item in enumerate(candidates):
+        if remaining <= 0 or seams.clock() - started >= config.max_seconds:
+            progress.backlog_bytes += sum(entry.size - entry.state.offset for entry in candidates[position:])
+            break
+        if index is None:
+            index, progress.lane_errors = seams.lane_loader(config)
+        result: ReadResult | None = None
+        with suppress(OSError), Path(item.path).open("rb") as handle:
+            if not item.known:
+                prime_for_horizon(handle, item.size, item.state)
+            result = read_new_lines(handle, item.state, budget=remaining)
+        if result is None:
+            continue
+        remaining -= result.consumed
+        progress.files_read += 1
+        progress.bytes_read += result.consumed
+        progress.events += len(result.events)
+        rows = rows_for(result.events, _lane_for(index, item.path, item.state), item.home.route)
+        store.commit_file(FileCursor(item.path, item.inode, item.home.route, item.state), rows)
+        progress.backlog_bytes += max(0, item.size - item.state.offset)
+    return progress
+
+
 def collect(
     config: NodeConfig,
     store: NodeStore,
@@ -151,32 +213,19 @@ def collect(
     started, wall = clock(), time.time() if now is None else now
     homes = seams.home_finder(config)
     candidates, present = _candidates(config, store, homes, wall)
-    summary = CollectSummary(homes=len(homes), files_tracked=len(present))
-    index: LaneIndex | None = None
-    remaining = config.max_bytes
-    for position, item in enumerate(candidates):
-        if remaining <= 0 or clock() - started >= config.max_seconds:
-            summary.backlog_bytes += sum(entry.size - entry.state.offset for entry in candidates[position:])
-            break
-        if index is None:
-            index, summary.lane_errors = seams.lane_loader(config)
-        try:
-            with open(item.path, "rb") as handle:  # noqa: PTH123 - binary tail with explicit seek
-                if not item.known:
-                    prime_for_horizon(handle, item.size, item.state)
-                result = read_new_lines(handle, item.state, budget=remaining)
-        except OSError:
-            continue
-        remaining -= result.consumed
-        summary.files_read += 1
-        summary.bytes_read += result.consumed
-        summary.events += len(result.events)
-        rows = rows_for(result.events, _lane_for(index, item.path, item.state), item.home.route)
-        store.commit_file(item.path, item.inode, item.home.route, item.state, rows)
-        summary.backlog_bytes += max(0, item.size - item.state.offset)
-    summary.forgotten = store.forget_stale(
-        present,
-        older_than=wall - (config.backfill_days + _FORGET_AFTER_EXTRA_DAYS) * _DAY_SECONDS,
+    progress = _read_candidates(config, store, candidates, seams, started)
+    summary = CollectSummary(
+        homes=len(homes),
+        files_tracked=len(present),
+        files_read=progress.files_read,
+        bytes_read=progress.bytes_read,
+        events=progress.events,
+        backlog_bytes=progress.backlog_bytes,
+        forgotten=store.forget_stale(
+            present,
+            older_than=wall - (config.backfill_days + _FORGET_AFTER_EXTRA_DAYS) * _DAY_SECONDS,
+        ),
+        lane_errors=progress.lane_errors,
     )
     store.set_meta(
         {

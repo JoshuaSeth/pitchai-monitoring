@@ -12,12 +12,16 @@ from __future__ import annotations
 import json
 import os
 import re
+from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from typing import BinaryIO
+
+    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue
 
 USAGE_FIELDS = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens")
 _HEAD_BYTES = 200
@@ -31,6 +35,7 @@ _SEEK_MIN_BYTES = 16 * 1024 * 1024
 _SEEK_PRECISION = 1024 * 1024
 _PRIMER_BYTES = 8 * 1024 * 1024
 _HEAD_PRIMER_BYTES = 256 * 1024
+_UTC = timezone(timedelta(0))  # Python 3.10 hosts lack datetime.UTC; this is the timezone.utc singleton.
 
 
 @dataclass
@@ -63,7 +68,7 @@ class ReadResult:
     consumed: int = 0
 
 
-def _usage_tuple(raw: object) -> tuple[int, ...] | None:
+def _usage_tuple(raw: JsonValue) -> tuple[int, ...] | None:
     if not isinstance(raw, dict):
         return None
     values: list[int] = []
@@ -75,20 +80,18 @@ def _usage_tuple(raw: object) -> tuple[int, ...] | None:
     return tuple(values)
 
 
-def _event_epoch(raw: object) -> float | None:
+def _event_epoch(raw: JsonValue) -> float | None:
     if not isinstance(raw, str):
         return None
-    try:
-        # Python 3.10 hosts: fromisoformat() does not accept a "Z" suffix there.
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))  # noqa: FURB162
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)  # noqa: UP017 - host runtime is Python 3.10
-    return parsed.timestamp()
+    # Python 3.10 hosts: fromisoformat() does not accept a "Z" suffix there, so it is rewritten first.
+    zulu_free = raw.replace("Z", "+00:00")
+    with suppress(ValueError):
+        parsed = datetime.fromisoformat(zulu_free)
+        return (parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=_UTC)).timestamp()
+    return None
 
 
-def usage_delta(state: FileState, info: dict[str, object]) -> tuple[int, ...] | None:
+def usage_delta(state: FileState, info: JsonObject) -> tuple[int, ...] | None:
     """Return the tokens of one ``token_count`` event, updating the baseline.
 
     Codex-family runtimes report a cumulative ``total_token_usage``: the usage
@@ -117,10 +120,9 @@ def _apply_line(state: FileState, line: bytes, result: ReadResult) -> None:
     head = line[:_HEAD_BYTES]
     if _TOKEN_COUNT not in head and _TURN_CONTEXT not in head and _SESSION_META not in head:
         return
-    try:
-        record = json.loads(line)
-    except ValueError:
-        return
+    record: JsonValue = None
+    with suppress(ValueError):
+        record = cast("JsonValue", json.loads(line))
     if not isinstance(record, dict):
         return
     payload = record.get("payload")
@@ -185,13 +187,12 @@ def read_new_lines(handle: BinaryIO, state: FileState, *, budget: int) -> ReadRe
 
 def _drop_cache(handle: BinaryIO, offset: int, length: int) -> None:
     """Tell the kernel these rollout pages are not worth caching (Linux only)."""
-    advise = getattr(os, "posix_fadvise", None)
-    flag = getattr(os, "POSIX_FADV_DONTNEED", None)
+    os_names = vars(os)
+    advise = cast("Callable[[int, int, int, int], None] | None", os_names.get("posix_fadvise"))
+    flag = cast("int | None", os_names.get("POSIX_FADV_DONTNEED"))
     if advise is not None and flag is not None and length > 0:
-        try:
+        with suppress(OSError):
             advise(handle.fileno(), offset, length, flag)
-        except OSError:
-            return
 
 
 def _skip_partial_line(handle: BinaryIO) -> None:

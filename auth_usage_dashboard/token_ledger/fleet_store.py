@@ -13,9 +13,12 @@ import re
 import sqlite3
 import time
 from pathlib import Path
-from typing import IO
+from typing import IO, TYPE_CHECKING, cast
 
-from .node_store import ROW_KEY, ROW_VALUES
+from .node_store import LANE_COLUMNS_SQL, ROW_KEY, ROW_VALUES
+
+if TYPE_CHECKING:
+    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue, SqlValue
 
 DEFAULT_FLEET_DB = Path("/srv/codex-usage-dashboard/token-ledger.sqlite3")
 SCHEMA_VERSION = 1
@@ -25,18 +28,14 @@ _TOKEN_CEILING = 10**15
 _TEXT = re.compile(r"^[^\x00-\x1f\x7f]{1,200}$")
 _NODE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 
-_SCHEMA = """
+_SCHEMA = (
+    """
 CREATE TABLE IF NOT EXISTS token_usage_hourly (
     hour_epoch INTEGER NOT NULL,
     node TEXT NOT NULL,
-    cell TEXT NOT NULL,
-    project TEXT NOT NULL,
-    agent TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    model TEXT NOT NULL,
-    route TEXT NOT NULL,
-    project_title TEXT,
-    input INTEGER NOT NULL,
+"""
+    + LANE_COLUMNS_SQL
+    + """    input INTEGER NOT NULL,
     cached_input INTEGER NOT NULL,
     output INTEGER NOT NULL,
     reasoning INTEGER NOT NULL,
@@ -57,8 +56,12 @@ CREATE TABLE IF NOT EXISTS ledger_nodes (
     lane_errors TEXT
 );
 """
-_COLUMNS = ("hour_epoch", "node", *ROW_KEY[1:], "project_title", *ROW_VALUES, "received_at")
-_UPSERT = f"INSERT OR REPLACE INTO token_usage_hourly ({', '.join(_COLUMNS)}) VALUES ({', '.join('?' * len(_COLUMNS))})"  # noqa: S608 - constant column names
+)
+_UPSERT = (
+    "INSERT OR REPLACE INTO token_usage_hourly (hour_epoch, node, cell, project, agent, provider, model, route, "
+    "project_title, input, cached_input, output, reasoning, total, requests, received_at) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+)
 
 
 def connect_fleet(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
@@ -82,14 +85,14 @@ def connect_fleet(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
     return connection
 
 
-def _integer(value: object) -> int:
+def _integer(value: JsonValue) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < _TOKEN_CEILING:
         message = "invalid integer"
         raise ValueError(message)
     return value
 
 
-def _text(value: object, *, optional: bool = False) -> str | None:
+def _text(value: JsonValue, *, optional: bool = False) -> str | None:
     if value is None and optional:
         return None
     if not isinstance(value, str) or not _TEXT.match(value):
@@ -98,7 +101,7 @@ def _text(value: object, *, optional: bool = False) -> str | None:
     return value
 
 
-def _row_values(node: str, row: dict[str, object], received_at: float) -> tuple[object, ...]:
+def _row_values(node: str, row: JsonObject, received_at: float) -> tuple[SqlValue, ...]:
     hour = _integer(row.get("hour_epoch"))
     if hour % 3600:
         message = "hour is not aligned"
@@ -108,7 +111,15 @@ def _row_values(node: str, row: dict[str, object], received_at: float) -> tuple[
     return (hour, node, *keys, _text(row.get("project_title"), optional=True), *values, received_at)
 
 
-def ingest(connection: sqlite3.Connection, node: str, stream: IO[str]) -> dict[str, object]:
+def _record(line: str) -> JsonObject:
+    record = cast("JsonValue", json.loads(line))
+    if isinstance(record, dict):
+        return record
+    message = "record is not an object"
+    raise ValueError(message)
+
+
+def ingest(connection: sqlite3.Connection, node: str, stream: IO[str]) -> JsonObject:
     """Upsert one NDJSON batch (header line, then rows) for ``node``.
 
     Returns:
@@ -120,18 +131,15 @@ def ingest(connection: sqlite3.Connection, node: str, stream: IO[str]) -> dict[s
     if not _NODE.match(node):
         message = "invalid node name"
         raise ValueError(message)
-    header: dict[str, object] = {}
-    rows: list[tuple[object, ...]] = []
+    header: JsonObject = {}
+    rows: list[tuple[SqlValue, ...]] = []
     acked = 0
     received_at = time.time()
     for number, line in enumerate(stream):
         if len(line) > MAX_LINE_BYTES or number > MAX_ROWS_PER_INGEST:
             message = "batch too large"
             raise ValueError(message)
-        record = json.loads(line)
-        if not isinstance(record, dict):
-            message = "record is not an object"
-            raise ValueError(message)  # noqa: TRY004 - malformed input batch, reported as one ValueError
+        record = _record(line)
         if record.get("kind") == "header":
             header = record
             continue
@@ -162,7 +170,7 @@ def ingest(connection: sqlite3.Connection, node: str, stream: IO[str]) -> dict[s
     return {"ok": True, "node": node, "rows": len(rows), "acked_seq": acked}
 
 
-def _optional_number(value: object) -> float | None:
+def _optional_number(value: JsonValue) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
         return None
     return float(value)

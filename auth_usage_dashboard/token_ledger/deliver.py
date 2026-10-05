@@ -10,14 +10,17 @@ from __future__ import annotations
 
 import io
 import json
-import subprocess  # noqa: S404 - fixed-argv ssh to master, never a shell
+import subprocess
 import time
-from typing import TYPE_CHECKING
+from contextlib import closing
+from typing import TYPE_CHECKING, cast
 
 from .fleet_store import DEFAULT_FLEET_DB, connect_fleet, ingest
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from auth_usage_dashboard.timeseries_types import JsonObject, JsonValue
 
     from .node_store import NodeStore
     from .sources import NodeConfig
@@ -27,7 +30,7 @@ MAX_BATCHES_PER_RUN = 10
 _SSH_TIMEOUT_SECONDS = 120
 
 
-def _header(store: NodeStore, version: str) -> dict[str, object]:
+def _header(store: NodeStore, version: str) -> JsonObject:
     return {
         "kind": "header",
         "version": version,
@@ -39,7 +42,7 @@ def _header(store: NodeStore, version: str) -> dict[str, object]:
     }
 
 
-def _ssh_send(config: NodeConfig, payload: str) -> dict[str, object]:
+def _ssh_send(config: NodeConfig, payload: str) -> JsonObject:
     command = [
         "ssh",
         "-i",
@@ -59,7 +62,8 @@ def _ssh_send(config: NodeConfig, payload: str) -> dict[str, object]:
         config.master,
         "token-ledger-ingest",
     ]
-    completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
+    # Fixed argv without a shell; the only remote command is the forced ``token-ledger-ingest``.
+    completed = subprocess.run(
         command,
         input=payload,
         capture_output=True,
@@ -70,21 +74,18 @@ def _ssh_send(config: NodeConfig, payload: str) -> dict[str, object]:
     if completed.returncode != 0:
         message = f"ssh ingest failed with exit {completed.returncode}"
         raise RuntimeError(message)
-    reply = json.loads(completed.stdout.strip().splitlines()[-1])
+    reply = cast("JsonValue", json.loads(completed.stdout.strip().splitlines()[-1]))
     if not isinstance(reply, dict) or reply.get("ok") is not True:
         message = "ingest did not acknowledge the batch"
         raise RuntimeError(message)
     return reply
 
 
-def _send(config: NodeConfig, payload: str, fleet_db: Path) -> dict[str, object]:
+def _send(config: NodeConfig, payload: str, fleet_db: Path) -> JsonObject:
     if config.delivery != "local":
         return _ssh_send(config, payload)
-    connection = connect_fleet(fleet_db)
-    try:
+    with closing(connect_fleet(fleet_db)) as connection:
         return ingest(connection, config.node, io.StringIO(payload))
-    finally:
-        connection.close()
 
 
 def deliver(
@@ -93,7 +94,7 @@ def deliver(
     *,
     version: str,
     fleet_db: Path = DEFAULT_FLEET_DB,
-) -> dict[str, object]:
+) -> JsonObject:
     """Send every row changed since the last acknowledged sequence.
 
     Returns:

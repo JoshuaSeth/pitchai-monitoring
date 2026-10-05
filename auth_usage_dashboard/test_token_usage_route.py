@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import time
 from http import HTTPStatus
 from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
@@ -15,7 +16,7 @@ from ._timeseries_test_fixtures import check_equal
 from .scheduling_app import create_scheduling_app
 from .scheduling_web_runtime import test_client_factory
 from .token_ledger.fleet_store import connect_fleet, ingest
-from .token_usage_routes import TOKEN_LEDGER_FILE_ENVIRONMENT_VARIABLE, TOKEN_LEDGER_NODES_ENVIRONMENT_VARIABLE
+from .token_usage_routes import LEDGER_FILE_ENVIRONMENT_VARIABLE, LEDGER_NODES_ENVIRONMENT_VARIABLE
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -52,12 +53,10 @@ def _ledger(path: Path, hour: int) -> None:
 def test_token_usage_route_requires_identity_and_serves_cached_layers(tmp_path: Path) -> None:
     """Prove token usage route requires identity and serves cached layers."""
     database = tmp_path / "token-ledger.sqlite3"
-    import time  # noqa: PLC0415 - test-local clock
-
     _ledger(database, int(time.time()) // 3600 * 3600)
     environment = {
-        TOKEN_LEDGER_FILE_ENVIRONMENT_VARIABLE: str(database),
-        TOKEN_LEDGER_NODES_ENVIRONMENT_VARIABLE: "master",
+        LEDGER_FILE_ENVIRONMENT_VARIABLE: str(database),
+        LEDGER_NODES_ENVIRONMENT_VARIABLE: "master",
     }
     with patch.dict(os.environ, environment):
         application = create_scheduling_app(

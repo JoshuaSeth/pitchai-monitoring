@@ -12,18 +12,24 @@ import json
 import sqlite3
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 from .rollout import FileState
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterable, Iterator, Mapping
+    from types import TracebackType
+
+    from auth_usage_dashboard.timeseries_types import SqlValue
 
 DEFAULT_STATE = Path("/var/lib/pitchai-token-ledger/ledger.sqlite3")
 ROW_KEY = ("hour_epoch", "cell", "project", "agent", "provider", "model", "route")
 ROW_VALUES = ("input", "cached_input", "output", "reasoning", "total", "requests")
+# Lane and label columns shared verbatim by the node and fleet ``CREATE TABLE`` statements.
+LANE_COLUMNS_SQL = "".join(f"    {name} TEXT NOT NULL,\n" for name in ROW_KEY[1:]) + "    project_title TEXT,\n"
 
-_SCHEMA = """
+_SCHEMA = (
+    """
 CREATE TABLE IF NOT EXISTS file_cursors (
     path TEXT PRIMARY KEY,
     inode INTEGER NOT NULL,
@@ -39,14 +45,9 @@ CREATE TABLE IF NOT EXISTS file_cursors (
 );
 CREATE TABLE IF NOT EXISTS hourly (
     hour_epoch INTEGER NOT NULL,
-    cell TEXT NOT NULL,
-    project TEXT NOT NULL,
-    agent TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    model TEXT NOT NULL,
-    route TEXT NOT NULL,
-    project_title TEXT,
-    input INTEGER NOT NULL DEFAULT 0,
+"""
+    + LANE_COLUMNS_SQL
+    + """    input INTEGER NOT NULL DEFAULT 0,
     cached_input INTEGER NOT NULL DEFAULT 0,
     output INTEGER NOT NULL DEFAULT 0,
     reasoning INTEGER NOT NULL DEFAULT 0,
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS hourly (
 CREATE INDEX IF NOT EXISTS hourly_change_seq ON hourly(change_seq);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
+)
 _UPSERT = """
 INSERT INTO hourly (hour_epoch, cell, project, agent, provider, model, route, project_title,
     input, cached_input, output, reasoning, total, requests, change_seq)
@@ -73,12 +75,34 @@ ON CONFLICT (hour_epoch, cell, project, agent, provider, model, route) DO UPDATE
     change_seq = excluded.change_seq
 """
 
+_ROW_COLUMNS = (*ROW_KEY, "project_title", *ROW_VALUES, "change_seq")
+_ROWS_SINCE = (
+    "select hour_epoch, cell, project, agent, provider, model, route, project_title, input, cached_input, output, "
+    "reasoning, total, requests, change_seq from hourly where change_seq > ? order by change_seq limit ?"
+)
+_SELECT_CURSORS = (
+    "select path, inode, offset, route, thread_id, cwd, model, last_total, count_from, baseline_pending "
+    "from file_cursors"
+)
+_CursorRow = tuple[str, int, int, str, "str | None", "str | None", "str | None", "str | None", float, int]
+
 RowKey = tuple[int, str, str, str, str, str, str]
 RowValues = tuple["str | None", list[int]]
 
 
+class FileCursor(NamedTuple):
+    """One rollout file's identity, runtime route and resume state."""
+
+    path: str
+    inode: int
+    route: str
+    state: FileState
+
+
 class NodeStore:
     """Small WAL SQLite store owned by the host exporter."""
+
+    connection: sqlite3.Connection
 
     def __init__(self, path: Path = DEFAULT_STATE) -> None:
         """Open (and create) the node ledger with a private directory."""
@@ -96,10 +120,11 @@ class NodeStore:
 
     def meta(self, key: str, default: str = "") -> str:
         """Return one metadata value."""
-        row = self.connection.execute("select value from meta where key = ?", (key,)).fetchone()
+        cursor = self.connection.execute("select value from meta where key = ?", (key,))
+        row = cast("tuple[str] | None", cursor.fetchone())
         return str(row[0]) if row else default
 
-    def set_meta(self, values: dict[str, object]) -> None:
+    def set_meta(self, values: Mapping[str, str | float]) -> None:
         """Persist metadata values atomically."""
         with self._transaction():
             self.connection.executemany(
@@ -110,26 +135,25 @@ class NodeStore:
     def cursors(self) -> dict[str, tuple[int, str, FileState]]:
         """Return every known cursor keyed by path as (inode, route, state)."""
         found: dict[str, tuple[int, str, FileState]] = {}
-        for path, inode, offset, route, thread, cwd, model, total, count_from, pending in self.connection.execute(
-            "select path, inode, offset, route, thread_id, cwd, model, last_total, count_from, baseline_pending "
-            "from file_cursors",
-        ):
-            last_total = tuple(json.loads(total)) if total else None
+        stored = cast("Iterator[_CursorRow]", self.connection.execute(_SELECT_CURSORS))
+        for path, inode, offset, route, thread, cwd, model, total, count_from, pending in stored:
+            last_total = tuple(cast("list[int]", json.loads(total))) if total else None
             state = FileState(int(offset), thread, cwd, model, last_total, float(count_from), bool(pending))
             found[str(path)] = (int(inode), str(route), state)
         return found
 
-    def commit_file(self, path: str, inode: int, route: str, state: FileState, rows: dict[RowKey, RowValues]) -> None:
+    def commit_file(self, cursor: FileCursor, rows: dict[RowKey, RowValues]) -> None:
         """Atomically store a file cursor and the hourly increments it produced."""
+        state = cursor.state
         with self._transaction():
             sequence = self._next_sequence() if rows else 0
             self.connection.execute(
                 "insert or replace into file_cursors values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    path,
-                    inode,
+                    cursor.path,
+                    cursor.inode,
                     state.offset,
-                    route,
+                    cursor.route,
                     state.thread_id,
                     state.cwd,
                     state.model,
@@ -154,21 +178,19 @@ class NodeStore:
             Number of cursors removed.
         """
         keep = set(present)
-        rows = self.connection.execute("select path from file_cursors where updated_at < ?", (older_than,)).fetchall()
-        stale = [str(path) for (path,) in rows if path not in keep]
+        cursor = self.connection.execute("select path from file_cursors where updated_at < ?", (older_than,))
+        rows = cast("list[tuple[str]]", cursor.fetchall())
+        paths = [row[0] for row in rows]
+        stale = [path for path in paths if path not in keep]
         with self._transaction():
             self.connection.executemany("delete from file_cursors where path = ?", [(path,) for path in stale])
         return len(stale)
 
-    def rows_since(self, sequence: int, limit: int) -> Iterator[dict[str, object]]:
+    def rows_since(self, sequence: int, limit: int) -> Iterator[dict[str, SqlValue]]:
         """Yield changed hourly rows after ``sequence`` in change order."""
-        columns = (*ROW_KEY, "project_title", *ROW_VALUES, "change_seq")
-        cursor = self.connection.execute(
-            f"select {', '.join(columns)} from hourly where change_seq > ? order by change_seq limit ?",  # noqa: S608
-            (sequence, limit),
-        )
+        cursor = cast("Iterator[tuple[SqlValue, ...]]", self.connection.execute(_ROWS_SINCE, (sequence, limit)))
         for row in cursor:
-            yield dict(zip(columns, row, strict=True))
+            yield dict(zip(_ROW_COLUMNS, row, strict=True))
 
     def _next_sequence(self) -> int:
         value = int(self.meta("change_seq", "0")) + 1
@@ -186,11 +208,18 @@ class NodeStore:
 class _Transaction:
     """Immediate transaction context for an autocommit connection."""
 
+    _connection: sqlite3.Connection
+
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
 
     def __enter__(self) -> None:
         self._connection.execute("BEGIN IMMEDIATE")
 
-    def __exit__(self, kind: object, value: object, traceback: object) -> None:
+    def __exit__(
+        self,
+        kind: type[BaseException] | None,
+        _value: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
         self._connection.execute("COMMIT" if kind is None else "ROLLBACK")

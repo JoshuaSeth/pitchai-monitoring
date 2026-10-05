@@ -62,7 +62,7 @@ _ROUTE_PROVIDERS = {
 _MAX_LABEL = 120
 
 
-def clean_text(value: object, *, limit: int = _MAX_LABEL) -> str | None:
+def clean_text(value: str | None, *, limit: int = _MAX_LABEL) -> str | None:
     """Return printable, trimmed text within the length limit, or nothing."""
     if not isinstance(value, str):
         return None
@@ -70,7 +70,7 @@ def clean_text(value: object, *, limit: int = _MAX_LABEL) -> str | None:
     return text[:limit] if text else None
 
 
-def normalize_model(raw: object) -> str:
+def normalize_model(raw: str | None) -> str:
     """Return a stable lower-case model key; Claude aliases gain a prefix."""
     model = (clean_text(raw, limit=80) or "").lower()
     if not model:
@@ -98,11 +98,6 @@ def model_label(model: str) -> str:
     if model == UNKNOWN_MODEL:
         return "Unknown model"
     return model
-
-
-def provider_label(provider: str) -> str:
-    """Return the display label for one provider key."""
-    return PROVIDER_LABELS.get(provider, provider)
 
 
 def project_label(project: str, title: str | None) -> str:

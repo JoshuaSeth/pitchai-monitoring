@@ -8,6 +8,8 @@ import os
 import sqlite3
 import time
 from asyncio import to_thread
+from contextlib import suppress
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -21,8 +23,8 @@ if TYPE_CHECKING:
     from .settings import DashboardSettings
     from .timeseries_types import JsonObject
 
-TOKEN_LEDGER_FILE_ENVIRONMENT_VARIABLE = "AUTH_USAGE_TOKEN_LEDGER_DB"  # noqa: S105 - variable name, not a secret
-TOKEN_LEDGER_NODES_ENVIRONMENT_VARIABLE = "AUTH_USAGE_TOKEN_LEDGER_NODES"  # noqa: S105 - variable name, not a secret
+LEDGER_FILE_ENVIRONMENT_VARIABLE = "AUTH_USAGE_TOKEN_LEDGER_DB"
+LEDGER_NODES_ENVIRONMENT_VARIABLE = "AUTH_USAGE_TOKEN_LEDGER_NODES"
 DEFAULT_TOKEN_LEDGER_FILE = Path("/dashboard-data/token-ledger.sqlite3")
 DEFAULT_NODES = ("master", "jeff-dev", "fsn1")
 CACHE_SECONDS = 60.0
@@ -30,39 +32,37 @@ DEFAULT_SPAN = "7d"
 UNAVAILABLE_ERROR = "The fleet token ledger could not be read."
 
 
+@dataclass
 class TokenUsageCache:
     """Per-range payload cache so polling never re-aggregates more than once a minute."""
 
-    def __init__(self, path: Path, nodes: tuple[str, ...], *, ttl: float = CACHE_SECONDS) -> None:
-        """Bind the cache to one fleet store and its expected nodes."""
-        self._path = path
-        self._nodes = nodes
-        self._ttl = ttl
-        self._entries: dict[str, tuple[float, JsonObject]] = {}
-        self._lock = asyncio.Lock()
+    path: Path
+    nodes: tuple[str, ...]
+    ttl: float = field(default=CACHE_SECONDS, kw_only=True)
+    _entries: dict[str, tuple[float, JsonObject]] = field(default_factory=dict, init=False)
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
     async def payload(self, span: str) -> JsonObject:
         """Return a cached or freshly built payload for one range."""
         async with self._lock:
             cached = self._entries.get(span)
-            if cached is not None and time.monotonic() - cached[0] < self._ttl:
+            if cached is not None and time.monotonic() - cached[0] < self.ttl:
                 return cached[1]
-            try:
-                payload: JsonObject = await to_thread(build_report, self._path, span, expected_nodes=self._nodes)  # type: ignore[assignment]
-            except (OSError, sqlite3.Error):
-                payload = {
-                    "schema_version": 1,
-                    "range": span,
-                    "error": UNAVAILABLE_ERROR,
-                    "buckets": [],
-                    "dimensions": None,
-                }
+            payload: JsonObject = {
+                "schema_version": 1,
+                "range": span,
+                "error": UNAVAILABLE_ERROR,
+                "buckets": [],
+                "dimensions": None,
+            }
+            with suppress(OSError, sqlite3.Error):
+                payload = await to_thread(build_report, self.path, span, expected_nodes=self.nodes)
             self._entries[span] = (time.monotonic(), payload)
             return payload
 
 
 def _configured_nodes() -> tuple[str, ...]:
-    raw = os.environ.get(TOKEN_LEDGER_NODES_ENVIRONMENT_VARIABLE, "")
+    raw = os.environ.get(LEDGER_NODES_ENVIRONMENT_VARIABLE, "")
     nodes = tuple(part.strip() for part in raw.split(",") if part.strip())
     return nodes or DEFAULT_NODES
 
@@ -75,7 +75,7 @@ def register_token_usage_route(
     require_operator: Callable[[DashboardSettings, str | None], None],
 ) -> None:
     """Register ``GET /api/v1/token-usage?span=24h|7d|30d``."""
-    configured = os.environ.get(TOKEN_LEDGER_FILE_ENVIRONMENT_VARIABLE)
+    configured = os.environ.get(LEDGER_FILE_ENVIRONMENT_VARIABLE)
     cache = TokenUsageCache(Path(configured) if configured else DEFAULT_TOKEN_LEDGER_FILE, _configured_nodes())
 
     async def token_usage(span: str = DEFAULT_SPAN, proxy_identity: str | None = identity_default) -> Response:
