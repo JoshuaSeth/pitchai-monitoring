@@ -16,7 +16,12 @@
     unknown: { label: "Unknown", icon: "?" },
   };
 
-  const view = { custom: loadCustom(), payload: null, error: null, busy: false };
+  const POOLS = [
+    ["openai", "OpenAI", "Codex account broker"],
+    ["anthropic", "Anthropic", "Claude Code accounts"],
+    ["opencode", "OpenCode Go", "MiMo / GLM subscription pool"],
+  ];
+  const view = { custom: loadCustom(), payloads: {}, errors: {}, busy: false };
 
   function loadCustom() {
     try {
@@ -107,7 +112,9 @@
     const margin = finite(result.margin_points);
     const limited = status === "limited";
     // While most accounts sit at their limit their burn is invisible, so neither runway nor spare is knowable.
-    const summary = element("p", "burn-summary", [
+    const capacityNow = result.capacity || {};
+    const noCapacity = finite(capacityNow.effective_points) === 0;
+    const summary = element("p", "burn-summary", noCapacity ? "No usable capacity inside this window" : [
       limited ? "Runway not measurable while accounts sit at their limit" : runwayText(result.runway_hours),
       limited ? `${points((result.capacity || {}).effective_points)} available over the horizon`
         : margin === null ? null : margin >= 0 ? `${points(margin)} spare over the horizon` : `${points(-margin)} short over the horizon`,
@@ -119,32 +126,60 @@
     const rows = [
       ["Burn", `${finite(burn.points_per_hour) === null ? "-" : finite(burn.points_per_hour).toFixed(1)} pts/h · ${burn.source === "native_broker_samples" ? `${burn.coverage_percent}% sampled · ${burn.confidence}` : "current-window estimate"}`],
       ["Needed", points(result.demand_points)],
-      ["Available", `${points(capacity.effective_points)} = ${points(capacity.left_now_points)} left + ${capacity.reset_count || 0} reset${capacity.reset_count === 1 ? "" : "s"} (${points(capacity.reset_points)}) − ${points(capacity.expiring_points)} expiring at resets − ${points(capacity.subscription_expiring_points)} lost to ${capacity.subscription_end_count || 0} subscription end${capacity.subscription_end_count === 1 ? "" : "s"}`],
+      ["Available", `${points(capacity.effective_points)} = ${points(capacity.left_now_points)} left + ${capacity.reset_count || 0} reset${capacity.reset_count === 1 ? "" : "s"} (${points(capacity.reset_points)}) − ${points(capacity.expiring_points)} expiring at resets − ${points(capacity.subscription_expiring_points)} lost to ${capacity.subscription_end_count || 0} subscription end${capacity.subscription_end_count === 1 ? "" : "s"}${finite(capacity.blocked_points) ? ` − ${points(capacity.blocked_points)} blocked` : ""}`],
     ];
     for (const [label, text] of rows) breakdown.append(element("dt", "", label), element("dd", "", text));
 
     const notes = [];
     if (result.reason) notes.push(result.reason);
-    if (result.lower_bound) notes.push(`${capacity.saturated_accounts} of ${capacity.eligible_accounts} accounts are at their limit; their work is not visible as quota burn, so the real factor is at least this.`);
+    if (result.lower_bound && capacity.saturated_accounts) notes.push(`${capacity.saturated_accounts} of ${capacity.eligible_accounts} accounts are at their limit; their work is not visible as quota burn, so the real factor is at least this.`);
     if (capacity.credit_accounts) notes.push(`${capacity.credit_accounts} account${capacity.credit_accounts === 1 ? "" : "s"} can run on spendable credits beyond quota (not counted).`);
+    if (capacity.blocked_accounts) notes.push(`${capacity.blocked_accounts} account${capacity.blocked_accounts === 1 ? " is" : "s are"} blocked by another exhausted window (5-hour or monthly) until ${capacity.blocked_until ? new Date(capacity.blocked_until).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "its reset"}; ${points(capacity.blocked_points)} stay unusable inside this window.`);
     if (capacity.ended_subscription_accounts) notes.push(`${capacity.ended_subscription_accounts} account${capacity.ended_subscription_accounts === 1 ? "" : "s"} excluded: subscription already ended.`);
+    if (status === "unknown") {
+      card.append(head, value, element("p", "burn-summary", result.reason || "Not enough data yet for this pool."));
+      return card;
+    }
     card.append(head, value, meter, summary, breakdown);
     if (notes.length) card.append(element("p", "burn-note", notes.join(" ")));
     return card;
   }
 
-  function render() {
-    const grid = byId("burn-factor-grid");
-    if (!grid) return;
+  function renderPool(pool) {
+    const [key, name, detail] = pool;
+    const block = element("section", "burn-pool");
+    block.dataset.pool = key;
+    const payload = view.payloads[key];
+    const head = element("div", "burn-pool-head");
+    const title = element("div", "burn-pool-title");
+    title.append(element("h3", "", name), element("span", "", detail));
+    const basis = payload && payload.basis && payload.basis.label ? `${payload.basis.label} points · 100 = one full account window` : "Capacity basis not reported";
+    head.append(title, element("span", "burn-pool-basis", basis));
+    const grid = element("div", "burn-grid");
     grid.classList.toggle("is-refreshing", view.busy);
-    const results = view.payload && Array.isArray(view.payload.results) ? view.payload.results : [];
-    if (!results.length) {
-      grid.replaceChildren(element("p", "burn-empty", view.error || "Reading burn and capacity…"));
-      return;
+    const results = payload && Array.isArray(payload.results) ? payload.results : [];
+    if (!results.length) grid.append(element("p", "burn-empty", view.errors[key] || "Reading burn and capacity…"));
+    else grid.append(...results.map(renderCard));
+    block.append(head, grid);
+    return block;
+  }
+
+  function render() {
+    const host = byId("burn-factor-pools");
+    if (!host) return;
+    host.replaceChildren(...POOLS.map(renderPool));
+  }
+
+  async function loadPool(key) {
+    try {
+      const query = `pool=${encodeURIComponent(key)}&pairs=${encodeURIComponent(pairsQuery())}`;
+      const response = await fetch(`/api/v1/burn-factor?${query}`, { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error(`burn_factor_http_${response.status}`);
+      view.payloads[key] = await response.json();
+      view.errors[key] = null;
+    } catch (error) {
+      view.errors[key] = "Burn factor is unavailable right now.";
     }
-    grid.replaceChildren(...results.map(renderCard));
-    const basis = (view.payload.basis || {}).label;
-    byId("burn-factor-basis").textContent = basis ? `${basis} capacity points · 100 = one full account window` : "Capacity basis not reported";
   }
 
   async function load() {
@@ -152,12 +187,7 @@
     view.busy = true;
     render();
     try {
-      const response = await fetch(`/api/v1/burn-factor?pairs=${encodeURIComponent(pairsQuery())}`, { credentials: "same-origin", cache: "no-store" });
-      if (!response.ok) throw new Error(`burn_factor_http_${response.status}`);
-      view.payload = await response.json();
-      view.error = null;
-    } catch (error) {
-      view.error = "Burn factor is unavailable right now.";
+      await Promise.all(POOLS.map(([key]) => loadPool(key)));
     } finally {
       view.busy = false;
     }

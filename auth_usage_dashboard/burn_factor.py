@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from .burn_factor_capacity import AccountWindow, simulate
+from .burn_factor_results import Counts, pair_result
 from .burn_factor_subscriptions import subscription_ends
 from .history import parse_datetime
 from .scheduling_capacity_burn_deltas import eligible_account
@@ -20,11 +21,9 @@ from .scheduling_capacity_burn_windows import capacity_burn_window
 from .timeseries_types import nonnegative_integer, number_value, optional_object, text_value
 
 if TYPE_CHECKING:
-    from .burn_factor_capacity import HorizonCapacity
     from .burn_factor_windows import WindowPair
     from .timeseries_types import JsonObject, JsonValue
 
-GOOD_BELOW, SHORT_FROM = 0.85, 1.0
 BASIS_KEYS = frozenset({"weekly", "five_hour"})
 _HIGH_COVERAGE, _MEDIUM_COVERAGE, _SECONDS_PER_HOUR = 80.0, 20.0, 3600.0
 
@@ -52,7 +51,9 @@ def _pool(accounts: list[JsonObject], basis: str, ends: dict[str, datetime], now
         seconds = nonnegative_integer(window.get("window_seconds"))
         reset_at = parse_datetime(text_value(window.get("reset_at")))
         length = timedelta(seconds=seconds) if seconds else None
-        pool.windows.append(AccountWindow(max(0.0, min(100.0, left)), reset_at, length, ends_at))
+        blocked = parse_datetime(text_value(account.get("blocked_until")))
+        blocked_until = blocked if blocked is not None and blocked > now else None
+        pool.windows.append(AccountWindow(max(0.0, min(100.0, left)), reset_at, length, ends_at, blocked_until))
     return pool
 
 
@@ -95,58 +96,6 @@ def _burn(
     }
 
 
-def _status(factor: float | None, *, demand: float, limited: bool) -> str:
-    if factor is None:
-        return "short" if demand > 0 else "unknown"
-    if factor >= SHORT_FROM:
-        return "short"
-    if limited:
-        return "limited"
-    return "good" if factor < GOOD_BELOW else "tight"
-
-
-def _result(
-    pair: WindowPair,
-    burn: JsonObject,
-    capacity: HorizonCapacity,
-    counts: tuple[int, int, int, int, int],
-) -> JsonObject:
-    eligible, unknown, saturated, credited, ended = counts
-    rate = number_value(burn.get("points_per_hour")) or 0.0
-    demand = rate * pair.horizon_seconds / _SECONDS_PER_HOUR
-    effective = capacity.effective_points
-    factor = demand / effective if effective > 0 else None
-    capacity_payload: JsonObject = {
-        "left_now_points": round(capacity.left_now_points, 2),
-        "reset_points": round(capacity.reset_points, 2),
-        "reset_count": capacity.reset_count,
-        "expiring_points": round(capacity.losses.at_resets, 2),
-        "subscription_expiring_points": round(capacity.losses.at_subscription_ends, 2),
-        "subscription_end_count": capacity.losses.subscription_end_count,
-        "ended_subscription_accounts": ended,
-        "effective_points": round(effective, 2),
-        "eligible_accounts": eligible,
-        "unknown_accounts": unknown,
-        "saturated_accounts": saturated,
-        "credit_accounts": credited,
-    }
-    burn_payload: JsonObject = {**burn, "points_per_hour": round(rate, 3)}
-    return {
-        "rolling": pair.rolling,
-        "rolling_seconds": pair.rolling_seconds,
-        "horizon": pair.horizon,
-        "horizon_seconds": pair.horizon_seconds,
-        "factor": round(factor, 3) if factor is not None else None,
-        "status": _status(factor, demand=demand, limited=saturated * 2 >= max(1, eligible - unknown - ended)),
-        "lower_bound": saturated > 0,
-        "runway_hours": round(capacity.runway_hours, 1) if capacity.runway_hours is not None else None,
-        "margin_points": round(effective - demand, 2),
-        "demand_points": round(demand, 2),
-        "burn": burn_payload,
-        "capacity": capacity_payload,
-    }
-
-
 @dataclass(frozen=True)
 class _Inputs:
     """The parsed snapshot pieces every pair needs."""
@@ -170,13 +119,16 @@ def _unknown_results(pairs: list[WindowPair], reason: str) -> list[JsonValue]:
     return [{**template, "rolling": pair.rolling, "horizon": pair.horizon} for pair in pairs]
 
 
-def _counts(inputs: _Inputs, pool: _Pool) -> tuple[int, int, int, int, int]:
-    saturated = sum(1 for window in pool.windows if window.left <= 0)
+def _counts(inputs: _Inputs, pool: _Pool) -> Counts:
+    saturated = sum(1 for window in pool.windows if window.left <= 0 and window.blocked_until is None)
     credited = 0
     for account in inputs.eligible:
         if optional_object(account.get("usage_credits")).get("usable") is True:
             credited += 1
-    return len(inputs.eligible), pool.unknown, saturated, credited, pool.ended
+    unblock_moments = (window.blocked_until for window in pool.windows)
+    blocks = list(filter(None, unblock_moments))
+    earliest = min(blocks).isoformat().replace("+00:00", "Z") if blocks else None
+    return Counts(len(inputs.eligible), pool.unknown, saturated, credited, pool.ended, len(blocks), earliest)
 
 
 def _pair_results(
@@ -194,7 +146,7 @@ def _pair_results(
         rate = number_value(burn.get("points_per_hour")) or 0.0
         horizon_hours = pair.horizon_seconds / _SECONDS_PER_HOUR
         capacity = simulate(pool.windows, start=moment, rate=rate, horizon_hours=horizon_hours)
-        output.append(_result(pair, burn, capacity, counts))
+        output.append(pair_result(pair, burn, capacity, counts))
     return output
 
 
