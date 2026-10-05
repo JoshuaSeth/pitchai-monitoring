@@ -45,7 +45,9 @@ def usage_credits(usage: JsonValue) -> UsageCredits:
         reason = "Credit spending blocked or unconfirmed"
     elif spending.get("reached") is not False:
         reason = "Spending permission blocked or unconfirmed"
-    elif limits.get("allowed") is not True or limits.get("limit_reached") is not False:
+    elif (
+        limits.get("allowed") is not True or limits.get("limit_reached") is not False
+    ) and not _models_available(payload):
         reason = "Provider currently blocks requests"
     else:
         reason = "Credits available for continued usage"
@@ -59,3 +61,14 @@ def usage_credits(usage: JsonValue) -> UsageCredits:
 
 def _mapping(value: JsonValue) -> dict[str, JsonValue]:
     return cast("dict[str, JsonValue]", value) if isinstance(value, dict) else {}
+
+
+def _models_available(payload: dict[str, JsonValue]) -> bool:
+    models = _mapping(payload.get("model_usage"))
+    if not models:
+        return False
+    for raw_model in models.values():
+        model = _mapping(raw_model)
+        if model.get("available") is not True or model.get("credits_would_enable") is not False:
+            return False
+    return True
