@@ -17,6 +17,7 @@ from e2e_registry import db as dbm
 from e2e_registry.app_access import RegistryAccess
 from e2e_registry.app_admin_routes import router as admin_router
 from e2e_registry.app_read_routes import router as read_router
+from e2e_registry.app_runner_routes import router as runner_router
 from e2e_registry.app_source_routes import router as source_router
 from e2e_registry.app_ui_source_routes import router as ui_source_router
 from e2e_registry.app_ui_upload_routes import router as ui_upload_router
@@ -311,117 +312,8 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
     # -----------------
     # Runner API
     # -----------------
-    @app.post("/api/v1/runner/claim")
-    async def runner_claim(_auth: None = Depends(require_runner), req: RunnerClaimRequest | None = None) -> dict[str, Any]:
-        max_runs = int(req.max_runs) if req is not None else 1
-        claimed = await asyncio.to_thread(dbm.claim_due_runs, context.settings, max_runs=max_runs)
-        jobs = [
-            {
-                "run_id": c.run_id,
-                "test_id": c.test_id,
-                "tenant_id": c.tenant_id,
-                "test_name": c.test_name,
-                "base_url": c.base_url,
-                "timeout_seconds": c.timeout_seconds,
-                "test_kind": c.test_kind,
-                "definition": c.definition,
-                "source_relpath": c.source_relpath,
-                "source_filename": c.source_filename,
-                "source_sha256": c.source_sha256,
-            }
-            for c in claimed
-        ]
-        return {"ok": True, "jobs": jobs}
+    app.include_router(runner_router)
 
-    @app.post("/api/v1/runner/runs/{run_id}/complete")
-    async def runner_complete(
-        run_id: str,
-        _auth: None = Depends(require_runner),
-        req: RunnerCompleteRequest | None = None,
-    ) -> dict[str, Any]:
-        if req is None:
-            raise HTTPException(status_code=400, detail="missing_body")
-        status = str(req.status or "").strip().lower()
-        if status not in {"pass", "fail", "infra_degraded"}:
-            raise HTTPException(status_code=400, detail="invalid_status")
-
-        completion = dbm.RunCompletion(
-            status=status,
-            elapsed_ms=req.elapsed_ms,
-            error_kind=req.error_kind,
-            error_message=req.error_message,
-            final_url=req.final_url,
-            title=req.title,
-            artifacts=req.artifacts or {},
-            started_at_ts=req.started_at_ts,
-            finished_at_ts=req.finished_at_ts,
-        )
-        outcome = await asyncio.to_thread(dbm.complete_run, context.settings, run_id=run_id, completion=completion)
-
-        # Send alerts out-of-band (after DB commit).
-        async with httpx.AsyncClient(headers={"User-Agent": "PitchAI E2E Registry"}) as http_client:
-            if outcome.alerted_down and outcome.updated and outcome.tenant_id and outcome.test_id and outcome.test_name:
-                cfg = await asyncio.to_thread(
-                    dbm.get_test_config_internal, context.settings, test_id=outcome.test_id
-                )
-                down_after = int(cfg.get("down_after_failures") or 2) if isinstance(cfg, dict) else 2
-                test_kind = str(cfg.get("test_kind") or "stepflow") if isinstance(cfg, dict) else "stepflow"
-                msg = build_failure_telegram_message(
-                    settings=context.settings,
-                    tenant_id=outcome.tenant_id,
-                    test_id=outcome.test_id,
-                    test_name=outcome.test_name,
-                    test_kind=test_kind,
-                    run_id=run_id,
-                    fail_streak=int(outcome.fail_streak or 0),
-                    down_after_failures=down_after,
-                    error_kind=req.error_kind,
-                    error_message=req.error_message,
-                    final_url=req.final_url,
-                    artifacts=req.artifacts,
-                )
-                await maybe_send_failure_alert(http_client=http_client, settings=context.settings, msg=msg)
-
-                # Optional dispatcher escalation.
-                if isinstance(cfg, dict) and bool(int(cfg.get("dispatch_on_failure") or 0)):
-                    prompt = build_dispatch_prompt_for_failure(
-                        test_id=outcome.test_id,
-                        test_name=outcome.test_name,
-                        test_kind=test_kind,
-                        base_url=str(cfg.get("base_url") or ""),
-                        run_id=run_id,
-                        error_kind=req.error_kind,
-                        error_message=req.error_message,
-                        artifacts=req.artifacts,
-                    )
-                    await maybe_dispatch_failure_investigation(
-                        http_client=http_client,
-                        settings=context.settings,
-                        prompt=prompt,
-                        context={
-                            "tenant_id": outcome.tenant_id,
-                            "test_id": outcome.test_id,
-                            "test_name": outcome.test_name,
-                            "test_kind": test_kind,
-                            "base_url": str(cfg.get("base_url") or "") if isinstance(cfg, dict) else "",
-                            "run_id": run_id,
-                        },
-                    )
-
-            if outcome.recovered_up and outcome.updated and outcome.test_id and outcome.test_name:
-                cfg = await asyncio.to_thread(
-                    dbm.get_test_config_internal, context.settings, test_id=outcome.test_id
-                )
-                if isinstance(cfg, dict) and bool(int(cfg.get("notify_on_recovery") or 0)):
-                    msg = build_recovery_telegram_message(
-                        settings=context.settings,
-                        test_id=outcome.test_id,
-                        test_name=outcome.test_name,
-                        run_id=run_id,
-                    )
-                    await maybe_send_failure_alert(http_client=http_client, settings=context.settings, msg=msg)
-
-        return {"ok": True, "outcome": outcome.__dict__}
 
     return app
 
