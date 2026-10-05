@@ -79,11 +79,12 @@ def _event_epoch(raw: object) -> float | None:
     if not isinstance(raw, str):
         return None
     try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        # Python 3.10 hosts: fromisoformat() does not accept a "Z" suffix there.
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))  # noqa: FURB162
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=timezone.utc)  # noqa: UP017 - host runtime is Python 3.10
     return parsed.timestamp()
 
 
@@ -106,7 +107,7 @@ def usage_delta(state: FileState, info: dict[str, object]) -> tuple[int, ...] | 
             return total if any(total) else None
         if total == previous:
             return None
-        delta = tuple(max(0, now - before) for now, before in zip(total, previous))
+        delta = tuple(max(0, now - before) for now, before in zip(total, previous, strict=True))
         return delta if any(delta) else None
     last = _usage_tuple(info.get("last_token_usage"))
     return last if last is not None and any(last) else None

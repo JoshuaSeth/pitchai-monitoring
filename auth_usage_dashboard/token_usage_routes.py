@@ -21,8 +21,8 @@ if TYPE_CHECKING:
     from .settings import DashboardSettings
     from .timeseries_types import JsonObject
 
-TOKEN_LEDGER_FILE_ENVIRONMENT_VARIABLE = "AUTH_USAGE_TOKEN_LEDGER_DB"
-TOKEN_LEDGER_NODES_ENVIRONMENT_VARIABLE = "AUTH_USAGE_TOKEN_LEDGER_NODES"
+TOKEN_LEDGER_FILE_ENVIRONMENT_VARIABLE = "AUTH_USAGE_TOKEN_LEDGER_DB"  # noqa: S105 - variable name, not a secret
+TOKEN_LEDGER_NODES_ENVIRONMENT_VARIABLE = "AUTH_USAGE_TOKEN_LEDGER_NODES"  # noqa: S105 - variable name, not a secret
 DEFAULT_TOKEN_LEDGER_FILE = Path("/dashboard-data/token-ledger.sqlite3")
 DEFAULT_NODES = ("master", "jeff-dev", "fsn1")
 CACHE_SECONDS = 60.0
@@ -50,7 +50,13 @@ class TokenUsageCache:
             try:
                 payload: JsonObject = await to_thread(build_report, self._path, span, expected_nodes=self._nodes)  # type: ignore[assignment]
             except (OSError, sqlite3.Error):
-                payload = {"schema_version": 1, "range": span, "error": UNAVAILABLE_ERROR, "buckets": [], "dimensions": None}
+                payload = {
+                    "schema_version": 1,
+                    "range": span,
+                    "error": UNAVAILABLE_ERROR,
+                    "buckets": [],
+                    "dimensions": None,
+                }
             self._entries[span] = (time.monotonic(), payload)
             return payload
 

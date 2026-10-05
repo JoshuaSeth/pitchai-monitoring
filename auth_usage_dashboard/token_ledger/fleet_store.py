@@ -57,15 +57,16 @@ CREATE TABLE IF NOT EXISTS ledger_nodes (
     lane_errors TEXT
 );
 """
-_UPSERT = f"""
-INSERT OR REPLACE INTO token_usage_hourly (
-    {", ".join(ROW_KEY[:1])}, node, {", ".join(ROW_KEY[1:])}, project_title, {", ".join(ROW_VALUES)}, received_at
-) VALUES ({", ".join("?" for _ in range(len(ROW_KEY) + len(ROW_VALUES) + 3))})
-"""
+_COLUMNS = ("hour_epoch", "node", *ROW_KEY[1:], "project_title", *ROW_VALUES, "received_at")
+_UPSERT = f"INSERT OR REPLACE INTO token_usage_hourly ({', '.join(_COLUMNS)}) VALUES ({', '.join('?' * len(_COLUMNS))})"  # noqa: S608 - constant column names
 
 
 def connect_fleet(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
-    """Open the fleet store; writers create it with private permissions."""
+    """Open the fleet store; writers create it with private permissions.
+
+    Returns:
+        Open SQLite connection.
+    """
     if read_only:
         connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=10.0)
         connection.execute("PRAGMA busy_timeout = 10000")
@@ -130,7 +131,7 @@ def ingest(connection: sqlite3.Connection, node: str, stream: IO[str]) -> dict[s
         record = json.loads(line)
         if not isinstance(record, dict):
             message = "record is not an object"
-            raise ValueError(message)
+            raise ValueError(message)  # noqa: TRY004 - malformed input batch, reported as one ValueError
         if record.get("kind") == "header":
             header = record
             continue

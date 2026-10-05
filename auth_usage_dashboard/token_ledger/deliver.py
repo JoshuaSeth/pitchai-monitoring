@@ -10,14 +10,15 @@ from __future__ import annotations
 
 import io
 import json
-import subprocess
+import subprocess  # noqa: S404 - fixed-argv ssh to master, never a shell
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .fleet_store import DEFAULT_FLEET_DB, connect_fleet, ingest
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from .node_store import NodeStore
     from .sources import NodeConfig
 
@@ -86,7 +87,13 @@ def _send(config: NodeConfig, payload: str, fleet_db: Path) -> dict[str, object]
         connection.close()
 
 
-def deliver(config: NodeConfig, store: NodeStore, *, version: str, fleet_db: Path = DEFAULT_FLEET_DB) -> dict[str, object]:
+def deliver(
+    config: NodeConfig,
+    store: NodeStore,
+    *,
+    version: str,
+    fleet_db: Path = DEFAULT_FLEET_DB,
+) -> dict[str, object]:
     """Send every row changed since the last acknowledged sequence.
 
     Returns:

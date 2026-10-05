@@ -111,7 +111,8 @@ class NodeStore:
         """Return every known cursor keyed by path as (inode, route, state)."""
         found: dict[str, tuple[int, str, FileState]] = {}
         for path, inode, offset, route, thread, cwd, model, total, count_from, pending in self.connection.execute(
-            "select path, inode, offset, route, thread_id, cwd, model, last_total, count_from, baseline_pending from file_cursors"
+            "select path, inode, offset, route, thread_id, cwd, model, last_total, count_from, baseline_pending "
+            "from file_cursors",
         ):
             last_total = tuple(json.loads(total)) if total else None
             state = FileState(int(offset), thread, cwd, model, last_total, float(count_from), bool(pending))
@@ -138,13 +139,19 @@ class NodeStore:
                     time.time(),
                 ),
             )
-            self.connection.executemany(_UPSERT, [(*key, title, *values, sequence) for key, (title, values) in rows.items()])
+            self.connection.executemany(
+                _UPSERT,
+                [(*key, title, *values, sequence) for key, (title, values) in rows.items()],
+            )
 
     def forget_stale(self, present: Iterable[str], *, older_than: float) -> int:
         """Drop cursors of vanished rollouts that have not advanced since ``older_than``.
 
         Recently active cursors are kept even while their file is missing, so a
         rollout that is offloaded and restored is never counted twice.
+
+        Returns:
+            Number of cursors removed.
         """
         keep = set(present)
         rows = self.connection.execute("select path from file_cursors where updated_at < ?", (older_than,)).fetchall()
@@ -161,7 +168,7 @@ class NodeStore:
             (sequence, limit),
         )
         for row in cursor:
-            yield dict(zip(columns, row))
+            yield dict(zip(columns, row, strict=True))
 
     def _next_sequence(self) -> int:
         value = int(self.meta("change_seq", "0")) + 1

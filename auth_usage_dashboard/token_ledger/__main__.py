@@ -71,7 +71,17 @@ def _ingest(arguments: argparse.Namespace) -> int:
 def _status(arguments: argparse.Namespace) -> int:
     store = NodeStore(arguments.state)
     try:
-        keys = ("last_collect_at", "last_push_at", "acked_seq", "change_seq", "backlog_bytes", "files_tracked", "homes", "lane_errors", "collect_seconds")
+        keys = (
+            "last_collect_at",
+            "last_push_at",
+            "acked_seq",
+            "change_seq",
+            "backlog_bytes",
+            "files_tracked",
+            "homes",
+            "lane_errors",
+            "collect_seconds",
+        )
         report: dict[str, object] = {key: store.meta(key) for key in keys}
         report["cursors"] = len(store.cursors())
     finally:
@@ -80,8 +90,10 @@ def _status(arguments: argparse.Namespace) -> int:
         connection = connect_fleet(arguments.fleet_db, read_only=True)
         try:
             report["fleet_nodes"] = [
-                dict(zip(("node", "last_ingest_at", "backlog_bytes", "rows_received"), row))
-                for row in connection.execute("select node, last_ingest_at, backlog_bytes, rows_received from ledger_nodes order by node")
+                dict(zip(("node", "last_ingest_at", "backlog_bytes", "rows_received"), row, strict=True))
+                for row in connection.execute(
+                    "select node, last_ingest_at, backlog_bytes, rows_received from ledger_nodes order by node",
+                )
             ]
             report["fleet_rows"] = connection.execute("select count(*) from token_usage_hourly").fetchone()[0]
         finally:
@@ -91,7 +103,11 @@ def _status(arguments: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run one exporter command and return its exit status."""
+    """Run one exporter command.
+
+    Returns:
+        Process exit status.
+    """
     parser = argparse.ArgumentParser(prog="token_ledger", description="Fleet token ledger exporter")
     parser.add_argument("command", choices=("run", "collect", "deliver", "ingest", "status"))
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)

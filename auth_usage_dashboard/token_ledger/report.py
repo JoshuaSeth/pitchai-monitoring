@@ -8,7 +8,6 @@ at most seven named series plus "Other".
 
 from __future__ import annotations
 
-import sqlite3
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -17,6 +16,7 @@ from .fleet_store import connect_fleet
 from .labels import PROVIDER_SLOTS, model_label, project_label, provider_label
 
 if TYPE_CHECKING:
+    import sqlite3
     from pathlib import Path
 
 SCHEMA_VERSION = 1
@@ -65,7 +65,7 @@ def _add(series: _Series, index: int, values: tuple[int, ...]) -> None:
     fresh = max(0, total - cached)
     for metric, value in (("total", total), ("fresh", fresh), ("output", output)):
         series.points[metric][index] += value
-    for name, value in zip(_TOTAL_FIELDS, (*values, fresh)):
+    for name, value in zip(_TOTAL_FIELDS, (*values, fresh), strict=True):
         series.totals[name] = series.totals.get(name, 0) + value
 
 
@@ -76,7 +76,7 @@ def _fold(series: dict[str, _Series], count: int) -> list[dict[str, object]]:
         other = _Series(OTHER_KEY, f"Other ({len(rest)})", _blank(count), {})
         for item in rest:
             for metric, points in item.points.items():
-                other.points[metric] = [left + right for left, right in zip(other.points[metric], points)]
+                other.points[metric] = [left + right for left, right in zip(other.points[metric], points, strict=True)]
             for name, value in item.totals.items():
                 other.totals[name] = other.totals.get(name, 0) + value
         named.append(other)
@@ -101,7 +101,7 @@ def _coverage(connection: sqlite3.Connection, expected: tuple[str, ...], now: fl
     rows: dict[str, tuple[float | None, float | None, int]] = {
         str(node): (_number(last_ingest), _number(last_collect), int(backlog or 0))
         for node, last_ingest, last_collect, backlog in connection.execute(
-            "select node, last_ingest_at, last_collect_at, backlog_bytes from ledger_nodes"
+            "select node, last_ingest_at, last_collect_at, backlog_bytes from ledger_nodes",
         )
     }
     sources: list[dict[str, object]] = []
@@ -138,7 +138,13 @@ def _iso(epoch: float) -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
 
 
-def build_report(path: Path, range_key: str, *, expected_nodes: tuple[str, ...], now: float | None = None) -> dict[str, object]:
+def build_report(
+    path: Path,
+    range_key: str,
+    *,
+    expected_nodes: tuple[str, ...],
+    now: float | None = None,
+) -> dict[str, object]:
     """Return the layered token-usage payload for one range.
 
     Raises:
@@ -152,12 +158,28 @@ def build_report(path: Path, range_key: str, *, expected_nodes: tuple[str, ...],
     last_bucket = int(current) // bucket * bucket
     count = span // bucket
     first_bucket = last_bucket - (count - 1) * bucket
-    base: dict[str, object] = {"schema_version": SCHEMA_VERSION, "generated_at": _iso(current), "range": range_key, "bucket_seconds": bucket, "metrics": list(METRICS), "method": METHOD}
+    base: dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at": _iso(current),
+        "range": range_key,
+        "bucket_seconds": bucket,
+        "metrics": list(METRICS),
+        "method": METHOD,
+    }
     if not path.exists():
-        return {**base, "error": "The fleet token ledger has not been collected yet.", "buckets": [], "dimensions": None, "coverage": {"sources": [], "stale": True}}
+        return {
+            **base,
+            "error": "The fleet token ledger has not been collected yet.",
+            "buckets": [],
+            "dimensions": None,
+            "coverage": {"sources": [], "stale": True},
+        }
     connection = connect_fleet(path, read_only=True)
     try:
-        cube = connection.execute(_QUERY, {"bucket": bucket, "start": first_bucket, "end": last_bucket + bucket}).fetchall()
+        cube = connection.execute(
+            _QUERY,
+            {"bucket": bucket, "start": first_bucket, "end": last_bucket + bucket},
+        ).fetchall()
         coverage = _coverage(connection, expected_nodes, current)
     finally:
         connection.close()
@@ -175,6 +197,8 @@ def build_report(path: Path, range_key: str, *, expected_nodes: tuple[str, ...],
         for layer, (key, label, detail, slot) in keys.items():
             series = layers[layer].setdefault(key, _Series(key, label, _blank(count), {}, detail, slot))
             _add(series, index, numbers)
-    dimensions = {layer: {"series": _fold(series, count), "series_count": len(series)} for layer, series in layers.items()}
+    dimensions = {
+        layer: {"series": _fold(series, count), "series_count": len(series)} for layer, series in layers.items()
+    }
     buckets = [_iso(first_bucket + position * bucket) for position in range(count)]
     return {**base, "error": None, "buckets": buckets, "dimensions": dimensions, "coverage": coverage}

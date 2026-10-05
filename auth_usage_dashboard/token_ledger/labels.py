@@ -79,7 +79,11 @@ def normalize_model(raw: object) -> str:
 
 
 def provider_for(model: str, route: str) -> str:
-    """Derive the vendor from the model id, falling back to the runtime route."""
+    """Derive the vendor from the model id, falling back to the runtime route.
+
+    Returns:
+        Provider key.
+    """
     for prefix, provider in _MODEL_PREFIXES:
         if model.startswith(prefix):
             return provider

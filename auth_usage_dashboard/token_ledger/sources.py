@@ -8,7 +8,6 @@ with a generous busy timeout for a handful of indexed lookups.
 
 from __future__ import annotations
 
-import glob
 import json
 import os
 import socket
@@ -17,10 +16,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_CONFIG = Path("/etc/pitchai-token-ledger/config.json")
-_MANIFEST_GLOB = "/tmp/paas-*/.managed-app-server-systemd-launch-v1-*.json"
-_OWNER_GLOB = "/var/lib/pitchai-cli-new/*-owners/*/owner.json"
+_PAAS_ROOT = Path("/tmp")  # noqa: S108 - engine-owned launch manifests, read only
+_MANIFEST_GLOB = "paas-*/.managed-app-server-systemd-launch-v1-*.json"
+_OWNERS_ROOT = Path("/var/lib/pitchai-cli-new")
+_OWNER_GLOB = "*-owners/*/owner.json"
 _MAX_DESCRIPTOR_BYTES = 1024 * 1024
 _SQLITE_TIMEOUT_SECONDS = 15.0
+_PAIR = 2
 _CONTROL_PLANE = "/code/pitchai-cli-new/.pitchai-state/control-plane.sqlite3"
 _HOST_DEFAULTS: dict[str, dict[str, object]] = {
     "pitchai-dev": {
@@ -93,7 +95,7 @@ def _read_json(path: Path) -> dict[str, object] | None:
 def _pairs(value: object) -> tuple[tuple[str, str], ...]:
     if not isinstance(value, list):
         return ()
-    return tuple((str(item[0]), str(item[1])) for item in value if isinstance(item, list) and len(item) >= 2)
+    return tuple((str(item[0]), str(item[1])) for item in value if isinstance(item, list) and len(item) >= _PAIR)
 
 
 def _option(merged: dict[str, object], key: str, default: object) -> object:
@@ -135,18 +137,18 @@ def load_config(path: Path = DEFAULT_CONFIG) -> NodeConfig:
 def discover_homes(config: NodeConfig) -> list[Home]:
     """Return every distinct CODEX_HOME with a sessions tree on this host."""
     homes: dict[str, Home] = {}
-    for manifest in glob.glob(_MANIFEST_GLOB):
-        environment = (_read_json(Path(manifest)) or {}).get("process_env")
+    for manifest in _PAAS_ROOT.glob(_MANIFEST_GLOB):
+        environment = (_read_json(manifest) or {}).get("process_env")
         home = environment.get("CODEX_HOME") if isinstance(environment, dict) else None
         if isinstance(home, str) and home:
             homes.setdefault(home, Home(home, "codex_account"))
-    for descriptor in glob.glob(_OWNER_GLOB):
-        owner = _read_json(Path(descriptor)) or {}
+    for descriptor in _OWNERS_ROOT.glob(_OWNER_GLOB):
+        owner = _read_json(descriptor) or {}
         provider = owner.get("provider")
         route = _OWNER_ROUTES.get(provider, provider) if isinstance(provider, str) else None
-        if "astra-owners" in descriptor:
+        if descriptor.parent.parent.name == "astra-owners":
             route = "astra"
-        home = str(Path(descriptor).parent / "codex-home")
+        home = str(descriptor.parent / "codex-home")
         homes.setdefault(home, Home(home, route or "owner"))
     for path, route in config.extra_homes:
         homes.setdefault(path, Home(path, route))
@@ -156,7 +158,7 @@ def discover_homes(config: NodeConfig) -> list[Home]:
 def list_rollouts(home: Home) -> list[tuple[str, os.stat_result]]:
     """Return every rollout file under the home with its stat result."""
     found: list[tuple[str, os.stat_result]] = []
-    stack = [os.path.join(home.path, "sessions")]
+    stack = [str(Path(home.path) / "sessions")]
     while stack:
         directory = stack.pop()
         try:
@@ -186,9 +188,15 @@ def _cell_rows(path: str) -> tuple[dict[str, tuple[str, str | None, str | None]]
     connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=_SQLITE_TIMEOUT_SECONDS)
     try:
         columns = {str(row[1]) for row in connection.execute("pragma table_info(agents)")}
-        selected = ", ".join(name if name in columns else "null" for name in ("project_id", "project_title", "worktree_path"))
+        selected = ", ".join(
+            name if name in columns else "null" for name in ("project_id", "project_title", "worktree_path")
+        )
         agents = {
-            str(agent): (str(project or ""), title if isinstance(title, str) else None, worktree if isinstance(worktree, str) else None)
+            str(agent): (
+                str(project or ""),
+                title if isinstance(title, str) else None,
+                worktree if isinstance(worktree, str) else None,
+            )
             for agent, project, title, worktree in connection.execute(f"select agent_id, {selected} from agents")  # noqa: S608
         }
         threads: list[tuple[str, str]] = []
@@ -207,7 +215,7 @@ def load_lane_index(config: NodeConfig) -> tuple[LaneIndex, list[str]]:
     index = LaneIndex()
     errors: list[str] = []
     for cell, path in config.cells:
-        if not os.path.exists(path):
+        if not Path(path).exists():
             continue
         try:
             agents, threads = _cell_rows(path)

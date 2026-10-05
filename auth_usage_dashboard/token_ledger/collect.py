@@ -11,18 +11,27 @@ from typing import TYPE_CHECKING
 
 from .labels import NON_LANE_PROJECT, normalize_model, provider_for
 from .rollout import FileState, prime_for_horizon, read_new_lines
-from .sources import Home, Lane, LaneIndex, discover_homes, list_rollouts, load_lane_index
+from .sources import discover_homes, list_rollouts, load_lane_index
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .node_store import NodeStore, RowKey, RowValues
     from .rollout import UsageEvent
-    from .sources import NodeConfig
+    from .sources import Home, Lane, LaneIndex, NodeConfig
 
 _THREAD_IN_NAME = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$")
 _FORGET_AFTER_EXTRA_DAYS = 15
 _DAY_SECONDS = 86_400
+
+
+@dataclass(frozen=True)
+class CollectHooks:
+    """Injectable clock and discovery seams (tests replace them)."""
+
+    clock: Callable[[], float] = time.monotonic
+    home_finder: Callable[[NodeConfig], list[Home]] = discover_homes
+    lane_loader: Callable[[NodeConfig], tuple[LaneIndex, list[str]]] = load_lane_index
 
 
 @dataclass
@@ -66,9 +75,15 @@ def _lane_for(index: LaneIndex, path: str, state: FileState) -> Lane | None:
 
 
 def rows_for(events: list[UsageEvent], lane: Lane | None, route: str) -> dict[RowKey, RowValues]:
-    """Fold usage events of one file into hourly row increments."""
+    """Fold usage events of one file into hourly row increments.
+
+    Returns:
+        Row increments keyed by hour, lane, provider, model and route.
+    """
     rows: dict[RowKey, RowValues] = {}
-    cell, agent, project, title = ("-", "-", NON_LANE_PROJECT, None) if lane is None else (lane.cell, lane.agent, lane.project, lane.title)
+    cell, agent, project, title = (
+        ("-", "-", NON_LANE_PROJECT, None) if lane is None else (lane.cell, lane.agent, lane.project, lane.title)
+    )
     for event in events:
         model = normalize_model(event.model)
         key = (event.hour_epoch, cell, project, agent, provider_for(model, route), model, route)
@@ -79,7 +94,12 @@ def rows_for(events: list[UsageEvent], lane: Lane | None, route: str) -> dict[Ro
     return rows
 
 
-def _candidates(config: NodeConfig, store: NodeStore, homes: list[Home], now: float) -> tuple[list[_Candidate], list[str]]:
+def _candidates(
+    config: NodeConfig,
+    store: NodeStore,
+    homes: list[Home],
+    now: float,
+) -> tuple[list[_Candidate], list[str]]:
     horizon = now - config.backfill_days * _DAY_SECONDS
     known = store.cursors()
     found: list[_Candidate] = []
@@ -90,7 +110,17 @@ def _candidates(config: NodeConfig, store: NodeStore, homes: list[Home], now: fl
             cursor = known.get(path)
             if cursor is None:
                 if stat.st_mtime >= horizon:
-                    found.append(_Candidate(path, stat.st_ino, stat.st_size, stat.st_mtime, home, FileState(count_from=horizon), known=False))
+                    found.append(
+                        _Candidate(
+                            path,
+                            stat.st_ino,
+                            stat.st_size,
+                            stat.st_mtime,
+                            home,
+                            FileState(count_from=horizon),
+                            known=False,
+                        ),
+                    )
                 continue
             _, _, state = cursor
             if stat.st_size < state.offset:
@@ -109,17 +139,17 @@ def collect(
     store: NodeStore,
     *,
     now: float | None = None,
-    clock: Callable[[], float] = time.monotonic,
-    home_finder: Callable[[NodeConfig], list[Home]] = discover_homes,
-    lane_loader: Callable[[NodeConfig], tuple[LaneIndex, list[str]]] = load_lane_index,
+    hooks: CollectHooks | None = None,
 ) -> CollectSummary:
     """Read new rollout bytes within the byte and time budget and store rows.
 
     Returns:
         Summary of the pass, also persisted in the store's metadata.
     """
+    seams = hooks or CollectHooks()
+    clock = seams.clock
     started, wall = clock(), time.time() if now is None else now
-    homes = home_finder(config)
+    homes = seams.home_finder(config)
     candidates, present = _candidates(config, store, homes, wall)
     summary = CollectSummary(homes=len(homes), files_tracked=len(present))
     index: LaneIndex | None = None
@@ -129,7 +159,7 @@ def collect(
             summary.backlog_bytes += sum(entry.size - entry.state.offset for entry in candidates[position:])
             break
         if index is None:
-            index, summary.lane_errors = lane_loader(config)
+            index, summary.lane_errors = seams.lane_loader(config)
         try:
             with open(item.path, "rb") as handle:  # noqa: PTH123 - binary tail with explicit seek
                 if not item.known:
@@ -144,7 +174,10 @@ def collect(
         rows = rows_for(result.events, _lane_for(index, item.path, item.state), item.home.route)
         store.commit_file(item.path, item.inode, item.home.route, item.state, rows)
         summary.backlog_bytes += max(0, item.size - item.state.offset)
-    summary.forgotten = store.forget_stale(present, older_than=wall - (config.backfill_days + _FORGET_AFTER_EXTRA_DAYS) * _DAY_SECONDS)
+    summary.forgotten = store.forget_stale(
+        present,
+        older_than=wall - (config.backfill_days + _FORGET_AFTER_EXTRA_DAYS) * _DAY_SECONDS,
+    )
     store.set_meta(
         {
             "last_collect_at": wall,
