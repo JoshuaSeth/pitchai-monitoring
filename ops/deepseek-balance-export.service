@@ -1,0 +1,13 @@
+[Unit]
+Description=Export the redacted DeepSeek API balance for the usage dashboard
+ConditionPathExistsGlob=/var/lib/pitchai-cli-new/deepseek-owners/*/api-key
+
+[Service]
+Type=oneshot
+# The exporter reads the owners' private api-key files in-process and writes the balance only; keys never leave it.
+WorkingDirectory=/usr/local/lib/pitchai-codex-usage
+ExecStart=/usr/bin/python3 -B -m claude_usage_export.deepseek_balance
+User=root
+UMask=0077
+TimeoutStartSec=60
+NoNewPrivileges=true

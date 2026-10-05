@@ -18,7 +18,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from .opencode_usage_gateway import fetch_usage_body
+from .bearer_json_gateway import BROWSER_AGENT, fetch_body
 from .pool_samples import append_sample, iso_epoch
 
 if TYPE_CHECKING:
@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 KEYRING_FILE = Path("/var/lib/pitchai-opencode-isolated/keyring.json")
 KEYRING_STATE_FILE = Path("/var/lib/pitchai-opencode-isolated/keyring-state.json")
+USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
 OUTPUT_FILE = Path("/srv/codex-usage-dashboard/opencode-accounts.json")
 SAMPLES_FILE = Path("/srv/codex-usage-dashboard/opencode-usage-samples.json")
 WINDOWS = ("rolling", "weekly", "monthly")
@@ -63,7 +64,7 @@ def fetch_usage(api_key: str) -> JsonObject | None:
     """Return the ``usage`` object of the plan usage endpoint, or nothing on any failure."""
     document: JsonValue = None
     with suppress(ValueError):
-        document = cast("JsonValue", json.loads(fetch_usage_body(api_key) or b"null"))
+        document = cast("JsonValue", json.loads(fetch_body(USAGE_URL, api_key, user_agent=BROWSER_AGENT) or b"null"))
     usage = document.get("usage") if isinstance(document, dict) else None
     return usage if isinstance(usage, dict) else None
 

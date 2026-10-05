@@ -490,5 +490,14 @@ The section shows one row per account pool. Each pool runs the same burn-factor 
 - A blocked account serves nothing until its block lifts. Points it still holds while blocked at the end of the window count as `blocked_points`, which are unusable.
 - A pool with no usable capacity in the window is a shortage.
 - Pools with only a few samples so far use the current-window estimate for burn until history accumulates.
-- API: `GET /api/v1/burn-factor?pool=openai|anthropic|opencode&pairs=…`. The default pool is `openai`; an unknown pool returns HTTP 400.
+- API: `GET /api/v1/burn-factor?pool=openai|anthropic|opencode|deepseek&pairs=…`. The default pool is `openai`; an unknown pool returns HTTP 400.
+
+### DeepSeek API (prepaid balance)
+
+The fourth row is the prepaid DeepSeek API account. All DeepSeek owners (master, jeff-dev, fsn1) share one key.
+
+- **Balance:** `deepseek-balance-export.timer` (master) asks `GET https://api.deepseek.com/user/balance` every 5 minutes. It reads the owners' `0600` `/var/lib/pitchai-cli-new/deepseek-owners/*/api-key` files in-process and writes the USD balance only to `deepseek-balance.json`.
+- **Burn:** ledger tokens of every `deepseek-*` model, priced at the engine's `deepseek-flash-2026-09-16` snapshot ($0.003/M cached input, $0.15/M uncached input, $0.60/M output, x2 on weekdays 01–04 and 06–10 UTC).
+- **Factor:** burn × horizon ÷ balance. An empty balance is a shortage: DeepSeek lanes fail with 402 until the account is topped up.
+- **7-day pace:** each card shows the last week's spend per day and what the horizon costs at that pace, to size a top-up.
 
