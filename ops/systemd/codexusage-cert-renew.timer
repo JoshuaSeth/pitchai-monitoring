@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily renewal check for codexusage.pitchai.net
+
+[Timer]
+OnCalendar=*-*-* 04:17:00 UTC
+RandomizedDelaySec=45m
+Persistent=true
+Unit=codexusage-cert-renew.service
+
+[Install]
+WantedBy=timers.target
