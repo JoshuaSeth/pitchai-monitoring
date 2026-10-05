@@ -88,7 +88,7 @@ PY
 install -d -m 755 /usr/local/lib/pitchai-codex-usage
 install -d -m 755 /usr/local/lib/pitchai-codex-usage/claude_usage_export
 install -m 644 /dev/null /usr/local/lib/pitchai-codex-usage/claude_usage_export/__init__.py
-for module in claude_accounts claude_probe claude_quota pool_samples opencode_accounts; do
+for module in claude_accounts claude_probe claude_quota pool_samples opencode_accounts opencode_usage_gateway; do
   install -m 644 "${REPO_ROOT}/auth_usage_dashboard/${module}.py" \
     "/usr/local/lib/pitchai-codex-usage/claude_usage_export/${module}.py"
 done
