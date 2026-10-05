@@ -1848,3 +1848,10 @@ footer {
 .burn-custom-message { color: var(--red); }
 .burn-explainer { margin: 10px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 @media (max-width: 720px) { .burn-grid { grid-template-columns: 1fr; } .burn-factor-value strong { font-size: 28px; } }
+.burn-pools { display: grid; gap: 18px; }
+.burn-pool { display: grid; gap: 10px; }
+.burn-pool-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 0 2px; }
+.burn-pool-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.burn-pool-title h3 { margin: 0; font-size: 15px; }
+.burn-pool-title span, .burn-pool-basis { color: var(--muted); font-size: 12px; }
+.burn-pool-basis { font-family: var(--mono); font-size: 11px; }

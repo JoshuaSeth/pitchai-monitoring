@@ -475,3 +475,20 @@ capacity = points left now + 100 per window reset inside the window − leftover
   from 5 m to 7 d and any horizon from 1 h to 14 d, typed as `45m`, `3h` or `2d`.
 - **API:** `GET /api/v1/burn-factor?pairs=30m:24h,24h:6d` (1–6 pairs; SSO-protected; cached for 30 s per request). A
   malformed or out-of-range pair returns HTTP 400 with the reason.
+
+### Per-pool burn factors (OpenAI, Anthropic, OpenCode Go)
+
+The section shows one row per account pool. Each pool runs the same burn-factor calculation on a weekly basis.
+
+| Pool | Accounts | Burn history | Windows that block an account |
+|---|---|---|---|
+| OpenAI | Codex auth-broker accounts | the dashboard's own 5-minute broker samples | (broker routing state) |
+| Anthropic | Claude Code profiles (`claude-accounts.json`) | `claude-usage-samples.json`, appended by `claude-usage-export.service` (`ExecStartPost` → `claude_usage_export.pool_samples`) after each fresh `/usage` reading | 5-hour window at 100% until its reset |
+| OpenCode Go | the isolated bridge's rotating keyring (`/var/lib/pitchai-opencode-isolated/keyring.json`, master only) | `opencode-accounts.json` and `opencode-usage-samples.json`, written every 5 minutes by `opencode-usage-export.timer` | rolling (5-hour) or monthly window exhausted or `rate-limited` until its reset; an active bridge cooldown |
+
+- The OpenCode exporter asks OpenCode's read-only plan usage endpoint (`GET https://opencode.ai/zen/go/v1/usage`) once per subscription. It reads keys in-process and writes labels and numbers only, so no key ever reaches a file, a log or the dashboard.
+- A blocked account serves nothing until its block lifts. Points it still holds while blocked at the end of the window count as `blocked_points`, which are unusable.
+- A pool with no usable capacity in the window is a shortage.
+- Pools with only a few samples so far use the current-window estimate for burn until history accumulates.
+- API: `GET /api/v1/burn-factor?pool=openai|anthropic|opencode&pairs=…`. The default pool is `openai`; an unknown pool returns HTTP 400.
+
