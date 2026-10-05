@@ -88,20 +88,25 @@ PY
 install -d -m 755 /usr/local/lib/pitchai-codex-usage
 install -d -m 755 /usr/local/lib/pitchai-codex-usage/claude_usage_export
 install -m 644 /dev/null /usr/local/lib/pitchai-codex-usage/claude_usage_export/__init__.py
-for module in claude_accounts claude_probe claude_quota pool_samples opencode_accounts opencode_usage_gateway; do
+for module in claude_accounts claude_probe claude_quota pool_samples opencode_accounts bearer_json_gateway deepseek_balance; do
   install -m 644 "${REPO_ROOT}/auth_usage_dashboard/${module}.py" \
     "/usr/local/lib/pitchai-codex-usage/claude_usage_export/${module}.py"
 done
 rm -f /usr/local/lib/pitchai-codex-usage/claude_accounts.py
+rm -f /usr/local/lib/pitchai-codex-usage/claude_usage_export/opencode_usage_gateway.py
 install -m 644 "${REPO_ROOT}/ops/claude-usage-export.service" /etc/systemd/system/claude-usage-export.service
 install -m 644 "${REPO_ROOT}/ops/claude-usage-export.timer" /etc/systemd/system/claude-usage-export.timer
 install -m 644 "${REPO_ROOT}/ops/opencode-usage-export.service" /etc/systemd/system/opencode-usage-export.service
 install -m 644 "${REPO_ROOT}/ops/opencode-usage-export.timer" /etc/systemd/system/opencode-usage-export.timer
+install -m 644 "${REPO_ROOT}/ops/deepseek-balance-export.service" /etc/systemd/system/deepseek-balance-export.service
+install -m 644 "${REPO_ROOT}/ops/deepseek-balance-export.timer" /etc/systemd/system/deepseek-balance-export.timer
 systemctl daemon-reload
 systemctl enable --now claude-usage-export.timer >/dev/null
 systemctl start claude-usage-export.service
 systemctl enable --now opencode-usage-export.timer >/dev/null
 systemctl start opencode-usage-export.service || printf 'OpenCode usage export failed; the timer retries.\n' >&2
+systemctl enable --now deepseek-balance-export.timer >/dev/null
+systemctl start deepseek-balance-export.service || printf 'DeepSeek balance export failed; the timer retries.\n' >&2
 
 # Fleet token ledger: master tails its own rollouts read-only and ingests worker
 # batches (see ops/install_token_ledger_node.sh); the dashboard only reads it.
@@ -322,7 +327,7 @@ check_dashboard() {
 check_burn_factor() {
   local port="$1"
   local pool
-  for pool in openai anthropic opencode; do
+  for pool in openai anthropic opencode deepseek; do
     curl --fail --silent --max-time 10 \
       --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
       "http://127.0.0.1:${port}/api/v1/burn-factor?pool=${pool}" \
