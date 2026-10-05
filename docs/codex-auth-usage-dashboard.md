@@ -372,3 +372,79 @@ read-only status file in the loopback canary. Run
 so plan limits refresh only for profiles whose last probe is at least 5
 minutes old. Neither the status call nor the usage readout submits a model
 prompt.
+
+## Fleet token ledger
+
+The section **Tokens used by provider, model and project** charts token usage of the whole
+engine fleet (master, jeff-dev, fsn1; every runtime) in three layers:
+
+- by provider: OpenAI, Anthropic, DeepSeek, Zhipu GLM, Xiaomi MiMo, … derived from the model id;
+- by model: the model each turn reported, with Claude aliases shown as `Claude Opus (alias)`;
+- by project: the lane's engine project; threads that belong to no lane are `(non-lane)`.
+
+Every layer can be switched off. Every series in a layer can be hidden from its legend chip,
+and that series keeps its color. **Hide ledger** collapses the section and stops all ledger
+requests. These preferences live in the viewer's browser only. Ranges are 24 hours (hourly),
+7 days (3-hour buckets) and 30 days (daily). The measure is one of all tokens, uncached input
+plus output, or output tokens. Cached input is part of input.
+
+### Data flow
+
+1. `token-ledger-export.timer` runs `python3 -m token_ledger run` every five minutes on each
+   node. The code is the stdlib-only package `auth_usage_dashboard/token_ledger`, installed in
+   `/usr/local/lib/pitchai-token-ledger`.
+2. The exporter finds every CODEX_HOME: managed app-server launch manifests, the
+   `*-owners/*/codex-home` directories, and master's ORI voice home. It tails new bytes of the
+   rollout JSONL files from durable byte cursors.
+3. Only three line types are decoded: `session_meta`, `turn_context` and `token_count`.
+   - Codex-family runtimes report cumulative totals, so the usage is the delta. A repeated total
+     is skipped and a counter reset starts again from zero.
+   - The Claude owner reports per-turn usage, which is summed as is.
+4. A cursor advance and its hourly increments commit together. Every request is therefore
+   counted once, even when a run is killed.
+5. Threads map to lanes and projects through each cell's control-plane database, opened
+   read-only with a busy timeout.
+6. Hourly rows reach master's fleet store `/srv/codex-usage-dashboard/token-ledger.sqlite3`.
+   - Master ingests its own rows in-process.
+   - Workers pipe NDJSON over ssh with their own key. On master that key is a `restrict`ed
+     forced command (`python3 -m token_ledger ingest --node <node>`), so the node identity
+     cannot be spoofed.
+   - Rows carry absolute hourly values, so a retried batch is idempotent.
+7. `GET /api/v1/token-usage?span=24h|7d|30d` is SSO-protected like every other account route.
+   It aggregates the requested range with one read-only query and caches the result for
+   60 seconds per range.
+
+### Cost controls
+
+- Each run reads at most 1.5 GiB of rollout bytes and runs for at most 150 seconds.
+- The process runs at `Nice=15`, `IOSchedulingClass=idle`, `CPUQuota=50%` and `MemoryMax=512M`.
+- Every read is dropped from the page cache, so engine hot data is not evicted.
+- A large file that started before the 30-day backfill horizon is entered by a timestamp binary
+  search, not read from byte 0.
+- After the first backfill (about one hour per node), a run reads only the few MB appended since
+  the previous run.
+- The unit uses `ProtectSystem=strict`. Only the exporter state and (on master) the dashboard
+  data directory are writable, so it cannot write to any engine path.
+
+### Operations
+
+```bash
+# master (installed by ops/deploy_codex_usage_dashboard.sh)
+PYTHONPATH=/usr/local/lib/pitchai-token-ledger python3 -m token_ledger status
+journalctl -u token-ledger-export.service -n 5 --no-pager
+# install or update a worker (run where you can ssh to both the worker and master)
+ops/install_token_ledger_node.sh jeff-dev root@94.130.17.246
+ops/install_token_ledger_node.sh fsn1 root@144.76.61.162
+```
+
+`status` reports cursors, backlog bytes and the last collect/push times. On master it also
+reports every node's last ingest. The dashboard marks a node *not current* after 20 minutes
+without an ingest; that node's already-collected hours stay visible. Rollouts that hibernation
+moved off a host before collection are not counted.
+
+**Rollback**:
+1. Stop and disable `token-ledger-export.timer` on each node.
+2. Remove the `token-ledger-<node>` lines from master's `/root/.ssh/authorized_keys`.
+3. Delete `/var/lib/pitchai-token-ledger` and the fleet store.
+
+The dashboard then shows the ledger as unavailable. No other section depends on it.
