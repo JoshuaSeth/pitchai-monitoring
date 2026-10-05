@@ -1,0 +1,12 @@
+[Unit]
+Description=Collect fleet token usage every five minutes
+
+[Timer]
+OnBootSec=3min
+OnCalendar=*:0/5
+AccuracySec=30s
+RandomizedDelaySec=20s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

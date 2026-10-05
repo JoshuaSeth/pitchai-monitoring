@@ -1,0 +1,14 @@
+[Unit]
+Description=Export redacted Claude account status and plan limits for the usage dashboard
+ConditionPathIsDirectory=/var/lib/pitchai-cli-new/claude-owners
+
+[Service]
+Type=oneshot
+# The exporter package (claude_accounts, claude_probe, claude_quota) is installed side by side here.
+WorkingDirectory=/usr/local/lib/pitchai-codex-usage
+ExecStart=/usr/bin/python3 -B -m claude_usage_export.claude_accounts
+User=root
+UMask=0077
+# Plan-limit probes stop starting after 120 s per run; each official CLI call is killed after 60 s.
+TimeoutStartSec=300
+NoNewPrivileges=true

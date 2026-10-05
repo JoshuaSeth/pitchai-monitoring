@@ -1,0 +1,477 @@
+# Codex authentication-broker capacity dashboard
+
+`https://codexusage.pitchai.net` is the protected operator view for the authoritative Codex authentication broker on `pitchai-dev`.
+
+## Architecture
+
+- Nginx terminates TLS and delegates browser authentication to the shared PitchAI Entra broker.
+- Nginx injects a normalized `X-PitchAI-Email` only after successful Microsoft 365 authentication.
+- The dashboard listens only on `127.0.0.1:8124` and rejects UI/API requests without that trusted header.
+- The container mounts `/srv/auth-token-server/data/accounts` read-only and reads only `metadata.json` and `state.json`. It never opens `auth.json`.
+- The inventory is directory-driven: every broker account with `metadata.json` is sampled, including disabled, auth-invalid, and temporarily state-missing accounts. No separate dashboard allowlist can silently omit an account.
+- The broker admin token is passed only to the container process so it can trigger the broker's account usage probe endpoint. It is never returned, logged, or embedded in the page.
+- `/healthz` is intentionally unauthenticated and exposes only service health, generation time, and a stale boolean. All account-bearing routes require authentication.
+
+The personal Codex Status iPhone app uses a separate, narrow mobile API under
+`/api/v1/mobile/`. That location bypasses browser SSO because native background
+refresh cannot complete an interactive Entra flow, but it does not use a bearer
+token, cookie, password, or embedded broker credential. Every account-bearing
+request instead requires a one-time challenge and a monotonic assertion from an
+Apple App Attest key registered for `ZM6568G5FX.com.pitchai.codexstatus`.
+Nginx clears browser identity, authorization, and cookie headers before proxying
+the location, limits request bodies, and rate-limits challenge traffic. The API
+returns a deliberate subset of the dashboard snapshot: labels, current states,
+remaining percentages, reset times, warnings, and freshness only. Emails,
+broker IDs, token analytics, reset inventory, and credentials are excluded.
+
+The Watch app never calls the service. The signed iPhone app sends the redacted
+native snapshot through WatchConnectivity, and both WidgetKit extensions read
+the same App Group cache. The opaque App Attest key identifier is the only
+authentication-related value stored by the app; the private key remains in
+Apple's App Attest service and cannot be exported.
+
+The broker state files are root-only (`0600`). The production container therefore runs as container root with all Linux capabilities dropped, `no-new-privileges`, a read-only root filesystem, a small temporary filesystem, and only the broker accounts directory mounted read-only. The app has no endpoint that reads arbitrary files.
+
+## Freshness and probe cost
+
+The service rereads broker state every 15 seconds, runs a no-generation quota probe at most once every 5 minutes, and refreshes token history plus the reset bank at most once every 15 minutes. A manual refresh is throttled to one probe per minute.
+
+The probe calls the broker's existing `POST /v1/admin/accounts/{id}/probe` endpoint. That endpoint refreshes auth if needed and calls the Codex usage endpoint; it does not submit a prompt or run a model generation. The dashboard deliberately discards the secret-bearing admin response body and rereads only redacted state files.
+
+The analytics refresh calls the broker's `POST /v1/admin/accounts/{id}/analytics-probe` endpoint. The broker then uses the same refreshed account auth to issue provider `GET` requests to `/wham/profiles/me` and `/wham/rate-limit-reset-credits`. Only daily token buckets, aggregate token statistics, reset counts, display titles, statuses, and grant/expiry dates enter `state.json`. Provider profile fields, reset-credit IDs, and every credential field are dropped before persistence. The provider exposes daily history; the chart reconstructs a clearly labeled hourly series that preserves those daily totals and marks the current hour partial.
+
+This keeps quota metadata current without creating synthetic model work. Reducing the probe interval below five minutes is discouraged because it increases provider and auth traffic without improving operator decisions.
+
+## Capacity model
+
+One normalized capacity point equals one percentage point of the provider-window basis declared in the snapshot. One full account window is therefore 100 points. The dashboard prefers a five-hour basis when that window is authoritatively reported for at least half of fresh auth-valid accounts; otherwise it uses the reported weekly window. It never relabels weekly data as five-hour data.
+
+- Current headroom contributes the selected window's measured remaining percentage for fresh, selectable accounts.
+- An automatic reset inside the selected horizon contributes 100 scheduled points when auth and quota state permit it.
+- Weekly exhaustion remains a hard block until the weekly reset. When weekly is the selected basis, weekly percentage points and reset times are modeled directly and labeled as weekly.
+- The 1-hour, 6-hour, and 24-hour percentages compare usable points with the configured pool's theoretical points over that horizon. They are an operational ceiling, not a token forecast or guaranteed throughput.
+- Stale, auth-invalid, disabled, and unknown accounts do not contribute usable points.
+- The broker safety floor is honored. An account at or below `AUTH_TOKEN_SERVER_MIN_FIVE_HOUR_REMAINING_PERCENT` is shown as five-hour limited even if the provider still reports a small remainder.
+
+### Scheduling-capacity contract
+
+The PitchAI-identity-protected `/api/v1/scheduling-capacity` endpoint publishes
+schema 4 for admission and dashboard readers. Its capacity and burn math covers
+every enabled, auth-valid, fresh account the authentication broker can actually
+route, including a protected or private-relay account when the broker exposes
+it as burnable. The endpoint never decides which concrete account burns first.
+
+`protected_last_resort` is informational routing metadata. It says that the
+authentication broker owns account ordering and should route those accounts
+last; `included_in_admission=true` confirms their usable points remain in the
+aggregate. An omitted `last_resort` marker follows the broker's `false`
+(standard-tier) default. Unmatched identities, duplicate labels, and malformed
+explicit markers are reported through `classification_status` and
+`unclassified_account_count`, but cannot manufacture a critical-only admission
+threshold or remove otherwise burnable capacity.
+
+`burn_windows.last_hour` and `burn_windows.last_24_hours` expose reset-aware
+capacity-point deltas and, where sampled, provider-token deltas. Native windows
+exclude provider resets, counter regressions, and gaps over 20 minutes and
+report temporal coverage and confidence. With no continuous native interval,
+the payload labels a current-provider-window average estimate, claims zero
+native coverage, and leaves provider tokens unavailable. Token deltas are an
+attribution denominator for project reporting; they never replace capacity
+points as the admission unit.
+
+Deploy schema-4 readers before this producer. Keep existing schema-2 and
+schema-3 readers active through the rolling window, then deploy the schema-4
+producer, verify both burn windows and the broker-owned routing metadata, and
+only then enable policy logic that consumes the new fields.
+
+### Luna reserve capacity
+
+The prominent Luna panel is a separate meter; it is not another rendering of
+the main five-hour or weekly capacity pool. The browser reads a dedicated,
+PitchAI-identity-protected `/api/v1/luna-reserve` endpoint. Server-side, that
+endpoint relays and validates the broker's identity-free
+`/v1/admin/capacity` aggregate with the existing admin credential; neither the
+credential nor account identity enters the browser response. The broker counts
+only a provider additional limit whose outer record has
+`limit_name=gpt-reserve` and `metered_feature=base_model_inference`, with
+availability and windows read from that record's nested `rate_limit` object.
+Public `gpt-5.6-luna`, Spark, generic quota windows, and unrecognized additional
+limits are excluded.
+
+The provider model catalog currently exposes public `gpt-5.6-luna` and hides
+`gpt-reserve`, while reporting matching context, input, tool, output, and
+reasoning-level capabilities for both. The dashboard therefore labels the
+separate meter **Luna-equivalent reserve**. The catalog calls Luna fast and
+affordable, but exposes no auditable currency price; the UI does not invent a
+dollar saving. The UI distinguishes observed provider-meter reliability from
+the still-pending controlled generation canary.
+
+The entitlement is volatile. Four accounts exposed 400 unused reserve points
+at 16:19-16:22 UTC on 2 September 2026, but a no-generation refresh at
+18:11-18:23 UTC removed the exact reserve meter from every auth-valid account.
+Those accounts instead exposed only `GPT-5.3-Codex-Spark` /
+`codex_bengalfox`. Read-only model-catalog calls still returned both Luna
+labels, so catalog presence is not capacity evidence. OpenAI documents
+[Codex-Spark](https://learn.chatgpt.com/docs/agent-configuration/speed.md) as a
+separate, less-capable research-preview model with its own usage limit, and
+[public Luna](https://learn.chatgpt.com/docs/models.md) as the economical choice
+for clear, repeatable work. Neither is silently counted as hidden reserve.
+Consequently the current panel correctly shows no measured or routable reserve,
+and the scheduler rollout remains disabled until the exact meter reappears.
+
+The panel shows aggregate measured remainder, provider reset, health, and
+policy-safe drain after preserving the broker's
+`AUTH_TOKEN_SERVER_MIN_LUNA_RESERVE_REMAINING_PERCENT` floor (default 20%). It
+separates:
+
+- total and remaining measured reserve points;
+- all policy-safe points after the per-account floor;
+- policy-safe points on the active standard app-server lease, which are the
+  only points the current shared scheduler can drain without changing accounts;
+- safe points stranded on a main-exhausted or otherwise unusable shared account;
+- safe points held on the protected last-resort account, which low-priority
+  reserve routing must never use.
+
+An active session alone does not make reserve routable. The same account must
+remain enabled, auth-valid, fresh, explicitly reserve-allowed, below neither
+provider nor broker floors, generic-main eligible, and standard tier. The
+dashboard intentionally omits the account behind each aggregate. This protects
+Sol/Terra continuity: the shared app server is never moved onto a main-exhausted
+account merely to harvest its reserve meter. The panel is read-only and does
+not submit a model request, acquire a lease, switch an account, or enable
+scheduler routing.
+
+The Luna endpoint has its own schema version. The existing
+`/api/v1/capacity` operator contract remains schema 4, so reserve visibility is
+additive for dashboard clients and does not relabel the main-capacity payload.
+
+Provider window names are not stable identifiers. The dashboard classifies reported windows by duration: four to six hours is the five-hour window, and six days or longer is the weekly window. A missing five-hour window remains `null` in the API and is labeled **Provider does not expose 5h** in that specific table cell; it is never interpreted as 0% remaining or as a full five-hour window. Weekly columns, aggregate forecasts, runout estimates, and reset arrivals continue to use authoritative weekly data when available. Aggregate percentages include explicit reporting and unknown-account counts.
+
+OpenAI currently appears to have temporarily removed or disabled the five-hour
+window for some or all accounts. Treat that as a reversible provider capability
+change, not an account failure or dashboard outage. A window without an
+authoritative duration is also unclassified: field position, reset proximity,
+and historical shape must not be used to manufacture a five-hour measurement.
+The parser reevaluates every fresh response, so a restored four-to-six-hour
+window will automatically reappear without a configuration change. Until then,
+only the five-hour cells and five-hour-specific aggregate are unavailable;
+account validity, selectability, weekly headroom/resets, reset-bank inventory,
+usage history, capacity arrivals, and weekly-based forecasts remain
+operational.
+
+Capacity arrivals list automatic provider-window resets across the next eight days. Banked reset expiry dates are shown only in the separate read-only reset bank; expiry is a deadline, not an automatic capacity arrival.
+
+Banked resets use the provider's read-only reset inventory. The UI shows every grant and expiry date returned by the provider, ordered by expiry. When only a count is available, the dashboard says dated detail is unavailable rather than inventing it. Neither the broker analytics endpoint nor the dashboard implements the provider's reset-consumption action; redeeming a reset is outside this service's capability.
+
+## Durable usage-limit history, hourly history, and runout forecast
+
+The provider profile route reports historical token totals by UTC day, not hour. The dashboard reconstructs 168 hourly points with an even, daily-total-constrained allocation and applies a three-hour smoothing window for the line plot. Every complete raw reconstructed day still sums exactly to the provider total. The API marks each hour as `reconstructed`, `blended`, or `observed`; it does not present reconstructed hours as provider-observed facts.
+
+The production container appends one complete inventory batch every five minutes to `/srv/codex-usage-dashboard/usage-history.sqlite3`. This matches the broker's existing no-generation quota-probe cadence, so collecting history does not add prompts, model turns, token use, or provider calls. The collector rereads redacted broker state and never opens `auth.json`. Five minutes is the minimum supported cadence; sampling faster would duplicate unchanged provider snapshots and grow the store without adding operational information.
+
+The SQLite database uses WAL mode, full synchronization, foreign keys, a 30-second busy timeout, schema-version validation, and append-only batch/account tables. Each account row stores the UTC sample time, label, SHA-256 broker-account fingerprint, enabled/auth/availability state, five-hour and weekly used/remaining percentages, reset times and window durations, redeemable count, provider and analytics observation times/staleness, sanitized error codes, data provenance, source, and full collector Git SHA. Auth-invalid accounts still receive a row. Missing measurements are copied from that account's most recent row only when available and are explicitly marked `values_source=last_known`, never current.
+
+The root-owned database directory is mode `700`; the database, WAL, shared-memory files, and deployment backups are mode `600`. The SQLite series is not automatically pruned. At the current small account inventory, this preserves long-running structural history while reporting queries remain time- and row-bounded. Before each production replacement, the deployment script uses SQLite's online backup API and `quick_check` to create a timestamped copy under `/srv/codex-usage-dashboard/backups`. The former `/srv/codex-usage-dashboard/usage-samples.json` is transactionally imported once on first collection and then retained as migration evidence.
+
+The JSON ledger continues as an eight-day compatibility input for the dashboard's token reconstruction and burn-rate calculations. Native usage deltas progressively replace reconstructed hourly allocations, and native percentage deltas for the declared provider-window basis provide the preferred trailing two-hour burn estimate. Historical samples written before schema v4 are recovered as weekly only when their reset was more than six hours away at observation time, which makes a five-hour interpretation impossible. It is no longer the authoritative durable history.
+
+Runout probability uses deterministic burn-rate scenarios around the trailing two-hour sample rate. Until enough native samples exist, the UI labels a current-window average estimate and lowers confidence. Capacity is consumed earliest-reset-first and automatic resets for the declared basis are modeled. If no five-hour window is reported but weekly data is authoritative, the forecast explicitly uses weekly percentage points; if neither window is available, the forecast is unavailable rather than inferred as 0% or 100%. Banked resets never enter forecast capacity because they require a forbidden manual redemption action.
+
+## Verified subscription state
+
+The dashboard's subscription section is the only place that reports ChatGPT plan billing state, and it keeps that state separate from usage-window exhaustion. Weekly and five-hour usage resets are rolling provider limits; they say nothing about whether a subscription renews. Subscription rows therefore carry their own renewal flag, cancellation-request moment, and effective access-end date, each with the verification time and source that produced it.
+
+Derived display states are intentionally conservative:
+
+- `renewing` requires a verified `renewal_enabled: true` on the account.
+- `active_until_end` means auto-renewal is cancelled while verified paid access still runs to its natural period end. A cancelled auto-renewal is not lost access, and an ended date in the past is reported as `access_ended`, never resurrected.
+- `inactive` is used only when the account's own billing state says so; a broker `disabled`/`last_resort` flag is routing metadata and never cancels or inactivates a subscription.
+- Anything unstated or unverifiable stays `unknown`. Missing dates, unreadable files, oversized sources, and unparseable rows produce an explicit unavailable state instead of invented accounts, dates, or amounts.
+
+The curated snapshot lives outside this public repository at `/srv/codex-usage-dashboard-src/codex-subscriptions.json` (root-owned, mode `600`) because it names account identities, billing days, and amounts. Deployments install the reviewed file to `/srv/codex-usage-dashboard/codex-subscriptions.json`, mount it read-only at `/dashboard-data/codex-subscriptions.json`, and validate the shape before installing. The canary and production checks then require `/api/v1/subscription-accounts` to serve a payload whose account count matches the installed source; validation runs inside the candidate container via `python -m auth_usage_dashboard.subscription_accounts_check`. If the source file is absent, the section says subscription status is unavailable rather than showing stale or guessed rows. The endpoint follows the same protected-operator rule as the other account-bearing routes and returns no credentials, tokens, or payment-card data.
+
+Schema 1 also accepts an optional offset-aware `access_ends_at` representing the reviewed entitlement expiry. Its calendar date in the snapshot's declared IANA timezone must match `access_ends_on`. Valid exact evidence is returned explicitly and access becomes `access_ended` at that instant, including equality. The UI shows seconds and the local UTC offset. `access_end_precision` distinguishes `exact`, `date`, `unknown`, and `invalid`; absent or null exact evidence leaves a date-only record unchanged and never manufactures a timestamp. A date-only record remains active throughout its stated local end day and becomes ended on the following local day, using the actual timezone's DST rules. Missing legacy timezone declarations default to Europe/Berlin; an explicitly unsupported timezone makes the snapshot unavailable instead of silently using UTC.
+
+Malformed, naive, or local-date-mismatching exact evidence is projected as `access_ends_at: null`, `access_end_precision: invalid`, and `access_state: unknown`, with a verification-needed message in the UI. It does not silently fall back to the date. Existing verification time, source, age, and stale indicators remain separate from expiry precision; future verification timestamps are flagged stale as well. Cancellation request time, cancellation-scheduled flags, and provider cancellation timestamps do not replace entitlement expiry or define an eligibility cutoff. Assigned-credit expiry remains separate.
+
+The endpoint's additive exact-expiry fields require the matching updated `subscription_accounts_check` allowlist to ship with the parser and UI. The old checker rejects the new response shape even though the snapshot schema remains version 1. This consumer change does not edit the reviewed source or installed inventory.
+
+## Operations
+
+Build and deploy the container from the repository root:
+
+```bash
+sudo ops/deploy_codex_usage_dashboard.sh
+```
+
+New mobile keys are closed by default. For a deliberate first-device enrollment,
+deploy once with the enrollment gate open, launch the signed app on that device,
+verify the registry contains the new key, and immediately redeploy the same image
+with the gate closed:
+
+```bash
+AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED=1 \
+  sudo ops/deploy_codex_usage_dashboard.sh
+AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED=0 \
+  sudo ops/deploy_codex_usage_dashboard.sh codex-usage-dashboard:<git-sha>
+```
+
+The registry lives at
+`/srv/codex-usage-dashboard/mobile-app-attest.json` as `0600 root:root` and
+contains public keys, Apple receipts, assertion counters, and timestamps only.
+Do not print or copy it into task logs. Reinstallation or device replacement
+requires an operator to reopen this enrollment gate intentionally.
+
+The script is intentionally host-locked to `pitchai-dev`. It validates the broker service and root-only credential source, builds an immutable Git-SHA image, starts a read-only canary on loopback without probing, checks the redacted API, and then replaces the production container with automatic rollback to the previous image if the post-check fails.
+
+Post-deploy checks:
+
+```bash
+curl --fail --silent http://127.0.0.1:8124/healthz
+curl --fail --silent -H 'X-PitchAI-Email: deployment-check@pitchai.net' \
+  http://127.0.0.1:8124/api/v1/capacity | jq '.summary'
+docker inspect codex-usage-dashboard --format '{{.State.Status}} {{.State.Health.Status}}'
+docker exec codex-usage-dashboard python -m auth_usage_dashboard.history_cli \
+  --database /dashboard-data/usage-history.sqlite3 status
+docker exec codex-usage-dashboard python -m auth_usage_dashboard.history_cli \
+  --database /dashboard-data/usage-history.sqlite3 summary --hours 24
+```
+
+Do not print the full API response in shared logs. It contains account labels and usage state, though it contains no credentials.
+
+Read recent history for one exact broker label, or bounded rows from the last 24 hours:
+
+```bash
+docker exec codex-usage-dashboard python -m auth_usage_dashboard.history_cli \
+  recent --account 'seth.vanderbijl@pitchai.net' --limit 20
+docker exec codex-usage-dashboard python -m auth_usage_dashboard.history_cli \
+  history --hours 24 --limit 10000
+```
+
+All reports are read-only JSON. `summary --hours 24` is the preferred monitoring proof because it returns per-account sample counts, first/last timestamps, maximum gap, auth-invalid count, provider-stale count, and last-known count without exposing credentials or broker account IDs.
+
+## Nginx, DNS, and access
+
+- DNS: `codexusage.pitchai.net` A record to the public IPv4 address of `pitchai-dev`.
+- HTTP bootstrap source: `ops/codexusage.pitchai.net.bootstrap.nginx.conf`.
+- Nginx source: `ops/codexusage.pitchai.net.nginx.conf`.
+- Browser authentication: shared broker at `https://auth.pitchai.net` using the domain-wide secure SSO cookie.
+- TLS: Certbot-managed certificate for `codexusage.pitchai.net`.
+- Certificate renewal: `ops/renew_codexusage_certificate.sh` through the committed systemd service and timer.
+- External canary: the monitoring service checks the redacted `/healthz` response, DNS, TLS, and browser reachability. Docker performs the local container health check on `pitchai-dev`.
+
+Only a broker-verified `@pitchai.net` Microsoft identity can reach the browser UI. The legacy Basic Auth file is not referenced by this vhost and is retained only for rollback diagnosis.
+
+For a first deployment, install and enable the HTTP bootstrap vhost, run `nginx -t`, and reload Nginx before requesting the certificate. Once the certificate exists, replace the bootstrap file with the final Nginx source, validate again, and reload. This keeps the ACME challenge reachable without making Nginx depend on a certificate that has not been issued yet.
+
+The host's legacy Certbot Python environment is not used for this certificate. Install `ops/renew_codexusage_certificate.sh` as `/usr/local/sbin/renew-codexusage-certificate`, install the two committed unit files in `/etc/systemd/system`, then enable `codexusage-cert-renew.timer`. The script pins the working official Certbot container image and renews only this certificate; it reloads Nginx only when the certificate fingerprint changes.
+
+## Rollback
+
+To redeploy a known image:
+
+```bash
+sudo ops/deploy_codex_usage_dashboard.sh codex-usage-dashboard:<git-sha>
+```
+
+Application rollback does not roll back or replace the append-only history database. If a database migration must be reversed, stop the dashboard container, preserve the current database, validate the selected file from `/srv/codex-usage-dashboard/backups` with `PRAGMA quick_check`, and only then restore it. The legacy JSON ledger remains available for migration recovery.
+
+For an Nginx rollback, restore the timestamped backup beside `/etc/nginx/sites-available/codexusage.pitchai.net`, run `nginx -t`, and reload Nginx. DNS removal is not needed for a short application rollback; the protected proxy can return a controlled maintenance response while the prior container is restored.
+
+## Data safety invariants
+
+- No `auth.json`, access token, refresh token, broker token, password, device code, callback code, or mailbox code may enter the API, DOM, logs, screenshots, tests, or repository.
+- Mobile account data requires a verified App Attest assertion; the public mobile location accepts no browser SSO identity or reusable application credential.
+- Token history and reset-bank collection is GET-only at the provider boundary. Reset redemption is forbidden and has no dashboard route or control.
+- The dashboard-owned history mount is the only writable persistent path in the read-only container.
+- Active requester/session counts are informational telemetry only. They never reduce account availability.
+- Only actual auth validity, provider rate/quota state, disabled state, freshness, and the broker safety floor affect displayed selectability.
+
+## Claude accounts
+
+The browser also reads the SSO-protected `/api/v1/claude-accounts` endpoint.
+Claude accounts appear in their own section and never enter Codex pool totals,
+capacity forecasts, usage history, or the native mobile API.
+
+`claude-usage-export.timer` runs once per minute on the owner host (master).
+The exporter is a stdlib-only package (`claude_accounts`, `claude_probe`,
+`claude_quota`) installed side by side under
+`/usr/local/lib/pitchai-codex-usage/claude_usage_export/` and started as
+`python3 -m claude_usage_export.claude_accounts`; it must stay compatible with
+the host's Python 3.10. It reads only `owner.json`, `accounts.json`, and
+`health.json`, and runs the pinned official Claude binary with each profile's
+private HOME. The exporter never opens login files; only the binary does.
+Allowlisted fields are written atomically to
+`/srv/codex-usage-dashboard/claude-accounts.json` (0600, `schema_version` 1
+with additive fields). The dashboard reads that snapshot through its existing
+data mount; no Claude home, credential, bearer token, or owner SQLite database
+is mounted in the container.
+
+### Plan limits (5-hour and weekly)
+
+For each profile, at most every 5 minutes (`--quota-interval 300`), the
+exporter runs the binary's local usage command **before** `auth status` (an
+expired token's `auth status` leaves a fresh `.oauth_refresh.lock` that stalls
+the next refresh):
+
+```sh
+claude -p /usage --output-format json --no-session-persistence \
+  --strict-mcp-config --setting-sources user
+```
+
+- The environment is replaced by `HOME=<profile>`, a fixed `PATH`,
+  `LANG=C.UTF-8`, `TZ=UTC`, `DISABLE_AUTOUPDATER=1` and, on the first attempt,
+  `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`. The working directory is a
+  fresh empty temporary directory that is removed afterwards. Each call is
+  killed after 60 s (`--probe-timeout`), and no new probe starts after 120 s of
+  probing in one run (`--probe-budget`); skipped profiles are probed next run.
+- With the traffic flag an expired access token is not refreshed and the
+  readout has no limit lines. The exporter then retries once without the flag,
+  so the binary refreshes the token itself under its own lock.
+- **Fail-closed guard.** A result counts as safe only when it is a JSON
+  `result` with `local_command: "usage"`, `num_turns: 0`, zero input, output,
+  cache and other `*_tokens` counts, and zero cost. Anything else writes
+  `/var/lib/pitchai-codex-usage/claude-usage-probe.disabled` (`--probe-guard`)
+  with the reason and time, and no profile is probed while that file exists.
+  Review the binary (an owner release may have changed `/usage`), then delete
+  the file to resume. A non-zero exit, timeout or unreadable output is an
+  ordinary error, not a guard trip.
+- The parser reads `Current session` (5-hour window), `Current week (all
+  models)` (weekly), `Current week (Sonnet only)` and any other
+  `Current week (<model>)` line (model-scoped weekly limit, e.g. Fable). Each
+  becomes `{used_percent, resets_at}`; reset texts such as `Oct 10, 3:59am
+  (UTC)` resolve to the nearest such date. Unknown lines are ignored, and a
+  missing window stays unknown, never 0% or 100%.
+- Between probes the reading is carried from the previous snapshot by the
+  row's stable id, with its original `quota_observed_at`. A failed probe keeps
+  the last reading and records `quota_error` (`probe_failed`, `probe_timeout`,
+  `no_limits_reported`, `probe_guard_tripped`, `probe_disabled`,
+  `binary_unavailable`).
+- `used_percent`/`window` show the tighter of the 5-hour and weekly windows
+  while the reading is fresh, and otherwise fall back to the engine's latest
+  rate-limit event. A ready profile whose 5-hour or weekly window is at 100%
+  is shown as cooling down until that window resets.
+
+The route passes each window through with `remaining_percent` and an ISO reset
+time, flags `quota_stale` when the reading is missing or older than 15
+minutes, and drops non-finite or out-of-range numbers, unknown windows, long
+labels and unlisted error codes. Each card shows a 5-hour and a weekly meter
+(“N% left”, reset time and countdown; “Limit reached” at 100%), one line per
+model-scoped week, and the reading's age. jeff-dev and fsn1 are not probed:
+their credential copies are separate, stale logins.
+
+“Ready” means signed in and eligible under the engine's cooldown state.
+Status becomes unavailable if the exporter or owner heartbeat is stale.
+Cooldowns show the engine's next eligible time, which can be a conservative
+retry time if no provider reset was reported. The dashboard does not switch
+accounts or alter cooldowns.
+
+Deployment installs the exporter package and timer, then checks the same
+read-only status file in the loopback canary. Run
+`systemctl start claude-usage-export` to refresh immediately; it is due-aware,
+so plan limits refresh only for profiles whose last probe is at least 5
+minutes old. Neither the status call nor the usage readout submits a model
+prompt.
+
+## Fleet token ledger
+
+The section **Tokens used by provider, model and project** charts token usage of the whole
+engine fleet (master, jeff-dev, fsn1; every runtime) in three layers:
+
+- by provider: OpenAI, Anthropic, DeepSeek, Zhipu GLM, Xiaomi MiMo, … derived from the model id;
+- by model: the model each turn reported, with Claude aliases shown as `Claude Opus (alias)`;
+- by project: the lane's engine project; threads that belong to no lane are `(non-lane)`.
+
+Every layer can be switched off. Every series in a layer can be hidden from its legend chip,
+and that series keeps its color. **Hide ledger** collapses the section and stops all ledger
+requests. These preferences live in the viewer's browser only. Ranges are 24 hours (hourly),
+7 days (3-hour buckets) and 30 days (daily). The measure is one of all tokens, uncached input
+plus output, or output tokens. Cached input is part of input.
+
+### Data flow
+
+1. `token-ledger-export.timer` runs `python3 -m token_ledger run` every five minutes on each
+   node. The code is the stdlib-only package `auth_usage_dashboard/token_ledger`, installed in
+   `/usr/local/lib/pitchai-token-ledger`.
+2. The exporter finds every CODEX_HOME: managed app-server launch manifests, the
+   `*-owners/*/codex-home` directories, and master's ORI voice home. It tails new bytes of the
+   rollout JSONL files from durable byte cursors.
+3. Only three line types are decoded: `session_meta`, `turn_context` and `token_count`.
+   - Codex-family runtimes report cumulative totals, so the usage is the delta. A repeated total
+     is skipped and a counter reset starts again from zero.
+   - The Claude owner reports per-turn usage, which is summed as is.
+4. A cursor advance and its hourly increments commit together. Every request is therefore
+   counted once, even when a run is killed.
+5. Threads map to lanes and projects through each cell's control-plane database, opened
+   read-only with a busy timeout.
+6. Hourly rows reach master's fleet store `/srv/codex-usage-dashboard/token-ledger.sqlite3`.
+   - Master ingests its own rows in-process.
+   - Workers pipe NDJSON over ssh with their own key. On master that key is a `restrict`ed
+     forced command (`python3 -m token_ledger ingest --node <node>`), so the node identity
+     cannot be spoofed.
+   - Rows carry absolute hourly values, so a retried batch is idempotent.
+7. `GET /api/v1/token-usage?span=24h|7d|30d` is SSO-protected like every other account route.
+   It aggregates the requested range with one read-only query and caches the result for
+   60 seconds per range.
+
+### Cost controls
+
+- Each run reads at most 1.5 GiB of rollout bytes and runs for at most 150 seconds.
+- The process runs at `Nice=15`, `IOSchedulingClass=idle`, `CPUQuota=50%` and `MemoryMax=512M`.
+- Every read is dropped from the page cache, so engine hot data is not evicted.
+- A large file that started before the 30-day backfill horizon is entered by a timestamp binary
+  search, not read from byte 0.
+- After the first backfill (about one hour per node), a run reads only the few MB appended since
+  the previous run.
+- The unit uses `ProtectSystem=strict`. Only the exporter state and (on master) the dashboard
+  data directory are writable, so it cannot write to any engine path.
+
+### Operations
+
+```bash
+# master (installed by ops/deploy_codex_usage_dashboard.sh)
+PYTHONPATH=/usr/local/lib/pitchai-token-ledger python3 -m token_ledger status
+journalctl -u token-ledger-export.service -n 5 --no-pager
+# install or update a worker (run where you can ssh to both the worker and master)
+ops/install_token_ledger_node.sh jeff-dev root@94.130.17.246
+ops/install_token_ledger_node.sh fsn1 root@144.76.61.162
+```
+
+`status` reports cursors, backlog bytes and the last collect/push times. On master it also
+reports every node's last ingest. The dashboard marks a node *not current* after 20 minutes
+without an ingest; that node's already-collected hours stay visible. Rollouts that hibernation
+moved off a host before collection are not counted.
+
+**Rollback**:
+1. Stop and disable `token-ledger-export.timer` on each node.
+2. Remove the `token-ledger-<node>` lines from master's `/root/.ssh/authorized_keys`.
+3. Delete `/var/lib/pitchai-token-ledger` and the fleet store.
+
+The dashboard then shows the ledger as unavailable. No other section depends on it.
+
+## Burn factor
+
+The **Burn factor** section, directly below "Capacity now", answers one question: at the current burn, does the pool's
+capacity over a future window cover it? (Spec: `specs/usage-dashboard-burn-factor.md`.)
+
+```
+factor = burn rate over the rolling window × future window ÷ capacity available in that window
+capacity = points left now + 100 per window reset inside the window − leftovers lost at resets or subscription ends
+```
+
+- **Reading it:** below 1.0 is margin and 1.0 or more is shortage. Statuses are `good` (< 0.85), `tight`, `short`
+  and `limited`. 0.5 over 24 h means roughly 48 h of runway; the card also shows the simulated runway and the margin or
+  shortage in points.
+- **Burn:** measured from the dashboard's own 5-minute broker samples (8-day retention), using the same reset-aware
+  delta measurement as the scheduler burn windows. It is flagged as a lower bound when eligible accounts sit at their
+  limit, because their work then runs on credits and no longer shows up as quota burn.
+- **Capacity:** the eligible pool (enabled, auth-valid, fresh) on the declared capacity basis, currently weekly. The
+  pool is simulated at the measured burn, earliest-expiring account first:
+  - leftover still unused at an account's reset is replaced by the fresh window, not added to it;
+  - a verified non-renewing subscription stops contributing at its end (`access_ends_at`, or the start of the next
+    local day after `access_ends_on`).
+- **Excluded:** spendable credits and banked resets. Credit accounts are only counted and shown as a note.
+- **Defaults and custom views:** the defaults are 30 m → 24 h and 24 h → 6 d. The custom row accepts any rolling window
+  from 5 m to 7 d and any horizon from 1 h to 14 d, typed as `45m`, `3h` or `2d`.
+- **API:** `GET /api/v1/burn-factor?pairs=30m:24h,24h:6d` (1–6 pairs; SSO-protected; cached for 30 s per request). A
+  malformed or out-of-range pair returns HTTP 400 with the reason.
