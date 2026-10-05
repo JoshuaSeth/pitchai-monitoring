@@ -1790,6 +1790,8 @@ footer {
   .token-metric { width: 100%; }
   .token-chart { height: 250px; }
   .token-table th:nth-child(n + 4), .token-table td:nth-child(n + 4) { display: none; }
+  .token-table th, .token-table td { padding: 7px 8px; }
+  .token-table-name small { display: none; }
 }
 .token-tick { stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
 /* Claude quota meters */
