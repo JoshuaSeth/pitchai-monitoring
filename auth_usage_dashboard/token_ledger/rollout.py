@@ -92,12 +92,10 @@ def _event_epoch(raw: JsonValue) -> float | None:
 
 
 def usage_delta(state: FileState, info: JsonObject) -> tuple[int, ...] | None:
-    """Return the tokens of one ``token_count`` event, updating the baseline.
+    """Return one ``token_count`` event's tokens: cumulative deltas, else ``last_token_usage``.
 
-    Codex-family runtimes report a cumulative ``total_token_usage``: the usage
-    is the delta, an unchanged total is a repeated event, and a lower total is
-    a counter reset. Runtimes without a cumulative total (the Claude owner)
-    report only ``last_token_usage`` per request.
+    Without a baseline (a fork may inherit its parent's counter) or after a reset,
+    only that request's own usage is new; the Claude owner reports only that field.
     """
     total = _usage_tuple(info.get("total_token_usage"))
     if total is not None:
@@ -107,7 +105,9 @@ def usage_delta(state: FileState, info: JsonObject) -> tuple[int, ...] | None:
             state.baseline_pending = False
             return None
         if previous is None or total[-1] < previous[-1]:
-            return total if any(total) else None
+            own = _usage_tuple(info.get("last_token_usage"))
+            fresh = total if own is None else own
+            return fresh if any(fresh) else None
         if total == previous:
             return None
         delta = tuple(max(0, now - before) for now, before in zip(total, previous, strict=True))

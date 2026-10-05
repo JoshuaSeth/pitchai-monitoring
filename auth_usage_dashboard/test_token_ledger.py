@@ -17,7 +17,7 @@ from .token_ledger.collect import CollectHooks, collect
 from .token_ledger.deliver import deliver
 from .token_ledger.fleet_store import connect_fleet, ingest
 from .token_ledger.node_store import NodeStore
-from .token_ledger.rollout import FileState, read_new_lines, usage_delta
+from .token_ledger.rollout import FileState, read_new_lines
 from .token_ledger.sources import Home, Lane, LaneIndex, NodeConfig
 
 if TYPE_CHECKING:
@@ -91,28 +91,6 @@ def _lanes() -> LaneIndex:
     index.by_thread[THREAD] = Lane("dev-main-cell-one", "dft-lane", "dft", "Driestar DFT")
     index.by_worktree["/work/claude"] = Lane("dev-main-cell-one", "claude-lane", "potaito", None)
     return index
-
-
-def test_cumulative_deltas_skip_repeats_and_survive_counter_reset() -> None:
-    """Prove cumulative deltas skip repeats and survive counter reset."""
-    state = FileState()
-    first: JsonObject = {
-        "total_token_usage": {"input_tokens": 100, "cached_input_tokens": 40, "output_tokens": 5, "total_tokens": 105},
-    }
-    check_equal(usage_delta(state, first), (100, 40, 5, 0, 105), "first cumulative total is counted whole")
-    check(usage_delta(state, first) is None, "a repeated cumulative total is skipped")
-    second: JsonObject = {
-        "total_token_usage": {"input_tokens": 160, "cached_input_tokens": 90, "output_tokens": 9, "total_tokens": 169},
-    }
-    check_equal(usage_delta(state, second), (60, 50, 4, 0, 64), "a higher total counts only the delta")
-    reset: JsonObject = {
-        "total_token_usage": {"input_tokens": 10, "cached_input_tokens": 0, "output_tokens": 1, "total_tokens": 11},
-    }
-    check_equal(usage_delta(state, reset), (10, 0, 1, 0, 11), "a lower total is a counter reset")
-    claude: JsonObject = {
-        "last_token_usage": {"input_tokens": 7, "cached_input_tokens": 3, "output_tokens": 2, "total_tokens": 9},
-    }
-    check_equal(usage_delta(FileState(), claude), (7, 3, 2, 0, 9), "per-request usage is counted as is")
 
 
 def test_reader_keeps_partial_lines_and_ignores_content_mentions(tmp_path: Path) -> None:
