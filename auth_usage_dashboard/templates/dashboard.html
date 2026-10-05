@@ -65,7 +65,7 @@
             <div class="section-label">Moving burn vs. horizon capacity</div>
             <h2 id="burn-factor-title">Burn factor</h2>
           </div>
-          <div class="section-aside">OpenAI · Anthropic · OpenCode Go</div>
+          <div class="section-aside">OpenAI · Anthropic · OpenCode Go · DeepSeek API</div>
         </div>
         <div class="burn-pools" id="burn-factor-pools" aria-live="polite"></div>
         <form class="burn-custom" id="burn-custom-form">
@@ -77,7 +77,7 @@
           <div class="burn-presets" id="burn-presets" aria-label="Presets"></div>
           <span class="burn-custom-message" id="burn-custom-message" role="status"></span>
         </form>
-        <p class="burn-explainer">Factor = burn rate over the rolling window × future window ÷ capacity available in that window (points left now + resets − leftovers lost at resets or subscription ends). Below 1.0 is margin; 1.0 or more means the pool runs short. 0.5 over 24 h ≈ 48 h of runway.</p>
+        <p class="burn-explainer">Factor = burn rate over the rolling window × future window ÷ capacity available in that window (points left now + resets − leftovers lost at resets or subscription ends). Below 1.0 is margin; 1.0 or more means the pool runs short. 0.5 over 24 h ≈ 48 h of runway. For the DeepSeek API the capacity is the prepaid balance and the burn is ledger tokens priced at the engine's DeepSeek tariff.</p>
       </section>
 
       <section class="claude-section" aria-labelledby="claude-title" data-testid="claude-accounts">

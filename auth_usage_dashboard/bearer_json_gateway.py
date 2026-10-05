@@ -1,5 +1,7 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Infrastructure gateway for OpenCode Go's read-only plan usage endpoint (standard library only).
+"""Infrastructure gateway for read-only, bearer-authenticated JSON endpoints (standard library only).
+
+Used by the host exporters for OpenCode Go plan usage and the DeepSeek API balance.
 
 ``urllib.request`` is reached through a typed dynamic boundary, the same way the
 dashboard's other gateways reach httpx, so the exporter stays dependency-free on
@@ -15,10 +17,10 @@ from typing import TYPE_CHECKING, Protocol, cast
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
 MAX_BODY_BYTES = 65_536
 TIMEOUT_SECONDS = 10.0
-_BROWSER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0"
+DEFAULT_AGENT = "pitchai-codex-usage/1"
+BROWSER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0"
 
 
 class _Response(Protocol):
@@ -74,13 +76,13 @@ _REQUEST = cast("_RequestFactory", _URLLIB["Request"])
 _URLOPEN = cast("_UrlOpen", _URLLIB["urlopen"])
 
 
-def fetch_usage_body(api_key: str) -> bytes | None:
-    """Return the raw usage response body for one subscription key, or nothing on any network failure."""
-    headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json", "User-Agent": _BROWSER_AGENT}
+def fetch_body(url: str, api_key: str, *, user_agent: str = DEFAULT_AGENT) -> bytes | None:
+    """Return the raw response body of one bearer-authenticated GET, or nothing on any network failure."""
+    headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json", "User-Agent": user_agent}
     body: bytes | None = None
     with (
         suppress(OSError),
-        closing(_URLOPEN(_REQUEST(USAGE_URL, headers=headers), timeout=TIMEOUT_SECONDS)) as response,
+        closing(_URLOPEN(_REQUEST(url, headers=headers), timeout=TIMEOUT_SECONDS)) as response,
     ):
         body = response.read(MAX_BODY_BYTES)
     return body

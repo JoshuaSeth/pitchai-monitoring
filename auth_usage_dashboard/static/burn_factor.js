@@ -20,6 +20,7 @@
     ["openai", "OpenAI", "Codex account broker"],
     ["anthropic", "Anthropic", "Claude Code accounts"],
     ["opencode", "OpenCode Go", "MiMo / GLM subscription pool"],
+    ["deepseek", "DeepSeek API", "Prepaid API balance · deepseek-flash"],
   ];
   const view = { custom: loadCustom(), payloads: {}, errors: {}, busy: false };
 
@@ -64,6 +65,12 @@
     return `${parsed.toLocaleString(undefined, { maximumFractionDigits: parsed >= 100 ? 0 : 1 })} pts`;
   }
 
+  function usd(value) {
+    const parsed = finite(value);
+    if (parsed === null) return "-";
+    return `$${parsed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
   function durationWords(text) {
     const match = /^(\d+)([mhd])$/.exec(text || "");
     if (!match) return text || "-";
@@ -85,9 +92,7 @@
     return pairs.map((pair) => pair.join(":")).join(",");
   }
 
-  function renderCard(result, index) {
-    const status = STATUS[result.status] ? result.status : "unknown";
-    const card = element("article", `burn-card burn-${status}`);
+  function cardHead(result, index, status) {
     const head = element("div", "burn-card-head");
     const title = element("div", "burn-card-title");
     title.append(
@@ -97,17 +102,73 @@
     const badge = element("span", `burn-badge burn-${status}`);
     badge.append(element("span", "burn-badge-icon", STATUS[status].icon), element("span", "", STATUS[status].label));
     head.append(title, badge);
+    return head;
+  }
 
-    const factor = finite(result.factor);
+  function factorValue(factor, status, prefix, units) {
     const value = element("div", "burn-factor-value");
-    const prefix = result.lower_bound && factor !== null && factor < 1 ? "≥ " : "";
     value.append(element("strong", "", factor === null ? (status === "short" ? "∞" : "-") : `${prefix}${factor.toFixed(2)}`));
-    value.append(element("span", "", factor === null ? "no capacity in this horizon" : "× capacity"));
+    value.append(element("span", "", factor === null ? units[0] : units[1]));
+    return value;
+  }
 
+  function factorMeter(factor) {
     const meter = element("div", "burn-meter");
     const fill = element("span", "");
     fill.style.setProperty("--value", `${Math.min(100, Math.max(0, (factor || 0) / 2 * 100))}%`);
     meter.append(fill, element("i", "burn-meter-one"));
+    return meter;
+  }
+
+  function breakdownList(rows) {
+    const breakdown = element("dl", "burn-breakdown");
+    for (const [label, text] of rows) breakdown.append(element("dt", "", label), element("dd", "", text));
+    return breakdown;
+  }
+
+  // DeepSeek is prepaid per token: capacity is the balance in dollars and burn is ledger spend per hour.
+  function renderMoneyCard(result, index, payload) {
+    const status = STATUS[result.status] ? result.status : "unknown";
+    const card = element("article", `burn-card burn-${status}`);
+    const factor = finite(result.factor);
+    const head = cardHead(result, index, status);
+    const value = factorValue(factor, status, "", ["no balance left", "× balance"]);
+    if (status === "unknown") {
+      card.append(head, value, element("p", "burn-summary", result.reason || "Not enough data yet for this pool."));
+      return card;
+    }
+    const balance = payload.balance || {};
+    const available = finite(result.available_usd);
+    const margin = finite(result.margin_usd);
+    const summary = element("p", "burn-summary", available !== null && available <= 0
+      ? "Balance empty · DeepSeek refuses requests until it is topped up"
+      : [runwayText(result.runway_hours), margin === null ? null : margin >= 0 ? `${usd(margin)} spare over the horizon` : `${usd(-margin)} short over the horizon`].filter(Boolean).join(" · "));
+    const burn = result.burn || {};
+    const typical = result.typical || {};
+    const perHour = finite(typical.usd_per_hour);
+    const split = finite(balance.granted_usd) ? ` (${usd(balance.granted_usd)} granted + ${usd(balance.topped_up_usd)} topped up)` : "";
+    const breakdown = breakdownList([
+      ["Burn", `${usd(burn.usd_per_hour)}/h · token-ledger estimate at ${burn.price_snapshot || "engine"} prices`],
+      ["Needed", usd(result.demand_usd)],
+      ["Available", `${usd(available)} balance${split}`],
+      [`${typical.days || 7}-day pace`, `${perHour === null ? "-" : usd(perHour * 24)}/day · ${usd(typical.demand_usd)} for the next ${durationWords(result.horizon)}`],
+    ]);
+    const notes = [];
+    if (!balance.is_available) notes.push("DeepSeek reports the account as unavailable: DeepSeek lanes fail (402) until the balance is topped up.");
+    if (balance.stale) notes.push("The balance reading is older than 15 minutes.");
+    card.append(head, value, factorMeter(factor), summary, breakdown);
+    if (notes.length) card.append(element("p", "burn-note", notes.join(" ")));
+    return card;
+  }
+
+  function renderCard(result, index) {
+    const status = STATUS[result.status] ? result.status : "unknown";
+    const card = element("article", `burn-card burn-${status}`);
+    const head = cardHead(result, index, status);
+    const factor = finite(result.factor);
+    const prefix = result.lower_bound && factor !== null && factor < 1 ? "≥ " : "";
+    const value = factorValue(factor, status, prefix, ["no capacity in this horizon", "× capacity"]);
+    const meter = factorMeter(factor);
 
     const margin = finite(result.margin_points);
     const limited = status === "limited";
@@ -122,13 +183,11 @@
 
     const burn = result.burn || {};
     const capacity = result.capacity || {};
-    const breakdown = element("dl", "burn-breakdown");
-    const rows = [
+    const breakdown = breakdownList([
       ["Burn", `${finite(burn.points_per_hour) === null ? "-" : finite(burn.points_per_hour).toFixed(1)} pts/h · ${burn.source === "native_broker_samples" ? `${burn.coverage_percent}% sampled · ${burn.confidence}` : "current-window estimate"}`],
       ["Needed", points(result.demand_points)],
       ["Available", `${points(capacity.effective_points)} = ${points(capacity.left_now_points)} left + ${capacity.reset_count || 0} reset${capacity.reset_count === 1 ? "" : "s"} (${points(capacity.reset_points)}) − ${points(capacity.expiring_points)} expiring at resets − ${points(capacity.subscription_expiring_points)} lost to ${capacity.subscription_end_count || 0} subscription end${capacity.subscription_end_count === 1 ? "" : "s"}${finite(capacity.blocked_points) ? ` − ${points(capacity.blocked_points)} blocked` : ""}`],
-    ];
-    for (const [label, text] of rows) breakdown.append(element("dt", "", label), element("dd", "", text));
+    ]);
 
     const notes = [];
     if (result.reason) notes.push(result.reason);
@@ -153,13 +212,17 @@
     const head = element("div", "burn-pool-head");
     const title = element("div", "burn-pool-title");
     title.append(element("h3", "", name), element("span", "", detail));
-    const basis = payload && payload.basis && payload.basis.label ? `${payload.basis.label} points · 100 = one full account window` : "Capacity basis not reported";
+    const money = Boolean(payload && payload.unit === "usd");
+    const balance = (payload && payload.balance) || {};
+    const basis = money
+      ? `Balance ${usd(balance.total_usd)}${balance.is_available ? "" : " · unavailable"} · prices ${(payload.price || {}).snapshot || "-"}`
+      : payload && payload.basis && payload.basis.label ? `${payload.basis.label} points · 100 = one full account window` : "Capacity basis not reported";
     head.append(title, element("span", "burn-pool-basis", basis));
     const grid = element("div", "burn-grid");
     grid.classList.toggle("is-refreshing", view.busy);
     const results = payload && Array.isArray(payload.results) ? payload.results : [];
     if (!results.length) grid.append(element("p", "burn-empty", view.errors[key] || "Reading burn and capacity…"));
-    else grid.append(...results.map(renderCard));
+    else grid.append(...results.map((result, index) => (money ? renderMoneyCard(result, index, payload) : renderCard(result, index))));
     block.append(head, grid);
     return block;
   }
