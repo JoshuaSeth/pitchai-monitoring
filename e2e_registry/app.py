@@ -18,6 +18,9 @@ from e2e_registry import db as dbm
 from e2e_registry.app_access import RegistryAccess
 from e2e_registry.app_admin_routes import router as admin_router
 from e2e_registry.app_read_routes import router as read_router
+from e2e_registry.app_test_creation import router as test_creation_router
+from e2e_registry.app_test_routes import lookup_router as test_lookup_router
+from e2e_registry.app_test_routes import router as test_mutation_router
 from e2e_registry.app_access import TENANT_COOKIE_NAME as COOKIE_TOKEN_HASH
 from e2e_registry.app_context import RegistryContext
 from e2e_registry.app_host_policy import RegistryHostPolicy
@@ -36,11 +39,8 @@ from e2e_registry.alerts import (
     maybe_dispatch_failure_investigation,
     maybe_send_failure_alert,
 )
-from e2e_registry.auth import RequestAuth, hash_token, require_admin, require_runner, require_tenant_auth
+from e2e_registry.auth import RequestAuth, hash_token, require_runner, require_tenant_auth
 from e2e_registry.schema import (
-    CreateTestRequest,
-    DisableTestRequest,
-    PatchTestRequest,
     RunnerClaimRequest,
     RunnerCompleteRequest,
 )
@@ -473,33 +473,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
 
     app.include_router(admin_router)
 
-    @app.post("/api/v1/tests")
-    async def api_create_test(auth: RequestAuth = Depends(require_tenant_auth), req: CreateTestRequest | None = None) -> dict[str, Any]:
-        if req is None:
-            raise HTTPException(status_code=400, detail="missing_body")
-        try:
-            base = host_policy.validate_base_url(req.base_url)
-            defn = validate_definition(req.definition)
-        except StepFlowValidationError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        created = await asyncio.to_thread(
-            dbm.insert_test,
-            context.settings,
-            tenant_id=auth.tenant_id,
-            name=req.name,
-            base_url=base,
-            test_kind="stepflow",
-            definition=defn,
-            interval_seconds=req.interval_seconds,
-            timeout_seconds=req.timeout_seconds,
-            jitter_seconds=req.jitter_seconds,
-            down_after_failures=req.down_after_failures,
-            up_after_successes=req.up_after_successes,
-            notify_on_recovery=bool(req.notify_on_recovery),
-            dispatch_on_failure=bool(req.dispatch_on_failure),
-        )
-        return {"ok": True, "test": created}
+    app.include_router(test_creation_router)
 
     @app.post("/api/v1/tests/upload")
     async def api_upload_test(
@@ -594,17 +568,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
         )
         return {"ok": True, "test": created}
 
-    @app.get("/api/v1/tests")
-    async def api_list_tests(auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        tests = await asyncio.to_thread(dbm.list_tests, context.settings, tenant_id=auth.tenant_id)
-        return {"ok": True, "tests": tests}
-
-    @app.get("/api/v1/tests/{test_id}")
-    async def api_get_test(test_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        test = await asyncio.to_thread(dbm.get_test, context.settings, tenant_id=auth.tenant_id, test_id=test_id)
-        if not test:
-            raise HTTPException(status_code=404, detail="not_found")
-        return {"ok": True, "test": test}
+    app.include_router(test_lookup_router)
 
     @app.get("/api/v1/tests/{test_id}/source")
     async def api_get_test_source(test_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> FileResponse:
@@ -694,63 +658,7 @@ def create_app(settings: RegistrySettings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="not_found")
         return {"ok": True}
 
-    @app.patch("/api/v1/tests/{test_id}")
-    async def api_patch_test(test_id: str, auth: RequestAuth = Depends(require_tenant_auth), req: PatchTestRequest | None = None) -> dict[str, Any]:
-        if req is None:
-            raise HTTPException(status_code=400, detail="missing_body")
-        patch: dict[str, Any] = req.model_dump(exclude_unset=True)
-        if "base_url" in patch and patch["base_url"] is not None:
-            patch["base_url"] = host_policy.validate_base_url(patch["base_url"])
-        if "definition" in patch and patch["definition"] is not None:
-            patch["definition"] = validate_definition(patch["definition"])
-        ok = await asyncio.to_thread(dbm.patch_test, context.settings, tenant_id=auth.tenant_id, test_id=test_id, patch=patch)
-        if not ok:
-            raise HTTPException(status_code=404, detail="not_found")
-        test = await asyncio.to_thread(dbm.get_test, context.settings, tenant_id=auth.tenant_id, test_id=test_id)
-        return {"ok": True, "test": test}
-
-    @app.post("/api/v1/tests/{test_id}/disable")
-    async def api_disable_test(test_id: str, auth: RequestAuth = Depends(require_tenant_auth), req: DisableTestRequest | None = None) -> dict[str, Any]:
-        if req is None:
-            raise HTTPException(status_code=400, detail="missing_body")
-        try:
-            until_ts = parse_disabled_until(req.until)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"invalid_until: {exc}") from exc
-        ok = await asyncio.to_thread(
-            dbm.set_test_disabled,
-            context.settings,
-            tenant_id=auth.tenant_id,
-            test_id=test_id,
-            disabled=True,
-            reason=req.reason,
-            until_ts=until_ts,
-        )
-        if not ok:
-            raise HTTPException(status_code=404, detail="not_found")
-        return {"ok": True}
-
-    @app.post("/api/v1/tests/{test_id}/enable")
-    async def api_enable_test(test_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        ok = await asyncio.to_thread(
-            dbm.set_test_disabled,
-            context.settings,
-            tenant_id=auth.tenant_id,
-            test_id=test_id,
-            disabled=False,
-            reason=None,
-            until_ts=None,
-        )
-        if not ok:
-            raise HTTPException(status_code=404, detail="not_found")
-        return {"ok": True}
-
-    @app.post("/api/v1/tests/{test_id}/run")
-    async def api_run_now(test_id: str, auth: RequestAuth = Depends(require_tenant_auth)) -> dict[str, Any]:
-        ok = await asyncio.to_thread(dbm.trigger_run_now, context.settings, tenant_id=auth.tenant_id, test_id=test_id)
-        if not ok:
-            raise HTTPException(status_code=404, detail="not_found")
-        return {"ok": True}
+    app.include_router(test_mutation_router)
 
     app.include_router(read_router)
 
