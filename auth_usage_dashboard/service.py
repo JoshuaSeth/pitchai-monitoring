@@ -1,31 +1,59 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Cached capacity snapshot over redacted broker state, refreshed and safely probed in the background."""
+
 from __future__ import annotations
 
 import asyncio
 import copy
 import logging
-import time
-from datetime import datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
-from .capacity import build_dashboard_snapshot, isoformat, utc_now
+from .capacity import utc_now
 from .history import UsageSampleStore
-from .settings import DashboardSettings
+from .service_failures import FailureCapture
+from .service_probes import ProbeLedger, RefreshRuntime
+from .service_snapshots import RecordedHistory, current_snapshot, failed_refresh_snapshot
+from .timeseries_types import optional_object
 
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from .settings import DashboardSettings
+    from .timeseries_types import JsonObject
 
 LOG = logging.getLogger(__name__)
 
 
 class StateSource(Protocol):
-    def read_accounts(self) -> list[dict[str, Any]]: ...
+    """Broker inventory and no-generation probe surface read by the capacity service."""
 
-    def probe_accounts(self, accounts: list[dict[str, Any]]) -> dict[str, str]: ...
+    def read_accounts(self) -> list[JsonObject]:
+        """Return the redacted metadata and state of every configured broker account."""
+        raise NotImplementedError
 
-    def probe_analytics(self, accounts: list[dict[str, Any]]) -> dict[str, str]: ...
+    def probe_accounts(self, accounts: list[JsonObject]) -> dict[str, str]:
+        """Run the safe usage probe and return redacted errors keyed by account label."""
+        raise NotImplementedError
 
-    def close(self) -> None: ...
+    def probe_analytics(self, accounts: list[JsonObject]) -> dict[str, str]:
+        """Refresh token history and reset-bank state and return redacted errors by label."""
+        raise NotImplementedError
+
+    def close(self) -> None:
+        """Release the resources owned by the source."""
+        raise NotImplementedError
 
 
 class CapacityService:
+    """Own the cached capacity snapshot, its background refresh loop, and safe broker probes."""
+
+    settings: DashboardSettings
+    source: StateSource
+    _snapshot: JsonObject | None
+    _sample_store: UsageSampleStore | None
+    _probes: ProbeLedger
+    _runtime: RefreshRuntime
+
     def __init__(
         self,
         settings: DashboardSettings,
@@ -33,18 +61,12 @@ class CapacityService:
         *,
         sample_store: UsageSampleStore | None = None,
     ) -> None:
+        """Bind settings and broker source, persisting usage samples when history is configured."""
         self.settings = settings
         self.source = source
-        self._snapshot: dict[str, Any] | None = None
-        self._refresh_lock = asyncio.Lock()
-        self._stop = asyncio.Event()
-        self._loop_task: asyncio.Task[None] | None = None
-        self._last_probe_monotonic: float | None = None
-        self._last_safe_probe_at: datetime | None = None
-        self._last_probe_errors: dict[str, str] = {}
-        self._last_analytics_probe_monotonic: float | None = None
-        self._last_analytics_probe_at: datetime | None = None
-        self._last_analytics_probe_errors: dict[str, str] = {}
+        self._snapshot = None
+        self._runtime = RefreshRuntime()
+        self._probes = ProbeLedger()
         self._sample_store = sample_store
         if self._sample_store is None and settings.history_file is not None:
             self._sample_store = UsageSampleStore(
@@ -54,151 +76,126 @@ class CapacityService:
             )
 
     async def start(self) -> None:
+        """Take the first snapshot, probing on startup only when configured, then start the loop."""
         if self.settings.safe_probe_enabled and not self.settings.probe_on_startup:
-            started_at = time.monotonic()
-            self._last_probe_monotonic = started_at
-            self._last_analytics_probe_monotonic = started_at
+            self._probes.defer_startup_probes()
         await self.refresh(force_probe=self.settings.safe_probe_enabled and self.settings.probe_on_startup)
-        self._loop_task = asyncio.create_task(self._refresh_loop(), name="auth-usage-dashboard-refresh")
+        self._runtime.loop_task = asyncio.create_task(self._refresh_loop(), name="auth-usage-dashboard-refresh")
 
     async def stop(self) -> None:
-        self._stop.set()
-        if self._loop_task is not None:
-            await self._loop_task
+        """Stop the refresh loop, wait for it, and close the broker source."""
+        self._runtime.stop.set()
+        if self._runtime.loop_task is not None:
+            await self._runtime.loop_task
         await asyncio.to_thread(self.source.close)
 
-    async def snapshot(self) -> dict[str, Any]:
+    async def snapshot(self) -> JsonObject:
+        """Return an independent copy of the cached snapshot, refreshing first when none exists.
+
+        Returns:
+            The current capacity snapshot.
+
+        Raises:
+            AssertionError: If refreshing still left no snapshot.
+        """
         if self._snapshot is None:
             await self.refresh(force_probe=False)
-        assert self._snapshot is not None
-        return copy.deepcopy(self._snapshot)
+        cached = self._snapshot
+        if cached is None:
+            raise AssertionError
+        return copy.deepcopy(cached)
 
-    async def health(self) -> dict[str, Any]:
+    async def health(self) -> JsonObject:
+        """Return the identity-free health summary of the cached snapshot.
+
+        Returns:
+            Status, generation time, and whether the broker source is stale.
+        """
         snapshot = await self.snapshot()
-        source = snapshot.get("source") if isinstance(snapshot.get("source"), dict) else {}
+        source = optional_object(snapshot.get("source"))
         return {
             "status": "degraded" if source.get("error") else "ok",
             "generated_at": snapshot.get("generated_at"),
             "source_stale": bool(source.get("stale")),
         }
 
-    async def request_manual_probe(self) -> dict[str, Any]:
+    async def request_manual_probe(self) -> JsonObject:
+        """Probe now unless probing is disabled or throttled, then return the fresh snapshot.
+
+        Returns:
+            Whether a probe started, why, any retry delay, and the current snapshot.
+        """
         if not self.settings.safe_probe_enabled:
             await self.refresh(force_probe=False)
             return {"probe_started": False, "reason": "safe_probe_disabled", "snapshot": await self.snapshot()}
-        if self._last_probe_monotonic is not None:
-            elapsed = time.monotonic() - self._last_probe_monotonic
-            if elapsed < self.settings.manual_probe_min_interval_seconds:
-                await self.refresh(force_probe=False)
-                return {
-                    "probe_started": False,
-                    "reason": "probe_throttled",
-                    "retry_after_seconds": int(self.settings.manual_probe_min_interval_seconds - elapsed) + 1,
-                    "snapshot": await self.snapshot(),
-                }
+        elapsed = self._probes.seconds_since_probe()
+        min_interval_seconds = self.settings.manual_probe_min_interval_seconds
+        if elapsed is not None and elapsed < min_interval_seconds:
+            await self.refresh(force_probe=False)
+            return {
+                "probe_started": False,
+                "reason": "probe_throttled",
+                "retry_after_seconds": int(min_interval_seconds - elapsed) + 1,
+                "snapshot": await self.snapshot(),
+            }
         await self.refresh(force_probe=True)
         return {"probe_started": True, "reason": "manual", "snapshot": await self.snapshot()}
 
     async def refresh(self, *, force_probe: bool) -> None:
-        async with self._refresh_lock:
-            try:
-                raw_accounts = await asyncio.to_thread(self.source.read_accounts)
-                analytics_due = self._analytics_probe_due()
-                run_analytics = self.settings.safe_probe_enabled and (force_probe or analytics_due)
-                if run_analytics:
-                    probe_started = time.monotonic()
-                    self._last_probe_monotonic = probe_started
-                    self._last_analytics_probe_monotonic = probe_started
-                    self._last_analytics_probe_errors = await asyncio.to_thread(
-                        self.source.probe_analytics,
-                        raw_accounts,
-                    )
-                    self._last_probe_errors = self._last_analytics_probe_errors
-                    probed_at = utc_now()
-                    self._last_safe_probe_at = probed_at
-                    self._last_analytics_probe_at = probed_at
-                    raw_accounts = await asyncio.to_thread(self.source.read_accounts)
-                elif self.settings.safe_probe_enabled and self._probe_due():
-                    self._last_probe_monotonic = time.monotonic()
-                    self._last_probe_errors = await asyncio.to_thread(self.source.probe_accounts, raw_accounts)
-                    self._last_safe_probe_at = utc_now()
-                    raw_accounts = await asyncio.to_thread(self.source.read_accounts)
-                now = utc_now()
-                snapshot_arguments = dict(
-                    now=now,
-                    stale_after_seconds=self.settings.stale_after_seconds,
-                    analytics_stale_after_seconds=self.settings.analytics_stale_after_seconds,
-                    min_five_hour_remaining_percent=self.settings.min_five_hour_remaining_percent,
-                    probe_errors=self._last_probe_errors,
-                    analytics_probe_errors=self._last_analytics_probe_errors,
-                    source_error=None,
-                    last_safe_probe_at=self._last_safe_probe_at,
-                    last_analytics_probe_at=self._last_analytics_probe_at,
-                    probe_interval_seconds=self.settings.safe_probe_interval_seconds,
-                    analytics_probe_interval_seconds=self.settings.analytics_probe_interval_seconds,
-                )
-                base_snapshot = build_dashboard_snapshot(raw_accounts, **snapshot_arguments)
-                usage_samples: list[dict[str, Any]] = []
-                history_error: str | None = None
-                if self._sample_store is not None:
-                    try:
-                        usage_samples = await asyncio.to_thread(
-                            self._sample_store.record,
-                            base_snapshot["accounts"],
-                            at=now,
-                        )
-                    except (OSError, ValueError) as exc:
-                        history_error = type(exc).__name__
-                        LOG.warning("Usage sample persistence failed: %s", history_error)
-                self._snapshot = build_dashboard_snapshot(
-                    raw_accounts,
-                    **snapshot_arguments,
-                    usage_samples=usage_samples,
-                    history_error=history_error,
-                )
-            except Exception as exc:
-                LOG.warning("Capacity snapshot refresh failed: %s", type(exc).__name__)
-                now = utc_now()
-                if self._snapshot is None:
-                    self._snapshot = build_dashboard_snapshot(
-                        [],
-                        now=now,
-                        stale_after_seconds=self.settings.stale_after_seconds,
-                        analytics_stale_after_seconds=self.settings.analytics_stale_after_seconds,
-                        min_five_hour_remaining_percent=self.settings.min_five_hour_remaining_percent,
-                        source_error=type(exc).__name__,
-                        last_safe_probe_at=self._last_safe_probe_at,
-                        last_analytics_probe_at=self._last_analytics_probe_at,
-                        probe_interval_seconds=self.settings.safe_probe_interval_seconds,
-                        analytics_probe_interval_seconds=self.settings.analytics_probe_interval_seconds,
-                    )
-                else:
-                    snapshot = copy.deepcopy(self._snapshot)
-                    snapshot["generated_at"] = isoformat(now)
-                    snapshot["source"]["stale"] = True
-                    snapshot["source"]["error"] = type(exc).__name__
-                    snapshot["warnings"] = [
-                        {"severity": "critical", "code": "source_error", "message": "Broker state refresh failed"},
-                        *[item for item in snapshot.get("warnings", []) if item.get("code") != "source_error"],
-                    ]
-                    self._snapshot = snapshot
+        """Rebuild the snapshot; any failure keeps the last good capacity marked stale."""
+        async with self._runtime.refresh_lock:
+            with FailureCapture(Exception) as failure:
+                self._snapshot = await self._refreshed_snapshot(force_probe=force_probe)
+            if failure.error is None:
+                return
+            error_name = type(failure.error).__name__
+            LOG.warning("Capacity snapshot refresh failed: %s", error_name)
+            self._snapshot = failed_refresh_snapshot(
+                self._snapshot,
+                error_name=error_name,
+                settings=self.settings,
+                probes=self._probes,
+                now=utc_now(),
+            )
 
-    def _probe_due(self) -> bool:
-        if self._last_probe_monotonic is None:
-            return True
-        return time.monotonic() - self._last_probe_monotonic >= self.settings.safe_probe_interval_seconds
+    async def _refreshed_snapshot(self, *, force_probe: bool) -> JsonObject:
+        raw_accounts = await asyncio.to_thread(self.source.read_accounts)
+        analytics_due = self._probes.analytics_probe_due(self.settings.analytics_probe_interval_seconds)
+        run_analytics = self.settings.safe_probe_enabled and (force_probe or analytics_due)
+        if run_analytics:
+            await self._probes.run_analytics_probe(self.source, raw_accounts)
+            raw_accounts = await asyncio.to_thread(self.source.read_accounts)
+        elif self.settings.safe_probe_enabled and self._probes.probe_due(self.settings.safe_probe_interval_seconds):
+            await self._probes.run_safe_probe(self.source, raw_accounts)
+            raw_accounts = await asyncio.to_thread(self.source.read_accounts)
+        now = utc_now()
+        base_snapshot = current_snapshot(raw_accounts, settings=self.settings, probes=self._probes, now=now)
+        history = await self._record_usage_samples(base_snapshot, now=now)
+        return current_snapshot(raw_accounts, settings=self.settings, probes=self._probes, now=now, history=history)
 
-    def _analytics_probe_due(self) -> bool:
-        if self._last_analytics_probe_monotonic is None:
-            return True
-        return (
-            time.monotonic() - self._last_analytics_probe_monotonic
-            >= self.settings.analytics_probe_interval_seconds
-        )
+    async def _record_usage_samples(
+        self,
+        snapshot: JsonObject,
+        *,
+        now: datetime,
+    ) -> RecordedHistory:
+        store = self._sample_store
+        if store is None:
+            return RecordedHistory(samples=[])
+        accounts = cast("list[JsonObject]", cast("object", snapshot["accounts"]))
+        samples: list[JsonObject] = []
+        with FailureCapture(OSError, ValueError) as failure:
+            samples = await asyncio.to_thread(store.record, accounts, at=now)
+        if failure.error is None:
+            return RecordedHistory(samples=samples)
+        history_error = type(failure.error).__name__
+        LOG.warning("Usage sample persistence failed: %s", history_error)
+        return RecordedHistory(samples=[], error=history_error)
 
     async def _refresh_loop(self) -> None:
-        while not self._stop.is_set():
-            try:
-                await asyncio.wait_for(self._stop.wait(), timeout=self.settings.snapshot_refresh_seconds)
-            except asyncio.TimeoutError:
+        stop = self._runtime.stop
+        while not stop.is_set():
+            with FailureCapture(TimeoutError) as wait:
+                _ = await asyncio.wait_for(stop.wait(), timeout=self.settings.snapshot_refresh_seconds)
+            if wait.error is not None:
                 await self.refresh(force_probe=False)
