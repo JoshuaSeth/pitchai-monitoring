@@ -1,33 +1,18 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Registry application assembly with ordered routes and late-bound shared state."""
+
 from __future__ import annotations
 
-import asyncio
-import hashlib
-import logging
-import time
 from pathlib import Path
-from typing import Any
 
-import httpx
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from e2e_registry import db as dbm
 from e2e_registry.app_access import RegistryAccess
 from e2e_registry.app_admin_routes import router as admin_router
-from e2e_registry.app_read_routes import router as read_router
-from e2e_registry.app_runner_routes import router as runner_router
-from e2e_registry.app_source_routes import router as source_router
-from e2e_registry.app_ui_source_routes import router as ui_source_router
-from e2e_registry.app_ui_upload_routes import router as ui_upload_router
-from e2e_registry.app_upload_routes import router as upload_router
-from e2e_registry.app_test_creation import router as test_creation_router
-from e2e_registry.app_test_routes import lookup_router as test_lookup_router
-from e2e_registry.app_test_routes import router as test_mutation_router
-from e2e_registry.app_access import TENANT_COOKIE_NAME as COOKIE_TOKEN_HASH
 from e2e_registry.app_context import RegistryContext
-from e2e_registry.app_host_policy import RegistryHostPolicy
+from e2e_registry.app_entry_routes import RegistryEntryRoutes
 from e2e_registry.app_host_policy import host_is_reserved_or_non_public as _host_is_reserved_or_non_public
 from e2e_registry.app_host_policy import load_monitored_allowlist_hosts as _load_monitored_allowlist_hosts
 from e2e_registry.app_host_policy import url_host as _url_host
@@ -35,287 +20,63 @@ from e2e_registry.app_inputs import normalize_pitchai_email as _normalize_pitcha
 from e2e_registry.app_inputs import normalize_test_kind as _normalize_test_kind
 from e2e_registry.app_inputs import safe_filename as _safe_filename
 from e2e_registry.app_monitoring_routes import install_monitoring_routes
-from e2e_registry.disablement import parse_disabled_until
-from e2e_registry.alerts import (
-    build_dispatch_prompt_for_failure,
-    build_failure_telegram_message,
-    build_recovery_telegram_message,
-    maybe_dispatch_failure_investigation,
-    maybe_send_failure_alert,
-)
-from e2e_registry.auth import RequestAuth, hash_token, require_runner, require_tenant_auth
-from e2e_registry.schema import (
-    RunnerClaimRequest,
-    RunnerCompleteRequest,
-)
+from e2e_registry.app_read_routes import router as read_router
+from e2e_registry.app_runner_routes import router as runner_router
+from e2e_registry.app_source_routes import router as source_router
+from e2e_registry.app_startup import RegistryStartup
+from e2e_registry.app_test_creation import router as test_creation_router
+from e2e_registry.app_test_routes import lookup_router as test_lookup_router
+from e2e_registry.app_test_routes import router as test_mutation_router
+from e2e_registry.app_ui_mutation_routes import router as ui_mutation_router
+from e2e_registry.app_ui_read_routes import router as ui_read_router
+from e2e_registry.app_ui_read_routes import run_router as ui_run_router
+from e2e_registry.app_ui_session_routes import router as ui_session_router
+from e2e_registry.app_ui_source_routes import router as ui_source_router
+from e2e_registry.app_ui_upload_routes import router as ui_upload_router
+from e2e_registry.app_upload_routes import router as upload_router
 from e2e_registry.settings import RegistrySettings
 
-
-__all__ = ["_host_is_reserved_or_non_public", "_load_monitored_allowlist_hosts", "_normalize_pitchai_email",
-           "_normalize_test_kind", "_safe_filename", "_url_host", "app", "create_app"]
-LOGGER = logging.getLogger("e2e-registry")
-def _sha256_hex(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+__all__ = [
+    "_host_is_reserved_or_non_public", "_load_monitored_allowlist_hosts", "_normalize_pitchai_email",
+    "_normalize_test_kind", "_safe_filename", "_url_host", "app", "create_app",
+]
 
 
 def create_app(settings: RegistrySettings | None = None) -> FastAPI:
-    app = FastAPI(title="PitchAI E2E Registry", version="0.1.0")
-    app.state.settings = settings or RegistrySettings()
-    app.state.monitor_cache = {"loaded_at_ts": 0.0, "state_mtime": None, "config_mtime": None, "data": None}
+    """Assemble the existing state, startup handler and route order.
 
+    Returns:
+        The registry ASGI application, without starting lifespan or opening a database.
+    """
+    application = FastAPI(title="PitchAI E2E Registry", version="0.1.0")
+    application.state.settings = settings or RegistrySettings()
+    application.state.monitor_cache = {"loaded_at_ts": 0.0, "state_mtime": None, "config_mtime": None, "data": None}
     templates_dir = Path(__file__).parent / "templates"
-    templates = Jinja2Templates(directory=str(templates_dir))
-    app.state.templates = templates
+    application.state.templates = Jinja2Templates(directory=str(templates_dir))
     dashboard_assets_dir = Path(__file__).parent / "static"
-    app.mount(
-        "/dashboard/assets",
-        StaticFiles(directory=str(dashboard_assets_dir)),
-        name="dashboard-assets",
-    )
-
-    context = RegistryContext(app)
+    application.mount("/dashboard/assets", StaticFiles(directory=str(dashboard_assets_dir)), name="dashboard-assets")
+    context = RegistryContext(application)
     access = RegistryAccess(context)
-    host_policy = RegistryHostPolicy(context)
+    application.router.add_event_handler("startup", RegistryStartup(context).run)
 
-    @app.on_event("startup")
-    def _startup() -> None:
-        dbm.ensure_schema(context.settings)
-        # Ensure storage locations exist (single-host deployment).
-        try:
-            Path(context.settings.artifacts_dir).mkdir(parents=True, exist_ok=True)
-        except Exception:
-            pass
-        try:
-            Path(context.settings.tests_dir).mkdir(parents=True, exist_ok=True)
-        except Exception:
-            pass
-
-        # Defensive cleanup: quarantine tests with disallowed hosts so they cannot keep firing.
-        try:
-            quarantined = host_policy.quarantine_disallowed_tests()
-            if quarantined > 0:
-                LOGGER.warning("Quarantined disallowed e2e tests count=%s", quarantined)
-        except Exception:
-            LOGGER.exception("Failed to quarantine disallowed e2e tests")
-
-
-    @app.get("/health")
-    async def health() -> dict[str, Any]:
-        return {"ok": True, "ts": time.time()}
-
-    @app.get("/")
-    async def root(req: Request) -> RedirectResponse:
-        # monitoring.pitchai.net is primarily a monitoring surface.
-        return RedirectResponse(url="/dashboard", status_code=303)
-
-    # -----------------
-    # UI auth helpers
-    # -----------------
-
-
-    def _redirect_to_login() -> RedirectResponse:
-        return RedirectResponse(url="/ui/login", status_code=303)
-
-    # -----------------
-    # Monitoring operator auth (separate from tenant UI authorization)
-    # -----------------
-
-
-    # -----------------
-    # UI routes
-    # -----------------
-    @app.get("/ui/login", response_class=HTMLResponse)
-    async def ui_login(req: Request) -> HTMLResponse:
-        return context.templates.TemplateResponse("login.html", {"request": req, "error": None})
-
-    @app.post("/ui/login")
-    async def ui_login_post(req: Request, api_key: str = Form("")):
-        token = (api_key or "").strip()
-        if not token:
-            return context.templates.TemplateResponse(
-                "login.html", {"request": req, "error": "Missing API key"}
-            )
-        th = hash_token(token)
-        authed = await asyncio.to_thread(dbm.get_api_key_by_hash, context.settings, token_hash=th)
-        if authed is None:
-            return context.templates.TemplateResponse(
-                "login.html", {"request": req, "error": "Invalid API key"}
-            )
-        resp = RedirectResponse(url="/ui/tests", status_code=303)
-        resp.set_cookie(COOKIE_TOKEN_HASH, th, httponly=True, samesite="lax")
-        return resp
-
-    @app.get("/ui/logout")
-    async def ui_logout() -> RedirectResponse:
-        resp = RedirectResponse(url="/ui/login", status_code=303)
-        resp.delete_cookie(COOKIE_TOKEN_HASH)
-        return resp
-
-    # -----------------
-    # Monitoring dashboard routes
-    # -----------------
-    @app.get("/dashboard", response_class=HTMLResponse)
-    async def dashboard(req: Request) -> HTMLResponse:
-        actor = access.dashboard_identity(req)
-        return context.templates.TemplateResponse(
-            "dashboard.html",
-            {"request": req, "title": "Monitoring", "operator_identity": actor},
-        )
-
-    @app.get("/ui/tests", response_class=HTMLResponse)
-    async def ui_tests(req: Request) -> HTMLResponse:
-        authed = await access.ui_get_auth(req)
-        if authed is None:
-            return _redirect_to_login()
-        tests = await asyncio.to_thread(dbm.list_tests, context.settings, tenant_id=authed.tenant_id)
-        # Normalize sqlite rows (ints) into something templates can use.
-        for t in tests:
-            for k in ("effective_ok", "fail_streak", "success_streak"):
-                try:
-                    if t.get(k) is not None:
-                        t[k] = int(t[k])
-                except Exception:
-                    pass
-        return context.templates.TemplateResponse(
-            "tests.html",
-            {"request": req, "tenant_id": authed.tenant_id, "tests": tests},
-        )
-
-    @app.get("/ui/tests/{test_id}", response_class=HTMLResponse)
-    async def ui_test_detail(req: Request, test_id: str, msg: str | None = None) -> HTMLResponse:
-        authed = await access.ui_get_auth(req)
-        if authed is None:
-            return _redirect_to_login()
-        test = await asyncio.to_thread(dbm.get_test, context.settings, tenant_id=authed.tenant_id, test_id=test_id)
-        if not test:
-            raise HTTPException(status_code=404, detail="test_not_found")
-        runs = await asyncio.to_thread(dbm.list_runs, context.settings, tenant_id=authed.tenant_id, test_id=test_id, limit=50)
-        kind = str(test.get("test_kind") or "stepflow").strip().lower() or "stepflow"
-        definition_json = test.get("definition_json") or ""
-        source_text: str | None = None
-        source_filename: str | None = None
-        source_relpath = str(test.get("source_relpath") or "").strip()
-        if kind != "stepflow" and source_relpath:
-            try:
-                base = Path(context.settings.tests_dir).resolve()
-                fp = (base / source_relpath).resolve()
-                if base in fp.parents and fp.exists() and fp.is_file():
-                    source_filename = fp.name
-                    source_text = fp.read_text(encoding="utf-8", errors="replace")
-                    if len(source_text) > 80_000:
-                        source_text = source_text[:80_000] + "\n...truncated..."
-            except Exception:
-                source_text = None
-        return context.templates.TemplateResponse(
-            "test_detail.html",
-            {
-                "request": req,
-                "test": test,
-                "runs": runs,
-                "definition_json": definition_json,
-                "source_text": source_text,
-                "source_filename": source_filename,
-                "msg": msg,
-            },
-        )
-
-    @app.post("/ui/tests/{test_id}/run")
-    async def ui_test_run_now(req: Request, test_id: str) -> RedirectResponse:
-        authed = await access.ui_require_auth(req)
-        ok = await asyncio.to_thread(dbm.trigger_run_now, context.settings, tenant_id=authed.tenant_id, test_id=test_id)
-        msg = "Run triggered" if ok else "Failed to trigger run"
-        return RedirectResponse(url=f"/ui/tests/{test_id}?msg={msg}", status_code=303)
-
-    @app.post("/ui/tests/{test_id}/disable")
-    async def ui_test_disable(
-        req: Request,
-        test_id: str,
-        reason: str = Form("temporary disable"),
-        until: str = Form(""),
-    ) -> RedirectResponse:
-        authed = await access.ui_require_auth(req)
-        try:
-            until_ts = parse_disabled_until(until)
-        except ValueError:
-            return RedirectResponse(url=f"/ui/tests/{test_id}?msg=Invalid+until+value", status_code=303)
-        ok = await asyncio.to_thread(
-            dbm.set_test_disabled,
-            context.settings,
-            tenant_id=authed.tenant_id,
-            test_id=test_id,
-            disabled=True,
-            reason=reason,
-            until_ts=until_ts,
-        )
-        msg = "Disabled" if ok else "Disable failed"
-        return RedirectResponse(url=f"/ui/tests/{test_id}?msg={msg}", status_code=303)
-
-    @app.post("/ui/tests/{test_id}/enable")
-    async def ui_test_enable(req: Request, test_id: str) -> RedirectResponse:
-        authed = await access.ui_require_auth(req)
-        ok = await asyncio.to_thread(
-            dbm.set_test_disabled,
-            context.settings,
-            tenant_id=authed.tenant_id,
-            test_id=test_id,
-            disabled=False,
-            reason=None,
-            until_ts=None,
-        )
-        msg = "Enabled" if ok else "Enable failed"
-        return RedirectResponse(url=f"/ui/tests/{test_id}?msg={msg}", status_code=303)
-
-    app.include_router(ui_source_router)
-
-    @app.get("/ui/runs/{run_id}", response_class=HTMLResponse)
-    async def ui_run_detail(req: Request, run_id: str) -> HTMLResponse:
-        authed = await access.ui_get_auth(req)
-        if authed is None:
-            return _redirect_to_login()
-        run = await asyncio.to_thread(dbm.get_run, context.settings, tenant_id=authed.tenant_id, run_id=run_id)
-        if not run:
-            raise HTTPException(status_code=404, detail="run_not_found")
-        artifacts = {}
-        try:
-            artifacts = (dbm._json_loads(run.get("artifacts_json")) or {}) if isinstance(run.get("artifacts_json"), (str, dict)) else {}
-        except Exception:
-            artifacts = {}
-        return context.templates.TemplateResponse(
-            "run_detail.html",
-            {"request": req, "run": run, "artifacts": artifacts},
-        )
-
-    app.include_router(ui_upload_router)
-
-
-    # -----------------
-    # API routes
-    # -----------------
+    application.add_api_route("/health", RegistryEntryRoutes.health, response_model=dict)
+    application.add_api_route("/", RegistryEntryRoutes.root)
+    application.include_router(ui_session_router)
+    application.include_router(ui_read_router)
+    application.include_router(ui_mutation_router)
+    application.include_router(ui_source_router)
+    application.include_router(ui_run_router)
+    application.include_router(ui_upload_router)
     install_monitoring_routes(context, access)
-
-
-    app.include_router(admin_router)
-
-    app.include_router(test_creation_router)
-
-    app.include_router(upload_router)
-
-    app.include_router(test_lookup_router)
-
-    app.include_router(source_router)
-
-
-    app.include_router(test_mutation_router)
-
-    app.include_router(read_router)
-
-    # -----------------
-    # Runner API
-    # -----------------
-    app.include_router(runner_router)
-
-
-    return app
+    application.include_router(admin_router)
+    application.include_router(test_creation_router)
+    application.include_router(upload_router)
+    application.include_router(test_lookup_router)
+    application.include_router(source_router)
+    application.include_router(test_mutation_router)
+    application.include_router(read_router)
+    application.include_router(runner_router)
+    return application
 
 
 app = create_app()
