@@ -448,3 +448,30 @@ moved off a host before collection are not counted.
 3. Delete `/var/lib/pitchai-token-ledger` and the fleet store.
 
 The dashboard then shows the ledger as unavailable. No other section depends on it.
+
+## Burn factor
+
+The **Burn factor** section, directly below "Capacity now", answers one question: at the current burn, does the pool's
+capacity over a future window cover it? (Spec: `specs/usage-dashboard-burn-factor.md`.)
+
+```
+factor = burn rate over the rolling window × future window ÷ capacity available in that window
+capacity = points left now + 100 per window reset inside the window − leftovers lost at resets or subscription ends
+```
+
+- **Reading it:** below 1.0 is margin and 1.0 or more is shortage. Statuses are `good` (< 0.85), `tight`, `short`
+  and `limited`. 0.5 over 24 h means roughly 48 h of runway; the card also shows the simulated runway and the margin or
+  shortage in points.
+- **Burn:** measured from the dashboard's own 5-minute broker samples (8-day retention), using the same reset-aware
+  delta measurement as the scheduler burn windows. It is flagged as a lower bound when eligible accounts sit at their
+  limit, because their work then runs on credits and no longer shows up as quota burn.
+- **Capacity:** the eligible pool (enabled, auth-valid, fresh) on the declared capacity basis, currently weekly. The
+  pool is simulated at the measured burn, earliest-expiring account first:
+  - leftover still unused at an account's reset is replaced by the fresh window, not added to it;
+  - a verified non-renewing subscription stops contributing at its end (`access_ends_at`, or the start of the next
+    local day after `access_ends_on`).
+- **Excluded:** spendable credits and banked resets. Credit accounts are only counted and shown as a note.
+- **Defaults and custom views:** the defaults are 30 m → 24 h and 24 h → 6 d. The custom row accepts any rolling window
+  from 5 m to 7 d and any horizon from 1 h to 14 d, typed as `45m`, `3h` or `2d`.
+- **API:** `GET /api/v1/burn-factor?pairs=30m:24h,24h:6d` (1–6 pairs; SSO-protected; cached for 30 s per request). A
+  malformed or out-of-range pair returns HTTP 400 with the reason.
