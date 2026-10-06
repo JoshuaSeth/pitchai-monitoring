@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, cast
 
 from .failures import ExpectedFailure
+from .hosts import HOST_DEFAULTS
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -31,20 +32,6 @@ _OWNER_GLOB = "*-owners/*/owner.json"
 _MAX_DESCRIPTOR_BYTES = 1024 * 1024
 _SQLITE_TIMEOUT_SECONDS = 15.0
 _PAIR = 2
-_CONTROL_PLANE = "/code/pitchai-cli-new/.pitchai-state/control-plane.sqlite3"
-_HOST_DEFAULTS: dict[str, JsonObject] = {
-    "pitchai-dev": {
-        "node": "master",
-        "cells": [
-            ["dev-main-cell-one", _CONTROL_PLANE],
-            ["dev-monitoring-cell", "/code/pitchai-cli-new-monitoring/.pitchai-state/control-plane.sqlite3"],
-        ],
-        "extra_homes": [["/root/.codex", "voice"]],
-        "delivery": "local",
-    },
-    "pitchai-jeff-dev": {"node": "jeff-dev", "cells": [["dev-jeff-cell-two", _CONTROL_PLANE]]},
-    "pitchai-fsn1-01": {"node": "fsn1", "cells": [["pitchai-fsn1-01", _CONTROL_PLANE]]},
-}
 _OWNER_ROUTES = {"claude_code": "claude_code", "deepseek": "deepseek", "opencode_go": "opencode_go"}
 
 
@@ -121,7 +108,7 @@ def load_config(path: Path = DEFAULT_CONFIG) -> NodeConfig:
     Raises:
         RuntimeError: When neither the file nor the hostname names the node.
     """
-    merged: JsonObject = dict(_HOST_DEFAULTS.get(os.uname().nodename.split(".")[0], {}))
+    merged: JsonObject = dict(HOST_DEFAULTS.get(os.uname().nodename.split(".")[0], {}))
     merged.update(_read_json(path) or {})
     node = merged.get("node")
     if not isinstance(node, str) or not node:

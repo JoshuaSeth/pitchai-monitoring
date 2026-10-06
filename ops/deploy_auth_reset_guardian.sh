@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly EXPECTED_HOST="pitchai-dev"
+# Master answers to its old and its new hostname (server rename 2026-10).
+readonly EXPECTED_HOSTS="pitchai-dev or pitchai-agent-engine-master"
 readonly INSTALL_BASE="/opt/pitchai-auth-reset-guardian"
 readonly RELEASES_DIR="${INSTALL_BASE}/releases"
 readonly CURRENT_LINK="${INSTALL_BASE}/current"
@@ -20,10 +21,13 @@ readonly LOCK_WAIT_SECONDS="300"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
 
-if [[ "$(hostname -s)" != "${EXPECTED_HOST}" ]]; then
-  printf 'Refusing deployment: expected host %s, found %s\n' "${EXPECTED_HOST}" "$(hostname -s)" >&2
-  exit 1
-fi
+case "$(hostname -s)" in
+  pitchai-dev | pitchai-agent-engine-master) ;;
+  *)
+    printf 'Refusing deployment: expected host %s, found %s\n' "${EXPECTED_HOSTS}" "$(hostname -s)" >&2
+    exit 1
+    ;;
+esac
 if [[ "${EUID}" -ne 0 ]]; then
   printf 'Run this deployment as root.\n' >&2
   exit 1

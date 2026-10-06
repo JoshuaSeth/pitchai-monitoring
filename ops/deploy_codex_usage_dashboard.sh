@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly EXPECTED_HOST="pitchai-dev"
+# Master answers to its old and its new hostname (server rename 2026-10).
+readonly EXPECTED_HOSTS="pitchai-dev or pitchai-agent-engine-master"
 readonly CONTAINER="codex-usage-dashboard"
 readonly BROKER_CONTAINER="auth-token-server"
 readonly BROKER_ENV="/etc/auth-token-server/auth-token-server.env"
@@ -22,10 +23,13 @@ readonly REPO_ROOT
 mobile_enrollment_enabled="${AUTH_USAGE_MOBILE_APP_ATTEST_ENROLLMENT_ENABLED:-0}"
 subscriptions_source="${CODEX_SUBSCRIPTIONS_SOURCE:-/srv/codex-usage-dashboard-src/codex-subscriptions.json}"
 
-if [[ "$(hostname -s)" != "${EXPECTED_HOST}" ]]; then
-  printf 'Refusing deployment: expected host %s, found %s\n' "${EXPECTED_HOST}" "$(hostname -s)" >&2
-  exit 1
-fi
+case "$(hostname -s)" in
+  pitchai-dev | pitchai-agent-engine-master) ;;
+  *)
+    printf 'Refusing deployment: expected host %s, found %s\n' "${EXPECTED_HOSTS}" "$(hostname -s)" >&2
+    exit 1
+    ;;
+esac
 if [[ "${EUID}" -ne 0 ]]; then
   printf 'Run this deployment as root.\n' >&2
   exit 1
