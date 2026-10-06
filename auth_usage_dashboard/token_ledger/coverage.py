@@ -6,6 +6,8 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, cast
 
+from .labels import NODE_LABELS
+
 if TYPE_CHECKING:
     import sqlite3
     from collections.abc import Iterator
@@ -35,7 +37,7 @@ def node_coverage(connection: sqlite3.Connection, expected: tuple[str, ...], now
         sources.append(
             {
                 "name": node,
-                "label": node,
+                "label": NODE_LABELS.get(node, node),
                 "last_ingest_at": iso_utc(last_ingest) if last_ingest is not None else None,
                 "last_collect_at": iso_utc(last_collect) if last_collect is not None else None,
                 "backlog_bytes": backlog,

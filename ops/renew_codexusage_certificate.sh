@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly EXPECTED_HOST="pitchai-dev"
+# Master answers to its old and its new hostname (server rename 2026-10).
+readonly EXPECTED_HOSTS="pitchai-dev or pitchai-agent-engine-master"
 readonly CERT_NAME="codexusage.pitchai.net"
 readonly CERTBOT_IMAGE="certbot/certbot@sha256:6bb19cff0b3972a69855686e0ccbd20b98dbfae2aa43845a5df48947ba1401b4"
 readonly CERT_FILE="/etc/letsencrypt/live/${CERT_NAME}/cert.pem"
 
-if [[ "$(hostname -s)" != "${EXPECTED_HOST}" ]]; then
-  printf 'Refusing renewal: expected host %s, found %s\n' "${EXPECTED_HOST}" "$(hostname -s)" >&2
-  exit 1
-fi
+case "$(hostname -s)" in
+  pitchai-dev | pitchai-agent-engine-master) ;;
+  *)
+    printf 'Refusing renewal: expected host %s, found %s\n' "${EXPECTED_HOSTS}" "$(hostname -s)" >&2
+    exit 1
+    ;;
+esac
 
 if [[ "${EUID}" -ne 0 ]]; then
   printf 'Run certificate renewal as root.\n' >&2
