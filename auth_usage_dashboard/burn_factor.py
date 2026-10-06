@@ -58,17 +58,20 @@ def _pool(accounts: list[JsonObject], basis: str, ends: dict[str, datetime], now
 
 
 def _burn(
-    accounts: list[JsonObject],
+    inputs: _Inputs,
     samples: list[JsonObject],
     pair: WindowPair,
     *,
     now: datetime,
     basis: str,
 ) -> JsonObject:
-    starts_at = now - timedelta(seconds=pair.rolling_seconds)
+    accounts = inputs.accounts
+    # A pool whose readings refresh coarsely (Claude: about hourly) measures over at least its minimum window.
+    measured_seconds = max(pair.rolling_seconds, inputs.minimum_burn_seconds)
+    starts_at = now - timedelta(seconds=measured_seconds)
     totals = measure_burn_samples(accounts, samples, starts_at=starts_at, ends_at=now, window_key=basis)
     if totals.covered_seconds > 0:
-        coverage = min(100.0, totals.covered_seconds / pair.rolling_seconds * 100.0)
+        coverage = min(100.0, totals.covered_seconds / measured_seconds * 100.0)
         covered = len(totals.capacity_labels)
         confidence = (
             "high"
@@ -84,6 +87,7 @@ def _burn(
             "coverage_percent": round(coverage, 1),
             "confidence": confidence,
             "source": "native_broker_samples",
+            "measured_over_seconds": measured_seconds,
         }
     estimate = capacity_burn_window(accounts, samples=[], now=now, window_hours=1, window_key=basis)
     rate = number_value(estimate.get("capacity_points_per_hour")) or 0.0
@@ -104,14 +108,18 @@ class _Inputs:
     eligible: list[JsonObject]
     basis: str | None
     label: str | None
+    minimum_burn_seconds: int
 
 
 def _inputs(snapshot: JsonObject) -> _Inputs:
-    basis_object = optional_object(optional_object(snapshot.get("summary")).get("capacity_basis"))
+    summary = optional_object(snapshot.get("summary"))
+    basis_object = optional_object(summary.get("capacity_basis"))
     raw_accounts = snapshot.get("accounts")
     accounts = [optional_object(item) for item in raw_accounts] if isinstance(raw_accounts, list) else []
     eligible = [account for account in accounts if eligible_account(account)]
-    return _Inputs(accounts, eligible, text_value(basis_object.get("key")), text_value(basis_object.get("label")))
+    minimum = int(number_value(summary.get("minimum_burn_window_seconds")) or 0)
+    basis_key, basis_label = text_value(basis_object.get("key")), text_value(basis_object.get("label"))
+    return _Inputs(accounts, eligible, basis_key, basis_label, minimum)
 
 
 def _unknown_results(pairs: list[WindowPair], reason: str) -> list[JsonValue]:
@@ -142,7 +150,7 @@ def _pair_results(
     counts = _counts(inputs, pool)
     output: list[JsonValue] = []
     for pair in pairs:
-        burn = _burn(inputs.accounts, samples, pair, now=moment, basis=basis)
+        burn = _burn(inputs, samples, pair, now=moment, basis=basis)
         rate = number_value(burn.get("points_per_hour")) or 0.0
         horizon_hours = pair.horizon_seconds / _SECONDS_PER_HOUR
         capacity = simulate(pool.windows, start=moment, rate=rate, horizon_hours=horizon_hours)
