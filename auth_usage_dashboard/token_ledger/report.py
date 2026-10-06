@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, NamedTuple, cast
 
 from .coverage import iso_utc, node_coverage
 from .fleet_store import connect_fleet
-from .labels import PROVIDER_LABELS, model_label, project_label
+from .labels import PROVIDER_LABELS, canonical_model, canonical_provider, model_label, project_label
 from .model_palette import OTHER_COLOR, PROVIDER_COLORS, model_shade
 
 if TYPE_CHECKING:
@@ -158,7 +158,10 @@ def _fold(series: dict[str, _Series], count: int) -> list[JsonValue]:
 
 
 def _layer_keys(row: _CubeRow) -> dict[str, _SeriesKey]:
-    _, provider, model, project, title = row[:5]
+    _, stored_provider, stored_model, project, title = row[:5]
+    # Rows keep the exporter's raw keys; the layers merge router and free-tier aliases.
+    model = canonical_model(stored_model)
+    provider = canonical_provider(model, stored_provider)
     provider_name = PROVIDER_LABELS.get(provider, provider)
     shade = model_shade(model, provider)
     model_detail = provider_name if shade.intelligence is None else f"{provider_name} · AA {shade.intelligence:g}"
