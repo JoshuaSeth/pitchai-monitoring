@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 DATA_DIR = Path("/dashboard-data")
 WEEK_SECONDS = 7 * 86_400
 QUOTA_FRESH_SECONDS = 900.0
+# Claude's /usage readout is cached for about an hour, so its readings change roughly hourly; shorter
+# rolling windows would measure either nothing or one whole hour's jump.
+CLAUDE_MINIMUM_BURN_WINDOW_SECONDS = 3 * 3_600
 FULL_PERCENT = 100.0
 WEEKLY_BASIS: JsonObject = {"key": "weekly", "label": "Weekly"}
 POOL_LABELS: JsonObject = {
@@ -131,4 +134,6 @@ def pool_inputs(
         accounts = opencode_accounts(snapshot, now=current)
         samples = read_samples(data_dir / "opencode-usage-samples.json")
     summary: JsonObject = {"capacity_basis": WEEKLY_BASIS if accounts else {"key": None, "label": None}}
+    if pool == "anthropic":
+        summary["minimum_burn_window_seconds"] = CLAUDE_MINIMUM_BURN_WINDOW_SECONDS
     return {"summary": summary, "accounts": accounts}, samples

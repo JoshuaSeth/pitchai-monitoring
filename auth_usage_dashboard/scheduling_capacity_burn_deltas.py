@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
-from .history import isoformat, parse_datetime
+from .history import parse_datetime
 from .timeseries_types import (
     nonnegative_integer,
     number_value,
@@ -18,8 +18,12 @@ if TYPE_CHECKING:
     from .timeseries_types import JsonObject
 
 type AccountDelta = tuple[float | None, int | None]
-type SampleWindow = tuple[float, str]
+type SampleWindow = tuple[float, datetime]
 type SampleTimes = tuple[datetime, datetime]
+
+# Readings that quote resets to the minute (Claude's "/usage" text) wobble by a minute or two between
+# readings of one window; a real reset moves the reset time by hours or days.
+RESET_JITTER = timedelta(minutes=10)
 
 
 def eligible_account(account: JsonObject) -> bool:
@@ -96,7 +100,8 @@ def _capacity_delta(
         return None
     previous_used, previous_reset = previous_window
     current_used, current_reset = current_window
-    if previous_reset == current_reset and current_used >= previous_used:
+    same_window = abs(current_reset - previous_reset) <= RESET_JITTER
+    if same_window and current_used >= previous_used:
         return current_used - previous_used
     return None
 
@@ -127,7 +132,7 @@ def _sample_window(
     used = number_value(account.get(f"{prefix}_used_percent"))
     reset_at = parse_datetime(text_value(account.get(f"{prefix}_reset_at")))
     if used is not None and reset_at is not None:
-        return used, isoformat(reset_at)
+        return used, reset_at
     if key != "weekly":
         return None
     legacy_used = number_value(account.get("five_used_percent"))
@@ -137,5 +142,5 @@ def _sample_window(
         and legacy_reset is not None
         and legacy_reset - at > timedelta(hours=6)
     ):
-        return legacy_used, isoformat(legacy_reset)
+        return legacy_used, legacy_reset
     return None
