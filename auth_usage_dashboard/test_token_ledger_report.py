@@ -138,3 +138,38 @@ def test_model_layer_groups_provider_families_with_darker_heavier_models(tmp_pat
     check_equal(colors["claude-opus"], "#d03a2f", "Opus is red")
     check_equal(colors["mystery-model"], "#5b8fd9", "an unlisted model takes its family middle shade")
     check_equal(models[0]["detail"], "OpenAI · AA 53", "the AA index is shown with the provider")
+
+
+def test_longcat_through_opencode_is_its_own_provider_and_model(tmp_path: Path) -> None:
+    """Prove router-prefixed and free-tier LongCat rows merge into one Meituan LongCat model."""
+    usage = (
+        ("opencode-go/longcat-2.5-preview-free", "other", 400),
+        ("longcat-2.5-preview", "other", 100),
+        ("mimo-v2.6-pro", "xiaomi", 50),
+    )
+    rows: list[JsonObject] = [
+        {
+            "hour_epoch": BASE,
+            "project": "p",
+            "provider": provider,
+            "model": model,
+            "route": "opencode_go",
+            "input": total,
+            "cached_input": 0,
+            "output": 0,
+            "total": total,
+        }
+        for model, provider, total in usage
+    ]
+    report = build_report(_fleet_with(tmp_path, rows), "24h", expected_nodes=("master",), now=BASE + 60)
+    dimensions = require_object(report["dimensions"], description="dimensions")
+    models = _objects(require_object(dimensions["model"], description="model layer")["series"], "models")
+    providers = _objects(require_object(dimensions["provider"], description="provider layer")["series"], "providers")
+    longcat = next(item for item in models if item["key"] == "longcat-2.5-preview")
+    check_equal(_point_total(longcat), 500, "both aliases are summed into one model")
+    check_equal(len(models), 2, "no separate prefixed or free-tier LongCat series")
+    meituan = next(item for item in providers if item["key"] == "meituan")
+    check_equal((meituan["label"], _point_total(meituan)), ("Meituan LongCat", 500), "LongCat is its own provider")
+    check_equal(longcat["color"], "#6b8a12", "LongCat takes the chartreuse family shade")
+    provider_keys = [item["key"] for item in providers]
+    check("other" not in provider_keys, "nothing is left under Other provider")
