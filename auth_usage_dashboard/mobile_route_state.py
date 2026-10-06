@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from .burn_factor_routes import BurnFactorCache
     from .mobile_challenges import ChallengeStore
     from .mobile_registry import AppAttestRegistry
@@ -43,6 +45,7 @@ class MobileRouteDependencies:
     service: CapacityServiceSurface
     configuration: MobileRouteConfiguration
     burn_factors: BurnFactorCache | None = None
+    opencode_accounts: Path | None = None
 
 
 class MobileStateContainer(Protocol):
