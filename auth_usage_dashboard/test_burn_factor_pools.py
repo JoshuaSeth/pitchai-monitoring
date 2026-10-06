@@ -126,3 +126,47 @@ def test_pool_inputs_feed_the_burn_factor_end_to_end(tmp_path: Path) -> None:
     capacity = optional_object(result.get("capacity"))
     check_equal(capacity.get("left_now_points"), 50.0, "half the weekly window is left")
     check_equal(optional_object(payload.get("basis")).get("key"), "weekly", "weekly basis")
+
+
+def _hourly_claude_samples() -> list[JsonObject]:
+    """Return four hours of 5-minute samples: +2 weekly points each hour, reset quoted as 03:59 or 04:00.
+
+    Returns:
+        The samples in time order.
+    """
+    samples: list[JsonObject] = []
+    for step in range(49):
+        hour = step // 12
+        reset = "2026-10-10T03:59:00Z" if hour % 2 == 0 else "2026-10-10T04:00:00Z"
+        at = datetime.fromtimestamp(EPOCH - 4 * 3_600 + step * 300, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        reading: JsonObject = {"weekly_used_percent": 40.0 + 2 * hour, "weekly_reset_at": reset}
+        samples.append({"at": at, "accounts": {"a@pitchai.net": reading}})
+    return samples
+
+
+def test_claude_burn_survives_reset_jitter_and_hourly_readings(tmp_path: Path) -> None:
+    """Prove minute-level reset wobble is one window and short views are measured over three hours."""
+    snapshot: JsonObject = {
+        "accounts": [
+            {
+                "email": "a@pitchai.net",
+                "signed_in": True,
+                "quota_observed_at": EPOCH,
+                "windows": {"seven_day": {"used_percent": 48.0, "resets_at": EPOCH + 3 * 86_400}},
+            },
+        ],
+    }
+    (tmp_path / "claude-accounts.json").write_text(json.dumps(snapshot), encoding="utf-8")
+    (tmp_path / "claude-usage-samples.json").write_text(
+        json.dumps({"schema_version": 1, "samples": _hourly_claude_samples()}),
+        encoding="utf-8",
+    )
+    snap, samples = pool_inputs("anthropic", data_dir=tmp_path, now=EPOCH)
+    payload = build_burn_factors(snap, samples, parse_pairs("30m:24h,24h:6d"), now=NOW)
+    results = payload.get("results")
+    short = require_object(results[0] if isinstance(results, list) else None, description="short view")
+    long = require_object(results[1] if isinstance(results, list) else None, description="long view")
+    short_burn, long_burn = optional_object(short.get("burn")), optional_object(long.get("burn"))
+    check_close(short_burn.get("points_per_hour"), 2.0, "three hourly jumps over the three-hour minimum")
+    check_equal(short_burn.get("measured_over_seconds"), 3 * 3_600, "30 minutes is measured over 3 hours")
+    check_close(long_burn.get("measured_points"), 8.0, "every jump counts although the reset wobbles")
