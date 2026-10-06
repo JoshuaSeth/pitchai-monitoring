@@ -161,6 +161,14 @@
     return card;
   }
 
+  // Pools with coarse readings (Claude refreshes about hourly) measure short windows over a longer span.
+  function measuredOver(burn, result) {
+    const measured = finite(burn.measured_over_seconds);
+    const rolling = finite(result.rolling_seconds);
+    if (measured === null || rolling === null || measured <= rolling) return "";
+    return ` · measured over ${Math.round(measured / 3600)} h (readings refresh hourly)`;
+  }
+
   function renderCard(result, index) {
     const status = STATUS[result.status] ? result.status : "unknown";
     const card = element("article", `burn-card burn-${status}`);
@@ -184,7 +192,7 @@
     const burn = result.burn || {};
     const capacity = result.capacity || {};
     const breakdown = breakdownList([
-      ["Burn", `${finite(burn.points_per_hour) === null ? "-" : finite(burn.points_per_hour).toFixed(1)} pts/h · ${burn.source === "native_broker_samples" ? `${burn.coverage_percent}% sampled · ${burn.confidence}` : "current-window estimate"}`],
+      ["Burn", `${finite(burn.points_per_hour) === null ? "-" : finite(burn.points_per_hour).toFixed(1)} pts/h · ${burn.source === "native_broker_samples" ? `${burn.coverage_percent}% sampled · ${burn.confidence}${measuredOver(burn, result)}` : "current-window estimate"}`],
       ["Needed", points(result.demand_points)],
       ["Available", `${points(capacity.effective_points)} = ${points(capacity.left_now_points)} left + ${capacity.reset_count || 0} reset${capacity.reset_count === 1 ? "" : "s"} (${points(capacity.reset_points)}) − ${points(capacity.expiring_points)} expiring at resets − ${points(capacity.subscription_expiring_points)} lost to ${capacity.subscription_end_count || 0} subscription end${capacity.subscription_end_count === 1 ? "" : "s"}${finite(capacity.blocked_points) ? ` − ${points(capacity.blocked_points)} blocked` : ""}`],
     ]);
