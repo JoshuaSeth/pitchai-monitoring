@@ -5,7 +5,8 @@
 #
 # Run from any operator machine that can ssh (as root) to both the worker and
 # master. The worker gets the stdlib-only package, its own ed25519 key, the
-# pinned master host key, and the systemd timer. Master gets one
+# pinned master host key, its node config (existing keys such as explicit
+# ``cells`` are kept), and the systemd timer. Master gets one
 # authorized_keys line that is `restrict`ed to a forced ingest command for
 # exactly this node, so the key can do nothing else.
 set -Eeuo pipefail
@@ -35,11 +36,28 @@ install -d -m 700 /var/lib/pitchai-token-ledger /etc/pitchai-token-ledger
 [ -f ${KEY} ] || ssh-keygen -q -t ed25519 -N '' -C 'token-ledger-${node}' -f ${KEY}
 printf '%s %s\n' '${master_host}' '${master_key}' > ${KNOWN_HOSTS}
 chmod 600 ${KNOWN_HOSTS}
-cat > /etc/pitchai-token-ledger/config.json <<JSON
-{\"node\": \"${node}\", \"delivery\": \"ssh\", \"master\": \"${master}\"}
-JSON
 cat ${KEY}.pub")"
 [[ "${public_key}" == ssh-ed25519\ * ]] || { printf 'Could not read the node public key.\n' >&2; exit 1; }
+
+# Set node, delivery and master, but keep every other key of an existing config
+# (explicit cells, extra homes, budgets), so the node never depends on its hostname.
+ssh "${target}" python3 - /etc/pitchai-token-ledger/config.json "${node}" "${master}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path, node, master = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+try:
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+except (OSError, ValueError):
+    loaded = {}
+config = loaded if isinstance(loaded, dict) else {}
+config.update({"node": node, "delivery": "ssh", "master": master})
+staged = path.with_name(path.name + ".new")
+staged.write_text(json.dumps(config) + "\n", encoding="utf-8")
+staged.chmod(0o644)
+staged.replace(path)
+PY
 key_body="$(awk '{print $2}' <<<"${public_key}")"
 
 forced="restrict,command=\"PYTHONPATH=${LIB} PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 -m token_ledger ingest --node ${node}\" ssh-ed25519 ${key_body} token-ledger-${node}"

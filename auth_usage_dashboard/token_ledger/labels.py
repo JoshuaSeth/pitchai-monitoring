@@ -1,5 +1,5 @@
 # Copyright (c) 2026 PitchAI. All rights reserved.
-"""Stable provider, model, route and project labels for ledger rows."""
+"""Stable provider, model, route, project and node labels for ledger rows."""
 
 from __future__ import annotations
 
@@ -27,6 +27,13 @@ ROUTE_LABELS = {
     "opencode_go": "OpenCode Go owner",
     "zcode_account": "ZCode account owner",
     "voice": "ORI voice",
+}
+# Display names of the ledger nodes. The keys stay the stored node labels (rows,
+# API names, forced ingest commands); only what the dashboard shows changes.
+NODE_LABELS = {
+    "master": "pitchai-agent-engine-master",
+    "jeff-dev": "pitchai-agent-engine-node-1",
+    "fsn1": "pitchai-agent-engine-node-2",
 }
 _MODEL_PREFIXES = (
     ("gpt", "openai"),
