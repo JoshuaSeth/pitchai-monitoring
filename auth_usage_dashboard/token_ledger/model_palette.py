@@ -2,7 +2,7 @@
 """Provider color families and per-model shades for the token ledger.
 
 Each provider owns one color family (OpenAI cyan to navy, Anthropic yellow to
-brown, DeepSeek violet, Zhipu green, Xiaomi magenta). Within a family a darker
+brown, DeepSeek violet, Zhipu green, Xiaomi magenta, Meituan LongCat chartreuse). Within a family a darker
 shade means a heavier, more capable model, ordered by the Artificial Analysis
 Intelligence Index (artificialanalysis.ai/leaderboards/models, max effort, read
 2026-10-05). Shades step at least 0.06 in OKLCH lightness so neighbours stay
@@ -22,6 +22,7 @@ PROVIDER_COLORS = {
     "xiaomi": "#d1508f",
     "google": "#0f8b8d",
     "moonshot": "#5b6b7a",
+    "meituan": "#8aa61c",
 }
 # Unlisted models of a known provider take the family's neutral middle shade.
 FAMILY_FALLBACK = {
@@ -32,6 +33,7 @@ FAMILY_FALLBACK = {
     "xiaomi": "#d1508f",
     "google": "#0f8b8d",
     "moonshot": "#5b6b7a",
+    "meituan": "#8aa61c",
 }
 
 
@@ -60,6 +62,8 @@ MODEL_SHADES = {
     "glm-5.3-flash": ModelShade("#3dbb76", 42.0, 42.0),
     "mimo-v2.6-pro": ModelShade("#a02368", 46.0, 46.0),
     "mimo-v2.6-flash": ModelShade("#e86aa8", None, 35.0),
+    # AA has no LongCat 2.5 listing yet (checked 2026-10-06; LongCat 2.0 scores 19), so no index is shown.
+    "longcat-2.5-preview": ModelShade("#6b8a12", None, 45.0),
 }
 
 

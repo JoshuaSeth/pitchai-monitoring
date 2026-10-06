@@ -16,6 +16,7 @@ PROVIDER_LABELS = {
     "xiaomi": "Xiaomi MiMo",
     "google": "Google",
     "moonshot": "Moonshot",
+    "meituan": "Meituan LongCat",
     "other": "Other provider",
 }
 ROUTE_LABELS = {
@@ -39,7 +40,12 @@ _MODEL_PREFIXES = (
     ("mimo", "xiaomi"),
     ("gemini", "google"),
     ("kimi", "moonshot"),
+    ("longcat", "meituan"),
 )
+# Router prefixes and free-tier suffixes name a route or price, not a different model:
+# ``opencode-go/longcat-2.5-preview-free`` is LongCat 2.5 Preview served free through OpenCode.
+_ROUTER_PREFIXES = ("opencode-go/", "opencode/", "zen/")
+_FREE_TIER_SUFFIX = "-free"
 _ROUTE_PROVIDERS = {
     "codex_account": "openai",
     "astra": "openai",
@@ -67,16 +73,29 @@ def normalize_model(raw: str | None) -> str:
     return f"claude-{model}" if model in CLAUDE_ALIASES else model
 
 
+def canonical_model(model: str) -> str:
+    """Return the model key without a router prefix or a free-tier suffix."""
+    for prefix in _ROUTER_PREFIXES:
+        model = model.removeprefix(prefix)
+    return model.removesuffix(_FREE_TIER_SUFFIX) or UNKNOWN_MODEL
+
+
+def canonical_provider(model: str, fallback: str) -> str:
+    """Return the vendor named by a canonical model key, or ``fallback`` when none matches."""
+    for prefix, provider in _MODEL_PREFIXES:
+        if model.startswith(prefix):
+            return provider
+    return fallback
+
+
 def provider_for(model: str, route: str) -> str:
     """Derive the vendor from the model id, falling back to the runtime route.
 
     Returns:
         Provider key.
     """
-    for prefix, provider in _MODEL_PREFIXES:
-        if model.startswith(prefix):
-            return provider
-    return _ROUTE_PROVIDERS.get(route, "other")
+    fallback = _ROUTE_PROVIDERS.get(route, "other")
+    return canonical_provider(canonical_model(model), fallback)
 
 
 def model_label(model: str) -> str:
