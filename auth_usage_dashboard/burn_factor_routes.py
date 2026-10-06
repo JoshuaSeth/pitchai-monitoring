@@ -47,8 +47,9 @@ class BurnFactorCache:
     entries: dict[str, tuple[float, JsonObject]] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
-    async def payload(self, pool: str, pairs: list[WindowPair], key: str) -> JsonObject:
+    async def payload(self, pool: str, pairs: list[WindowPair]) -> JsonObject:
         """Return a cached or freshly computed burn-factor payload for one account pool."""
+        key = pool + "|" + ",".join(f"{pair.rolling_seconds}:{pair.horizon_seconds}" for pair in pairs)
         async with self.lock:
             cached = self.entries.get(key)
             if cached is not None and time.monotonic() - cached[0] < self.ttl:
@@ -100,7 +101,6 @@ def register_burn_factor_route(
             parsed = parse_pairs(pairs)
         if failure.message is not None:
             raise HTTPException(status_code=_HTTP_BAD_REQUEST, detail=failure.message)
-        key = pool + "|" + ",".join(f"{pair.rolling_seconds}:{pair.horizon_seconds}" for pair in parsed)
-        return json_response_factory(await cache.payload(pool, parsed, key))
+        return json_response_factory(await cache.payload(pool, parsed))
 
     application.add_api_route("/api/v1/burn-factor", burn_factor, methods=["GET"], response_model=None)

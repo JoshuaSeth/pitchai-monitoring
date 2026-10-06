@@ -226,6 +226,8 @@ class MobileRouteCase(unittest.TestCase):
             900,
             "refresh interval",
         )
+        burn = require_object(payload.get("burn_factors"), description="burn factors")
+        check_equal(len(require_array(burn.get("pools"), "burn-factor pools")), 4, "every pool is projected")
         encoded = json.dumps(payload)
         for forbidden in _FORBIDDEN_RESPONSE_TEXT:
             check(forbidden not in encoded, f"capacity response excludes {forbidden}")
