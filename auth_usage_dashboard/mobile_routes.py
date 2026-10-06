@@ -25,11 +25,16 @@ from .mobile_web_runtime import (
     ROUTER_FACTORY,
     runtime_route,
 )
+from .opencode_projection import load_opencode
 
 if TYPE_CHECKING:
     from .mobile_challenges import ChallengePurpose
     from .mobile_registry import AppAttestRegistry
-    from .mobile_route_payloads import AssertionPayload, AttestationPayload, ChallengePayload
+    from .mobile_route_payloads import (
+        AssertionPayload,
+        AttestationPayload,
+        ChallengePayload,
+    )
     from .mobile_route_state import MobileRouteDependencies, MobileStateContainer
     from .mobile_web_runtime import WebRequest, WebResponse
     from .timeseries_types import JsonObject
@@ -225,6 +230,8 @@ async def _mobile_snapshot(snapshot: JsonObject, dependencies: MobileRouteDepend
     )
     if dependencies.burn_factors is not None:
         projection["burn_factors"] = await build_mobile_burn_factors(dependencies.burn_factors)
+    if dependencies.opencode_accounts is not None:
+        projection["opencode_subscriptions"] = await asyncio.to_thread(load_opencode, dependencies.opencode_accounts)
     return projection
 
 

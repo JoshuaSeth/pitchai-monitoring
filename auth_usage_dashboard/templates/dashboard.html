@@ -92,6 +92,18 @@
         <p class="claude-note" id="claude-note">Account status refreshes every minute. 5-hour and weekly limits come from the official Claude usage readout every 5 minutes; no prompts are sent.</p>
       </section>
 
+      <section class="opencode-section" aria-labelledby="opencode-title" data-testid="opencode-accounts">
+        <div class="section-heading">
+          <div>
+            <div class="section-label">OpenCode Go · MiMo / GLM bridge pool</div>
+            <h2 id="opencode-title">OpenCode subscriptions</h2>
+          </div>
+          <div class="section-aside" id="opencode-freshness">Reading subscription status</div>
+        </div>
+        <div class="claude-grid opencode-grid" id="opencode-accounts" aria-live="polite"></div>
+        <p class="claude-note" id="opencode-note">Limits come from OpenCode's plan usage readout every 5 minutes. OpenCode Go has no banked resets.</p>
+      </section>
+
       <section class="luna-section" aria-labelledby="luna-title" data-testid="luna-reserve">
         <div class="section-heading">
           <div>
@@ -299,5 +311,6 @@
     <script src="/static/dashboard.js" defer></script>
     <script src="/static/token_usage.js" defer></script>
     <script src="/static/burn_factor.js" defer></script>
+    <script src="/static/opencode_accounts.js" defer></script>
   </body>
 </html>
