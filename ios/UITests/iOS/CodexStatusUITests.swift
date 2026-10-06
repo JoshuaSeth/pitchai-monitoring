@@ -61,6 +61,32 @@ internal final class CodexStatusUITests: XCTestCase {
         add(attachment)
     }
 
+    internal func testFixtureOpenCodeSubscriptionsRender() {
+        let app: XCUIApplication = .init()
+        app.launchArguments = ["-CodexStatusFixture"]
+        app.launch()
+
+        guard app.staticTexts["Burn factor"].waitForExistence(timeout: 30) else {
+            XCTFail("The dashboard did not render from the sanitized fixture.")
+            return
+        }
+        let sales: XCUIElement = app.staticTexts["sales@pitchai.net"]
+        var swipes: Int = 0
+        while !sales.isHittable, swipes < 10 {
+            app.swipeUp()
+            swipes += 1
+        }
+        guard sales.isHittable else {
+            XCTFail("The OpenCode subscription cards were not reachable by scrolling.")
+            return
+        }
+
+        let attachment: XCTAttachment = .init(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "fixture-iphone-opencode-subscriptions"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func safeFailure(in app: XCUIApplication) -> String {
         if app.staticTexts["The capacity service returned an invalid response."].exists {
             return "invalid_server_response"

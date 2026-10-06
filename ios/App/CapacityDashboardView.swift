@@ -37,6 +37,9 @@ internal struct CapacityDashboardView: View {
                 if let burnFactors = snapshot.burnFactors {
                     BurnFactorSection(burnFactors: burnFactors)
                 }
+                if let openCode = snapshot.openCodeSubscriptions {
+                    OpenCodeSection(subscriptions: openCode)
+                }
                 accountsSection(for: snapshot)
                 PrivacyFooter()
             } else {
