@@ -11,6 +11,7 @@ from cryptography.exceptions import InvalidSignature
 
 from .mobile_auth_codec import CBOR_DECODE_ERROR
 from .mobile_auth_errors import MobileAuthError, MobileAuthFailure
+from .mobile_burn_factors import build_mobile_burn_factors
 from .mobile_challenges import canonical_client_data
 from .mobile_projection import build_mobile_snapshot
 from .mobile_route_errors import (
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
     from .mobile_challenges import ChallengePurpose
     from .mobile_registry import AppAttestRegistry
     from .mobile_route_payloads import AssertionPayload, AttestationPayload, ChallengePayload
-    from .mobile_route_state import MobileRouteConfiguration, MobileRouteDependencies, MobileStateContainer
+    from .mobile_route_state import MobileRouteDependencies, MobileStateContainer
     from .mobile_web_runtime import WebRequest, WebResponse
     from .timeseries_types import JsonObject
 
@@ -158,7 +159,7 @@ async def _mobile_capacity(
 ) -> WebResponse:
     await _verify_mobile_assertion(payload, purpose="capacity", dependencies=dependencies)
     snapshot = await dependencies.service.snapshot()
-    return JSON_RESPONSE_FACTORY(_mobile_snapshot(snapshot, dependencies.configuration))
+    return JSON_RESPONSE_FACTORY(await _mobile_snapshot(snapshot, dependencies))
 
 
 async def _mobile_refresh(
@@ -175,7 +176,7 @@ async def _mobile_refresh(
             "probe_started": bool(result.get("probe_started")),
             "reason": result.get("reason"),
             "retry_after_seconds": result.get("retry_after_seconds"),
-            "snapshot": _mobile_snapshot(snapshot, dependencies.configuration),
+            "snapshot": await _mobile_snapshot(snapshot, dependencies),
         },
     )
 
@@ -215,12 +216,16 @@ def _dependencies(request: WebRequest) -> MobileRouteDependencies:
     return state.mobile_route_dependencies
 
 
-def _mobile_snapshot(snapshot: JsonObject, configuration: MobileRouteConfiguration) -> JsonObject:
-    return build_mobile_snapshot(
+async def _mobile_snapshot(snapshot: JsonObject, dependencies: MobileRouteDependencies) -> JsonObject:
+    configuration = dependencies.configuration
+    projection = build_mobile_snapshot(
         snapshot,
         manual_refresh_min_interval_seconds=configuration.manual_refresh_min_interval_seconds,
         recommended_background_refresh_seconds=configuration.background_refresh_seconds,
     )
+    if dependencies.burn_factors is not None:
+        projection["burn_factors"] = await build_mobile_burn_factors(dependencies.burn_factors)
+    return projection
 
 
 async def _request_object(request: WebRequest) -> JsonObject:

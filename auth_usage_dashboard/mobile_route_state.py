@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from .burn_factor_routes import BurnFactorCache
     from .mobile_challenges import ChallengeStore
     from .mobile_registry import AppAttestRegistry
     from .timeseries_types import JsonObject
@@ -41,6 +42,7 @@ class MobileRouteDependencies:
     challenges: ChallengeStore
     service: CapacityServiceSurface
     configuration: MobileRouteConfiguration
+    burn_factors: BurnFactorCache | None = None
 
 
 class MobileStateContainer(Protocol):
