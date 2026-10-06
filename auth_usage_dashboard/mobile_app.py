@@ -6,6 +6,8 @@ from __future__ import annotations
 from importlib import import_module
 from typing import TYPE_CHECKING, Protocol, cast
 
+from .burn_factor_routes import BurnFactorCache
+from .history import UsageSampleStore
 from .mobile_challenges import ChallengeStore
 from .mobile_registry import AppAttestRegistry, RegistryConfiguration
 from .mobile_route_state import MobileRouteConfiguration, MobileRouteDependencies
@@ -110,6 +112,16 @@ def _install_native_routes(
         max_pending=mobile_settings.challenges.max_pending,
     )
     service_surface = cast("CapacityServiceSurface", cast("object", service))
+    history = dashboard_settings.history_file
+    samples = (
+        UsageSampleStore(
+            history,
+            retention_days=dashboard_settings.history_retention_days,
+            sample_interval_seconds=dashboard_settings.history_sample_interval_seconds,
+        )
+        if history is not None
+        else None
+    )
     dependencies = MobileRouteDependencies(
         registry=registry,
         challenges=challenges,
@@ -119,6 +131,7 @@ def _install_native_routes(
             manual_refresh_min_interval_seconds=dashboard_settings.manual_probe_min_interval_seconds,
             background_refresh_seconds=mobile_settings.background_refresh_seconds,
         ),
+        burn_factors=BurnFactorCache(service_surface.snapshot, samples.read if samples is not None else None),
     )
     state = cast("MobileStateContainer", cast("object", application.state))
     state.mobile_route_dependencies = dependencies
