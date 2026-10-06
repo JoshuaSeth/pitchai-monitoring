@@ -40,6 +40,28 @@ internal final class CodexStatusWatchUITests: XCTestCase {
         attachScreenshot(named: "watch-dashboard-live")
     }
 
+    internal func testBurnFactorsRender() {
+        let app: XCUIApplication = .init()
+        app.launch()
+
+        let heading: XCUIElement = app.staticTexts["Burn factor · 24h → 6d"]
+        guard heading.waitForExistence(timeout: 45) else {
+            XCTFail("The Watch did not render burn factors from a live snapshot.")
+            return
+        }
+        let pools: [String] = ["Codex", "Claude", "OpenCode", "DeepSeek"]
+        let missing: [String] = pools.filter { pool in
+            !app.staticTexts[pool].exists
+        }
+        guard missing.isEmpty else {
+            XCTFail("Burn-factor rows are missing for \(missing).")
+            return
+        }
+        attachScreenshot(named: "watch-burn-factors-top")
+        XCUIDevice.shared.rotateDigitalCrown(delta: 0.3)
+        attachScreenshot(named: "watch-burn-factors-rows")
+    }
+
     private func exposesBrokerState(in app: XCUIApplication) -> Bool {
         let labels: [String] = ["Verified", "Attention", "No capacity", "Stale"]
         return labels.contains { label in

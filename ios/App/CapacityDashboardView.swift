@@ -34,6 +34,9 @@ internal struct CapacityDashboardView: View {
                 refreshNotice
                 availabilityNotice(for: snapshot)
                 WarningStrip(warnings: snapshot.warnings)
+                if let burnFactors = snapshot.burnFactors {
+                    BurnFactorSection(burnFactors: burnFactors)
+                }
                 accountsSection(for: snapshot)
                 PrivacyFooter()
             } else {

@@ -26,13 +26,40 @@ WidgetKit/Smart Stack surfaces.
 ## Targets
 
 - `CodexStatus`: iOS dashboard and battery-safe background refresh.
-- `CodexStatusWidget`: Home Screen, Lock Screen, and StandBy widgets.
+- `CodexStatusWidget`: Home Screen, Lock Screen, and StandBy widgets, plus the
+  Lock Screen burn-factor widgets.
 - `CodexStatusWatch`: paired Watch dashboard with iPhone-mediated refresh.
-- `CodexStatusWatchWidget`: accessory families for the watchOS Smart Stack.
+- `CodexStatusWatchWidget`: accessory families for the watchOS Smart Stack and
+  the burn-factor watch-face complications.
 - `CodexStatusTests`: native contract, nil-capacity, and cache-privacy tests.
 - `CodexStatusUITests`: a sanitized iPhone live-status render gate.
 - `CodexStatusWatchUITests`: launch proof plus a strict live-snapshot assertion
   for simulator and physical-Watch evidence.
+
+## Burn factors
+
+The native snapshot carries `burn_factors`: every pool (Codex, Claude,
+OpenCode, DeepSeek) with the dashboard's two default views. A view pairs the
+burn over a rolling window with a future horizon: 30 minutes of burn against
+the next 24 hours, and 24 hours of burn against the next 6 days. The factor is
+burn × horizon ÷ capacity. Below 1 is margin; 1 or more runs short. DeepSeek
+is a prepaid balance in dollars.
+
+- iPhone: a card per pool with both views, runway and need-versus-capacity.
+- Watch app: a row per pool, showing the 24 h → 6 days factor and gauge.
+- Complications, for any watch face that accepts them, all for the
+  24 h → 6 days view:
+  - Codex, Claude and OpenCode each come as a round gauge (0–2, needle at
+    the factor, factor in the centre), a corner arc, a rectangular card and
+    inline text.
+  - "Burn factors" is one rectangular card with all three pools.
+  - The same pool widgets, except the corner, exist for the iPhone Lock Screen.
+- WidgetKit traps on interpolated `LocalizedStringKey` display names. Build
+  widget names as plain `String` values.
+
+The Watch app is embedded in `CodexStatus.app/Watch/` (`productsDirectory` +
+`$(CONTENTS_FOLDER_PATH)/Watch`). Embedding it under `PlugIns/` hides the
+companion from iOS, and WatchConnectivity then never delivers a snapshot.
 
 ## App icon
 

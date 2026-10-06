@@ -67,6 +67,43 @@ internal struct CodexStatusTests {
         #expect(try JSONDecoder().decode(CodexSnapshot.self, from: protectedData) == fixture)
     }
 
+    @Test
+    internal func burnFactorsDecodeFromTheServerContract() throws {
+        let json: String = """
+            {"schema_version": 1, "generated_at": "2026-10-05T16:00:00Z", "pools": [{
+                "key": "deepseek", "label": "DeepSeek", "unit": "usd", "balance_usd": 0.0,
+                "results": [{
+                    "rolling": "24h", "horizon": "6d", "factor": null, "status": "short",
+                    "lower_bound": false, "runway_hours": null, "burn_per_hour": 1.14,
+                    "demand": 164.63, "available": 0.0, "margin": -164.63, "blocked_until": null
+                }]
+            }]}
+            """
+        let decoded: BurnFactorSet = try JSONDecoder().decode(
+            BurnFactorSet.self,
+            from: Data(json.utf8)
+        )
+        let pool: BurnFactorPool = try #require(decoded.pool("deepseek"))
+
+        #expect(pool.isMoney)
+        #expect(pool.shortTerm == nil)
+        #expect(BurnFactorFormatting.factor(pool.longTerm) == "∞")
+        #expect(BurnFactorFormatting.gaugeValue(pool.longTerm) == BurnFactorFormatting.gaugeMaximum)
+    }
+
+    @Test
+    internal func snapshotsFromOlderServersDecodeWithoutBurnFactors() throws {
+        var legacy: CodexSnapshot = .fixture
+        legacy.burnFactors = nil
+        let data: Data = try JSONEncoder().encode(legacy)
+        let text: String = .init(decoding: data, as: UTF8.self)
+        let decoded: CodexSnapshot = try JSONDecoder().decode(CodexSnapshot.self, from: data)
+
+        #expect(!text.contains("burn_factors"))
+        #expect(decoded.burnFactors == nil)
+        #expect(CodexSnapshot.fixture.burnFactors?.pool("openai")?.label == "Codex")
+    }
+
     #if DEBUG
         @Test
         internal func diagnosticSnapshotArgumentDecodesNativeSnapshot() throws {

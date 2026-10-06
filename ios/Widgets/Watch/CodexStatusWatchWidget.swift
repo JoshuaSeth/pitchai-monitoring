@@ -165,7 +165,6 @@ internal struct WatchCapacityWidgetView: View {
     }
 }
 
-@main
 internal struct CodexStatusWatchWidget: Widget {
     internal let kind: String = "CodexStatusWatchWidget"
 

@@ -75,6 +75,7 @@ internal struct WatchCapacityView: View {
     @ViewBuilder
     private func snapshotContent(for snapshot: CodexSnapshot) -> some View {
         WatchHero(snapshot: snapshot)
+        burnFactorRows(for: snapshot)
         recoveryLabel(for: snapshot)
         attentionCards(for: snapshot)
         messageLabel
@@ -82,6 +83,20 @@ internal struct WatchCapacityView: View {
             WatchAccountRow(account: account)
         }
         refreshButton
+    }
+
+    @ViewBuilder
+    private func burnFactorRows(for snapshot: CodexSnapshot) -> some View {
+        if let burnFactors = snapshot.burnFactors {
+            Text("Burn factor · 24h → 6d")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, Style.labelPadding)
+            ForEach(burnFactors.pools) { pool in
+                WatchBurnFactorRow(pool: pool)
+            }
+        }
     }
 
     private func recoveryLabel(for snapshot: CodexSnapshot) -> some View {
