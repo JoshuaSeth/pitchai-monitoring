@@ -1855,3 +1855,7 @@ footer {
 .burn-pool-title h3 { margin: 0; font-size: 15px; }
 .burn-pool-title span, .burn-pool-basis { color: var(--muted); font-size: 12px; }
 .burn-pool-basis { font-family: var(--mono); font-size: 11px; }
+
+.opencode-section { margin: 28px 0; }
+.opencode-windows { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 560px) { .opencode-windows { grid-template-columns: 1fr; gap: 14px; } }

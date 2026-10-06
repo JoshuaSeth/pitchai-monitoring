@@ -11,6 +11,7 @@ from .burn_factor_routes import BurnFactorCache, register_burn_factor_route
 from .claude_routes import register_claude_route
 from .history import UsageSampleStore
 from .luna_reserve_gateway import read_luna_reserve_snapshot
+from .opencode_routes import register_opencode_route
 from .scheduling_capacity import build_scheduling_capacity_snapshot
 from .scheduling_web_runtime import (
     HTTPException,
@@ -148,6 +149,12 @@ def create_scheduling_app(
         require_operator=_require_operator,
     )
     register_claude_route(
+        application,
+        settings=selected_settings,
+        identity_default=identity_header,
+        require_operator=_require_operator,
+    )
+    register_opencode_route(
         application,
         settings=selected_settings,
         identity_default=identity_header,

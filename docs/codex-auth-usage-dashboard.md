@@ -492,6 +492,16 @@ The section shows one row per account pool. Each pool runs the same burn-factor 
 - Pools with only a few samples so far use the current-window estimate for burn until history accumulates.
 - API: `GET /api/v1/burn-factor?pool=openai|anthropic|opencode|deepseek&pairs=…`. The default pool is `openai`; an unknown pool returns HTTP 400.
 
+### OpenCode subscriptions
+
+The "OpenCode subscriptions" section lists every OpenCode Go subscription in the isolated bridge's rotating keyring (master), like the Codex account list.
+
+- **Windows:** each card shows the rolling 5-hour, weekly and monthly windows: percent left, percent used and the reset time. The windows come from `opencode-accounts.json`, which `opencode-usage-export.timer` writes every 5 minutes.
+- **Status:** `ready`; `limited` (a window is used up or reported `rate-limited`); `cooldown` (the bridge holds the key back after a 429); `auth_invalid` (the bridge got 401/403); or `unavailable` (the readout failed).
+- **Usable again:** for a subscription that isn't ready, the latest blocking reset or the end of its cooldown.
+- **Renewal and banked resets:** monthly windows renew per subscription, staggered by purchase time. OpenCode Go has no banked resets.
+- **API:** `GET /api/v1/opencode-accounts`. The same projection (`opencode_projection.py`) is in the native snapshot as `opencode_subscriptions` for the Codex Status iPhone app.
+
 ### DeepSeek API (prepaid balance)
 
 The fourth row is the prepaid DeepSeek API account. All DeepSeek owners (master, jeff-dev, fsn1) share one key.

@@ -310,7 +310,7 @@ check_dashboard() {
               "http://127.0.0.1:${port}/api/v1/claude-accounts")" && \
               python3 -c 'import json,sys; p=json.load(sys.stdin); expected=json.load(open(sys.argv[1])); assert p["schema_version"] == 1 and not p["stale"] and not p["error"]; assert len(p["accounts"]) == len(expected["accounts"])' \
               "${DASHBOARD_DATA}/claude-accounts.json" <<<"${claude_output}"; then
-              if check_token_usage "${port}" && check_burn_factor "${port}" && check_subscriptions "${port}" "${name}"; then
+              if check_token_usage "${port}" && check_burn_factor "${port}" && check_opencode_accounts "${port}" && check_subscriptions "${port}" "${name}"; then
                 return 0
               fi
             fi
@@ -322,6 +322,14 @@ check_dashboard() {
     sleep 0.25
   done
   return 1
+}
+
+check_opencode_accounts() {
+  local port="$1"
+  curl --fail --silent --max-time 10 \
+    --header 'X-PitchAI-Email: deployment-check@pitchai.net' \
+    "http://127.0.0.1:${port}/api/v1/opencode-accounts" \
+    | python3 -c 'import json,sys; p=json.load(sys.stdin); assert p["schema_version"] == 1 and isinstance(p["accounts"], list)'
 }
 
 check_burn_factor() {

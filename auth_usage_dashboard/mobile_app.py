@@ -13,6 +13,7 @@ from .mobile_registry import AppAttestRegistry, RegistryConfiguration
 from .mobile_route_state import MobileRouteConfiguration, MobileRouteDependencies
 from .mobile_routes import router
 from .mobile_settings import MobileSettings
+from .opencode_routes import opencode_accounts_file
 from .service import CapacityService
 from .settings import DashboardSettings
 from .source import BrokerStateSource
@@ -132,6 +133,7 @@ def _install_native_routes(
             background_refresh_seconds=mobile_settings.background_refresh_seconds,
         ),
         burn_factors=BurnFactorCache(service_surface.snapshot, samples.read if samples is not None else None),
+        opencode_accounts=opencode_accounts_file(),
     )
     state = cast("MobileStateContainer", cast("object", application.state))
     state.mobile_route_dependencies = dependencies
