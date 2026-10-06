@@ -3,6 +3,7 @@ import Foundation
 internal struct CodexSnapshot: Codable, Equatable, Sendable {
     internal enum CodingKeys: String, CodingKey {
         case accounts = "accounts"
+        case burnFactors = "burn_factors"
         case generatedAt = "generated_at"
         case refreshPolicy = "refresh_policy"
         case schemaVersion = "schema_version"
@@ -20,6 +21,8 @@ internal struct CodexSnapshot: Codable, Equatable, Sendable {
     internal let warnings: [CapacityWarning]
     internal let accounts: [CodexAccount]
     internal let refreshPolicy: RefreshPolicy
+    /// Every pool's burn factors; absent from servers older than the burn-factor release.
+    internal var burnFactors: BurnFactorSet?
 
     internal var generatedDate: Date? {
         ServerDateParser.parse(generatedAt)

@@ -34,6 +34,33 @@ internal final class CodexStatusUITests: XCTestCase {
         add(attachment)
     }
 
+    internal func testFixtureBurnFactorsRender() {
+        let app: XCUIApplication = .init()
+        app.launchArguments = ["-CodexStatusFixture"]
+        app.launch()
+
+        let heading: XCUIElement = app.staticTexts["Burn factor"]
+        guard heading.waitForExistence(timeout: 30) else {
+            XCTFail("The burn-factor section did not render from the sanitized fixture.")
+            return
+        }
+        let deepSeek: XCUIElement = app.staticTexts["DeepSeek"]
+        var swipes: Int = 0
+        while !deepSeek.isHittable, swipes < 6 {
+            app.swipeUp()
+            swipes += 1
+        }
+        guard deepSeek.isHittable else {
+            XCTFail("The DeepSeek burn-factor card was not reachable by scrolling.")
+            return
+        }
+
+        let attachment: XCTAttachment = .init(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "fixture-iphone-burn-factors"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func safeFailure(in app: XCUIApplication) -> String {
         if app.staticTexts["The capacity service returned an invalid response."].exists {
             return "invalid_server_response"

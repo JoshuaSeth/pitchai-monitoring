@@ -262,7 +262,6 @@ internal struct CodexStatusWidgetView: View {
     }
 }
 
-@main
 internal struct CodexStatusWidget: Widget {
     internal let kind: String = "CodexStatusWidget"
 

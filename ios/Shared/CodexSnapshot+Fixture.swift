@@ -250,7 +250,8 @@ extension CodexSnapshot {
             refreshPolicy: RefreshPolicy(
                 manualMinIntervalSeconds: manualMinIntervalSeconds,
                 recommendedBackgroundIntervalSeconds: recommendedBackgroundIntervalSeconds
-            )
+            ),
+            burnFactors: .fixture
         )
     }
 }

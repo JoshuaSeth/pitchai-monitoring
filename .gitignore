@@ -39,6 +39,7 @@ node_modules/
 *.swp
 *.swo
 ios/CodexStatus.xcodeproj/
+ios/Generated/
 ios/DerivedData/
 ios/build/
 
