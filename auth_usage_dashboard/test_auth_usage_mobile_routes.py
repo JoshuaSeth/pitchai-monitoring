@@ -228,6 +228,8 @@ class MobileRouteCase(unittest.TestCase):
         )
         burn = require_object(payload.get("burn_factors"), description="burn factors")
         check_equal(len(require_array(burn.get("pools"), "burn-factor pools")), 4, "every pool is projected")
+        opencode = require_object(payload.get("opencode_subscriptions"), description="opencode subscriptions")
+        check_equal(opencode.get("schema_version"), 1, "the OpenCode subscription list is projected")
         encoded = json.dumps(payload)
         for forbidden in _FORBIDDEN_RESPONSE_TEXT:
             check(forbidden not in encoded, f"capacity response excludes {forbidden}")
