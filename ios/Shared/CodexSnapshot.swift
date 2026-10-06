@@ -5,6 +5,7 @@ internal struct CodexSnapshot: Codable, Equatable, Sendable {
         case accounts = "accounts"
         case burnFactors = "burn_factors"
         case generatedAt = "generated_at"
+        case openCodeSubscriptions = "opencode_subscriptions"
         case refreshPolicy = "refresh_policy"
         case schemaVersion = "schema_version"
         case source = "source"
@@ -23,6 +24,8 @@ internal struct CodexSnapshot: Codable, Equatable, Sendable {
     internal let refreshPolicy: RefreshPolicy
     /// Every pool's burn factors; absent from servers older than the burn-factor release.
     internal var burnFactors: BurnFactorSet?
+    /// The OpenCode Go subscription list; absent from servers older than its release.
+    internal var openCodeSubscriptions: OpenCodeSubscriptionSet?
 
     internal var generatedDate: Date? {
         ServerDateParser.parse(generatedAt)

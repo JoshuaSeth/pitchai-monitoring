@@ -251,7 +251,8 @@ extension CodexSnapshot {
                 manualMinIntervalSeconds: manualMinIntervalSeconds,
                 recommendedBackgroundIntervalSeconds: recommendedBackgroundIntervalSeconds
             ),
-            burnFactors: .fixture
+            burnFactors: .fixture,
+            openCodeSubscriptions: .fixture
         )
     }
 }
