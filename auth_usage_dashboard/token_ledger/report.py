@@ -110,7 +110,9 @@ def _add(series: _Series, index: int, values: tuple[int, ...]) -> None:
 
 
 def _other(rest: list[_Series], count: int) -> _Series:
-    other = _Series(OTHER_KEY, f"Other ({len(rest)})", _blank(count), {})
+    # Name the folded series (largest first) so a small model such as LongCat stays findable.
+    members = ", ".join(item.label for item in rest)
+    other = _Series(OTHER_KEY, f"Other ({len(rest)})", _blank(count), {}, members)
     for item in rest:
         for metric, points in item.points.items():
             pairs = zip(other.points[metric], points, strict=True)
