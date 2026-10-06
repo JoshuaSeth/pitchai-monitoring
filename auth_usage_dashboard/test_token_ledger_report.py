@@ -77,6 +77,7 @@ def test_report_layers_fold_into_top_series_and_other(tmp_path: Path) -> None:
     check_equal([item["key"] for item in projects][:2], ["p8", "p7"], "the largest projects lead the layer")
     check(projects[-1]["other"] is True, "the tail is folded into Other")
     check_equal(projects[-1]["label"], "Other (2)", "Other counts the folded series")
+    check_equal(projects[-1]["detail"], "p1, p0", "Other names its folded series, largest first")
     provider_series = _objects(require_object(dimensions["provider"], description="provider layer")["series"], "p")
     providers = {str(item["key"]): item for item in provider_series}
     check_equal(providers["openai"]["color"], "#2a6fdb", "OpenAI keeps its family color")
