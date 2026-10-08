@@ -38,6 +38,7 @@ _REQUIRED_NAMES = {
     "DFT formative assessment",
     "DePlanBook CMS",
     "DePlanBook Play",
+    "Montrachet private data website",
     "Orthoparse",
     "PitchAI public website",
     "QuickChat Waddinxveen demo",
