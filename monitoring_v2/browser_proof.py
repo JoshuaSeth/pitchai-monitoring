@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 _EXPECTED_INCIDENT_COUNT = 2
 _EXPECTED_TAB_COUNT = 6
-_EXPECTED_HOTPATH_LANES = 17
+_EXPECTED_HOTPATH_LANES = 18
 _MOBILE_WIDTH = 390
 _MOBILE_HEIGHT = 844
 _STABLE_CHROME_PATHS = (
@@ -162,6 +162,7 @@ async def _verify_tabs(page: Page) -> None:
             pytest.fail(f"{tab_name} tab rendered no retained-data state")
     await page.locator("#tab-hotpaths").click()
     hotpath_rows = page.locator("[data-testid=dash-hotpaths] .hotpath-row")
+    await _require_text(page.locator("#panel-hotpaths"), "Montrachet private data website")
     if await hotpath_rows.count() != _EXPECTED_HOTPATH_LANES:
         pytest.fail(
             "client hotpath tab did not render the canonical "
