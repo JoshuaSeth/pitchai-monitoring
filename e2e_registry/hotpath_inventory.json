@@ -1,11 +1,21 @@
 {
   "schema_version": 1,
- "reviewed_at": "2026-09-30",
+ "reviewed_at": "2026-10-08",
   "canonical_tag": "hot-path-testing",
   "expected_interval_seconds": 172800,
   "stale_after_seconds": 259200,
   "incident_cooldown_seconds": 1800,
   "lanes": [
+    {
+      "lane_id": "montrachet-website-hotpath",
+      "agent_global_id": "964ce401-6111-5f0c-9158-043a1ef3efe5",
+      "project": "montrachet",
+      "name": "Montrachet private data website",
+      "target_surface": "montrachet.pitchai.net application loopback; synthetic CSV import and agent read",
+      "primary_domain": "montrachet.pitchai.net",
+      "reminder_id": "systemd:montrachet-website-hotpath.timer",
+      "expected_behavior": "The existing isolated synthetic user creates a source, uploads and maps one CSV row, previews and applies it, browses the accepted record, verifies an explicitly granted agent read and deactivates the source. This loopback check does not prove public SSO or real Google import."
+    },
     {
       "lane_id": "dft-frontend-hotpath-playwright-b2-revival",
       "agent_global_id": "b4de3908-5a16-56eb-90cd-bfdc9903702c",
