@@ -1,0 +1,323 @@
+{
+  "alertable_down": [
+    "dispatch.pitchai.net",
+    "codexusage.pitchai.net",
+    "aigenda-rules.demos.pitchai.net",
+    "jeff-codex-voice.pitchai.net",
+    "jeff-dispatch.pitchai.net",
+    "jeff-work-inbox.pitchai.net"
+  ],
+  "all_runtime_alert_policies_equal_config": true,
+  "billable_model_requests": false,
+  "browser": {
+    "rows": [
+      {
+        "domain": "presentaties.pitchai.net",
+        "row_text": "HEALTHY\n\t\npresentaties.pitchai.net\nPitchAI private presentations \u00b7 production\n\t\u2014\t151ms\t\u2014\t100.00%\t151ms"
+      },
+      {
+        "domain": "presentations.pitchai.net",
+        "row_text": "HEALTHY\nDASHBOARD ONLY\n\t\npresentations.pitchai.net\nPitchAI presentations English alias \u00b7 production\n\t\u2014\t138ms\t\u2014\t100.00%\t138ms"
+      },
+      {
+        "domain": "presentations.135-181-182-48.sslip.io",
+        "row_text": "HEALTHY\nDASHBOARD ONLY\n\t\npresentations.135-181-182-48.sslip.io\nPitchAI presentations bootstrap alias \u00b7 production\n\t\u2014\t407ms\t\u2014\t100.00%\t407ms"
+      },
+      {
+        "domain": "montrachet.pitchai.net",
+        "row_text": "HEALTHY\n\t\nmontrachet.pitchai.net\nMontrachet private data application \u00b7 production\n\t\u2014\t598ms\t\u2014\t100.00%\t598ms"
+      },
+      {
+        "domain": "dft-openai-info.openai.azure.com",
+        "row_text": "HEALTHY\n\t\ndft-openai-info.openai.azure.com\nDFT Azure OpenAI provider \u00b7 production\n\t\u2014\t284ms\t\u2014\t100.00%\t4.0s"
+      }
+    ],
+    "status": 200,
+    "transport": "Owner SSH tunnel to deployed dashboard; administrative verification, not external SSO acceptance"
+  },
+  "changed_targets": [
+    {
+      "alert_policy": {
+        "reason": "Configured by live DFT production web and worker containers. Root availability only, without authenticated or billable model calls.",
+        "telegram": "critical",
+        "telegram_enabled": true
+      },
+      "domain": "dft-openai-info.openai.azure.com",
+      "last": {
+        "ok": true,
+        "primary_ts": 1791549048.3618498,
+        "status_code": 200
+      }
+    },
+    {
+      "alert_policy": {
+        "reason": null,
+        "telegram": "critical",
+        "telegram_enabled": true
+      },
+      "domain": "presentaties.pitchai.net",
+      "last": {
+        "ok": true,
+        "primary_ts": 1791549048.3618498,
+        "status_code": 401
+      }
+    },
+    {
+      "alert_policy": {
+        "reason": "Same protected presentation service as presentaties.pitchai.net; retain alias visibility without duplicate incidents.",
+        "telegram": "dashboard-only",
+        "telegram_enabled": false
+      },
+      "domain": "presentations.pitchai.net",
+      "last": {
+        "ok": true,
+        "primary_ts": 1791549048.3618498,
+        "status_code": 401
+      }
+    },
+    {
+      "alert_policy": {
+        "reason": "Bootstrap alias of presentaties.pitchai.net, sharing the same protected service; no duplicate paging.",
+        "telegram": "dashboard-only",
+        "telegram_enabled": false
+      },
+      "domain": "presentations.135-181-182-48.sslip.io",
+      "last": {
+        "ok": true,
+        "primary_ts": 1791549048.3618498,
+        "status_code": 401
+      }
+    },
+    {
+      "alert_policy": {
+        "reason": "Active private data application, distinct from the public demo. Check only the anonymous SSO boundary, without client-data access.",
+        "telegram": "critical",
+        "telegram_enabled": true
+      },
+      "domain": "montrachet.pitchai.net",
+      "last": {
+        "ok": true,
+        "primary_ts": 1791549048.3618498,
+        "status_code": 200
+      }
+    }
+  ],
+  "containers": [
+    {
+      "image": "service-monitoring:2827221199180667ed2f460130e1230a295fa968",
+      "name": "service-monitoring",
+      "started_at": "2026-10-09T12:30:45.432596005Z",
+      "status": "running"
+    },
+    {
+      "image": "service-monitoring:2827221199180667ed2f460130e1230a295fa968",
+      "name": "e2e-registry",
+      "started_at": "2026-10-09T12:30:45.00396664Z",
+      "status": "running"
+    },
+    {
+      "image": "service-monitoring:2827221199180667ed2f460130e1230a295fa968",
+      "name": "e2e-runner",
+      "started_at": "2026-10-09T12:30:45.225791817Z",
+      "status": "running"
+    },
+    {
+      "image": "service-monitoring:2827221199180667ed2f460130e1230a295fa968",
+      "name": "database-dependency-monitor",
+      "started_at": "2026-10-09T12:30:46.01758645Z",
+      "status": "running"
+    },
+    {
+      "image": "service-monitoring:2827221199180667ed2f460130e1230a295fa968",
+      "name": "domain-incident-events",
+      "started_at": "2026-10-09T12:30:45.677907862Z",
+      "status": "running"
+    },
+    {
+      "image": "service-monitoring:2827221199180667ed2f460130e1230a295fa968",
+      "name": "scheduler-placement-observer",
+      "started_at": "2026-10-09T12:30:45.877073773Z",
+      "status": "running"
+    }
+  ],
+  "counts": {
+    "alert_disabled": 20,
+    "normal_alerts": 77
+  },
+  "dns_changes": false,
+  "existing_inventory_preservation": {
+    "all_existing_check_contracts_unchanged": true,
+    "baseline_domains": 93,
+    "changed_existing": [
+      "dft-openai-info.openai.azure.com"
+    ],
+    "retirements_unchanged": true,
+    "unchanged_entries": 92
+  },
+  "failed_pre_rollout_release": {
+    "reason": "Nginx production scope mismatch and stale reviewed deployment count; fixed without weakening checks.",
+    "run_id": 37928900325
+  },
+  "freshness": {
+    "age_seconds": 25.378845691680908,
+    "interval_seconds": 60,
+    "source": "state.updated_at",
+    "stale_after_seconds": 180,
+    "state_updated_at_ts": 1791549167.00335,
+    "status": "fresh"
+  },
+  "inventory": {
+    "active_domains": 97,
+    "groups": 16,
+    "orphaned_state_domains": 1,
+    "retired_domains": 42,
+    "reviewed_at": "2026-10-09",
+    "version": 1
+  },
+  "limitations": [
+    "One CLMBS logistics detail unavailable; projection included.",
+    "Main/Monitoring saved-history indexes report 99.8%/99.6% byte coverage.",
+    "Anonymous auth-boundary and Azure root checks do not prove protected application transactions or model inference."
+  ],
+  "logs": {
+    "all_log_quiet_warning_error_count": 0,
+    "critical_warning_domains": [
+      "aigenda-rules.demos.pitchai.net",
+      "jeff-codex-voice.pitchai.net",
+      "jeff-dispatch.pitchai.net",
+      "jeff-work-inbox.pitchai.net",
+      "monitoring.pitchai.net"
+    ],
+    "quiet_domains": [
+      "aetherreel.37.27.67.52.nip.io",
+      "agentcloud.pitchai.net",
+      "apol.135-181-182-48.sslip.io",
+      "apologetica-react-staging.web.app",
+      "cursussen.pitchai.net",
+      "dashboards.pitchai.net",
+      "gzb-review.135-181-182-48.sslip.io",
+      "jeff-codex-voice.94.130.17.246.nip.io",
+      "jeff-work-inbox.94.130.17.246.nip.io",
+      "jeugdtandarts-review.135-181-182-48.sslip.io",
+      "presentations.135-181-182-48.sslip.io",
+      "presentations.pitchai.net",
+      "registry.pitchai.net",
+      "route-anchor.135-181-182-48.sslip.io",
+      "screens.135-181-182-48.sslip.io",
+      "support.pitchai.net",
+      "theplanbook.pitchai.net",
+      "us-central1-cis-db-e9fd3.cloudfunctions.net",
+      "webcodex.135-181-182-48.sslip.io",
+      "wrist-vault.135-181-182-48.sslip.io"
+    ],
+    "quiet_result_levels": {
+      "INFO": 33
+    },
+    "quiet_warning_count": 0,
+    "since": "2026-10-09T12:30:45.432596005Z"
+  },
+  "nginx": {
+    "existing_warning_count": 67,
+    "installed_map_matches_release": true,
+    "nginx_test_passed": true,
+    "sha256": "9ec3d85a1a01c37680beaeeb0159f9f46a7bd4442e9e31fb4b87669d3d873b85",
+    "warning_classes": [
+      "duplicate-server-name",
+      "protocol-options"
+    ]
+  },
+  "quiet_actionable_incidents": [],
+  "quiet_domains": [
+    "apologetica-react-staging.web.app",
+    "presentations.pitchai.net",
+    "presentations.135-181-182-48.sslip.io",
+    "gzb-review.135-181-182-48.sslip.io",
+    "jeugdtandarts-review.135-181-182-48.sslip.io",
+    "aetherreel.37.27.67.52.nip.io",
+    "screens.135-181-182-48.sslip.io",
+    "wrist-vault.135-181-182-48.sslip.io",
+    "webcodex.135-181-182-48.sslip.io",
+    "apol.135-181-182-48.sslip.io",
+    "route-anchor.135-181-182-48.sslip.io",
+    "registry.pitchai.net",
+    "agentcloud.pitchai.net",
+    "dashboards.pitchai.net",
+    "support.pitchai.net",
+    "theplanbook.pitchai.net",
+    "us-central1-cis-db-e9fd3.cloudfunctions.net",
+    "cursussen.pitchai.net",
+    "jeff-codex-voice.94.130.17.246.nip.io",
+    "jeff-work-inbox.94.130.17.246.nip.io"
+  ],
+  "runtime_domain_set_equals_config": true,
+  "runtime_gates": {
+    "database_snapshot": {
+      "collector": "healthy",
+      "dependencies": 45,
+      "generated_at_ts": 1791549056.529253,
+      "version": 2
+    },
+    "domain_incident_producer": {
+      "bootstrapped": true,
+      "last_error": null,
+      "open_incident_count": 0,
+      "pending_count": 0,
+      "status": "healthy",
+      "updated_at_ts": 1791523653.4620035
+    },
+    "scheduler_observer": {
+      "bootstrapped": true,
+      "last_error": null,
+      "last_successful_directory_poll_at_ts": 1791549166.5328677,
+      "last_successful_poll_at_ts": 1791549166.5328677
+    }
+  },
+  "service_health_after": {
+    "alertable_down": 6,
+    "disabled": 0,
+    "down": 13,
+    "enabled": 97,
+    "expected_down": 7,
+    "healthy": 84,
+    "unknown": 0
+  },
+  "service_health_before": {
+    "alertable_down": 6,
+    "disabled": 0,
+    "down": 13,
+    "enabled": 93,
+    "expected_down": 7,
+    "healthy": 80,
+    "unknown": 0
+  },
+  "source_prs": {
+    "main": [
+      246,
+      248
+    ],
+    "staging": [
+      245,
+      247
+    ]
+  },
+  "source_release": {
+    "conclusion": "success",
+    "databaseId": 37930191272,
+    "headSha": "2827221199180667ed2f460130e1230a295fa968",
+    "status": "completed",
+    "url": "https://github.com/JoshuaSeth/pitchai-monitoring/actions/runs/37930191272"
+  },
+  "tests": {
+    "full_image_passed": 419,
+    "full_image_skipped": 4,
+    "local_full_suite": "Stopped after platform-specific posix_spawn setsid unavailability; full containerized suite passed.",
+    "optional_zero_debt_gate": "Existing failures; not repository required.",
+    "release_regressions_passed": 7,
+    "required_checks": [
+      "Enforcement integrity",
+      "Quality ratchet"
+    ],
+    "staging_inventory_contracts_passed": 25
+  },
+  "verified_at": "2026-10-09T12:35:15.689109+00:00"
+}
