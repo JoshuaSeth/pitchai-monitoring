@@ -824,8 +824,9 @@ external_e2e:
 # monitor, DNS/TLS checks, dashboard service health, incidents, and E2E views.
 inventory:
   version: 1
-  reviewed_at: "2026-10-03"
+  reviewed_at: "2026-10-09"
   authoritative_sources:
+    - "Nine-day agent, project, code and ingress sweep through 2026-10-09; Namecheap snapshot 20261009T113642Z-23cb70179ac7-f5b6e0a7 (82 records)"
     - "domain-engineer-namecheap-dns live authoritative sweep (2026-08-27)"
     - "Namecheap snapshot 20260827T211642Z-d7dbcb644f38-af90dc1d: 72 records, no wildcard, SHA-256 d7dbcb644f38136f38e276c4b19e75c0f742f0637578bac28d67c17fb9186102"
     - "pitchai-main, pitchai-dev, file-storage, Jeff, AX41 and DFT ingress/runtime"
@@ -973,14 +974,14 @@ check_profiles:
 
 domains:
   - domain: dft-openai-info.openai.azure.com
-    label: "DFT historical Azure OpenAI resource"
+    label: "DFT Azure OpenAI provider"
     group: dft
-    environment: staging
+    environment: production
     kind: infrastructure
-    sources: [dft-manager-resource-discovery-20261002, live-get-probe-20261003]
+    sources: [dft-eu-provider-allowlist-bb52dc836, live-production-container-endpoints-20261009, live-get-probe-20261009]
     alert_policy:
-      telegram: dashboard-only
-      reason: "Historical Azure resource under DFT migration review, not an approved production model route. Root availability only, with no authenticated or billable model calls."
+      telegram: critical
+      reason: "Configured by live DFT production web and worker containers. Root availability only, without authenticated or billable model calls."
     check:
       <<: *json_200
       url: https://dft-openai-info.openai.azure.com/
@@ -1018,6 +1019,57 @@ domains:
       expected_final_host_suffix: salesengine.demos.pitchai.net
       expected_title_contains: "Ember Duplex"
       required_text_all: ["Start call"]
+  # Credential-free access-denial checks only; never fetch a client deck.
+  - domain: presentaties.pitchai.net
+    label: "PitchAI private presentations"
+    group: operations
+    owner_project: pitchai_sales
+    environment: production
+    kind: application
+    sources: [sales-client-presentation-handoff-2026-10-08, namecheap-zone-2026-10-09, pitchai-dev-ingress, live-probe-2026-10-09]
+    alert_policy:
+      telegram: critical
+    check:
+      url: https://presentaties.pitchai.net/oudijk/
+      allowed_status_codes: [401]
+      browser_enabled: false
+      expected_final_host_suffix: presentaties.pitchai.net
+      expected_final_path: /oudijk/
+      required_text_all: ["401 Authorization Required"]
+  - domain: presentations.pitchai.net
+    label: "PitchAI presentations English alias"
+    group: operations
+    owner_project: pitchai_sales
+    environment: production
+    kind: alias
+    sources: [sales-client-presentation-handoff-2026-10-08, namecheap-zone-2026-10-09, pitchai-dev-ingress, live-probe-2026-10-09]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Same protected presentation service as presentaties.pitchai.net; retain alias visibility without duplicate incidents."
+    check:
+      url: https://presentations.pitchai.net/oudijk/
+      allowed_status_codes: [401]
+      browser_enabled: false
+      expected_final_host_suffix: presentations.pitchai.net
+      expected_final_path: /oudijk/
+      required_text_all: ["401 Authorization Required"]
+  - domain: presentations.135-181-182-48.sslip.io
+    label: "PitchAI presentations bootstrap alias"
+    group: operations
+    owner_project: pitchai_sales
+    environment: production
+    kind: alias
+    sources: [sales-client-presentation-handoff-2026-10-08, pitchai-dev-ingress, live-probe-2026-10-09]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Bootstrap alias of presentaties.pitchai.net, sharing the same protected service; no duplicate paging."
+    check:
+      url: https://presentations.135-181-182-48.sslip.io/oudijk/
+      allowed_status_codes: [401]
+      browser_enabled: false
+      expected_final_host_suffix: presentations.135-181-182-48.sslip.io
+      expected_final_path: /oudijk/
+      required_text_all: ["401 Authorization Required"]
   - domain: gzb-review.135-181-182-48.sslip.io
     label: "GZB private review"
     group: learning-demos
