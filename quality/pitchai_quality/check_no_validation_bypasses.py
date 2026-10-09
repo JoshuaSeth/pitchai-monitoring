@@ -10,6 +10,8 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
+from ruamel.yaml import YAML
+
 from pitchai_quality.source_files import NON_SOURCE_DIRECTORY_NAMES, REPOSITORY_ROOT, iter_python_files
 from pitchai_quality.strict_policy import (
     EXPECTED_MANIFESTED_PATHS,
@@ -203,6 +205,43 @@ def _inline_violations() -> list[Violation]:
     return violations
 
 
+def _workflow_toolchain_text(workflow_text: str) -> str:
+    """Keep executable settings while removing literal event path filters."""
+    parsed = cast("object", YAML(typ="safe").load(workflow_text))
+    if not isinstance(parsed, dict):
+        raise ValueError("workflow must be a mapping")
+    workflow = cast("dict[object, object]", parsed)
+    events = workflow.get("on")
+    if isinstance(events, dict):
+        event_map = dict(cast("dict[object, object]", events))
+        workflow["on"] = event_map
+        for event in ("push", "pull_request", "pull_request_target"):
+            settings = event_map.get(event)
+            if isinstance(settings, dict):
+                # Do not mutate an alias that might also feed an executable field.
+                event_settings = dict(cast("dict[object, object]", settings))
+                event_settings.pop("paths", None)
+                event_settings.pop("paths-ignore", None)
+                event_map[event] = event_settings
+    # Preserve shell newlines and tabs instead of JSON-escaping word boundaries.
+    text: list[str] = []
+    pending: list[object] = [workflow]
+    seen: set[int] = set()
+    while pending:
+        value = pending.pop()
+        if isinstance(value, str):
+            text.append(value)
+        elif isinstance(value, (dict, list)) and id(value) not in seen:
+            seen.add(id(value))
+            if isinstance(value, dict):
+                mapping = cast("dict[object, object]", value)
+                pending.extend(mapping.keys())
+                pending.extend(mapping.values())
+            else:
+                pending.extend(cast("list[object]", value))
+    return "\n".join(text)
+
+
 def _workflow_and_toolchain_violations() -> list[Violation]:
     violations: list[Violation] = []
     for relative in _CONFLICTING_ROOT_CONFIGS:
@@ -213,7 +252,7 @@ def _workflow_and_toolchain_violations() -> list[Violation]:
         if workflow.suffix not in {".yml", ".yaml"}:
             continue
         workflow_text = workflow.read_text(encoding="utf-8")
-        if workflow != _STRICT_WORKFLOW_PATH and _DIRECT_TOOLCHAIN.search(workflow_text):
+        if workflow != _STRICT_WORKFLOW_PATH and _DIRECT_TOOLCHAIN.search(_workflow_toolchain_text(workflow_text)):
             violations.append(Violation(workflow, 1, "alternate workflow quality-tool entrypoint is forbidden"))
         for line_number, line in enumerate(workflow_text.splitlines(), start=1):
             match = _ACTION_REFERENCE.match(line)
