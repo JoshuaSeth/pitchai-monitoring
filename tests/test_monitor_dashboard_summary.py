@@ -1,117 +1,43 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Typed assertions over the unchanged operator dashboard fixtures."""
+
 from __future__ import annotations
 
-from e2e_registry.monitor_dashboard import MonitorData, build_dashboard_summary
+from typing import TYPE_CHECKING, cast
+
+from domain_checks.dft_test_support import require
+from e2e_registry.monitor_dashboard import build_dashboard_summary
+
+from .monitor_dashboard_expected_down_fixture import make_expected_down_fixture
+from .monitor_dashboard_operator_fixture import make_operator_fixture
+from .monitor_dashboard_subcheck_fixture import make_subcheck_fixture
+
+if TYPE_CHECKING:
+    from e2e_registry.dashboard_records import Record
+_EXPECTED_OBSERVATIONS = 2
+_EXPECTED_AVAILABILITY_PERCENT = 50.0
 
 
 def test_operator_summary_reports_real_staleness_incidents_and_rolling_day() -> None:
-    now = 2_000_000_000.0
-    data = MonitorData(
-        state={
-            "updated_at": now - 400,
-            "history": {
-                "down.pitchai.net": [
-                    [now - 120, True, 100.0, 300.0, 200],
-                    [now - 60, False, 900.0, 1800.0, 503],
-                ]
-            },
-            "last_ok": {"down.pitchai.net": False},
-            "fail_streak": {"down.pitchai.net": 2},
-            "success_streak": {"down.pitchai.net": 0},
-            "host_health": {"last_ok": False, "fail_streak": 3, "success_streak": 0},
-            "events": [
-                {"ts": now - 90000, "kind": "domain_down", "domain": "old.pitchai.net"},
-                {"ts": now - 100, "kind": "domain_down", "domain": "down.pitchai.net"},
-                {"ts": now - 50, "kind": "proxy_recovered"},
-            ],
-        },
-        config={
+    """Preserve the original operator summary assertions."""
+    now = 2000000000.0
+    data, e2e = make_operator_fixture(now)
+    summary = build_dashboard_summary(data=data, now_ts=now, e2e_status_summary=e2e, e2e_dispatch_runs=[])
+    require(
+        condition=summary["freshness"]
+        == {
+            "status": "stale",
+            "state_updated_at_ts": now - 400,
+            "age_seconds": 400.0,
             "interval_seconds": 60,
-            "inventory": {
-                "version": 1,
-                "reviewed_at": "2026-08-24",
-                "authoritative_sources": ["test fixture"],
-            },
-            "domain_groups": {
-                "core": {
-                    "label": "PitchAI core",
-                    "description": "Primary platform routes",
-                    "order": 10,
-                }
-            },
-            "domains": [
-                {
-                    "domain": "down.pitchai.net",
-                    "label": "Down test route",
-                    "group": "core",
-                    "environment": "production",
-                    "kind": "application",
-                    "sources": ["test fixture"],
-                }
-            ],
-            "retired_domains": [],
+            "stale_after_seconds": 180,
+            "source": "state.updated_at",
         },
-        state_path="/monitor/state.json",
-        config_path="/monitor/config.yaml",
-        loaded_at_ts=now,
-        state_error=None,
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 1",
     )
-    e2e = {
-        "ok": True,
-        "total_tests": 2,
-        "failing_tests": 1,
-        "tests": [
-            {
-                "test_id": "passing",
-                "test_name": "Passing route",
-                "base_url": "https://passing.pitchai.net",
-                "enabled": 1,
-                "effective_ok": 1,
-                "last_status": "pass",
-                "last_finished_at_ts": now - 20,
-            },
-            {
-                "test_id": "failing",
-                "test_name": "Failing route",
-                "base_url": "https://failing.pitchai.net",
-                "enabled": 1,
-                "effective_ok": 0,
-                "fail_streak": 2,
-                "last_status": "fail",
-                "last_finished_at_ts": now - 10,
-            },
-        ],
-    }
-
-    summary = build_dashboard_summary(
-        data=data,
-        now_ts=now,
-        e2e_status_summary=e2e,
-        e2e_dispatch_runs=[],
-    )
-
-    assert summary["freshness"] == {
-        "status": "stale",
-        "state_updated_at_ts": now - 400,
-        "age_seconds": 400.0,
-        "interval_seconds": 60,
-        "stale_after_seconds": 180,
-        "source": "state.updated_at",
-    }
-    assert summary["service_health"] == {
-        "enabled": 1,
-        "healthy": 0,
-        "down": 1,
-        "alertable_down": 1,
-        "expected_down": 0,
-        "unknown": 0,
-        "disabled": 0,
-    }
-    assert summary["domain_groups"] == [
-        {
-            "id": "core",
-            "label": "PitchAI core",
-            "description": "Primary platform routes",
-            "order": 10,
+    require(
+        condition=cast("Record", summary["service_health"])
+        == {
             "enabled": 1,
             "healthy": 0,
             "down": 1,
@@ -119,203 +45,187 @@ def test_operator_summary_reports_real_staleness_incidents_and_rolling_day() -> 
             "expected_down": 0,
             "unknown": 0,
             "disabled": 0,
-            "total": 1,
-            "status": "attention",
-        }
-    ]
-    assert summary["inventory"] == {
-        "version": 1,
-        "reviewed_at": "2026-08-24",
-        "active_domains": 1,
-        "groups": 1,
-        "retired_domains": 0,
-        "orphaned_state_domains": 0,
-    }
-    assert summary["domains"][0]["group_label"] == "PitchAI core"
-    assert summary["incidents"][1]["group"] == "core"
-    assert summary["e2e"]["passing_tests"] == 1
-    assert summary["e2e"]["failing_tests"] == 1
-    assert summary["e2e"]["problems"][0]["test_id"] == "failing"
-    assert [incident["kind"] for incident in summary["incidents"]] == [
-        "monitor_freshness",
-        "domain_down",
-        "signal_degraded",
-        "e2e_failure",
-    ]
-    assert summary["daily_status"]["observations"] == 2
-    assert summary["daily_status"]["successful_observations"] == 1
-    assert summary["daily_status"]["availability_pct"] == 50.0
-    assert summary["daily_status"]["problem_events"] == 1
-    assert summary["daily_status"]["recoveries"] == 1
-    assert summary["daily_status"]["latest_event_at_ts"] == now - 50
-    assert summary["daily_status"]["status"] == "attention"
+        },
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 2",
+    )
+    require(
+        condition=cast("list[Record]", summary["domain_groups"])
+        == [
+            {
+                "id": "core",
+                "label": "PitchAI core",
+                "description": "Primary platform routes",
+                "order": 10,
+                "enabled": 1,
+                "healthy": 0,
+                "down": 1,
+                "alertable_down": 1,
+                "expected_down": 0,
+                "unknown": 0,
+                "disabled": 0,
+                "total": 1,
+                "status": "attention",
+            },
+        ],
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 3",
+    )
+    require(
+        condition=summary["inventory"]
+        == {
+            "version": 1,
+            "reviewed_at": "2026-08-24",
+            "active_domains": 1,
+            "groups": 1,
+            "retired_domains": 0,
+            "orphaned_state_domains": 0,
+        },
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 4",
+    )
+    require(
+        condition=cast("list[Record]", summary["domains"])[0]["group_label"] == "PitchAI core",
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 5",
+    )
+    require(
+        condition=cast("list[Record]", summary["incidents"])[1]["group"] == "core",
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 6",
+    )
+    require(
+        condition=cast("Record", summary["e2e"])["passing_tests"] == 1,
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 7",
+    )
+    require(
+        condition=cast("Record", summary["e2e"])["failing_tests"] == 1,
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 8",
+    )
+    require(
+        condition=cast("list[Record]", cast("Record", summary["e2e"])["problems"])[0]["test_id"] == "failing",
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 9",
+    )
+    require(
+        condition=[incident["kind"] for incident in cast("list[Record]", summary["incidents"])]
+        == ["monitor_freshness", "domain_down", "signal_degraded", "e2e_failure"],
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 10",
+    )
+    require(
+        condition=cast("Record", summary["daily_status"])["observations"] == _EXPECTED_OBSERVATIONS,
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 11",
+    )
+    require(
+        condition=cast("Record", summary["daily_status"])["successful_observations"] == 1,
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 12",
+    )
+    require(
+        condition=cast("Record", summary["daily_status"])["availability_pct"] == _EXPECTED_AVAILABILITY_PERCENT,
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 13",
+    )
+    require(
+        condition=cast("Record", summary["daily_status"])["problem_events"] == 1,
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 14",
+    )
+    require(
+        condition=cast("Record", summary["daily_status"])["recoveries"] == 1,
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 15",
+    )
+    require(
+        condition=cast("Record", summary["daily_status"])["latest_event_at_ts"] == now - 50,
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 16",
+    )
+    require(
+        condition=cast("Record", summary["daily_status"])["status"] == "attention",
+        message="test_operator_summary_reports_real_staleness_incidents_and_rolling_day: assertion 17",
+    )
 
 
 def test_service_health_rolls_failing_api_subcheck_into_domain_and_group_status() -> None:
-    now = 2_000_000_000.0
-    data = MonitorData(
-        state={
-            "updated_at": now,
-            "history": {"dispatch.pitchai.net": [[now, True, 100.0, 200.0, 200]]},
-            "last_ok": {"dispatch.pitchai.net": True},
-            "fail_streak": {"dispatch.pitchai.net": 0},
-            "success_streak": {"dispatch.pitchai.net": 4},
-            "api_contract": {
-                "last_ok": {"dispatch.pitchai.net": False},
-                "fail_streak": {"dispatch.pitchai.net": 2},
-                "success_streak": {"dispatch.pitchai.net": 0},
-                "last_run_ts": {"dispatch.pitchai.net": now},
-            },
+    """Preserve the original subcheck summary assertions."""
+    now = 2000000000.0
+    data = make_subcheck_fixture(now)
+    summary = build_dashboard_summary(data=data, now_ts=now, e2e_status_summary=None, e2e_dispatch_runs=[])
+    domain = cast("list[Record]", summary["domains"])[0]
+    require(
+        condition=cast("Record", domain["last"])
+        == {
+            "ts": now,
+            "primary_ts": now,
+            "ok": False,
+            "primary_ok": True,
+            "failure_sources": ["api_contract"],
+            "http_ms": 100.0,
+            "browser_ms": 200.0,
+            "status_code": None,
+            "primary_status_code": 200,
         },
-        config={
-            "interval_seconds": 60,
-            "inventory": {
-                "version": 1,
-                "reviewed_at": "2026-08-24",
-                "authoritative_sources": ["test fixture"],
-            },
-            "domain_groups": {
-                "operations": {
-                    "label": "Operations",
-                    "description": "Operator services",
-                    "order": 10,
-                }
-            },
-            "domains": [
-                {
-                    "domain": "dispatch.pitchai.net",
-                    "label": "Dispatcher",
-                    "group": "operations",
-                    "environment": "internal",
-                    "kind": "application",
-                    "sources": ["test fixture"],
-                }
-            ],
-            "retired_domains": [],
-        },
-        state_path="/monitor/state.json",
-        config_path="/monitor/config.yaml",
-        loaded_at_ts=now,
-        state_error=None,
+        message="test_service_health_rolls_failing_api_subcheck_into_domain_and_group_status: assertion 18",
     )
-
-    summary = build_dashboard_summary(
-        data=data,
-        now_ts=now,
-        e2e_status_summary=None,
-        e2e_dispatch_runs=[],
+    require(
+        condition=cast("Record", summary["service_health"])["down"] == 1,
+        message="test_service_health_rolls_failing_api_subcheck_into_domain_and_group_status: assertion 19",
     )
-
-    domain = summary["domains"][0]
-    assert domain["last"] == {
-        "ts": now,
-        "primary_ts": now,
-        "ok": False,
-        "primary_ok": True,
-        "failure_sources": ["api_contract"],
-        "http_ms": 100.0,
-        "browser_ms": 200.0,
-        "status_code": None,
-        "primary_status_code": 200,
-    }
-    assert summary["service_health"]["down"] == 1
-    assert summary["domain_groups"][0]["status"] == "attention"
-    assert summary["incidents"][0]["kind"] == "domain_down"
-    assert "API/service subcheck" in summary["incidents"][0]["detail"]
+    require(
+        condition=cast("list[Record]", summary["domain_groups"])[0]["status"] == "attention",
+        message="test_service_health_rolls_failing_api_subcheck_into_domain_and_group_status: assertion 20",
+    )
+    require(
+        condition=cast("list[Record]", summary["incidents"])[0]["kind"] == "domain_down",
+        message="test_service_health_rolls_failing_api_subcheck_into_domain_and_group_status: assertion 21",
+    )
+    require(
+        condition="API/service subcheck" in cast("str", cast("list[Record]", summary["incidents"])[0]["detail"]),
+        message="test_service_health_rolls_failing_api_subcheck_into_domain_and_group_status: assertion 22",
+    )
 
 
 def test_dashboard_distinguishes_expected_down_from_alertable_down() -> None:
-    now = 2_000_000_000.0
-    domains = ["agentcloud.pitchai.net", "pitchai.net"]
-    data = MonitorData(
-        state={
-            "updated_at": now,
-            "history": {
-                domain: [[now, False, 250.0, 400.0, 502]] for domain in domains
-            },
-            "last_ok": {domain: False for domain in domains},
-            "fail_streak": {domain: 3 for domain in domains},
-            "success_streak": {domain: 0 for domain in domains},
+    """Preserve the original expected down summary assertions."""
+    now = 2000000000.0
+    data = make_expected_down_fixture(now)
+    summary = build_dashboard_summary(data=data, now_ts=now, e2e_status_summary=None, e2e_dispatch_runs=[])
+    require(
+        condition=cast("Record", summary["service_health"])
+        == {
+            "enabled": 2,
+            "healthy": 0,
+            "down": 2,
+            "alertable_down": 1,
+            "expected_down": 1,
+            "unknown": 0,
+            "disabled": 0,
         },
-        config={
-            "interval_seconds": 60,
-            "inventory": {
-                "version": 1,
-                "reviewed_at": "2026-08-25",
-                "authoritative_sources": ["test fixture"],
-            },
-            "domain_groups": {
-                "core": {
-                    "label": "PitchAI core",
-                    "description": "Critical production",
-                    "order": 10,
-                },
-                "infrastructure": {
-                    "label": "Infrastructure",
-                    "description": "Internal services",
-                    "order": 20,
-                },
-            },
-            "domains": [
-                {
-                    "domain": "agentcloud.pitchai.net",
-                    "label": "AgentCloud",
-                    "group": "infrastructure",
-                    "environment": "internal",
-                    "kind": "application",
-                    "sources": ["test fixture"],
-                    "alert_policy": {
-                        "telegram": "dashboard-only",
-                        "reason": "Not actively used right now.",
-                    },
-                },
-                {
-                    "domain": "pitchai.net",
-                    "label": "PitchAI website",
-                    "group": "core",
-                    "environment": "production",
-                    "kind": "application",
-                    "sources": ["test fixture"],
-                },
-            ],
-            "retired_domains": [],
-        },
-        state_path="/monitor/state.json",
-        config_path="/monitor/config.yaml",
-        loaded_at_ts=now,
-        state_error=None,
+        message="test_dashboard_distinguishes_expected_down_from_alertable_down: assertion 23",
     )
-
-    summary = build_dashboard_summary(
-        data=data,
-        now_ts=now,
-        e2e_status_summary=None,
-        e2e_dispatch_runs=[],
+    by_domain: dict[str, Record] = {}
+    for domain in cast("list[Record]", summary["domains"]):
+        by_domain[cast("str", domain["domain"])] = domain
+    require(
+        condition=cast("Record", by_domain["agentcloud.pitchai.net"]["last"])["ok"] is False,
+        message="test_dashboard_distinguishes_expected_down_from_alertable_down: assertion 24",
     )
-
-    assert summary["service_health"] == {
-        "enabled": 2,
-        "healthy": 0,
-        "down": 2,
-        "alertable_down": 1,
-        "expected_down": 1,
-        "unknown": 0,
-        "disabled": 0,
-    }
-    by_domain = {domain["domain"]: domain for domain in summary["domains"]}
-    assert by_domain["agentcloud.pitchai.net"]["last"]["ok"] is False
-    assert by_domain["agentcloud.pitchai.net"]["alert_policy"] == {
-        "telegram": "dashboard-only",
-        "telegram_enabled": False,
-        "reason": "Not actively used right now.",
-    }
-    incidents = {
-        incident["domain"]: incident
-        for incident in summary["incidents"]
-        if incident.get("kind") == "domain_down"
-    }
-    assert incidents["agentcloud.pitchai.net"]["severity"] == "expected"
-    assert incidents["agentcloud.pitchai.net"]["telegram_alert"] is False
-    assert "no Telegram alert is routed" in incidents["agentcloud.pitchai.net"]["detail"]
-    assert incidents["pitchai.net"]["severity"] == "critical"
-    assert incidents["pitchai.net"]["telegram_alert"] is True
+    require(
+        condition=by_domain["agentcloud.pitchai.net"]["alert_policy"]
+        == {"telegram": "dashboard-only", "telegram_enabled": False, "reason": "Not actively used right now."},
+        message="test_dashboard_distinguishes_expected_down_from_alertable_down: assertion 25",
+    )
+    incidents: dict[str, Record] = {}
+    for incident in cast("list[Record]", summary["incidents"]):
+        if incident.get("kind") == "domain_down":
+            incidents[cast("str", incident["domain"])] = incident
+    require(
+        condition=incidents["agentcloud.pitchai.net"]["severity"] == "expected",
+        message="test_dashboard_distinguishes_expected_down_from_alertable_down: assertion 26",
+    )
+    require(
+        condition=incidents["agentcloud.pitchai.net"]["telegram_alert"] is False,
+        message="test_dashboard_distinguishes_expected_down_from_alertable_down: assertion 27",
+    )
+    require(
+        condition="no Telegram alert is routed" in cast("str", incidents["agentcloud.pitchai.net"]["detail"]),
+        message="test_dashboard_distinguishes_expected_down_from_alertable_down: assertion 28",
+    )
+    require(
+        condition=incidents["pitchai.net"]["severity"] == "critical",
+        message="test_dashboard_distinguishes_expected_down_from_alertable_down: assertion 29",
+    )
+    require(
+        condition=incidents["pitchai.net"]["telegram_alert"] is True,
+        message="test_dashboard_distinguishes_expected_down_from_alertable_down: assertion 30",
+    )

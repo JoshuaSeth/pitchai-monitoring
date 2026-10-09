@@ -1,343 +1,153 @@
+# Copyright (c) 2026 PitchAI. All rights reserved.
+"""Run the existing submitted Python test protocol inside its browser context."""
+
 from __future__ import annotations
 
 import argparse
-import asyncio
-import importlib.util
 import json
-import os
 import sys
 import time
-import traceback
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
 
-from playwright.async_api import Error as PlaywrightError
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+import anyio
 from playwright.async_api import async_playwright
 
-from domain_checks.common_check import _is_browser_infra_error, find_chromium_executable  # noqa: SLF001
+from domain_checks.browser_errors import is_browser_infra_error
+from domain_checks.browser_launch import base_chromium_arguments
+from domain_checks.common_check import find_chromium_executable
+
+from .python_browser import BrowserSession
+from .python_browser import route_filter as _route_filter
+from .python_execution import PreparedSubmission
+from .python_home import invocation_home
+from .python_module import load_module_from_path as _load_module_from_path
+from .python_module import pick_entry as _pick_entry
+from .python_result import RESULT_PREFIX, RunFailureBoundary, RunResult
+from .python_result import safe_str as _safe_str
+from .python_result import write_text as _write_text
+
+__all__ = ["RESULT_PREFIX", "RunResult", "_load_module_from_path", "_pick_entry", "_route_filter", "_safe_str",
+           "_write_text", "main", "run_one"]
+MISSING_CHROMIUM_MESSAGE = "missing_chromium_executable"
 
 
-RESULT_PREFIX = "E2E_RESULT_JSON="
-
-
-def _safe_str(x: Any, *, max_len: int = 2000) -> str:
-    s = str(x or "")
-    return s if len(s) <= max_len else s[:max_len]
-
-
-def _write_text(path: Path, content: str) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
-
-async def _route_filter(context) -> None:
-    # Reduce bandwidth/CPU for monitoring-style tests.
-    try:
-        async def _handler(route):
-            try:
-                if route.request.resource_type in {"image", "media", "font"}:
-                    await route.abort()
-                    return
-            except Exception:
-                pass
-            await route.continue_()
-
-        await context.route("**/*", _handler)
-    except Exception:
-        pass
-
-
-def _load_module_from_path(path: Path):
-    p = path.resolve()
-    name = f"submitted_e2e_{abs(hash(str(p)))}"
-    spec = importlib.util.spec_from_file_location(name, str(p))
-    if spec is None or spec.loader is None:
-        raise RuntimeError("could_not_load_test_module")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def _pick_entry(mod) -> Callable[..., Any]:
-    fn = getattr(mod, "run", None)
-    if callable(fn):
-        return fn
-    fn = getattr(mod, "main", None)
-    if callable(fn):
-        return fn
-    raise RuntimeError("test_file_must_define_run_or_main")
-
-
-@dataclass(frozen=True)
-class RunResult:
-    status: str  # pass|fail|infra_degraded
-    elapsed_ms: float | None
-    error_kind: str | None
-    error_message: str | None
-    final_url: str | None
-    title: str | None
-    artifacts: dict[str, str]
-    browser_infra_error: bool
-
-    def to_json(self) -> str:
-        return json.dumps(
-            {
-                "status": self.status,
-                "elapsed_ms": self.elapsed_ms,
-                "error_kind": self.error_kind,
-                "error_message": self.error_message,
-                "final_url": self.final_url,
-                "title": self.title,
-                "artifacts": self.artifacts,
-                "browser_infra_error": self.browser_infra_error,
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-
-
-async def _run_one(
-    *,
-    test_file: Path,
-    base_url: str,
-    artifacts_dir: Path,
-    timeout_seconds: float,
-    trace_on_failure: bool,
+async def run_one(
+    *, test_file: Path, base_url: str, artifacts_dir: Path, timeout_seconds: float, trace_on_failure: bool,
 ) -> RunResult:
-    started = time.perf_counter()
-    artifacts: dict[str, str] = {}
-    timeout_ms = int(max(1.0, float(timeout_seconds)) * 1000.0)
+    """Preserve module selection, browser arguments, execution and cleanup order.
 
+    Returns:
+        The existing pass/fail/infra result for this submitted invocation.
+
+    Raises:
+        RuntimeError: Chromium is missing or no result was produced.
+    """
+    started = time.perf_counter()
+    timeout_ms = int(max(1.0, float(timeout_seconds)) * 1000.0)
     chromium_path = find_chromium_executable()
     if not chromium_path:
-        raise RuntimeError("missing_chromium_executable")
-
-    mod = _load_module_from_path(test_file)
-    entry = _pick_entry(mod)
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            executable_path=chromium_path,
-            args=[
-                "--no-sandbox",
-                "--disable-gpu",
-                "--disable-extensions",
-                "--disable-background-networking",
-                "--disable-background-timer-throttling",
-                "--disable-backgrounding-occluded-windows",
-                "--disable-renderer-backgrounding",
-                "--disable-sync",
-                "--metrics-recording-only",
-                "--no-first-run",
-                "--no-default-browser-check",
-                "--disable-features=site-per-process",
-                # Avoid renderer crashes when /dev/shm is tiny.
-                "--disable-dev-shm-usage",
-            ],
+        raise RuntimeError(MISSING_CHROMIUM_MESSAGE)
+    module = _load_module_from_path(test_file)
+    prepared = PreparedSubmission(started, base_url, artifacts_dir, timeout_ms, module, _pick_entry(module))
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(
+            headless=True, executable_path=chromium_path,
+            args=[*base_chromium_arguments(), "--disable-dev-shm-usage"],
         )
         context = await browser.new_context(viewport={"width": 1280, "height": 720})
         await _route_filter(context)
         page = await context.new_page()
-        page.set_default_timeout(timeout_ms)
-        tracing_started = False
-        if trace_on_failure:
-            try:
-                await context.tracing.start(screenshots=True, snapshots=True, sources=False)
-                tracing_started = True
-            except Exception:
-                tracing_started = False
+        page.set_default_timeout(prepared.timeout_ms)
+        session = BrowserSession(browser, context, page)
+        await session.start_trace(enabled=trace_on_failure)
+        return await prepared.run(session)
 
-        try:
-            # Preferred contract: `async def run(page, base_url, artifacts_dir): ...`
-            # Fallback: `def main(base_url, artifacts_dir): ...`
-            if getattr(mod, "run", None) is entry:
-                res = entry(page, base_url, str(artifacts_dir))
-            else:
-                res = entry(base_url, str(artifacts_dir))
-            if asyncio.iscoroutine(res):
-                await res
 
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
-            final_url = _safe_str(getattr(page, "url", None))
-            title = None
-            try:
-                title = _safe_str(await page.title(), max_len=500)
-            except Exception:
-                title = None
+_run_one = run_one
 
-            if tracing_started:
-                try:
-                    await context.tracing.stop()
-                except Exception:
-                    pass
 
-            return RunResult(
-                status="pass",
-                elapsed_ms=round(elapsed_ms, 3),
-                error_kind=None,
-                error_message=None,
-                final_url=final_url or None,
-                title=title,
-                artifacts=artifacts,
-                browser_infra_error=False,
-            )
-        except (PlaywrightTimeoutError, PlaywrightError, Exception) as exc:
-            browser_infra_error = _is_browser_infra_error(exc)
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
-            final_url = None
-            title = None
-            try:
-                final_url = _safe_str(getattr(page, "url", None)) or None
-            except Exception:
-                final_url = None
-            try:
-                title = _safe_str(await page.title(), max_len=500)
-            except Exception:
-                title = None
+@dataclass
+class SandboxArguments(argparse.Namespace):
+    """Exact CLI fields produced by the unchanged argument parser."""
 
-            # Best-effort failure artifacts.
-            try:
-                failure_name = "failure.png"
-                await page.screenshot(path=str(artifacts_dir / failure_name), full_page=True)
-                artifacts["failure_screenshot"] = failure_name
-            except Exception:
-                pass
+    test_file: str = ""
+    base_url: str = ""
+    artifacts_dir: str = ""
+    timeout_seconds: float = 45.0
+    trace_on_failure: bool = False
 
-            if tracing_started:
-                try:
-                    trace_name = "trace.zip"
-                    await context.tracing.stop(path=str(artifacts_dir / trace_name))
-                    artifacts["trace_zip"] = trace_name
-                except Exception:
-                    try:
-                        await context.tracing.stop()
-                    except Exception:
-                        pass
 
-            status = "infra_degraded" if browser_infra_error else "fail"
-            err_kind = type(exc).__name__
-            err_msg = _safe_str(exc, max_len=2000)
-            # Also persist a structured run.log so humans can inspect without container logs.
-            _write_text(
-                artifacts_dir / "run.log",
-                json.dumps(
-                    {
-                        "status": status,
-                        "error_kind": err_kind,
-                        "error_message": err_msg,
-                        "final_url": final_url,
-                        "title": title,
-                        "browser_infra_error": bool(browser_infra_error),
-                        "traceback": _safe_str(traceback.format_exc(), max_len=50_000),
-                    },
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    indent=2,
-                ),
-            )
-            artifacts.setdefault("run_log", "run.log")
+def parse_arguments(argv: list[str]) -> SandboxArguments:
+    """Read CLI values and resolve private input/output paths before the async run.
 
-            return RunResult(
-                status=status,
-                elapsed_ms=round(elapsed_ms, 3),
-                error_kind=err_kind,
-                error_message=err_msg,
-                final_url=final_url,
-                title=title,
-                artifacts=artifacts,
-                browser_infra_error=bool(browser_infra_error),
-            )
-        finally:
-            try:
-                await page.close()
-            except Exception:
-                pass
-            try:
-                await context.close()
-            except Exception:
-                pass
-            try:
-                await browser.close()
-            except Exception:
-                pass
+    Returns:
+        The original parsed fields, with existing path resolution and mkdir order.
+    """
+    parser = argparse.ArgumentParser(description="Run a submitted Playwright Python test file.")
+    _ = parser.add_argument("--test-file", required=True)
+    _ = parser.add_argument("--base-url", required=True)
+    _ = parser.add_argument("--artifacts-dir", required=True)
+    _ = parser.add_argument("--timeout-seconds", type=float, default=45.0)
+    _ = parser.add_argument("--trace-on-failure", action="store_true")
+    args = parser.parse_args(argv, namespace=SandboxArguments())
+    args.test_file = str(Path(args.test_file).resolve())
+    args.artifacts_dir = str(Path(args.artifacts_dir).resolve())
+    Path(args.artifacts_dir).mkdir(parents=True, exist_ok=True)
+    return args
 
 
 async def _amain(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(description="Run a submitted Playwright Python test file.")
-    ap.add_argument("--test-file", required=True)
-    ap.add_argument("--base-url", required=True)
-    ap.add_argument("--artifacts-dir", required=True)
-    ap.add_argument("--timeout-seconds", type=float, default=45.0)
-    ap.add_argument("--trace-on-failure", action="store_true")
-    args = ap.parse_args(argv)
+    """Emit one machine-readable result from the existing CLI options.
 
-    test_file = Path(args.test_file).resolve()
-    artifacts_dir = Path(args.artifacts_dir).resolve()
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    Returns:
+        Zero for pass and one for existing failure/infra cases.
 
-    try:
-        result = await _run_one(
-            test_file=test_file,
-            base_url=str(args.base_url).strip(),
-            artifacts_dir=artifacts_dir,
-            timeout_seconds=float(args.timeout_seconds),
-            trace_on_failure=bool(args.trace_on_failure),
-        )
-    except Exception as exc:
-        # Fatal errors (e.g. module import) are treated as fail; infra if browser error heuristic says so.
-        infra = _is_browser_infra_error(exc)
-        status = "infra_degraded" if infra else "fail"
-        artifacts: dict[str, str] = {}
-        _write_text(
-            artifacts_dir / "run.log",
-            json.dumps(
-                {
-                    "status": status,
-                    "error_kind": type(exc).__name__,
-                    "error_message": _safe_str(exc, max_len=2000),
-                    "browser_infra_error": bool(infra),
-                    "traceback": _safe_str(traceback.format_exc(), max_len=50_000),
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-                indent=2,
-            ),
-        )
-        artifacts["run_log"] = "run.log"
-        result = RunResult(
-            status=status,
-            elapsed_ms=None,
-            error_kind=type(exc).__name__,
-            error_message=_safe_str(exc, max_len=2000),
-            final_url=None,
-            title=None,
-            artifacts=artifacts,
-            browser_infra_error=bool(infra),
-        )
-
-    # Emit machine-readable output for the runner.
-    sys.stdout.write(RESULT_PREFIX + result.to_json() + "\n")
+    Raises:
+        RuntimeError: No result was produced by the invocation or failure boundary.
+    """
+    args = parse_arguments(argv)
+    artifacts_dir = Path(args.artifacts_dir)
+    result = None
+    failure = RunFailureBoundary()
+    with failure:
+        result = await _run_one(test_file=Path(args.test_file), base_url=str(args.base_url).strip(),
+                                artifacts_dir=artifacts_dir, timeout_seconds=float(args.timeout_seconds),
+                                trace_on_failure=bool(args.trace_on_failure))
+    if failure.error is not None:
+        result = fatal_result(failure.error, failure.traceback_text, artifacts_dir)
+    if result is None:
+        message = "submitted_test_did_not_produce_a_result"
+        raise RuntimeError(message)
+    _ = sys.stdout.write(RESULT_PREFIX + result.to_json() + "\n")
     sys.stdout.flush()
     return 0 if result.status == "pass" else 1
 
 
+def fatal_result(error: Exception, trace: str, directory: Path) -> RunResult:
+    """Retain CLI-level failures, including import errors before browser allocation.
+
+    Returns:
+        The existing fatal result and best-effort structured log.
+    """
+    infra = is_browser_infra_error(error)
+    status = "infra_degraded" if infra else "fail"
+    _write_text(directory / "run.log", json.dumps({
+        "status": status, "error_kind": type(error).__name__, "error_message": _safe_str(error, max_len=2000),
+        "browser_infra_error": bool(infra), "traceback": _safe_str(trace, max_len=50_000),
+    }, ensure_ascii=False, sort_keys=True, indent=2))
+    return RunResult(status, None, type(error).__name__, _safe_str(error, max_len=2000), None, None,
+                     {"run_log": "run.log"}, bool(infra))
+
+
 def main() -> None:
-    # Ensure predictable HOME for Playwright temp files inside read-only sandboxes.
-    os.environ.setdefault("HOME", "/tmp")
-    try:
-        rc = asyncio.run(_amain(sys.argv[1:]))
-    except KeyboardInterrupt:
-        rc = 130
+    """Run the existing CLI with a private fallback when HOME is not configured."""
+    rc = 130
+    with invocation_home(), suppress(KeyboardInterrupt):
+        rc = anyio.run(_amain, sys.argv[1:], backend="asyncio")
     sys.exit(int(rc))
 
 
 if __name__ == "__main__":
     main()
-
