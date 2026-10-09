@@ -61,6 +61,10 @@ class _HotpathModule(NamedTuple):
     install_hotpath_monitoring: object
 
 
+class _CompletionModule(NamedTuple):
+    install_registry_completions: object
+
+
 _DASHBOARD = cast(
     "_DashboardModule",
     cast("object", import_module("monitoring_v2.install")),
@@ -73,8 +77,13 @@ _HOTPATH = cast(
     "_HotpathModule",
     cast("object", import_module("e2e_registry.hotpath_install")),
 )
+_COMPLETIONS = cast(
+    "_CompletionModule",
+    cast("object", import_module("e2e_registry.completion_install")),
+)
 install_monitoring_v2 = cast("MonitoringInstaller", _DASHBOARD.install_monitoring_v2)
 install_hotpath_monitoring = cast("HotpathInstaller", _HOTPATH.install_hotpath_monitoring)
+install_registry_completions = cast("MonitoringInstaller", _COMPLETIONS.install_registry_completions)
 production_registry_app = cast(
     "RegistryApplicationFactory",
     _LEGACY.production_registry_app,

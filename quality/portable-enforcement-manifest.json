@@ -29,13 +29,13 @@
     "quality/pitchai_quality/ratchet_verify.py": "ee0e702b81529807399888366c1254104c7e5d377671a27c83dc37448c8aac2c",
     "quality/pitchai_quality/single_use_reporting.py": "15c3234eb503abeeac0844fa491ed2d2532ce009b28a47f14a1520af729cdadb",
     "quality/pitchai_quality/source_files.py": "fb53f3871634d650ed3dcd3ffa3a8f435f1800eb8f1697c368f8377d9406dd26",
-    "quality/pitchai_quality/strict_policy.py": "edb7d25dcc0b8b5f529e0b2b35d598c97a550ae2c7362568494a7651ae022298",
+    "quality/pitchai_quality/strict_policy.py": "892be0637bee33265ef9c4206266ce4396f78802aec3bb2c2aa5705ff60ff059",
     "quality/pitchai_quality/tool_environment.py": "57caf43b3fef4e71c0e892c12ac698849dbd2adb94d7b4b6dec5a61a46ff26f4",
-    "quality/pyproject.toml": "175769b07813593fcac7744af0d643426ee96131531709ed514f62977cdb964c",
+    "quality/pyproject.toml": "cc0ae37993412eabbb76b769ca4b025724cf4cb07cabdbeb272ecbe8dbb00bca",
     "quality/tests/__init__.py": "199768334b946ce16baa75a88b01f64faa8e6d2f82b17b64155a06f7202d3b9c",
     "quality/tests/test_ratchet.py": "f67b816a0110e6d365ece9d91db7dc3866baad4eb2f31027547266a23d085450",
-    "quality/uv.lock": "551885263515e9a1621d26010323aa3c27c9cb2d9abf29ba8fabb4455522ae43",
-    "uv.lock": "03a5000c71b8f11c2d058206ee7329eac6c6da00c0e0e94ff1d321b5046a47a6"
+    "quality/uv.lock": "ec7a1d600fd27bff4ea40765841f5eb1b182778265ab53cebdf1efdf8636b571",
+    "uv.lock": "9e7b1d88bdbfcb153522b01feab5ab0a8efa36919604bf3fec7aeddfc8d505cc"
   },
   "schema": 1
 }
