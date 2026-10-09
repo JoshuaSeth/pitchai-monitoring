@@ -1223,6 +1223,19 @@ domains:
       expected_final_host_suffix: montrachet-demo.pitchai.net
       expected_title_contains: Montrachet
       required_text_all: [Wine sales intelligence]
+  - domain: montrachet.pitchai.net
+    label: "Montrachet private data website"
+    group: learning-demos
+    owner_project: montrachet
+    environment: production
+    kind: application
+    sources: [namecheap-snapshot-20261006T123527Z-montrachet-website-activate, pitchai-dev-montrachet-website-ingress-2026-10-06, montrachet-pr95-website-delivery, live-probe-2026-10-06]
+    alert_policy:
+      telegram: dashboard-only
+      reason: "Private, sign-in protected customer-data website. Healthy means the anonymous request is redirected to Microsoft sign-in (PitchAI tenant). Paging policy is the Montrachet manager's decision; failed imports and backups alert through the PitchAI Events Inbox."
+    check:
+      <<: *sso_edge
+      url: https://montrachet.pitchai.net/
   - domain: host-mcp.135-181-182-48.sslip.io
     label: "PitchAI Host MCP"
     group: infrastructure
