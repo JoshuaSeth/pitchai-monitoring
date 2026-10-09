@@ -37,16 +37,18 @@ def test_hetcis_backend_checks_are_read_only_and_alias_is_quiet() -> None:
             pytest.fail("HetCIS upload alias lost its explicit quiet reason")
 
 
-def test_historical_azure_resource_is_quiet_and_unauthenticated() -> None:
-    """Keep the migration resource visible without model calls or paging."""
+def test_production_azure_resource_is_alertable_and_unauthenticated() -> None:
+    """Monitor the configured production provider without model calls."""
     domain = "dft-openai-info.openai.azure.com"
     entry = entry_by_domain(domain)
     spec = load_domain_spec(entry)
     policy = inventory_runtime.parse_domain_alert_policy(entry)
     check = optional_object(entry.get("check"))
     if spec.url != f"https://{domain}/" or spec.allowed_status_codes != [200]:
-        pytest.fail("historical Azure resource lost its read-only root check")
+        pytest.fail("production Azure resource lost its read-only root check")
     if spec.browser_enabled or check.get("api_contract") or check.get("synthetic"):
-        pytest.fail("historical Azure resource gained an interactive transaction")
-    if policy.telegram_enabled or policy.telegram != "dashboard-only" or not policy.reason:
-        pytest.fail("historical Azure resource became an incident source")
+        pytest.fail("production Azure resource gained an interactive transaction")
+    if not policy.telegram_enabled or policy.telegram != "critical":
+        pytest.fail("production Azure provider lost normal incident behavior")
+    if text_value(entry.get("environment")) != "production":
+        pytest.fail("configured production Azure provider was demoted")
