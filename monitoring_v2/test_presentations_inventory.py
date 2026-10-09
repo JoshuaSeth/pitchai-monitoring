@@ -35,3 +35,19 @@ def test_private_presentations_check_denial_and_page_only_once() -> None:
             pytest.fail(f"canonical presentation/alias incident policy changed: {domain}")
         if not alertable and (policy.telegram != "dashboard-only" or not policy.reason):
             pytest.fail(f"presentation alias lost its explicit quiet reason: {domain}")
+
+
+def test_private_montrachet_application_has_normal_sso_edge_alerts() -> None:
+    """Keep the newly deployed private application distinct from its public demo."""
+    entry = entry_by_domain("montrachet.pitchai.net")
+    spec = load_domain_spec(entry)
+    policy = inventory_runtime.parse_domain_alert_policy(entry)
+    if spec.url != "https://montrachet.pitchai.net/" or spec.allowed_status_codes != [200]:
+        pytest.fail("private Montrachet entry contract changed")
+    check = optional_object(entry.get("check"))
+    if text_value(check.get("expected_final_host_suffix")) != "login.microsoftonline.com":
+        pytest.fail("private Montrachet check no longer verifies the SSO boundary")
+    if spec.browser_enabled or spec.api_contract_checks or check.get("headers"):
+        pytest.fail("private Montrachet check gained authenticated or content access")
+    if not policy.telegram_enabled or policy.telegram != "critical":
+        pytest.fail("active private Montrachet application must have normal alerts")
