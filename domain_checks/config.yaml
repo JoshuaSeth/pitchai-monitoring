@@ -957,6 +957,34 @@ check_profiles:
         state: attached
 
 domains:
+  - domain: orthoparse-labs-staging.135-181-182-48.sslip.io
+    label: "OrthoParse Labs staging (private boundary)"
+    group: platform-apps
+    owner_project: orthoparse-labs
+    environment: staging
+    kind: application
+    sources: [orthoparse-labs-operations, pitchai-dev-labs-ingress-20261010, tls-probe-20261010]
+    check:
+      url: https://orthoparse-labs-staging.135-181-182-48.sslip.io/healthz
+      allowed_status_codes: [401]
+      browser_enabled: false
+      expected_final_host_suffix: orthoparse-labs-staging.135-181-182-48.sslip.io
+      expected_final_path: /healthz
+      required_text_all: ["401 Authorization Required"]
+  - domain: orthoparse-labs.135-181-182-48.sslip.io
+    label: "OrthoParse Labs production (private boundary)"
+    group: platform-apps
+    owner_project: orthoparse-labs
+    environment: production
+    kind: application
+    sources: [orthoparse-labs-operations, pitchai-dev-labs-ingress-20261010, tls-probe-20261010]
+    check:
+      url: https://orthoparse-labs.135-181-182-48.sslip.io/healthz
+      allowed_status_codes: [401]
+      browser_enabled: false
+      expected_final_host_suffix: orthoparse-labs.135-181-182-48.sslip.io
+      expected_final_path: /healthz
+      required_text_all: ["401 Authorization Required"]
   - domain: dft-openai-info.openai.azure.com
     label: "DFT Azure OpenAI provider"
     group: dft
